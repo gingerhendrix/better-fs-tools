@@ -6,6 +6,13 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [fumadocsMdx(), tailwindcss(), tanstackStart(), react()],
+  environments: {
+    ssr: {
+      optimizeDeps: {
+        include: ["fumadocs-mdx/runtime/macro"],
+      },
+    },
+  },
   resolve: {
     tsconfigPaths: true,
   },
