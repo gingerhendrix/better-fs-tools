@@ -1,0 +1,38 @@
+{
+  "name": "@better-fs-tools/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "content": "fumadocs-mdx",
+    "deploy": "alchemy deploy",
+    "dev": "alchemy dev",
+    "plan": "alchemy plan",
+    "preview": "vite preview",
+    "typecheck": "fumadocs-mdx && tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "1.170.32",
+    "@tanstack/react-start": "1.168.49",
+    "fumadocs-core": "16.15.4",
+    "fumadocs-mdx": "15.4.0",
+    "fumadocs-ui": "16.15.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@effect/platform-bun": "4.0.0-rc.112",
+    "@effect/platform-node": "4.0.0-rc.112",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/mdx": "2.0.14",
+    "@types/node": "26.4.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.1",
+    "alchemy": "2.0.0-beta.76",
+    "effect": "4.0.0-rc.112",
+    "tailwindcss": "4.3.3",
+    "vite": "8.2.2"
+  }
+}

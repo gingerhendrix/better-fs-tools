@@ -2,7 +2,7 @@
 
 A Bun and TypeScript monorepo for focused filesystem tools published under the `@better-fs-tools` npm scope.
 
-This repository contains the shared monorepo scaffold. Tool packages will be added in separate changes.
+The documentation site is deployed at [better-fs-tools.gandrew.com](https://better-fs-tools.gandrew.com). Tool packages will be added in separate changes.
 
 ## Requirements
 
@@ -14,9 +14,19 @@ This repository contains the shared monorepo scaffold. Tool packages will be add
 bun install
 bun run check
 bun run format
+bun run build
 ```
 
 `bun run check` verifies formatting, lint rules, TypeScript, and tests.
+
+## Documentation site
+
+The TanStack Start and Fumadocs application lives in `apps/docs`. Its infrastructure is an isolated Alchemy v2 stack deployed with:
+
+```bash
+bun run --cwd apps/docs plan
+bun run --cwd apps/docs deploy
+```
 
 ## Add a package
 

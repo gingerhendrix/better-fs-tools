@@ -3,3 +3,10 @@ dist/
 coverage/
 *.tsbuildinfo
 .DS_Store
+
+# TanStack Start, Fumadocs, and Alchemy generated state
+.output/
+.tanstack/
+.source/
+.alchemy/
+.wrangler/

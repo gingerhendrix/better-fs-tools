@@ -4,6 +4,7 @@
   "private": true,
   "workspaces": {
     "packages": [
+      "apps/*",
       "packages/*"
     ],
     "catalog": {
@@ -13,12 +14,14 @@
   },
   "type": "module",
   "scripts": {
+    "build": "bun run --filter @better-fs-tools/docs build",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test",
+    "content": "bun run --filter @better-fs-tools/docs content",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "lint": "if find packages -type f \\( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \\) -print -quit | grep -q .; then oxlint --deny-warnings .; else echo 'No source files to lint'; fi",
+    "lint": "if find apps packages -type f \\( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \\) -print -quit | grep -q .; then oxlint --deny-warnings .; else echo 'No source files to lint'; fi",
     "test": "bun test --pass-with-no-tests",
-    "typecheck": "if find packages -mindepth 2 -name tsconfig.json -print -quit | grep -q .; then tsc -b; else echo 'No TypeScript packages yet'; fi"
+    "typecheck": "tsc -b"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
