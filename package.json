@@ -1,0 +1,25 @@
+{
+  "name": "better-fs-tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.0",
+  "workspaces": {
+    "packages": [
+      "packages/*"
+    ],
+    "catalog": {
+      "@types/bun": "^1.3.10",
+      "typescript": "^5.9.3"
+    }
+  },
+  "scripts": {
+    "check": "bun run typecheck && bun run test",
+    "test": "bun test --pass-with-no-tests",
+    "typecheck": "if find packages -mindepth 2 -name tsconfig.json -print -quit | grep -q .; then tsc -b; else echo 'No TypeScript packages yet'; fi"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}
