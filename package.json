@@ -2,8 +2,6 @@
   "name": "better-fs-tools",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
-  "packageManager": "bun@1.4.0",
   "workspaces": {
     "packages": [
       "packages/*"
@@ -13,13 +11,20 @@
       "typescript": "^7.0.2"
     }
   },
+  "type": "module",
   "scripts": {
-    "check": "bun run typecheck && bun run test",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "lint": "if find packages -type f \\( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \\) -print -quit | grep -q .; then oxlint --deny-warnings .; else echo 'No source files to lint'; fi",
     "test": "bun test --pass-with-no-tests",
     "typecheck": "if find packages -mindepth 2 -name tsconfig.json -print -quit | grep -q .; then tsc -b; else echo 'No TypeScript packages yet'; fi"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
+    "oxfmt": "^0.66.0",
+    "oxlint": "^1.81.0",
     "typescript": "catalog:"
-  }
+  },
+  "packageManager": "bun@1.4.0"
 }

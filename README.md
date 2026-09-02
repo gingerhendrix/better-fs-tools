@@ -13,7 +13,10 @@ This repository contains the shared monorepo scaffold. Tool packages will be add
 ```bash
 bun install
 bun run check
+bun run format
 ```
+
+`bun run check` verifies formatting, lint rules, TypeScript, and tests.
 
 ## Add a package
 
