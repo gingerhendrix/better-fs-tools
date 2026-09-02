@@ -5,7 +5,6 @@ import * as Effect from "effect/Effect";
 export const Website = Cloudflare.Website.Vite("Website", {
   name: "better-fs-tools-docs",
   compatibility: {
-    date: "2026-09-02",
     flags: ["nodejs_compat"],
   },
   assets: {
