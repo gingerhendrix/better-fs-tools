@@ -1,0 +1,84 @@
+---
+title: Read Tool
+description:  The simplest tool in the box
+---
+
+## What's in a Read Tool?
+
+The read tool has a simple job, read from the filesystem and return the contents of a file. However, there is a surprising amount of variation in how this is implemented across different harnesses.
+
+### Signature
+
+There is consensus on the rough shape - a single tool that takes the path to a file along with optional offset and limit parameters.  The name of the tool is usually `read`, `Read` (Claude) or `read_file`, with either a `path`, `filePath` or `file_path` first argument and there is strong agreement on one-based `limit` and `offset` as the remaining parameters (the outliers are Gemini CLI with one-based `start_line`/`end_line` and Deep Agents with a zero-based `limit` and `offset`).
+
+*Better fs tools* allows you to choose your own signature, but defaults to `read(path: string, offset?: number, limit?: number)`
+
+#### Docs
+
+The tool signature passed to the LLM is accompanied by a description that serves as documentation for the LLM on how to use the tool.  Cloudflare Computer currently holds the prize for minimalism:
+
+<blockquote style={{quotes: 'none'}}>
+Read a workspace file. Images and PDFs are passed to capable models. Text output is capped at 2000 lines or 256KB and includes line and byte continuations when truncated.
+</blockquote>
+
+OpenCode has one of the most verbose (though oh-my-pi is the supreme champion here with over 3000 chars of tool description, but that is mostly due to OMP's virtual filesystem)
+
+<blockquote style={{quotes: 'none'}}>
+Read a file or directory from the local filesystem. If the path does not exist, an error is returned.
+
+Usage:
+- The filePath parameter should be an absolute path.
+- By default, this tool returns up to 2000 lines from the start of the file.
+- The offset parameter is the line number to start from (1-indexed).
+- To read later sections, call this tool again with a larger offset.
+- Use the grep tool to find specific content in large files or files with long lines.
+- If you are unsure of the correct file path, use the glob tool to look up filenames by glob pattern.
+- Contents are returned with each line prefixed by its line number as `<line>: <content>`. For example, if a file has contents "foo\n", you will receive "1: foo\n". For directories, entries are returned one per line (without line numbers) with a trailing `/` for subdirectories.
+- Any line longer than 2000 characters is truncated.
+- Call this tool in parallel when you know there are multiple files you want to read.
+- Avoid tiny repeated slices (30 line chunks). If you need more context, read a larger window.
+- This tool can read image files and PDFs and return them as file attachments.
+</blockquote>
+
+
+### Output
+
+From the LLM's perspective, the next thing that matters is how the output is formatted.  Broadly this comes down to delimiters, line numbering and additional info for truncation and additional messages to accompany the output.
+
+OpenCode wraps its output with tags and numbers the lines (with colon-space as the delimiter).
+```
+<path>/repo/src/app.ts</path>
+<type>file</type>
+<content>
+1: import { x } from "./x"
+2: export const y = x
+
+(End of file - total 2 lines)
+</content>
+```
+
+DeepAgents has recently switched to a new new format instead of their previous line numbered output.
+
+https://x.com/sydneyrunkle/status/2099618743580299305
+
+
+[Hashline](https://stencil.so/blog/the-harness-problem) is an approach to improving file edits by giving the LLM a stable identifier for each line in a file.  This approach was pioneered by Oh-My-Pi and is available in other harnesses through extensions.
+
+```
+1:a3|function hello() {
+2:f1|  return "world";
+3:0e|}
+```
+
+
+### Implementation
+
+Implementation details dont matter as much to the LLM, but there are still a number of ways they affect the agent experience.
+
+- **Path Handling**:  Path handling is a rabbit hole of edge cases, some harnesses support relative paths with a specified cwd, some are absolute only - all need to deal with expansion of `~`, `.` and `..`
+
+#### File Types
+
+#### Limits
+
+

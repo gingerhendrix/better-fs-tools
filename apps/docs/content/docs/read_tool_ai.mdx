@@ -1,0 +1,170 @@
+---
+title: Read Tool (AI)
+description: How filesystem harnesses turn a path into model-visible evidence
+---
+
+## What's in a Read Tool?
+
+A read tool has two contracts. The model receives a name, arguments, and a description. The host executes those arguments and turns the result into text, media, metadata, or an error. The surveyed harnesses use two main designs:
+
+- Dedicated readers expose path, range, and sometimes media fields. OpenCode, Claude Code, Pi, Think, Hermes, Deep Agents, Gemini CLI, Oh My Pi, and OpenHands use this design in some form.
+- Codex makes the shell the normal read path. The model uses `exec_command` with commands such as `sed`, `cat`, `rg`, or `ls`.
+
+A dedicated reader can provide stable pagination, path policy, binary detection, and structured observations. A shell fallback gives one composable operation, with shell quoting, command availability, and sandbox behavior in the result.
+
+The comparison below covers OpenCode, Claude Code, OpenAI Codex CLI, Pi, Cloudflare Think and Computer, Hermes Agent, LangChain Deep Agents, Gemini CLI, Oh My Pi, and OpenHands. The reports are pinned research snapshots. Product settings, model-specific tool sets, and backend adapters can change the final behavior.
+
+### Tool Signature
+
+The model-facing schemas differ in small details. The most common shape is a required path with an optional line range.
+
+| Harness          | Read tool                    | Arguments and model guidance                                                                                                                                                                           |
+| ---------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| OpenCode         | `read`                       | `filePath`, optional `offset` and `limit`. The description says offset is one-based, defaults to 2,000 lines, and supports files, images, PDFs, and directories.                                       |
+| Claude Code      | `Read`                       | Absolute `file_path`, optional `offset`, `limit`, and PDF `pages`. Directories are refused.                                                                                                            |
+| Codex CLI        | `exec_command`               | `cmd` plus shell, cwd, PTY, and output fields. The prompt recommends `sed`, `cat`, `rg`, and `rg --files`; no dedicated local reader exists.                                                           |
+| Pi               | `read`                       | `path`, optional `offset` and `limit`. The default coding set includes `read`, while dedicated `ls`, `find`, and `grep` can be enabled separately.                                                     |
+| Cloudflare Think | `read`                       | Virtual absolute `path`, optional one-based `offset` and `limit`. Images and PDFs can become AI SDK media.                                                                                             |
+| Hermes Agent     | `read_file`                  | `path`, one-based `offset`, and `limit`. The schema advertises document extraction and filename suggestions.                                                                                           |
+| Deep Agents      | `read_file`                  | Absolute virtual `file_path`, zero-based `offset`, and `limit`. A backend must implement `read`; directories use `ls`.                                                                                 |
+| Gemini CLI       | `read_file`                  | `file_path`, optional one-based `start_line` and `end_line`. A separate `read_many_files` handles glob-selected batches.                                                                               |
+| Oh My Pi         | `read`                       | One `path` string. Selectors such as `:50-200`, `:raw`, archive members, SQLite queries, URLs, and internal resource schemes are encoded in that string.                                               |
+| OpenHands        | `FileEditorTool` view action | The SDK exposes structured file-editor actions. Public evidence does not establish one stable, current standalone read schema comparable to the rows above. `TerminalTool` can read through the shell. |
+
+Better FS Tools can keep the small core shape while letting an adapter add provider-specific fields:
+
+```ts
+read({ path, offset?, limit? })
+```
+
+The core should define whether offsets are zero- or one-based, whether `limit` counts lines or bytes, and how a partial result continues. An adapter can then describe images, PDFs, selectors, or shell fallback without changing the filesystem result type.
+
+## Reading files
+
+### Path Handling
+
+Path resolution is also a policy decision. The harnesses fall into four groups:
+
+| Harness          | How paths are handled                                                                                                                                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenCode         | Resolves relative paths against the instance directory. External paths trigger approval. The initial check is lexical, so a symlink can cross the apparent boundary before ordinary I/O follows it.               |
+| Claude Code      | Documents absolute paths, launch and additional directories, and checks both a symlink path and its resolved target. Direct file tools use the permission layer; Bash uses a separate shell sandbox when enabled. |
+| Codex CLI        | Resolves `workdir` in a selected local or remote environment. Shell and patch calls use the environment sandbox and writable roots. A shell read has the authority and path behavior of its command.              |
+| Pi               | Resolves relative paths against cwd, expands `~` and `file://`, and accepts absolute paths and `..`. Cwd is a base, not a security root. `ExecutionEnv` lets an embedding replace this behavior.                  |
+| Cloudflare Think | Uses a SQLite/R2 Workspace with lexical virtual `/`. `..` cannot leave that root. Think does not enforce a smaller tenant subroot. Computer uses a similar virtual root, with `/workspace` as a convention.       |
+| Hermes Agent     | Resolves against session, task, terminal, or process cwd. Absolute paths and `..` remain available. Targeted denials and warnings add policy, while the local terminal retains host authority.                    |
+| Deep Agents      | Requires absolute virtual paths and rejects `..` and `~`. `FilesystemBackend` virtual mode checks the resolved path beneath its root. `LocalShellBackend` can address any path allowed to the host process.       |
+| Gemini CLI       | Resolves and canonicalizes paths against one or more workspace roots and a project temp directory. Blocked segments include `.git`, `.env`, and `node_modules`. This is host policy rather than an OS jail.       |
+| Oh My Pi         | Resolves ordinary paths broadly, while also routing archive, database, URL, SSH, and internal URL schemes. Plan mode and task isolation add narrower roots for their own operations.                              |
+| OpenHands        | Uses the conversation workspace working directory as the default location. Process sandboxes are explicitly not isolated; Docker and remote sandboxes provide the stronger boundary.                              |
+
+A reusable read contract should return both the requested spelling and the resolved target. It should state whether the target is local, virtual, remote, or a derived resource. Authorization should happen after canonicalization and again at the operation boundary where the backend permits it.
+
+#### Filename Repair
+
+Filename recovery is uneven across the surveyed systems.
+
+- **OpenCode** offers up to three case-insensitive suggestions from the parent directory when a path is missing.
+- **Claude Code** documents range and file errors, but the inspected public contract does not promise filename repair.
+- **Codex CLI** delegates the problem to the shell command. Any suggestion comes from the command or shell, not from a read primitive.
+- **Pi** has read-specific recovery for macOS screenshot spaces, Unicode normalization, and curly apostrophes. Other tools use direct resolution.
+- **Cloudflare Think and Computer** use virtual path lookup. The inspected contracts do not promise a similar-name search on a missing path.
+- **Hermes Agent** repairs a unique Unicode-equivalent name and otherwise returns up to five scored similar names.
+- **Deep Agents** leaves missing-path behavior to the selected backend and does not define a suggestion protocol in the common middleware.
+- **Gemini CLI** resolves through its workspace and discovery services. The inspected read contract reports not-found errors without a documented suggestion field.
+- **Oh My Pi** first treats an existing literal path as authoritative, then supports path recovery and selector-aware parsing for missing resources.
+- **OpenHands** exposes editor and terminal errors. Public evidence does not establish a dedicated filename-repair result.
+
+Repair should remain advisory. The result should show the original request, the selected path, and why the match was accepted. Silent substitution makes audit and stale-read checks difficult.
+
+#### Approvals
+
+Approval belongs around the read operation, not in path parsing alone.
+
+| Harness          | Read approval approach                                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenCode         | Permission rules use `read`, external-directory requests, and agent modes. In-worktree reads can be allowed by default.                                                                                 |
+| Claude Code      | Permission modes and path rules govern `Read`. Hooks can allow, deny, ask, or replace input, with rules still authoritative.                                                                            |
+| Codex CLI        | The shell orchestrator combines approval policy, command assessment, sandbox choice, and escalation. A read command is classified after shell parsing, so the tool name does not prove it is read-only. |
+| Pi               | No built-in per-call prompt. `beforeToolCall`, extensions, or a custom `ExecutionEnv` can add approval.                                                                                                 |
+| Cloudflare Think | No default read prompt. `beforeToolCall` can block or substitute, and a host can replace the Workspace. Computer similarly leaves generic approval to the host.                                         |
+| Hermes Agent     | Dedicated reads apply targeted sensitive-path and instruction-file checks. Some reads require human approval; the terminal and backend have separate guards.                                            |
+| Deep Agents      | `FilesystemPermission` rules can allow, deny, or interrupt reads, lists, glob, and grep. Direct custom tools and shell commands need their own policy.                                                  |
+| Gemini CLI       | A central policy engine allows ordinary reads, with path checks, trusted-folder policy, and optional shell sandboxing. Direct reads do not run inside the shell sandbox.                                |
+| Oh My Pi         | Tools declare approval tiers. Reads normally use the read tier, while SSH and process-backed reads can require exec approval.                                                                           |
+| OpenHands        | Confirmation policies can approve every action or classify risk. Hooks provide the hard pre-execution block; analyzers alone do not enforce it.                                                         |
+
+A host-neutral package should expose the intended effect and the resolved capability. The adapter can map that request to prompts, policy rules, or a remote sandbox.
+
+### File Handling
+
+The read operation often handles more than UTF-8 text. The following summary separates source behavior from presentation behavior.
+
+| Harness          | Text and directories                                                                                                                           | Media and structured files                                                                                                                    | Special-file and symlink posture                                                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenCode         | Streams numbered text, caps long lines, and reads directories through the same tool. `glob` and `grep` are separate tools.                     | Images and PDFs become attachments. Known binary formats are refused.                                                                         | Ordinary local calls do not enforce a regular-file policy and do not provide an OS sandbox in the inspected path.                             |
+| Claude Code      | Reads numbered text and refuses directories. `Glob` and `Grep` are dedicated tools.                                                            | Images, PDFs, and notebooks have dedicated result variants. `NotebookEdit` edits cells.                                                       | Symlink targets are considered for permissions. Device, FIFO, socket, and low-level open behavior are unavailable.                            |
+| Codex CLI        | The shell decides how text and directories are read. `rg --files` and `ls` are conventions.                                                    | No built-in local media or structured-document read contract. Shell bytes become command output.                                              | The selected shell sandbox and environment own the boundary. The patch path has limited link checks.                                          |
+| Pi               | Reads text, directories, and supported images. `ls`, `find`, and `grep` are separate capabilities, though omitted from the default coding set. | Image parts are normalized by the coding-agent adapter. Other bytes are decoded as text.                                                      | Default Node access is unrestricted. The normal reader has no regular-file guard; `ExecutionEnv` can supply one.                              |
+| Cloudflare Think | Reads Workspace text and lists through `list`; `find` and `grep` are separate.                                                                 | Images and PDFs become media during model rendering. Computer captures media bytes during execution, which avoids a later re-read.            | The virtual VFS contains files, directories, and symlinks. Devices and FIFOs are absent. Final symlink targets are followed with a hop limit. |
+| Hermes Agent     | Reads numbered text and uses `search_files` for listings and search.                                                                           | Extracts notebooks, Office files, PDFs, and other supported documents. Existing opaque documents cannot be overwritten with extracted text.   | Blocks selected devices, proc paths, FIFOs, sockets, and other special files before read.                                                     |
+| Deep Agents      | Dedicated `ls`, `read_file`, `glob`, and literal `grep` tools share backend results.                                                           | Backends can return base64 image, audio, video, and document blocks. Provider filtering is adapter-specific.                                  | Virtual mode mediates paths. Local shell remains unrestricted, and common mutation guarantees are backend-defined.                            |
+| Gemini CLI       | Has dedicated read-many, list, glob, and grep tools. Text reads understand several BOM encodings.                                              | Supports image, PDF, audio, and video inline data. Notebooks use the read-many and file helpers rather than a general cell editor.            | Canonical workspace checks are stronger than cwd-only resolution. Direct reads still rely on ordinary Node file calls for special files.      |
+| Oh My Pi         | One reader supports files, directories, selectors, archives, SQLite, URLs, and internal resources.                                             | Image, PDF, video, archive, notebook, and database paths use derived views or resource handlers.                                              | Native grep skips non-regular files. Ordinary read and write paths vary by source kind, so the result must identify that kind.                |
+| OpenHands        | `FileEditorTool` provides structured view actions; terminal commands remain a fallback.                                                        | Browser and sandbox observations can contain images. A general MIME-aware arbitrary-file reader is not established by the inspected evidence. | Public material does not define an exhaustive symlink, hard-link, device, FIFO, or socket policy.                                             |
+
+The read core should distinguish regular files, directories, links, media, and derived document views before decoding. A derived view must carry a source kind and a write policy. Extracted PDF or notebook text cannot silently become replacement bytes for the original container.
+
+## Error Handling
+
+The model-facing error is often readable text. The host-facing result can carry more useful information. The surveyed harnesses handle that split as follows:
+
+| Harness          | Model-visible errors                                                                                                                               | Structured host information and limits                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| OpenCode         | Missing paths, binary reads, invalid patterns, and ambiguous edits become tool errors. Shell non-zero exit is a normal result with an exit code.   | Results have output, metadata, and attachments, but no stable public filesystem error union. Operational errors often cross the Effect integration as defects.                 |
+| Claude Code      | Read range, directory, notebook-size, permission, sandbox, and exact-match errors have documented text.                                            | Read, write, edit, and shell declarations expose rich tagged outputs. Public contracts do not define errno, retryability, partial writes, or a portable error code.            |
+| Codex CLI        | Shell and patch parser, approval, environment, and process errors become model-facing failures. Sandbox denial can also appear as terminal output. | Typed lifecycle events and patch deltas retain process state and committed prefixes. Local read failures have no dedicated result type.                                        |
+| Pi               | Built-ins throw; Agent Core converts the exception to a text part and `isError`.                                                                   | `ExecutionEnv` has backend error codes below the model boundary. Details carry truncation and diffs, but not a common error envelope.                                          |
+| Cloudflare Think | Workspace tools return a mix of `{ error }`, thrown backend text, and Bash `errors[]`.                                                             | Computer tools usually return `{ error }`; Codemode keeps durable execution outcomes. Shell POSIX-like text is not consistently attached to an error code.                     |
+| Hermes Agent     | File and terminal failures become JSON strings with readable messages. Non-zero command exits retain their exit code.                              | Distinct read, write, patch, and search result classes include warnings, diagnostics, partial lists, and verification. Most filesystem errors remain strings.                  |
+| Deep Agents      | Middleware renders backend errors as tool messages. Execute returns a result with an exit code for commands that ran.                              | Dataclass results carry pagination and partial-search data. The common protocol has no revision, lock, atomicity, or broad error-code contract.                                |
+| Gemini CLI       | Typed categories cover not found, permission, size, write, edit, grep, shell, and sandbox failures. The model usually sees readable text.          | `ToolResult` separates model content, UI display, data, and typed errors. Direct file operations still have no common revision or partial-effect receipt.                      |
+| Oh My Pi         | Native failures become tool error text or an error result. Shell non-zero exits are error-like tool results.                                       | Native details can include source paths, hashes, diffs, truncation, process state, and partial files. Error codes are not universal across resource handlers.                  |
+| OpenHands        | Tool observations report errors and terminal exit or timeout state.                                                                                | Events preserve typed actions and observations. The reviewed SDK does not define a complete filesystem error taxonomy, partial-effect receipt, or replay-safe idempotency key. |
+
+A Better FS Tools error should keep a portable code, a safe message, retryability, the resolved target, and known effects. A backend cause can remain available to the host without entering model text.
+
+## Output
+
+Output has three separate jobs:
+
+1. **Capture** keeps enough source data to inspect the operation.
+2. **Model content** stays within the context budget.
+3. **Continuation** lets the model recover omitted data without guessing.
+
+The harnesses make different trade-offs:
+
+| Harness          | Capture and model limits                                                                                                                                                                 | Continuation and presentation                                                                                                                                                                   |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenCode         | Read defaults to 2,000 lines, 2,000 characters per line, and 50 KiB. Glob and grep cap at 100 rows. Shell output uses a bounded tail.                                                    | Oversized generic output is stored in a managed truncation file and cleaned after seven days. Read uses a line offset.                                                                          |
+| Claude Code      | Read is token-aware. Glob caps at 100 files, Grep defaults to 250 rows, and Bash shows about 30,000 characters for valid output.                                                         | Large successful Bash output gets a session-file path. Read supports line and PDF page ranges. Failure output gets a bounded head-tail view without a path.                                     |
+| Codex CLI        | Shell collection retains a 1 MiB head-tail buffer. Live chunks, model token budget, and lifecycle transcript are separate limits.                                                        | `write_stdin` polls a persistent process. Ordinary file reads have no tool-owned cursor or full-output artifact.                                                                                |
+| Pi               | Read and shell use a 2,000-line or 50 KiB boundary. Grep clamps lines and shell keeps a rolling tail.                                                                                    | Truncated shell output is written to an OS temp file. Read uses line offsets. The temp artifact has no tool-owned retention lifecycle.                                                          |
+| Cloudflare Think | Read caps at 2,000 lines and 2,000 characters per line. Bash keeps 64,000 bytes per stream and returns a head preview.                                                                   | Read has a line offset. List has an offset but no next token or total. Think media is re-read during rendering; Computer captures execution-time bytes and returns line and byte continuations. |
+| Hermes Agent     | Read uses 2,000 lines, a per-line clamp, and a roughly 100,000-character model budget. Terminal output defaults to 50,000 characters with head-tail retention.                           | Search and reads paginate. Large terminal output spills to a redacted path. A long line can lose a remainder that line offsets cannot recover.                                                  |
+| Deep Agents      | Read returns line metadata and uses a token estimate. Tool results and execute output can be evicted to a backend, with a 20,000-token default threshold.                                | `next_offset`, total lines, and long-line continuation are part of backend results. Eviction returns a recovery path through `read_file`.                                                       |
+| Gemini CLI       | Read defaults to 2,000 lines and 2,000 characters per line, with a 20 MiB source ceiling. Shell captures up to a 16 MiB rolling character buffer and has outer distillation limits.      | Reads suggest the next line range, but have no byte cursor. Shell and background tools save output in temporary or session-scoped logs.                                                         |
+| Oh My Pi         | Read has configurable line and column limits, a 50 KiB rendered default, and bounded streaming for large files. Shell shows a 50 KiB tail and can mirror uncapped output to an artifact. | Read details include truncation reasons, ranges, bytes, and hashline state. Shell details include shown and omitted bytes plus an artifact ID. Selectors provide resource-specific paging.      |
+| OpenHands        | Terminal output can be truncated while full output is saved in a configured directory. The persistent terminal can fetch more logs with an empty command.                                | The current terminal uses session state and an exit code of `-1` for a running command. The reviewed evidence does not establish byte cursors, artifact digests, or stdout/stderr separation.   |
+
+### Better FS Tools output shape
+
+The Better FS Tools split between a header, content, and footer is useful when each part has a clear purpose:
+
+- **Header:** requested path, resolved path, source kind, range, total size, and policy facts.
+- **Content:** decoded text or typed media content for the requested range.
+- **Footer:** truncation reason, exact captured units, continuation cursor, observation identity, and a safe artifact reference.
+
+The core should count bytes, characters, lines, and tokens separately. A line offset cannot recover the middle of a clamped long line, so long-line output needs a byte or chunk cursor. Media should use bytes captured during execution, as in Computer, rather than re-reading a mutable path during rendering.
+
+Keep model text concise. Keep structured details complete enough for a renderer, audit log, and later guarded mutation. The adapter can format those details for an AI SDK, a terminal UI, or a shell-oriented harness without changing the core read result.
