@@ -1,0 +1,546 @@
+---
+title: Gemini CLI
+description: Read, edit, shell, and search tools in Gemini CLI at 0.62.0-nightly, with every model-facing description in full for both declaration sets
+harness: gemini-cli
+kind: cli
+repo: google-gemini/gemini-cli
+commit: 6a466a7e2fe2b1255752c1e74f69b31f0216084d
+version: 0.62.0-nightly.20260915.gae28844fb
+license: Apache-2.0
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - packages/core/src/config/config.ts
+  - packages/core/src/config/models.ts
+  - packages/core/src/tools/tool-registry.ts
+  - packages/core/src/tools/tool-names.ts
+  - packages/core/src/tools/tools.ts
+  - packages/core/src/tools/tool-error.ts
+  - packages/core/src/tools/constants.ts
+  - packages/core/src/tools/definitions/coreTools.ts
+  - packages/core/src/tools/definitions/resolver.ts
+  - packages/core/src/tools/definitions/modelFamilyService.ts
+  - packages/core/src/tools/definitions/dynamic-declaration-helpers.ts
+  - packages/core/src/tools/definitions/model-family-sets/default-legacy.ts
+  - packages/core/src/tools/definitions/model-family-sets/gemini-3.ts
+  - packages/core/src/tools/read-file.ts
+  - packages/core/src/tools/read-many-files.ts
+  - packages/core/src/tools/ls.ts
+  - packages/core/src/tools/glob.ts
+  - packages/core/src/tools/ripGrep.ts
+  - packages/core/src/tools/grep.ts
+  - packages/core/src/tools/grep-utils.ts
+  - packages/core/src/tools/write-file.ts
+  - packages/core/src/tools/edit.ts
+  - packages/core/src/tools/shell.ts
+  - packages/core/src/tools/shellBackgroundTools.ts
+  - packages/core/src/tools/jit-context.ts
+  - packages/core/src/utils/fileUtils.ts
+  - packages/core/src/utils/constants.ts
+  - packages/core/src/utils/paths.ts
+  - packages/core/src/utils/path-validator.ts
+  - packages/core/src/utils/workspaceContext.ts
+  - packages/core/src/utils/editCorrector.ts
+  - packages/core/src/utils/textUtils.ts
+  - packages/core/src/services/fileSystemService.ts
+  - packages/core/src/services/shellExecutionService.ts
+  - packages/core/src/scheduler/scheduler.ts
+  - packages/core/src/scheduler/tool-executor.ts
+  - packages/core/src/policy/policy-engine.ts
+  - packages/core/src/policy/policies/read-only.toml
+  - packages/core/src/policy/policies/write.toml
+  - packages/cli/src/config/settingsSchema.ts
+---
+
+Gemini CLI is Google's open-source terminal coding agent. Its model-facing file family is seven dedicated tools, `read_file`, `read_many_files`, `list_directory`, `glob`, `grep_search`, `replace`, and `write_file`, plus `run_shell_command` and two background-process readers. The tool declarations come in two sets chosen by model family: a default-legacy set for every model outside the Gemini 3 family, and a Gemini 3 set whose `read_file`, `write_file`, `grep_search`, and `replace` strings differ. Paths are canonicalised and checked against the workspace roots before any I/O, and a central policy engine decides which calls need confirmation.
+
+## Source pin
+
+| Item | Value |
+|---|---|
+| Repository | [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli) |
+| Commit | `6a466a7e2fe2b1255752c1e74f69b31f0216084d`, committed 2026-09-15 21:09:13 UTC |
+| Package versions | `@google/gemini-cli` and `@google/gemini-cli-core` at `0.62.0-nightly.20260915.gae28844fb` |
+| Licence | Apache-2.0 |
+| Surveyed | 2026-09-15 for edit, shell, search, permissions, and sandbox; 2026-09-16 for read and the description strings. Both surveys used the same commit |
+| Verified | 2026-09-16 |
+| Declaration sets surveyed | `default-legacy` and `gemini-3` from `tools/definitions/model-family-sets/`. Dynamic declarations rendered for Linux with `enableInteractiveShell` and `enableShellOutputEfficiency` at their `true` defaults and tool sandboxing off |
+| Files read | The `sourceFiles` list in the frontmatter |
+| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-09-15-gemini-cli-fs-audit/gemini-cli` (shallow clone at the pin); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction script, `descriptions/gemini-cli/*.txt`, `descriptions/gemini-cli-gemini3/*.txt`, counts) |
+| Evidence status | Open source inspected. No model session, build, or test run |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read_file` | Read a text file by line range, or a media file as an inline part | Yes | Two description strings, one per declaration set |
+| `read_many_files` | Read glob-selected files and concatenate them | No | Not registered by `createToolRegistry()` at this pin; constructed by the `@` path processor and the ACP session |
+| `list_directory` | List the direct children of one directory | Yes | |
+| `glob` | Find file paths by glob pattern | Yes | npm `glob` package |
+| `grep_search` | Search file contents by regex | Yes | `RipGrepTool` when `useRipgrep` is on and a binary is found, otherwise `GrepTool` under the same name. Two description strings |
+| `replace` | Replace one or all occurrences of a string in one file | Yes | Source class `EditTool`. Two description strings |
+| `write_file` | Create or overwrite a whole file | Yes | Two description strings |
+| `run_shell_command` | Run one command in `bash -c` or PowerShell | Yes | Description rendered from platform and settings |
+| `list_background_processes` | List managed background processes for the session | Yes | Registered after `run_shell_command` |
+| `read_background_output` | Read the tail of a managed background log | Yes | Registered after `run_shell_command` |
+
+The `tools.core` allowlist can remove any built-in. Every declarative schema also receives an extra `wait_for_previous` boolean that the scheduler uses as a barrier. `getToolFamily(modelId)` in `modelFamilyService.ts` returns `gemini-3` when `isGemini3Model()` matches the active model and `default-legacy` otherwise; the two sets share every parameter name and type, and differ in description strings and some parameter-level descriptions. MCP resource tools and discovered tools are outside this page.
+
+## Read
+
+### Signature
+
+```ts
+read_file({ file_path: string, start_line?: integer, end_line?: integer })
+read_many_files({ include: string[], exclude?: string[], recursive?: boolean, useDefaultExcludes?: boolean, file_filtering_options?: { respect_git_ignore?: boolean, respect_gemini_ignore?: boolean } })
+```
+
+`file_path` is relative or absolute; a relative path resolves against the target directory. `start_line` and `end_line` are one-based and inclusive, typed as integers with minimum 1. With neither, the first 2000 lines are returned. With `start_line` alone, 2000 lines from that line. `end_line` past the end is clamped. `start_line` greater than `end_line` fails validation with `start_line cannot be greater than end_line`. The parameter names and types are identical in both declaration sets.
+
+### Description
+
+`read_file`, default-legacy: 444 characters, 444 bytes, 1 line, approximately 111 tokens.
+`read_file`, Gemini 3 family: 552 characters, 552 bytes, 1 line, approximately 131 tokens.
+`read_many_files`: 1936 characters, 1936 bytes, 10 lines, approximately 401 tokens. Identical in both sets.
+
+The default-legacy `read_file` string says large files are truncated, that the response will say how to continue with `start_line` and `end_line`, and lists the image, audio, and PDF formats. It states no line default. The Gemini 3 string names the 2000-line, 2000-character, and 20MB limits, tells the model it MUST use line ranges, and calls hitting a limit token-inefficient. Neither string states the offset base, the line prefix, or directory behaviour. `read_many_files` explains the `include` patterns, the `--- path ---` separator, the `--- End of content ---` terminator, and the default excludes.
+
+**`read_file`, default-legacy (444 characters)**
+
+```text
+Reads and returns the content of a specified file. If the file is large, the content will be truncated. The tool's response will clearly indicate if truncation has occurred and will provide details on how to read more of the file using the 'start_line' and 'end_line' parameters. Handles text, images (PNG, JPG, GIF, WEBP, SVG, BMP), audio files (MP3, WAV, AIFF, AAC, OGG, FLAC), and PDF files. For text files, it can read specific line ranges.
+```
+
+**`read_file`, Gemini 3 family (552 characters)**
+
+The Gemini 3 set is selected when `isGemini3Model()` matches the active model ID.
+
+```text
+Reads and returns the content of a specified file. To maintain context efficiency, you MUST use 'start_line' and 'end_line' for targeted, surgical reads of specific sections. For your safety, the tool will automatically truncate output exceeding 2000 lines, 2000 characters per line, or 20MB in size; however, triggering these limits is considered token-inefficient. Always retrieve only the minimum content necessary for your next step. Handles text, images (PNG, JPG, GIF, WEBP, SVG, BMP), audio files (MP3, WAV, AIFF, AAC, OGG, FLAC), and PDF files.
+```
+
+**`read_many_files` (1936 characters)**
+
+```text
+Reads content from multiple files specified by glob patterns within a configured target directory. For text files, it concatenates their content into a single string. It is primarily designed for text-based files. However, it can also process image (e.g., .png, .jpg), audio (e.g., .mp3, .wav), and PDF (.pdf) files if their file names or extensions are explicitly included in the 'include' argument. For these explicitly requested non-text files, their data is read and included in a format suitable for model consumption (e.g., base64 encoded).
+
+This tool is useful when you need to understand or analyze a collection of files, such as:
+- Getting an overview of a codebase or parts of it (e.g., all TypeScript files in the 'src' directory).
+- Finding where specific functionality is implemented if the user asks broad questions about code.
+- Reviewing documentation files (e.g., all Markdown files in the 'docs' directory).
+- Gathering context from multiple configuration files.
+- When the user asks to "read all files in X directory" or "show me the content of all Y files".
+
+Use this tool when the user's query implies needing the content of several files simultaneously for context, analysis, or summarization. For text files, it uses default UTF-8 encoding and a '--- {filePath} ---' separator between file contents. The tool inserts a '--- End of content ---' after the last file. Ensure glob patterns are relative to the target directory. Glob patterns like 'src/**/*.js' are supported. Avoid using for single files if a more specific single-file reading tool is available, unless the user specifically requests to process a list containing just one file via this tool. Other binary files (not explicitly requested as image/audio/PDF) are generally skipped. Default excludes apply to common non-text files (except for explicitly requested images/audio/PDFs) and large dependency directories unless 'useDefaultExcludes' is false.
+```
+
+### Path handling
+
+`resolveDefensiveToolPath` removes NUL bytes and strips a leading `@` when the literal path does not exist and no `@`-prefixed entry exists for the first segment. `resolveToRealPath` accepts a `file://` URL, percent-decodes the string, resolves it against the target directory, and takes the real path with `realpathSync`; for a missing leaf it resolves the existing symlink ancestors. No tilde expansion. Symlinks are followed before the workspace check, so a link inside the workspace whose target is outside fails the check. A real-path failure returns `Failed to resolve path: <message>`.
+
+Near-miss recovery: None. A missing file returns:
+
+```text
+File not found: <path>
+```
+
+The message travels in the function response `error` field. The tool's `llmContent` for that case, `Could not read file because no file was found at the specified path.`, is dropped by the executor when an error is set; see Errors.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Policy | `read_file`, `glob`, `grep_search`, and `list_directory` are allowed by `policies/read-only.toml` at priority 50. No confirmation under the shipped policy files; user and admin rules can override |
+| Workspace roots | The real path must sit under a workspace directory, an added read-only directory, or the project temp directory. The global personal `GEMINI.md` is a single-file exception. Otherwise `Path not in workspace: Attempted path "<path>" resolves outside the allowed workspace directories: <dirs> or the project temp directory: <tmp>` |
+| Blocked segments | `.git`, `.env`, `node_modules`, and `gha-creds-*.json` anywhere in the workspace-relative path, including NTFS 8.3 short-name forms, fail the workspace check with the same `Path not in workspace` message |
+| Ignore rules | `.gitignore` and `.geminiignore` apply by default: `File path '<path>' is ignored by configured ignore patterns.` |
+| Path syntax | Newlines, control characters, NUL, a path over 4096 characters, or a component over 255 characters: `Invalid path: <reason>` |
+| Auto-memory inbox | Denied to the main agent even though it sits under the project temp directory |
+| Device and special files | None. Only `stats.isDirectory()` is checked before `readFile`, so a FIFO or device inherits Node behaviour |
+| Denial text | Validation failures are returned as `Error: Invalid parameters provided. Reason: <message>` |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | `.ts`, `.mts`, `.cts` are forced to text. `.svg` is its own type. Otherwise a `mime` lookup: `image/*` is image, `audio/*` and `video/*` are confirmed with `isbinaryfile` or fall back to text, `application/pdf` is PDF. Then the supported audio extension map, then the `BINARY_EXTENSIONS` list, then an `isbinaryfile` content check |
+| Refusal | `Cannot display content of binary file: <rel>` returned as success text with no error field |
+| Notebooks | None. `.ipynb` reads as JSON text |
+| Office and PDF text | None |
+| SVG | Read as text up to 1 MiB; `Cannot display content of SVG file larger than 1MB: <rel>` as success text above that |
+| Images | Any `image/*` MIME type; the whole file is base64-encoded into an `inlineData` part |
+| PDF | `inlineData` part |
+| Audio and video | MP3, WAV, AIFF, AAC, OGG, FLAC by extension or normalised MIME type as `inlineData`; an audio MIME outside that set errors with `Unsupported audio file format for <path>. Supported audio formats are MP3, WAV, AIFF, AAC, OGG, and FLAC.`; video by `video/*` MIME after the binary check |
+| Media size guard | The 20 MiB cap below applies to every type before the read |
+| Encoding | BOM-aware: UTF-8, UTF-16LE, UTF-16BE, UTF-32LE, UTF-32BE detected and stripped; no BOM decodes as UTF-8 |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 2000 lines | |
+| Ceiling | The model's `end_line`, clamped to the file length. No cap on the requested range | |
+| Long line | Cut at 2000 characters | `... [truncated]` appended to the line; the banner below also appears |
+| Whole-file size | 20 MiB for every type, checked on `stat` before the read | `File size exceeds the 20MB limit: <path> (<size>MB)` |
+| Output budget | None in the tool. Shell output has an outer cap; read output does not unless context management is enabled | |
+| Offset past end | Empty content under the banner, not an error | `Status: Showing lines <total+1>-<total> of <total> total lines.` |
+| Line splitting | `\r?\n`, so CRLF files count the same lines | |
+
+### Output
+
+```text
+import { x } from "./x"
+export const y = x
+```
+
+When the read stopped before the end, when `start_line` was above 1, or when any line was cut, a banner precedes the content:
+
+```text
+
+IMPORTANT: The file content has been truncated.
+Status: Showing lines 1-2000 of 5000 total lines.
+Action: To read more of the file, you can use the 'start_line' and 'end_line' parameters in a subsequent 'read_file' call. For example, to read the next section of the file, use start_line: 2001.
+
+--- FILE CONTENT (truncated) ---
+import { x } from "./x"
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | None on a plain read. The banner block, starting with a blank line, when `isTruncated` is set |
+| Line prefix | None. Lines are bare |
+| End marker | None |
+| Truncation notice | The banner above, before the content. A ranged read the model asked for also gets it, so a request for lines 50 to 60 is told the content was truncated |
+| Error transport | Function response `{ error: "<message>" }` with no `output` field |
+
+Both examples are reconstructed from the format code. The success response to the model is `{ output: "<text>" }` inside the function response, or an `inlineData` part for media.
+
+### Notable
+
+- After the content, JIT context discovered for the file's directory can be appended between `--- Newly Discovered Project Context ---` and `--- End Project Context ---`, so the result can carry `GEMINI.md` text that is not in the requested file.
+- No repeat-read guard, no redaction, no explicit empty-file notice. An empty file returns an empty string.
+- `read_file` does not read the abort signal; `execute` ignores its options.
+- The UI summary for a ranged read is `Read lines <a>-<b> of <total> from <rel>`; a plain full read shows nothing.
+- `read_many_files` expands `include` in every workspace directory, filters through the discovery service, validates each path, sorts, and processes files with `Promise.allSettled`. Text goes out under `--- <path> ---` separators with `--- End of content ---` after the last file. Skipped files are reported by path and reason; the reason strings: Not surveyed. There is no shared snapshot across the files.
+- The scheduler runs `read_file` calls in parallel with other parallelizable calls unless the model sets `wait_for_previous`.
+
+## Edit
+
+### Signature
+
+```ts
+write_file({ file_path: string, content: string })
+replace({ file_path: string, old_string: string, new_string: string, instruction: string, allow_multiple?: boolean })
+```
+
+The model name is `replace`; the source class is `EditTool`. `instruction` is required and is only used by the optional LLM correction path. `allow_multiple` is a boolean. There is no delete tool and no multi-file patch tool. `replace` and `write_file` are in `EDIT_TOOL_NAMES`, which the scheduler treats as ordered barriers. Both declaration sets share the parameter names and types; the Gemini 3 set shortens the parameter-level descriptions.
+
+### Description
+
+`write_file`, default-legacy: 162 characters, 162 bytes, 3 lines, approximately 33 tokens.
+`write_file`, Gemini 3 family: 304 characters, 304 bytes, 1 line, approximately 59 tokens.
+`replace`, default-legacy: 2063 characters, 2063 bytes, 12 lines, approximately 421 tokens.
+`replace`, Gemini 3 family: 571 characters, 571 bytes, 2 lines, approximately 111 tokens.
+
+The default-legacy `write_file` string is three short sentences: it writes content, the user can modify it, and the response will say so. The Gemini 3 version adds parent creation, overwrite, and a rule to prefer `replace` for large files. The default-legacy `replace` string carries the numbered parameter rules: exact literal text, no escaping, three lines of context before and after, and the `allow_multiple` rule; it also tells the model to use `read_file` first. The Gemini 3 `replace` string drops the numbered rules and says the tool is preferred for surgical edits. The default-legacy `write_file` and `replace` strings keep the six-space indentation of their template literals on continuation lines.
+
+**`write_file`, default-legacy (162 characters)**
+
+```text
+Writes content to a specified file in the local filesystem.
+
+      The user has the ability to modify `content`. If modified, this will be stated in the response.
+```
+
+**`write_file`, Gemini 3 family (304 characters)**
+
+Selected with the Gemini 3 declaration set.
+
+```text
+Writes the complete content to a file, automatically creating missing parent directories. Overwrites existing files. The user has the ability to modify 'content' before it is saved. Best for new or small files; use 'replace' for targeted edits to large files to minimize token usage and simplify reviews.
+```
+
+**`replace`, default-legacy (2063 characters)**
+
+```text
+Replaces text within a file. By default, the tool expects to find and replace exactly ONE occurrence of `old_string`. If you want to replace multiple occurrences of the exact same string, set `allow_multiple` to true. This tool requires providing significant context around the change to ensure precise targeting. Always use the read_file tool to examine the file's current content before attempting a text replacement.
+      
+      The user has the ability to modify the `new_string` content. If modified, this will be stated in the response.
+      
+      Expectation for required parameters:
+      1. `old_string` MUST be the exact literal text to replace (including all whitespace, indentation, newlines, and surrounding code etc.).
+      2. `new_string` MUST be the exact literal text to replace `old_string` with (also including all whitespace, indentation, newlines, and surrounding code etc.). Ensure the resulting code is correct and idiomatic and that `old_string` and `new_string` are different.
+      3. `instruction` is the detailed instruction of what needs to be changed. It is important to Make it specific and detailed so developers or large language models can understand what needs to be changed and perform the changes on their own if necessary. 
+      4. NEVER escape `old_string` or `new_string`, that would break the exact literal text requirement.
+      **Important:** If ANY of the above are not satisfied, the tool will fail. CRITICAL for `old_string`: Must uniquely identify the instance(s) to change. Include at least 3 lines of context BEFORE and AFTER the target text, matching whitespace and indentation precisely. If this string matches multiple locations and `allow_multiple` is not true, the tool will fail.
+      5. Prefer to break down complex and long changes into multiple smaller atomic calls to this tool. Always check the content of the file after changes or not finding a string to match.
+      **Multiple replacements:** Set `allow_multiple` to true if you want to replace ALL occurrences that match `old_string` exactly.
+```
+
+**`replace`, Gemini 3 family (571 characters)**
+
+Selected with the Gemini 3 declaration set.
+
+```text
+Replaces text within a file. By default, the tool expects to find and replace exactly ONE occurrence of `old_string`. If you want to replace multiple occurrences of the exact same string, set `allow_multiple` to true. This tool is preferred for surgical edits to existing files as it minimizes token usage, simplifies code reviews, and avoids accidental deletions. This tool requires providing significant context around the change to ensure precise targeting.
+The user has the ability to modify the `new_string` content. If modified, this will be stated in the response.
+```
+
+### Whole-file write
+
+`write_file` validates the path, rejects a directory target with `Path is a directory, not a file: <path>`, and rejects content that holds an omission placeholder such as `rest of methods ...`. The confirmation step reads the current file, builds a unified diff, and lets the user change the content. Execution reads the file again, creates missing parent directories, and calls `StandardFileSystemService.writeTextFile`, which is `fs.writeFile(path, content, 'utf-8')`. The write is direct: no temporary file, no rename, no mode preservation, no post-write verification. Line endings: when the existing file used CRLF, every line ending in the new content is converted to CRLF; for a new file the OS default applies. BOM: the service reads and writes UTF-8 as-is, so an existing BOM survives only if the model's content contains it. In plan mode the path is redirected into the plans directory.
+
+Content correction: with `disableLLMCorrection` at its default `true`, no model call is made. An unescape pass still runs for models outside the Gemini 2 and Gemini 3 families and custom models; Gemini 2 and 3 models get the content as supplied. JSON and notebook files skip the pass.
+
+### Matching
+
+`replace` reads the file once inside the call, normalises CRLF to LF, and runs a cascade: exact, then line-trimmed flexible, then a token regex that allows whitespace between tokens, then a bounded Levenshtein fuzzy match for `old_string` of at least ten characters with a 10 percent weighted difference limit and a work cap of `lines * length^2 <= 4e8`. The first strategy that finds a candidate wins. Without `allow_multiple` the count must be exactly one. A fuzzy match is reported to the model as `Applied fuzzy match at line <n>.` or `lines <a>-<b>`; flexible and regex matches are not reported. An empty `old_string` creates the file when it does not exist and errors when it does. Equal `old_string` and `new_string` is an error. Validation completes before the write, so a miss leaves the file unchanged.
+
+When every strategy misses and `disableLLMCorrection` is `false`, `FixLLMEditWithInstruction` asks a secondary model for a corrected pair. The path hashes the first read, re-reads the file, and uses the newer content when the hash changed. JSON, JSONC, JSON5, and notebook files skip correction. The setting defaults to `true`, so this path is off unless the user enables it. The correction prompt itself: Not surveyed.
+
+### Multi-file patch
+
+None. `replace` covers one file per call. There is no patch grammar and no multi-file tool.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Described to the model in the default-legacy `replace` string; not enforced. `write_file` accepts any destination |
+| Stale-file check | None on the normal path. The LLM-correction path compares a SHA-256 of the in-call read against a re-read, only when correction is enabled and the first match failed |
+| Lock | None. The scheduler forces `replace` and `write_file` into ordered barriers within one batch; there is no path lock shared with `run_shell_command`, background processes, or other CLI instances |
+| Cross-process coordination | None |
+| Post-write checks | None. No syntax or LSP check |
+| Change tracking | Build-file writes are recorded for a later reminder; the UI receives a diff and diff statistics |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write_file` | `Successfully created and wrote to new file: <path>.` or `Successfully overwrote file: <path>.`, then `Here is the updated code:` and a five-line diff context snippet. ``User modified the `content` to be: <content>`` is inserted when the user edited the content |
+| `replace` | `Created new file: <path> with provided content.` or `Successfully modified file: <path> (<n> replacements).`, then `Here is the updated code:` and the snippet, then the fuzzy-match note when it applies, then ``The confirmation step modified the `new_string` content to be: <text>.`` when the user edited it |
+
+JIT project context can follow either message. The full unified diff, diff statistics, and the `isNewFile` flag go to `returnDisplay` for the UI, not to the model.
+
+### Notable
+
+- The confirmation for both tools shows a diff and can open the IDE diff view; the user can alter the proposed content before it is written, and the model is told.
+- No notebook editor, no undo tool, no checkpoint tool in this family.
+- The `replace` description promises exact matching; the runtime accepts the flexible, regex, and fuzzy cascade above.
+- `write_file` and `replace` in `autoEdit` mode are allowed after an in-process `allowed-path` safety checker; in `plan` mode the read-only policy denies them.
+- The default-legacy `write_file` description says nothing about parent creation or overwrite; the runtime does both.
+
+## Shell
+
+### Signature
+
+```ts
+run_shell_command({ command: string, description?: string, dir_path?: string, is_background?: boolean, delay_ms?: integer, additional_permissions?: object })
+list_background_processes({})
+read_background_output({ pid: integer, lines?: integer, delay_ms?: integer })
+```
+
+`additional_permissions` is added to the schema only when tool sandboxing is enabled; it carries `network` and `fileSystem.read` and `fileSystem.write` path lists. `dir_path` resolves against the target directory and must pass the workspace check. `delay_ms` sets how long a background command runs before the call returns; the default is 200 ms. `lines` on `read_background_output` defaults to 100. There is no timeout parameter.
+
+### Description
+
+`run_shell_command`: 1222 characters, 1222 bytes, 14 lines, approximately 269 tokens. Rendered for Linux with `enableInteractiveShell=true` and `enableShellOutputEfficiency=true`. The same helper serves both declaration sets, so there is one string. Windows renders a PowerShell variant; with the interactive shell off the background sentence tells the model to use `&` instead.
+`list_background_processes`: 94 characters, 94 bytes, 1 line, approximately 15 tokens. Identical in both sets.
+`read_background_output`: 82 characters, 82 bytes, 1 line, approximately 15 tokens. Identical in both sets.
+
+The shell string names the `bash -c` invocation, tells the model to use `is_background` and never `&`, explains the process group and how to signal it, gives two efficiency rules on quiet flags and pagers, and lists the returned fields: output, exit code, error, signal, background PIDs, and process group ID. Sandboxing changes only the parameter schema, not the description.
+
+**`run_shell_command` (1222 characters)**
+
+```text
+This tool executes a given shell command as `bash -c <command>`. To run a command in the background, set the `is_background` parameter to true. Do NOT use `&` to background commands. Command is executed as a subprocess that leads its own process group. Command process group can be terminated as `kill -- -PGID` or signaled as `kill -s SIGNAL -- -PGID`.
+
+      Efficiency Guidelines:
+      - Quiet Flags: Always prefer silent or quiet flags (e.g., `npm install --silent`, `git --no-pager`) to reduce output volume while still capturing necessary information.
+      - Pagination: Always disable terminal pagination to ensure commands terminate (e.g., use `git --no-pager`, `systemctl --no-pager`, or set `PAGER=cat`).
+
+      The following information is returned:
+
+      Output: Combined stdout/stderr. Can be `(empty)` or partial on error and for any unwaited background processes.
+      Exit Code: Only included if non-zero (command failed).
+      Error: Only included if a process-level error occurred (e.g., spawn failure).
+      Signal: Only included if process was terminated by a signal.
+      Background PIDs: Only included if background processes were started.
+      Process Group PGID: Only included if available.
+```
+
+**`list_background_processes` (94 characters)**
+
+```text
+Lists all active and recently completed background shell processes orchestrating by the agent.
+```
+
+**`read_background_output` (82 characters)**
+
+```text
+Reads the output log of a background shell process. Support reading tail snapshot.
+```
+
+### Working directory and environment
+
+The working directory is the target directory unless `dir_path` is given; the resolved directory must pass `validatePathAccess`. Unix commands run as `bash -c <command>`; Windows uses the configured PowerShell or command shell path. `ShellExecutionService` sanitises the environment, sets `GEMINI_CLI=1`, disables Git credential and interactive prompts, applies pager defaults, and asks the configured `SandboxManager` to prepare the command. On non-Windows hosts the command is wrapped with a POSIX `EXIT` trap that records child background PIDs to a temp file. Login shell: None.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One process per call. `node-pty` when the interactive shell is enabled and a PTY implementation loads, otherwise `child_process`. The child leads its own process group on supported Unix systems, except under Bun |
+| Background | `is_background` starts the process, waits `delay_ms`, and returns `Command is running in background. PID: <pid>. Initial output:` with the output so far when the process is still running. The execution stays managed in `ShellExecutionService`; completion can inject output into the conversation or stay silent |
+| stdin | The UI can write input to an active PTY; the model cannot |
+| Cancellation | Abort or inactivity timeout kills the process group with escalation and waits for the close event |
+| Grandchildren | PIDs captured by the `EXIT` trap are reported as `Background PIDs:`; they are not managed unless `is_background` was used |
+| Late exits | The lifecycle service keeps exit information for five minutes; the session history holds at most 100 records |
+
+The inactivity timeout comes from `tools.shell.inactivityTimeout`, 300 seconds by default; any output, binary-progress, or exit event resets it. A timeout returns `Command was automatically cancelled because it exceeded the timeout of <n> minutes without output.` followed by ` Below is the output before it was cancelled:` and the output, or ` There was no output before it was cancelled.`
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | stdout and stderr are decoded separately and appended to one ordered string. The child-process buffer keeps at most 16 MiB as a rolling tail and appends `[GEMINI_CLI_WARNING: Output truncated. The buffer is limited to 16MB.]` when it overflowed. PTY mode uses xterm scrollback up to 300 000 lines |
+| Live buffer | 100 000 characters for UI updates, refreshed at most once per second |
+| Binary output | A 4 KiB sniff; a binary stream stops text rendering and shows `[Binary output detected. Halting stream...]`, then byte-count progress |
+| Model-visible budget | The scheduler saves `run_shell_command` text above `truncateToolOutputThreshold`, 40 000 characters by default, to `tool-outputs/` under the project temp directory and returns `Output too large. Showing first 8,000 and last 32,000 characters. For full output see: <file>` with the head and tail around `... [<n> characters omitted] ...`. With context management on, `ToolOutputDistillationService` can summarise instead |
+| Spill file | `<projectTempDir>/tool-outputs/session-<sessionId>/<tool>_<callId>.txt`. No cleanup deadline in the source |
+| Empty output | `(empty)` |
+| Wrapper | The whole shell result is wrapped in an `untrusted_context` tag pair before it reaches the model |
+
+### Sandbox
+
+Optional. A full-process sandbox is selected by `--sandbox`, `GEMINI_SANDBOX`, or settings, with Docker, Podman, macOS Seatbelt, gVisor, LXC, and a Windows native sandbox as providers; container and LXC modes mount the workspace at its host path. Tool-level sandboxing adds a `SandboxManager` preparation step to shell execution only: Bubblewrap on Linux and Seatbelt on macOS can deny writes outside the workspace, protect `.git`, hide secret files such as `.env`, and grant paths from `additional_permissions`. A denial can return `Sandbox expansion required` with a structured request so the model can retry with narrower added paths or network access. Without a selected sandbox, `NoopSandboxManager` runs and only sanitises the environment; `LocalSandboxManager` throws `Tool sandboxing is not yet implemented.`. Direct `read_file`, `write_file`, and `replace` calls never pass through the sandbox manager.
+
+### Approval
+
+`run_shell_command` is `ask_user` at priority 10 in `policies/write.toml`. Confirmation shows the parsed root commands, redirections, untrusted flags, and any sandbox expansion, and can produce an allow-once, allow-session, or persistent rule narrowed to a command prefix. Before execution `detectCommandSubstitution` blocks `$()`, backticks, `<()`, and `>()` in command arguments, and PowerShell `@()` and `$()`, with `Command injection detected: command substitution syntax ($(), backticks, <() or >()) found in command arguments. ...` as success text. `yolo` allows most tools; `plan` denies through the read-only policy; an untrusted folder disables `yolo` and `autoEdit`. In a non-interactive session the policy engine's default decision is deny. No shipped policy rule names the two background tools, so they take the engine default, `ask_user` in an interactive session. The confirmation text shown to the user: Not surveyed.
+
+### Notable
+
+- A non-zero exit is a successful tool result. The model text is `Output: <text>` then `Exit Code: <n>`, with `Signal: <sig>`, `Background PIDs: <pids>`, and `Process Group PGID: <pgid>` lines when present. Only a spawn failure sets the `error` field.
+- User cancellation returns `Command was cancelled by user before it could complete.` plus the output-before-cancel clause, or `Command was cancelled by user before it could start.` when the signal was already set.
+- `read_background_output` checks that the PID belongs to the session, opens the predicted log with `O_NOFOLLOW`, reads at most 64 KiB from the end, and returns `Showing last <n> of <total> lines:` with the tail. A missing record returns `Access denied. Background process ID <pid> not found in this session's history.`; a symlink at the log path returns `Symbolic link detected at predicted log path. Access is denied for security reasons.`
+- `list_background_processes` returns `No background processes found.` or one ``- [PID <pid>] <STATUS>: `<command>` `` line per record.
+- The default-legacy and Gemini 3 sets call the same shell description helper, so shell text does not change with the model family.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `glob` | `pattern`, `dir_path?`, `case_sensitive?`, `respect_git_ignore?`, `respect_gemini_ignore?` | None in the leaf. Files modified in the last 24 hours first, newest first, then the rest alphabetically | `dot: true`, `follow: false`, `nodir: true`; configured exclusions plus `.gitignore` and `.geminiignore` through the discovery service |
+| `grep_search` (ripgrep) | `pattern`, `dir_path?`, `include_pattern?`, `exclude_pattern?`, `names_only?`, `case_sensitive?`, `fixed_strings?`, `context?`, `before_context?`, `after_context?`, `no_ignore?`, `max_matches_per_file?`, `total_max_matches?` | 100 total matches; 2000 characters per line with `... [truncated]`; 30 second timeout floor, raised by `searchTimeout` | `rg --json`; `.gitignore` native; `.geminiignore` through `--ignore-file`; common directory excludes, `*.log`, `*.tmp`; `no_ignore` disables all of them |
+| `list_directory` | `dir_path`, `ignore?`, `file_filtering_options?` | None. No offset, limit, or page | `.gitignore` and `.geminiignore` by default; per-call `ignore` globs on the basename |
+| Stat, find, mkdir | None | | |
+
+`glob` searches every workspace root when `dir_path` is omitted, escapes a pattern that names an existing path, resolves results to real paths, and returns `Found <n> file(s) matching "<pattern>" within <dir>, sorted by modification time (newest first):` with absolute paths one per line, or `No files found matching pattern "<pattern>" within <dir>`. An ignored count is appended in parentheses. `grep_search` returns `Found <n> match(es) for pattern "<pattern>" in path "<dir>":` then blocks of `File: <path>` and `L<line>: <text>` rows between `---` lines; context lines use `L<line>- <text>`. With `names_only` it lists paths. When one to three matches are found and no context was requested, the ripgrep path re-runs with 50 context lines for one match or 15 for two or three. Zero matches return `No matches found for pattern "<pattern>" ...`. The `GrepTool` fallback tries `git grep`, then system `grep`, then a JavaScript scan, and parses `path:line:content` text; its output shape: Not surveyed. `list_directory` returns `Directory listing for <dir>:` with `[DIR] <name>` rows first, then `<name> (<size> bytes)` rows, alphabetical within each group, plus `(<n> ignored)` when entries were filtered. An empty directory returns `Directory <dir> is empty.` Entries that fail `stat` are omitted without a notice.
+
+### Description
+
+`list_directory`: 150 characters, 150 bytes, 1 line, approximately 24 tokens. Identical in both sets.
+`glob`: 261 characters, 261 bytes, 1 line, approximately 55 tokens. Identical in both sets.
+`grep_search`, default-legacy: 63 characters, 63 bytes, 1 line, approximately 11 tokens.
+`grep_search`, Gemini 3 family: 301 characters, 301 bytes, 1 line, approximately 61 tokens.
+
+`list_directory` and `glob` are one sentence each; `glob` names the sort order and absolute paths. The default-legacy `grep_search` string is nine words. The Gemini 3 string adds that the tool is ripgrep-backed, is preferred over `grep` through the shell, and defaults to 100 matches with `total_max_matches` to raise it. Both `grep_search` strings are the ripgrep declaration; the `GrepTool` fallback registers under the same name with its own declaration, which was not counted.
+
+**`list_directory` (150 characters)**
+
+```text
+Lists the names of files and subdirectories directly within a specified directory path. Can optionally ignore entries matching provided glob patterns.
+```
+
+**`glob` (261 characters)**
+
+```text
+Efficiently finds files matching specific glob patterns (e.g., `src/**/*.ts`, `**/*.md`), returning absolute paths sorted by modification time (newest first). Ideal for quickly locating files based on their name or path structure, especially in large codebases.
+```
+
+**`grep_search`, default-legacy (63 characters)**
+
+```text
+Searches for a regular expression pattern within file contents.
+```
+
+**`grep_search`, Gemini 3 family (301 characters)**
+
+Selected with the Gemini 3 declaration set.
+
+```text
+Searches for a regular expression pattern within file contents. This tool is FAST and optimized, powered by ripgrep. PREFERRED over standard `run_shell_command("grep ...")` due to better performance and automatic output limiting (defaults to 100 matches, but can be increased via `total_max_matches`).
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `File not found: <path>` | Function response `error` field; `llmContent` is dropped |
+| Directory on read | `Path is a directory, not a file: <path>` | `error` field |
+| Path outside workspace or blocked segment | `Path not in workspace: Attempted path "<path>" resolves outside the allowed workspace directories: <dirs> or the project temp directory: <tmp>` | `error` field, or `Error: Invalid parameters provided. Reason: <message>` when caught at validation |
+| Ignored path on read | `File path '<path>' is ignored by configured ignore patterns.` | Validation error |
+| OS permission denied on read | `Error reading file <path>: EACCES: permission denied, open '<path>'` | `error` field |
+| Binary file | `Cannot display content of binary file: <rel>` | Success text, no error field |
+| Too large | `File size exceeds the 20MB limit: <path> (<size>MB)` | `error` field |
+| Offset past end | Not an error; banner with empty content | Success text |
+| Invalid range | `start_line cannot be greater than end_line` | Validation error |
+| Edit target missing | `File not found: <path>` | `error` field |
+| Edit match failed | `Could not find an exact match for 'old_string' in '<path>'. If previous edits modified the file or you are modifying lines outside your recent read window, please use ReadFile to inspect the target lines before retrying with an exact 'old_string'.` | `error` field |
+| Edit not unique | `Failed to edit, Expected 1 occurrence but found <n> for old_string in file: <path>. If you intended to replace multiple occurrences, set 'allow_multiple' to true.` | `error` field |
+| Edit no change | `No changes to apply. The old_string and new_string are identical in file: <path>` | `error` field |
+| Edit create on existing file | `File already exists, cannot create: <path>` | `error` field |
+| Edit empty `old_string` after a miss | `The 'old_string' parameter is required. The Edit tool performs localized search-and-replace. ...` | `error` field, correction path only |
+| Write target is a directory | `Path is a directory, not a file: <path>` at validation; `Target is a directory, not a file: <path> (EISDIR)` at write | Validation error; `error` field |
+| Write permission or space | `Permission denied writing to file: <path> (EACCES)`; `No space left on device: <path> (ENOSPC)` | `error` field |
+| Write omission placeholder | `` `content` contains an omission placeholder (for example 'rest of methods ...'). Provide complete file content. `` | Validation error |
+| Stale file | None. Not detected outside the optional correction path | |
+| Command exit non-zero | `Output: <text>` then `Exit Code: <n>` | Success text |
+| Command timeout | `Command was automatically cancelled because it exceeded the timeout of <n> minutes without output.` plus the output clause | Success text |
+| Command cancelled | `Command was cancelled by user before it could complete.` plus the output clause | Success text |
+| Command spawn failure | `Output: <text>` then `Error: <message>` | `error` field with type `shell_execute_error` |
+| Command substitution | `Command injection detected: command substitution syntax ... the command was blocked.` | Success text |
+| Policy denied | `Tool execution denied by policy.` followed by the rule's `denyMessage` when one is set | `error` field with type `policy_violation` |
+| User rejected at confirmation | `[Operation Cancelled] Reason: User denied execution.`; the rest of the batch gets `[Operation Cancelled] Reason: User cancelled operation` | `error` field, status cancelled |
+| Empty command | `Command cannot be empty.` | Validation error |
+| Sandbox denial | `Sandbox expansion required` | `error` field with a JSON request in the message |
+| Search path errors | `Path does not exist: <path>`; `Path is not a valid directory or file: <path>`; `Search path does not exist <path>`; `Search path is not a directory: <path>` | Validation error or `error` field |
+| Grep timeout | `Operation timed out after <n>ms. In large repositories, consider narrowing your search scope by specifying a 'dir_path' or an 'include_pattern'.` | `error` field |
+| Invalid regex | `Invalid regular expression pattern provided: <pattern>. Error: <message>` | Validation error |
+| Directory listing errors | `Error: Path is not a directory: <path>`; `Error listing directory: <message>` | `error` field |
+| Background log | `Access denied. Background process ID <pid> not found in this session's history.`; `No output log found for process ID <pid>. ...`; the symlink denial above | `error` field |
+
+Every tool returns a `ToolResult`. When `error` is set, the executor sends `{ error: <error.message> }` and discards `llmContent`; when it is not set, the model receives `{ output: <llmContent> }` or the media parts. Validation failures from `validateToolParamValues` become `Error: Invalid parameters provided. Reason: <message>` with type `invalid_tool_params`. Typed `ToolErrorType` values stay in the host result and telemetry.
+
+## Evidence
+
+### What was verified and how
+
+| Section | Label | Pin | Note |
+|---|---|---|---|
+| Tool inventory | Source | `6a466a7` | `config.ts` `createToolRegistry()`, `modelFamilyService.ts`, `tool-names.ts`; 2026-09-15 report. `read_many_files` registration re-checked on 2026-09-18 |
+| Read | Source | `6a466a7` | `read-file.ts`, `fileUtils.ts`, `paths.ts`, `path-validator.ts`, `workspaceContext.ts`, `config.ts`; 2026-09-16 survey. Output examples are Reconstructed |
+| Descriptions | Source | `6a466a7` | `.txt` files copied byte for byte from the 2026-09-16 extraction, which imported `default-legacy.ts` and `gemini-3.ts` and rendered `getShellToolDescription(true, true)` for Linux |
+| Edit | Source | `6a466a7` | `write-file.ts`, `edit.ts`, `editCorrector.ts`, `fileSystemService.ts`, `settingsSchema.ts`; 2026-09-15 report. Error strings and the `disableLLMCorrection` default re-read on 2026-09-18 |
+| Shell | Source | `6a466a7` | `shell.ts`, `shellExecutionService.ts`, `shellBackgroundTools.ts`, `dynamic-declaration-helpers.ts`, `tool-executor.ts`, `settingsSchema.ts`; 2026-09-15 report. Result strings re-read on 2026-09-18 |
+| Search and listing | Source | `6a466a7` | `glob.ts`, `ripGrep.ts`, `grep.ts`, `grep-utils.ts`, `ls.ts`, `tools/constants.ts`; 2026-09-15 report. Notice strings re-read on 2026-09-18 |
+| Errors | Source | `6a466a7` | Strings re-read from the tool files on 2026-09-18; transport from `scheduler/tool-executor.ts` and `scheduler.ts` |
+
+No claim on this page is Observed. No command was run through a live Gemini CLI model session.
+
+### Gaps
+
+No top-level heading is answered with `Not surveyed.` or `Unverified.` Four facts inside sections are:
+
+- Search and listing, `GrepTool` fallback output shape: Not surveyed. Its declaration string was not extracted either. Reading `grep.ts` at the pin fills both.
+- Read, `read_many_files` skip reason strings: Not surveyed. `read-many-files.ts` holds them.
+- Edit, the LLM correction prompt: Not surveyed. `utils/llm-edit-fixer.ts` was not read; the page describes the call site only.
+- Shell, the confirmation text the user sees: Not surveyed. It is rendered by the CLI package.
+
+Two more limits on the evidence: the Bubblewrap and Seatbelt sandbox profiles are described from the 2026-09-15 report and were not re-read on 2026-09-18, and Windows shell selection is Source only, not exercised.
+
+### Refresh notes
+
+Diff the `sourceFiles` list between `6a466a7e2fe2b1255752c1e74f69b31f0216084d` and the target commit. Check `createToolRegistry()` in `config/config.ts` first for tools added, removed, or gated, and whether `read_many_files` has been registered. The description strings are template literals in `model-family-sets/default-legacy.ts` and `model-family-sets/gemini-3.ts`, the shell helper in `dynamic-declaration-helpers.ts`, and two literals in `shellBackgroundTools.ts`; a change to any of them changes the counts, and a new model family set adds a third variant column. Re-extract with `extract_ts_harnesses.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`, which imports the pinned modules with Bun and writes only the Gemini 3 strings that differ, then recount with `count.ts` there.

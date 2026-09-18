@@ -1,0 +1,532 @@
+---
+title: OpenHands
+description: Read, edit, shell, and search tools in the OpenHands Software Agent SDK at v1.44.1, with every model-facing description in full
+harness: openhands
+kind: platform
+repo: OpenHands/software-agent-sdk
+commit: 9d143aac35c2dcec9cbb046ff9f35ac5eb072f6a
+version: v1.44.1
+license: MIT
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - openhands-tools/openhands/tools/file_editor/definition.py
+  - openhands-tools/openhands/tools/file_editor/editor.py
+  - openhands-tools/openhands/tools/file_editor/impl.py
+  - openhands-tools/openhands/tools/file_editor/exceptions.py
+  - openhands-tools/openhands/tools/file_editor/utils/constants.py
+  - openhands-tools/openhands/tools/file_editor/utils/config.py
+  - openhands-tools/openhands/tools/file_editor/utils/encoding.py
+  - openhands-tools/openhands/tools/file_editor/utils/history.py
+  - openhands-tools/openhands/tools/terminal/definition.py
+  - openhands-tools/openhands/tools/terminal/descriptions.py
+  - openhands-tools/openhands/tools/terminal/constants.py
+  - openhands-tools/openhands/tools/terminal/metadata.py
+  - openhands-tools/openhands/tools/terminal/impl.py
+  - openhands-tools/openhands/tools/terminal/timeout_policy.py
+  - openhands-tools/openhands/tools/terminal/env.py
+  - openhands-tools/openhands/tools/terminal/terminal/factory.py
+  - openhands-tools/openhands/tools/terminal/terminal/terminal_session.py
+  - openhands-tools/openhands/tools/terminal/terminal/tmux_terminal.py
+  - openhands-tools/openhands/tools/terminal/terminal/tmux_pane_pool.py
+  - openhands-tools/openhands/tools/terminal/terminal/subprocess_terminal.py
+  - openhands-tools/openhands/tools/terminal/utils/command.py
+  - openhands-tools/openhands/tools/glob/definition.py
+  - openhands-tools/openhands/tools/glob/impl.py
+  - openhands-tools/openhands/tools/grep/definition.py
+  - openhands-tools/openhands/tools/grep/impl.py
+  - openhands-tools/openhands/tools/apply_patch/definition.py
+  - openhands-tools/openhands/tools/apply_patch/core.py
+  - openhands-tools/openhands/tools/preset/default.py
+  - openhands-tools/openhands/tools/preset/gpt5.py
+  - openhands-sdk/openhands/sdk/tool/schema.py
+  - openhands-sdk/openhands/sdk/tool/tool.py
+  - openhands-sdk/openhands/sdk/utils/truncate.py
+  - openhands-sdk/openhands/sdk/utils/path.py
+  - openhands-sdk/openhands/sdk/utils/command.py
+  - openhands-sdk/openhands/sdk/agent/base.py
+  - openhands-sdk/openhands/sdk/agent/agent.py
+  - openhands-sdk/openhands/sdk/security/confirmation_policy.py
+---
+
+OpenHands is an open-source software agent platform. The code surveyed here is its Python Software Agent SDK, which owns the tools, conversations, and workspaces behind the OpenHands app, CLI, and agent server. The default tool preset gives the model two file tools: `file_editor`, one tool whose `command` field selects view, create, string replace, insert, or undo, and `terminal`, a persistent shell session that is a tmux pane pool on a Unix host. `glob`, `grep`, and `apply_patch` are registered but opt-in, and the GPT-5 preset swaps `file_editor` for `apply_patch`. This page describes the default preset on a Unix host with tmux installed and a local workspace; the sandbox choice (local process, Docker, or remote) sits outside the tools and is named where it matters.
+
+## Source pin
+
+| Item | Value |
+|---|---|
+| Repository | [OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk) |
+| Commit | `9d143aac35c2dcec9cbb046ff9f35ac5eb072f6a`, tag `v1.44.1`, committed 2026-08-28 |
+| Package versions | `openhands-sdk`, `openhands-tools` at `1.44.1` |
+| Licence | MIT |
+| Surveyed | 2026-09-16 for read and the description strings from the pinned clone; the 2026-09-16 report used public documentation for edit, shell, permissions, and hooks. Edit, shell, search, and error facts on this page were re-read from the clone on 2026-09-18 |
+| Verified | 2026-09-16 |
+| Configuration surveyed | Default preset from `preset/default.py`; `TerminalTool` auto-detection on Unix with tmux present, so pool mode; local workspace; non-vision model for the `file_editor` string |
+| Files read | The `sourceFiles` list in the frontmatter |
+| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-09-16-openhands-sdk-source/software-agent-sdk` (shallow clone at the tag); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction scripts, `descriptions/openhands/*.txt`, counts) |
+| Evidence status | Open source inspected. No live model session was run. Confirmation policies and hooks are Documentation with class names checked in source |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `file_editor` | View a file or directory, create a file, replace one string, insert lines, undo the last edit | Yes | One tool; `command` selects the operation |
+| `terminal` | Run one command in a persistent shell session, send input to it, or reset it | Yes | tmux pane pool by default on Unix; PowerShell string on Windows |
+| `glob` | Find file paths by glob pattern | No | Registered; a host adds `Tool(name="glob")` |
+| `grep` | Find files whose content matches a regex | No | Returns file paths only, not lines |
+| `apply_patch` | Add, update, move, or delete files with a patch envelope | No | The GPT-5 preset uses it in place of `file_editor` |
+
+Tool names come from the class name in snake case without the `_tool` suffix. The default preset also carries `task_tracker`, an optional browser toolset, and an optional sub-agent toolset; they are outside this page. MCP tools are excluded. Every action carries an SDK-level risk field when a security analyzer is configured; that field is outside the schemas shown below.
+
+## Read
+
+### Signature
+
+```ts
+file_editor({ command: "view", path: string, view_range?: [number, number] })
+```
+
+`path` must be absolute. `view_range` is one-based and inclusive; `[start, -1]` reads from `start` to the end. There is no `offset`, no `limit`, and no default window: without `view_range` the whole file is returned. The schema is one Pydantic model for all five commands, so `file_text`, `old_str`, `new_str`, and `insert_line` are also present as optional fields.
+
+### Description
+
+`file_editor`: 2126 characters, 2126 bytes, 34 lines, approximately 460 tokens. This is the whole `file_editor` string; view, create, replace, insert, and undo share it, so the count covers every command. The read guidance is two lines of it: the `view` bullet, which names `cat -n` and the two-level directory listing, and the truncation bullet, which names `<response clipped>`. The rest of the string is edit guidance and is not repeated under Edit.
+
+The string is a template. It is rendered here as the non-vision variant with `/workspace` as the conversation working directory, which is appended at creation time; a vision-capable model gets one extra bullet after the second line: `` * If `path` is an image file (.png, .jpg, .jpeg, .gif, .webp, .bmp), `view` displays the image content ``.
+
+**`file_editor` (2126 characters)**
+
+```text
+Custom editing tool for viewing, creating and editing files in plain-text format
+* State is persistent across command calls and discussions with the user
+* If `path` is a text file, `view` displays the result of applying `cat -n`. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep
+* The `create` command cannot be used if the specified `path` already exists as a file
+* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`
+* The `undo_edit` command will revert the last edit made to the file at `path`
+* This tool can be used for creating and editing files in plain-text format.
+
+
+Before using this tool:
+1. Use the view tool to understand the file's contents and context
+2. Verify the directory path is correct (only applicable when creating new files):
+   - Use the view tool to verify the parent directory exists and is the correct location
+
+When making edits:
+   - Ensure the edit results in idiomatic, correct code
+   - Do not leave the code in a broken state
+   - Always use absolute file paths (starting with /)
+
+CRITICAL REQUIREMENTS FOR USING THIS TOOL:
+
+1. EXACT MATCHING: The `old_str` parameter must match EXACTLY one or more consecutive lines from the file, including all whitespace and indentation. The tool will fail if `old_str` matches multiple locations or doesn't match exactly with the file content.
+
+2. UNIQUENESS: The `old_str` must uniquely identify a single instance in the file:
+   - Include sufficient context before and after the change point (3-5 lines recommended)
+   - If not unique, the replacement will not be performed
+
+3. REPLACEMENT: The `new_str` parameter should contain the edited lines that replace the `old_str`. Both strings must be different.
+
+Remember: when making multiple file edits in a row to the same file, you should prefer to send all edits in a single message with multiple calls to this tool, rather than multiple messages with a single call each.
+
+
+Your current working directory is: /workspace
+When exploring project structure, start with this directory instead of the root filesystem.
+```
+
+### Path handling
+
+Paths are host paths. `validate_path` calls `is_host_absolute_path`, which runs `expanduser()` before the absolute check, so a `~/` path passes that check; the editor then uses the literal path, so the existence check that follows fails. A relative path fails validation, and when the workspace root joined with the path exists the error carries a hint:
+
+```text
+Invalid `path` parameter: <path>. The path should be an absolute path. Maybe you meant <cwd>/<path>?
+```
+
+A missing absolute path gives `` Invalid `path` parameter: <path>. The path <path> does not exist. Please provide a valid path. `` There is no sibling suggestion, no unicode variant probe, and no URL handling.
+
+Symlinks are followed without a check. The tool's declared resource key is `file:<resolved path>`, so two spellings of one file serialise against each other when tools run in parallel.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Path rules for `view` | None. No workspace containment, no deny list |
+| `allowed_edits_files` | An optional executor list that restricts every command except `view` to named files. Denial text: `Operation '<command>' is not allowed on file '<path>'. Only the following files can be edited: [<paths>]` |
+| Confirmation | A conversation-level policy applies to every action: `AlwaysConfirm`, `NeverConfirm`, or `ConfirmRisky` with a risk analyzer. Analyzers classify; they do not deny on their own. The text the model sees on a rejected action: Not surveyed |
+| Hooks | A `PreToolUse` hook can block an action; only exit code 2 blocks |
+| Device and special files | None. `path.exists()` and `path.is_dir()` are the only checks before the file is opened |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | After the size check, `is_binary` from the `binaryornot` package samples the file. Image extensions skip the sniff |
+| Refusal | `File validation failed for <path>: File appears to be binary and this file type cannot be read or edited by this tool.` A file that passes the sniff but fails to decode: `Cannot view <path>: file contains binary content that cannot be decoded as text. Error: <e>` |
+| Notebooks | None. `.ipynb` reads as JSON text |
+| Office and PDF text | None |
+| Images | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp` by extension. The whole file is base64-encoded into a `data:` URL and returned as an `ImageContent` part after the text `Image file <path> read successfully. Displaying image content.` MIME comes from `mimetypes`, with `image/png` as the fallback. No resize |
+| PDF | None |
+| Audio and video | None |
+| Media size guard | None. The image branch runs before `validate_file`, so the 10 MB cap does not apply to images |
+| Encoding | `charset_normalizer` over a sample of up to 1 MiB; a result above 0.9 confidence is used, `ascii` becomes `utf-8`, and anything else falls back to UTF-8. The result is cached per path and invalidated by mtime. Reads and writes use the detected encoding |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | Whole file | |
+| Ceiling | None. `view_range` is the only selector | |
+| Long line | None | |
+| Output budget | 16 000 characters. The text is cut to a head and a tail with the notice spliced between them, and the cut runs before line numbering | `` <response clipped><NOTE>Due to the max output limit, only part of this file has been shown to you. You should retry this tool after you have searched inside the file with `grep -n` in order to find the line numbers of what you are looking for.</NOTE> `` |
+| Whole-file size | 10 MiB (`MAX_FILE_SIZE_MB` times 1024 squared); the message says MB | `File validation failed for <path>: File is too large (<size>MB). Maximum allowed size is 10MB.` |
+| Offset past end | Error | `` Invalid `view_range` parameter: [<a>, <b>]. Its first element `<a>` should be within the range of lines of the file: [1, <total>]. `` |
+| End past end | Not an error; the range is clamped | `NOTE: We only show up to <total> since there're only <total> lines in this file.` prepended to the output |
+| Directory listing | Two levels, non-hidden entries, same 16 000 budget | `` <response clipped><NOTE>Due to the max output limit, only part of this directory has been shown to you. You should use `ls -la` instead to view large directories incrementally.</NOTE> `` |
+
+Because numbering runs after the splice, the lines after the notice carry continuous numbers that do not match their position in the file. The notice tells the model to use `grep -n` for real numbers. A `view_range` whose second element is below the first fails with `` Invalid `view_range` parameter: [<a>, <b>]. Its second element `<b>` should be greater than or equal to the first element `<a>`. ``
+
+### Output
+
+```text
+Here's the result of running `cat -n` on /workspace/src/app.ts:
+     1	import { x } from "./x"
+     2	export const y = x
+     3	
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | One line: `` Here's the result of running `cat -n` on <path>: `` |
+| Line prefix | `N\ttext`, number right-aligned to six columns |
+| End marker | A trailing newline. A whole-file view splits the content on `\n`, so a file that ends with a newline gains one numbered empty line at the end, as line 3 above shows. A ranged view joins `splitlines()` and does not |
+| Truncation notice | Spliced into the middle of the text, before numbering |
+| Error transport | An observation with `is_error` set. The SDK prepends `[An error occurred during execution.]` as its own text part, then the message |
+
+The example is reconstructed from the format code. A directory view starts with `Here's the files and directories up to 2 levels deep in <path>, excluding hidden items:` followed by one absolute path per line with `/` on directories, and ends with `<n> hidden files/directories in this directory are excluded. You can use 'ls -la <path>' to see them.` when hidden entries exist.
+
+### Notable
+
+- No repeat-read guard, no content injection after the read, and no redaction in this tool. Secret masking belongs to `terminal`.
+- An empty file with no `view_range` returns the prefix line and one numbered blank line. Any `view_range` on an empty file fails the first-element check, because the file has zero lines.
+- `view_range` on a directory fails with `` Invalid `view_range` parameter: <list>. The `view_range` parameter is not allowed when `path` points to a directory. ``
+- Every `file_editor` command, including `view`, declares the file resource key, so a view never overlaps a write to the same path inside the SDK's parallel executor. `tool_concurrency_limit` defaults to 1, so tool calls are sequential unless the host raises it.
+- No abort signal reaches the editor. Cancellation: None.
+- A ranged read streams the file and stops at the end line; a whole-file read joins every line in memory after `_count_lines` has already read the file once.
+
+## Edit
+
+### Signature
+
+```ts
+file_editor({ command: "create", path: string, file_text: string })
+file_editor({ command: "str_replace", path: string, old_str: string, new_str?: string })
+file_editor({ command: "insert", path: string, insert_line: number, new_str: string })
+file_editor({ command: "undo_edit", path: string })
+apply_patch({ patch: string })
+```
+
+The schema describes `new_str` as optional for `str_replace` and says nothing is added when it is missing. The runtime rejects a missing `new_str` with `` Parameter `new_str` is required for command: str_replace. `` `insert_line` is an integer from 0 to the line count; the text goes after that line, and 0 means the top. There is no `replace_all`, no array of edits, and no delete command. `apply_patch` is opt-in and takes the OpenAI cookbook envelope: `*** Begin Patch`, sections headed `*** Add File:`, `*** Update File:` with optional `*** Move to:`, or `*** Delete File:`, hunks introduced by `@@`, then `*** End Patch`.
+
+### Description
+
+`file_editor`: the full string is under Read, Description above. The one string covers every command, so it is not repeated here. Its edit guidance is the pre-edit checklist, the `CRITICAL REQUIREMENTS` block on exact matching, uniqueness, and replacement, and the closing rule about batching several edits to one file in one message. It does not tell the model to strip the `cat -n` gutter from `old_str`.
+
+`apply_patch` (opt-in): 123 characters, 123 bytes, 1 line, approximately 27 tokens. The string names the envelope markers and nothing else. For the OpenAI Responses API the tool serialises a minimal schema with one `patch` string, because the provider knows the tool.
+
+**`apply_patch` (123 characters, opt-in)**
+
+```text
+Apply unified text patches to files in the workspace. Input must start with '*** Begin Patch' and end with '*** End Patch'.
+```
+
+### Whole-file write
+
+`create` refuses an existing path before anything is written: `` Invalid `path` parameter: <path>. File already exists at: <path>. Cannot overwrite files using command `create`. `` The parent directory must exist; the temporary file is created inside it, and a failure there surfaces as `Ran into <e> while trying to write to <path>`.
+
+Every `file_editor` write goes through `_atomic_write`: the text is written to `.<name>.<random>.tmp` in the same directory, the original mode bits are copied onto it when the target exists, and `Path.replace` swaps it in. There is no `fsync`. Files are opened in Python text mode with default newline handling, so CRLF endings are read as LF and written back as the platform newline. When the detected encoding cannot represent the new text, the whole file is transcoded to UTF-8. BOM preservation: Not surveyed. Post-write verification: None. The success text for `create` is `File created successfully at: <path>`.
+
+`apply_patch` writes directly with `open(..., "w")` after `mkdir(parents=True)`; it is not atomic and does not copy mode bits.
+
+### Matching
+
+`str_replace` reads the whole file, escapes `old_str`, and finds every occurrence with `re.finditer`. When there is none, it retries with `old_str.strip()`; the model is not told that the stripped form matched, and the error that follows echoes the stripped string. One occurrence is replaced by slicing at the match offset. Zero occurrences after the retry: `` No replacement was performed, old_str `<old_str>` did not appear verbatim in <path>. `` More than one: `` No replacement was performed. Multiple occurrences of old_str `<old_str>` in lines [<n>, <m>]. Please ensure it is unique. `` Equal strings fail before the read with `` Invalid `new_str` parameter: <new_str>. No replacement was performed. `new_str` and `old_str` must be different. ``
+
+`insert` checks `insert_line` against the line count, rebuilds the file in memory, and appends `\n` to every inserted line.
+
+### Multi-file patch
+
+Present as the opt-in `apply_patch`. Every path resolves under the workspace root; a path that lands outside it fails with `Absolute or escaping paths are not allowed`, and an absolute path inside the root is accepted. All `Update` and `Delete` targets are loaded first; a missing one fails with `Delete File Error: Missing File: <path>` even for an `Update` section. The parser matches hunk context exactly, then with trailing whitespace ignored, then with both ends stripped, and counts each relaxed match as fuzz. The fuzz count and a structured commit go into observation fields; the model text on success is `Done!`. The commit is applied in section order: delete unlinks, add writes, update writes in place or writes the move target then unlinks the source. There is no rollback, so an OS error on a later file leaves the earlier files changed.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Described to the model; not enforced |
+| Stale-file check | None. No mtime, hash, or read ledger |
+| Lock | `file:<resolved path>` resource key on every `file_editor` command, honoured by the SDK executor when calls run in parallel. `terminal` and `apply_patch` declare no file key |
+| Cross-process coordination | None |
+| Post-write checks | None. No lint, syntax check, or diagnostics |
+| History | Up to ten prior contents per file in a temporary directory. `undo_edit` pops one and rewrites it; with none left: `No edit history found for <path>.` After `create` the stored entry is the created text, so an undo rewrites the same content and does not remove the file |
+| Encoding cache | Per path, invalidated by mtime, shared by read and write |
+
+### Output
+
+| Command | Model text |
+|---|---|
+| `create` | `File created successfully at: <path>` |
+| `str_replace` | `The file <path> has been edited.` then, after one space, `` Here's the result of running `cat -n` on a snippet of <path>: `` with four lines of context each side of the change, then `Review the changes and make sure they are as expected. Edit the file again if necessary.` |
+| `insert` | The same shape with `a snippet of the edited file` and `Review the changes and make sure they are as expected (correct indentation, no duplicate lines, etc). Edit the file again if necessary.` |
+| `undo_edit` | `Last edit to <path> undone successfully.` then, after one space, the whole restored file in `cat -n` form |
+| `apply_patch` | `Done!` |
+
+The observation also carries `old_content` and `new_content` fields. They feed the UI diff and are not part of the model text.
+
+### Notable
+
+- The snippet in an edit result passes through the same 16 000-character splice as a view.
+- No notebook editor, no checkpoint tool, no `replace_all`.
+- `undo_edit` history is per editor instance and per path string; it lives in a `oh_editor_history_` temporary directory and is not cleared when the file is edited by `terminal` or `apply_patch`.
+- The vision variant of the description changes nothing under Edit.
+
+## Shell
+
+### Signature
+
+```ts
+terminal({ command: string, is_input?: boolean, timeout?: number, reset?: boolean })
+```
+
+`timeout` is a float in seconds, at least 0, with no default. Setting it switches the call to blocking mode: the no-change timeout is disabled and the hard timeout applies. `is_input` sends `command` as keystrokes to the running process instead of starting a new command. `reset` replaces the session. `reset` together with `is_input` raises a `ValueError`, which the agent loop turns into `Error executing tool 'terminal': Cannot use reset=True with is_input=True`. The `timeout` parameter description names a 30 second no-change pause.
+
+### Description
+
+`terminal`: 1763 characters, 1763 bytes, 38 lines, approximately 424 tokens. This is the Unix string; on Windows the tool ships a PowerShell string with the same sections.
+
+The string states the one-command rule, the persistent session, a soft timeout, a ban on `set -e` variants, backgrounding with output redirected to a file, the exit code `-1` protocol with `is_input`, the key names it accepts, two habits about parent directories and absolute paths, a one-line truncation warning, and `reset`. It names a 10 second soft timeout; `NO_CHANGE_TIMEOUT_SECONDS` in `constants.py` is 30, and the `timeout` parameter description renders that constant.
+
+**`terminal` (1763 characters)**
+
+```text
+Execute a shell command in the terminal within a persistent shell session.
+
+
+### Command Execution
+* One command at a time: You can only execute one shell command at a time.
+  If you need to run multiple commands sequentially, use `&&` or `;`.
+* Persistent session: Environment variables, virtual environments, and
+  working directory changes persist across commands.
+* Soft timeout: Commands pause for confirmation after 10 seconds without
+  new output unless you provide a longer `timeout`.
+* Shell options: Do NOT use `set -e`, `set -eu`, or `set -euo pipefail`.
+  The runtime may not support them reliably.
+
+### Long-running Commands
+* For commands that may run indefinitely, run them in the background and
+  redirect output to a file, e.g. `python3 app.py > server.log 2>&1 &`.
+* For long-running commands, set the `timeout` parameter accordingly.
+* If a command returns exit code `-1`, it hit the soft timeout and is
+  still running. With `is_input=true`, you can:
+  - Send empty `command` to retrieve additional logs
+  - Send text to STDIN of the running process
+  - Send control commands like `C-c`, `C-d`, or `C-z`
+  - Send navigation keys like `UP`, `DOWN`, `LEFT`, `RIGHT`, `TAB`,
+    `ESC`, `BS`, `HOME`, `END`, `PGUP`, and `PGDN`
+  - Send any `C-<letter>` Ctrl sequence such as `C-a`, `C-e`, or `C-l`
+
+### Best Practices
+* Verify a parent directory exists before creating files or directories.
+* Prefer absolute paths and avoid excessive use of `cd`.
+
+### Output Handling
+* Large output may be truncated before being returned.
+
+### Terminal Reset
+* Set `reset=true` to create a fresh terminal session if the current one
+  becomes unresponsive.
+* Resetting the terminal clears environment variables, working directory
+  changes, and running processes.
+```
+
+### Working directory and environment
+
+The working directory is `conv_state.workspace.working_dir`; `create()` raises `ValueError` when it is not a directory. After each command the session updates its idea of the cwd from the prompt metadata, so `cd` persists. The environment starts from `sanitized_env()`: a copy of the process environment with `SESSION_API_KEY` removed and `AI_AGENT=openhands` set when absent, plus any client-supplied `env` mapping. The tmux backend adds `GIT_PAGER=cat` and `PAGER=cat` so pagers do not capture the pane.
+
+Shell selection: on Unix with tmux present, each pane runs `/bin/bash` in a window on a dedicated tmux socket named `openhands`; with a username of `root` or `openhands` the window runs `su <user> -` instead. Without tmux the subprocess backend runs `bash -i` in a PTY, from `shell_path` or `PATH`. On Windows the backend is PowerShell. Login shell: None for `/bin/bash`; the `su <user> -` form starts a login shell for that user. Each shell gets `set +H`, an empty `PS2`, and a `PROMPT_COMMAND` that sets `PS1` to a JSON block between `###PS1JSON###` and `###PS1END###` carrying pid, exit code, user, host, cwd, and the Python interpreter path; the session parses that block to learn the outcome.
+
+Secrets registered on the conversation are exported as environment variables before a command that references them, and their values are masked in the returned text.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | Persistent session. In the default pool mode a tmux session holds up to four panes (`DEFAULT_MAX_PANES`); each call checks out a pane and returns it when the call ends. Without tmux there is one session |
+| Background | None as a tool feature. The description tells the model to background with `&` and redirect to a file |
+| stdin | `is_input=true` sends text with Enter, or a named key or `C-<letter>` without Enter |
+| Soft timeout | 30 seconds without new output, polled every 0.5 seconds. The observation gets exit code `-1` and `[The command has no new output after 30 seconds. You may wait longer to see additional output by sending empty command '', send other commands to interact with the current process, send keys ("C-c", "C-z", "C-d") to interrupt/kill the previous command before sending your new command, or use the timeout parameter in terminal for future commands.]` |
+| Hard timeout | `timeout` seconds from the start, then `[The command timed out after <n> seconds. ...]` with the same tail |
+| Continuation, single session | An empty `command` fetches more output under `[Below is the output of the previous command.]`. A new command while one runs is refused: `` [Your command "<command>" is NOT executed. The previous command is still running - You CANNOT send new commands until the previous command is completed. By setting `is_input` to `true`, you can interact with the current process: ...] `` |
+| Continuation, pool mode | The next call checks out a pane. When that pane's previous command timed out, `_prepare_pooled_session` sends Ctrl-C, waits up to two seconds for the prompt, clears the screen, and resets the status. An empty `command` then fails with `No previous running command to retrieve logs from.`, and `is_input` with `No previous running command to interact with.` |
+| Cancellation | `conversation.interrupt()` sends Ctrl-C to every active session. No process-group signal, no kill escalation |
+| Reset | A new pane or session; text `Terminal session has been reset. All previous environment variables and session state have been cleared.` A command sent with `reset` runs after it and its text follows a blank line |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | tmux `capture-pane -J -pS -` over a 10 000-line scrollback at 256 columns; wrapped lines are rejoined. When the starting prompt has scrolled off, the text is prefixed with `[Previous command outputs are truncated. Showing the last <n> lines of the output below.]` |
+| Model-visible budget | 30 000 characters (`MAX_CMD_OUTPUT_SIZE`), head and tail with the notice between. `maybe_truncate` runs on the command text inside the session and again on the assembled observation text |
+| Truncation text | `<response clipped><NOTE>Due to the max output limit, only part of the full response has been shown to you.</NOTE>`; when a save directory exists: `<response clipped><NOTE>Due to the max output limit, only part of the full response has been shown to you. The complete output has been saved to <file> - you can use other tools to view the full content (truncated part starts around line <n>).</NOTE>` |
+| Spill file | `<persistence_dir>/observations/terminal_output_<hash>.txt`, written only when the conversation has a persistence directory; deduplicated by content hash; no cleanup |
+| Empty output | Empty text followed by the metadata lines |
+| Escape sequences | Terminal query sequences are filtered out of the text |
+
+### Sandbox
+
+None in the tool. The command runs wherever the SDK process runs. The OpenHands workspace layer decides the boundary: a local process workspace has no isolation, a Docker workspace runs the agent server inside a container, and a remote workspace runs it elsewhere. Network policy and filesystem scope are properties of that choice, not of `terminal`.
+
+### Approval
+
+A conversation-level confirmation policy applies to every action: `AlwaysConfirm`, `NeverConfirm`, or `ConfirmRisky` with a risk analyzer that classifies each action. `PreToolUse` hooks can block with exit code 2. The text the model sees on rejection: Not surveyed.
+
+Three guards run before a command reaches the shell. A `command` that starts like a Python or JSON list or dict literal is rejected with `` [Tool-argument error] The `command` argument looks like a Python/JSON <kind>, not a shell command. It starts with: <head> `` followed by instructions to write a script with `file_editor` or use a heredoc. A `command` with more than one newline-separated statement, parsed with tree-sitter-bash, is rejected with `Cannot execute multiple commands at once.` then `Please run each command separately OR chain them into a single command via && or ;` and a numbered list. When `OH_RUNTIME_IDLE_TIMEOUT_SECONDS` is set, a `timeout` above 90 percent of it is refused with `Refusing to run foreground terminal command with timeout=<n>s.` and an explanation.
+
+### Notable
+
+- A completed command renders as the output, then `[The command completed with exit code <n>.]`, then `[Current working directory: <cwd>]`, `[Python interpreter: <path>]` when present, and `[Command finished with exit code <n>]`. Reconstructed:
+
+```text
+hello
+[The command completed with exit code 0.]
+[Current working directory: /workspace]
+[Python interpreter: /usr/bin/python]
+[Command finished with exit code 0]
+```
+
+- A non-zero exit code is not an error observation. When the prompt markers are missing from the capture, the exit code is `-1` and the suffix reads `[The command completed but the exit code could not be determined. Terminal output may have corrupted the PS1 metadata markers.]`
+- A control key sent with `is_input` adds `CTRL+<letter> was sent.` after the exit code inside the completion line.
+- When a command kills the tmux server, for example with a top-level `exit`, the pool is rebuilt and the model gets an error observation that starts `The terminal session was reset because the underlying tmux server/session disappeared while running the previous command.`
+- A backslash before `;`, `&`, `|`, `<`, or `>` outside quotes is doubled before the command is sent to bash.
+- No PTY for the model, no streaming, no session identifiers. Parallel calls in pool mode land on different panes, so `cd` and exported variables from one call are not seen by a parallel call.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `glob` (opt-in) | `pattern: string`, `path?: string` | 100 paths; `[Results truncated to first 100 files. Consider using a more specific pattern.]` | `rg --files <path> -g <pattern> --sortr=modified`, so ripgrep ignore files apply and hidden files are skipped. Python `glob` fallback without ripgrep |
+| `grep` (opt-in) | `pattern: string`, `path?: string`, `include?: string` | 100 file paths; same notice | `rg -l -i <pattern> <path> --sortr=modified`; entries under a dot directory, and dot files when `include` is absent, are dropped afterwards. `grep -R -I -l -i` and then a Python walk as fallbacks |
+| List | Not applicable. `file_editor` with `command: "view"` on a directory lists two levels | | |
+| Stat, find, mkdir | None | | |
+
+`glob` resolves `path` when given; otherwise an absolute `pattern` such as `/repo/src/**/*.py` is split into a search directory and a relative pattern, `~` is expanded, and a relative pattern runs from the working directory. Results are absolute resolved paths. A missing directory: `Search path '<path>' is not a valid directory`. Zero results: `No files found matching pattern '<pattern>' in directory '<dir>'`. Success: `Found <n> file(s) matching pattern '<pattern>' in '<dir>':` then one path per line. The ripgrep child has a 30 second timeout.
+
+`grep` is always case-insensitive and returns file paths only: no line numbers, no matched text. The pattern is compiled with Python `re` first; a bad pattern fails with `Invalid regex pattern: <e>`. Zero results: `No files found containing pattern '<pattern>' in directory '<dir>'`, with `(filtered by '<include>')` appended when a filter was given. Success: `Found <n> file(s) containing pattern '<pattern>' in '<dir>':` then paths.
+
+### Description
+
+`glob` (opt-in): 670 characters, 670 bytes, 15 lines, approximately 152 tokens.
+`grep` (opt-in): 634 characters, 634 bytes, 11 lines, approximately 129 tokens.
+
+Both strings are templates: the working directory line at the end is appended at creation time and is rendered here as `/workspace`. `glob` names the pattern syntax, the modification-time sort, the 100-result cap, and four example patterns. `grep` names the regex syntax, the `include` filter, the modification-time sort, and the cap, and says the result is file paths.
+
+**`glob` (670 characters, opt-in)**
+
+```text
+Fast file pattern matching tool.
+* Supports glob patterns like "**/*.js" or "src/**/*.ts"
+* Use this tool when you need to find files by name patterns
+* Returns matching file paths sorted by modification time
+* Only the first 100 results are returned. Consider narrowing your search with stricter glob patterns or provide path parameter if you need more results.
+
+Examples:
+- Find all JavaScript files: "**/*.js"
+- Find TypeScript files in src: "src/**/*.ts"
+- Find Python test files: "**/test_*.py"
+- Find configuration files: "**/*.{json,yaml,yml,toml}"
+
+
+Your current working directory is: /workspace
+When searching for files, patterns are relative to this directory.
+```
+
+**`grep` (634 characters, opt-in)**
+
+```text
+Fast content search tool.
+* Searches file contents using regular expressions
+* Supports full regex syntax (eg. "log.*Error", "function\s+\w+", etc.)
+* Filter files by pattern with the include parameter (eg. "*.js", "*.{ts,tsx}")
+* Returns matching file paths sorted by modification time.
+* Only the first 100 results are returned. Consider narrowing your search with stricter regex patterns or provide path parameter if you need more results.
+* Use this tool when you need to find files containing specific patterns.
+
+
+Your current working directory is: /workspace
+When searching for content, searches are performed in this directory.
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Relative path | `` Invalid `path` parameter: <path>. The path should be an absolute path. `` plus `Maybe you meant <cwd>/<path>?` when that exists | Error observation; `[An error occurred during execution.]` header then text |
+| Missing file | `` Invalid `path` parameter: <path>. The path <path> does not exist. Please provide a valid path. `` | Error observation |
+| Directory on an edit command | `` Invalid `path` parameter: <path>. The path <path> is a directory and only the `view` command can be used on directories. `` | Error observation |
+| Directory on `view` | Not an error; the listing is returned | |
+| Missing parameter | `` Parameter `<parameter>` is required for command: <command>. `` | Error observation |
+| Too large | `File validation failed for <path>: File is too large (<size>MB). Maximum allowed size is 10MB.` | Error observation |
+| Binary | `File validation failed for <path>: File appears to be binary and this file type cannot be read or edited by this tool.`; `Cannot view <path>: file contains binary content that cannot be decoded as text. Error: <e>` | Error observation |
+| Read failure inside `read_file` | `Ran into <e> while trying to read <path>` | Error observation |
+| Image read failure | `Failed to read image file <path>: <e>` | Error observation |
+| Offset past end | `` Invalid `view_range` parameter: [<a>, <b>]. Its first element `<a>` should be within the range of lines of the file: [1, <total>]. `` | Error observation |
+| Create on existing path | `` Invalid `path` parameter: <path>. File already exists at: <path>. Cannot overwrite files using command `create`. `` | Error observation |
+| Edit match failed | `` No replacement was performed, old_str `<old_str>` did not appear verbatim in <path>. `` | Error observation |
+| Edit not unique | `` No replacement was performed. Multiple occurrences of old_str `<old_str>` in lines [<n>, <m>]. Please ensure it is unique. `` | Error observation |
+| Edit no change | `` Invalid `new_str` parameter: <new_str>. No replacement was performed. `new_str` and `old_str` must be different. `` | Error observation |
+| Insert line out of range | `` Invalid `insert_line` parameter: <n>. It should be within the range of allowed values: [0, <total>] `` | Error observation |
+| Write failure | `Ran into <e> while trying to write to <path>` | Error observation |
+| No undo history | `No edit history found for <path>.` | Error observation |
+| Edit outside `allowed_edits_files` | `Operation '<command>' is not allowed on file '<path>'. Only the following files can be edited: [<paths>]` | Error observation |
+| Stale file | None. Not detected | |
+| Patch rejected | `Invalid patch: must start with '*** Begin Patch'`; `Invalid patch text`; `Missing End Patch`; `Delete File Error: Missing File: <path>`; `Invalid Context <index>:` then the context; `Absolute or escaping paths are not allowed` | Error observation |
+| Command soft timeout | Output then `[The command has no new output after 30 seconds. ...]`, exit code `-1` | Normal observation |
+| Command hard timeout | Output then `[The command timed out after <n> seconds. ...]`, exit code `-1` | Normal observation |
+| Command exit non-zero | Normal text with the exit code in the trailing lines | Normal observation |
+| Command sent while one runs | `[Your command "<command>" is NOT executed. The previous command is still running - ...]` | Error observation, single-session mode only |
+| Nothing to continue | `No previous running command to retrieve logs from.`; `No previous running command to interact with.` | Error observation |
+| Multiple statements | `Cannot execute multiple commands at once.` then the numbered list | Error observation |
+| Literal in `command` | `` [Tool-argument error] The `command` argument looks like a Python/JSON <kind>, not a shell command. ... `` | Error observation |
+| `reset` with `is_input` | `Error executing tool 'terminal': Cannot use reset=True with is_input=True` | Agent error event, not an observation |
+| Bad search directory | `Search path '<path>' is not a valid directory` | Error observation |
+| Bad regex | `Invalid regex pattern: <e>` | Error observation |
+
+`file_editor` and `terminal` raise `ToolError` subclasses inside the executor and convert them to observations with `is_error` set; the SDK's `Observation.to_llm_content` prepends the fixed header as a separate text part. The agent loop converts a `ValueError` from any tool into an agent error event with the `Error executing tool` prefix. The `file_editor` size check and binary sniff open the file before the wrapped read, so an OS error at that stage is not a `ToolError`; how the loop reports it: Unverified.
+
+## Evidence
+
+### What was verified and how
+
+| Section | Label | Pin | Note |
+|---|---|---|---|
+| Tool inventory | Source | `9d143aa` | `preset/default.py`, `preset/gpt5.py`, `tool/tool.py` naming |
+| Read | Source | `9d143aa` | `file_editor/editor.py`, `impl.py`, `exceptions.py`, `utils/constants.py`, `utils/encoding.py`, `sdk/utils/path.py`, `sdk/utils/truncate.py`; 2026-09-16 survey. Output example is Reconstructed |
+| Descriptions | Source | `9d143aa` | `.txt` files copied byte for byte from the 2026-09-16 extraction; `file_editor`, `glob`, and `grep` rendered with `/workspace`; `terminal` is the Unix string from `terminal/descriptions.py` |
+| Edit | Source | `9d143aa` | `file_editor/editor.py`, `utils/history.py`, `apply_patch/definition.py`, `apply_patch/core.py`; re-read on 2026-09-18. The 2026-09-16 report covered this area from documentation only |
+| Shell | Source, Documentation | `9d143aa` | `terminal/definition.py`, `impl.py`, `constants.py`, `metadata.py`, `timeout_policy.py`, `terminal/terminal_session.py`, `tmux_terminal.py`, `tmux_pane_pool.py`, `factory.py`, `utils/command.py`; re-read on 2026-09-18. Sandbox and Approval facts are Documentation from the report with class names checked in `sdk/security/confirmation_policy.py` |
+| Search and listing | Source | `9d143aa` | `glob/definition.py`, `glob/impl.py`, `grep/definition.py`, `grep/impl.py`; re-read on 2026-09-18 |
+| Errors | Source | `9d143aa` | Strings re-read from the files above on 2026-09-18; transport from `sdk/tool/schema.py` and `sdk/agent/agent.py` |
+
+No claim on this page is Observed. No command was run through a live OpenHands session. The pool-mode continuation behaviour under Process lifecycle is read from `impl.py` and `tmux_pane_pool.py`; it was not exercised.
+
+### Gaps
+
+- Permissions, confirmation rejection text: Not surveyed. The policy and analyzer layer renders it outside the tool files read here.
+- Whole-file write, BOM preservation: Not surveyed.
+- Errors, OS failure at the size check or binary sniff: Unverified. The agent loop catches `ValueError` only in the code read; other exception handling was not traced.
+- Docker and remote workspaces: not inspected. They change the sandbox answer and may change the working directory and persistence directory.
+- Windows: the PowerShell description and backend are Source only and not counted or described here.
+- The vision variant of the `file_editor` string is described from `definition.py` and not extracted or counted.
+
+### Refresh notes
+
+Diff the `sourceFiles` list between `9d143aac35c2dcec9cbb046ff9f35ac5eb072f6a` and the target tag. The description strings are `TOOL_DESCRIPTION` in `file_editor/definition.py`, `glob/definition.py`, and `grep/definition.py`, `UNIX_TOOL_DESCRIPTION` in `terminal/descriptions.py`, and `_DESCRIPTION` in `apply_patch/definition.py`; the first three gain the working directory suffix in `create()`. Check `constants.py` under `terminal` for `NO_CHANGE_TIMEOUT_SECONDS` and `MAX_CMD_OUTPUT_SIZE`, and `file_editor/utils/constants.py` for `MAX_RESPONSE_LEN_CHAR`. Check `preset/default.py` for the default tool list. Re-extract with `extract_python_harnesses.py` and `render.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`, and recount with `count.ts` there.

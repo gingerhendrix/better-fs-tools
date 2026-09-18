@@ -1,0 +1,17 @@
+{
+  "title": "Comparisons",
+  "pages": [
+    "claude-code",
+    "codex",
+    "opencode",
+    "pi",
+    "oh-my-pi",
+    "gemini-cli",
+    "hermes",
+    "cloudflare-think",
+    "cloudflare-computer",
+    "deep-agents",
+    "mastra",
+    "openhands"
+  ]
+}

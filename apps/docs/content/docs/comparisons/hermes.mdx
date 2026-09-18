@@ -1,0 +1,424 @@
+---
+title: Hermes Agent
+description: Read, edit, shell, and search tools in the Nous Research Hermes Agent at commit 9452bca, with every model-facing description in full
+harness: hermes
+kind: cli
+repo: NousResearch/hermes-agent
+commit: 9452bca388f4644de000c5d99ebb0f9fab28d74a
+version: 0.20.5
+license: MIT
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - tools/file_tools.py
+  - tools/file_operations.py
+  - tools/file_state.py
+  - tools/fuzzy_match.py
+  - tools/patch_parser.py
+  - tools/path_security.py
+  - tools/read_extract.py
+  - tools/binary_extensions.py
+  - tools/tool_output_limits.py
+  - tools/terminal_tool.py
+  - tools/process_registry.py
+  - tools/approval.py
+  - tools/tirith_security.py
+  - tools/registry.py
+  - tools/budget_config.py
+  - tools/tool_result_storage.py
+  - tools/environments/local.py
+  - agent/file_safety.py
+  - agent/tool_dispatch_helpers.py
+  - model_tools.py
+---
+
+Hermes Agent is an open-source agent runtime and CLI published by Nous Research. Its model-facing file family is four dedicated tools, `read_file`, `write_file`, `patch`, and `search_files`, with `terminal` and `process` for shell work. Every file tool returns a JSON string, and every file operation runs as a quoted shell command through the active terminal backend, so the same tools operate on local, Docker, SSH, and hosted sandbox environments. The read tool repairs unicode-equivalent file names and tells the model, refuses device files and FIFOs by type, extracts documents to text, and redacts secrets before content reaches the model.
+
+## Source pin
+
+| Item | Value |
+|---|---|
+| Repository | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) |
+| Commit | `9452bca388f4644de000c5d99ebb0f9fab28d74a`, committed 2026-08-23. Git description `v2026.8.19-309-g9452bca38` |
+| Package version | `0.20.5` in `pyproject.toml` and `hermes_cli/__init__.py`. The Git tag and the package use separate version schemes; the commit is the pin |
+| Licence | MIT |
+| Surveyed | 2026-08-23 for edit, shell, search, and permissions; 2026-09-16 for read and the description strings. Both surveys used the same commit |
+| Verified | 2026-09-16 |
+| Files read | The `sourceFiles` list in the frontmatter |
+| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-08-23-hermes-fs-audit/hermes-agent` (clone, plus line-range extracts of the files above); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction scripts, `descriptions/hermes/*.txt`, counts) |
+| Evidence status | Open source inspected. No live model session was run. The isolation of Docker, Modal, Daytona, Vercel, and SSH backends was not inspected |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read_file` | Paginated numbered read of a text file; document extraction | Yes | `file` toolset; registered when the file requirements check passes |
+| `write_file` | Replace a whole file | Yes | Atomic rename, hash verification, syntax gate |
+| `patch` | Fuzzy replace of one string, or a V4A multi-file patch | Yes | `mode` selects `replace` or `patch` |
+| `search_files` | Content regex search or filename glob search | Yes | Also the directory listing path |
+| `terminal` | Foreground or background shell command | Yes | `terminal` toolset; backend from `TERMINAL_ENV`, default `local` |
+| `process` | Manage background commands | Yes | `list`, `poll`, `log`, `wait`, `kill`, `write`, `submit`, `close` |
+
+There is no dedicated list tool. `search_files` with `target="files"` and pattern `*` is the documented listing path, and the `terminal` description tells the model to use it instead of `ls`. Two Desktop-only tools, `read_terminal` and `close_terminal`, sit in the `desktop_ui` toolset that the GUI gateway enables for desktop sessions; they read and close the Hermes Desktop terminal pane and are outside this page. `execute_code` and MCP tools are also outside it. The registry omits any tool whose availability check fails. Plugin hooks can change arguments before path policy runs (`pre_tool_call`) and replace the final result string (`transform_tool_result`); the contracts below are the core ones.
+
+## Read
+
+### Signature
+
+```ts
+read_file({ path: string, offset?: integer, limit?: integer })
+```
+
+`path` accepts an absolute, relative, or `~/` path. `offset` is one-based, with a schema `minimum` of 1 and a default of 1. `limit` defaults to 2000 with a schema `maximum` of 2000. `normalize_read_pagination` clamps `offset` to at least 1 and `limit` to between 1 and `tool_output.max_lines` (default 2000); a `limit` above the maximum is clamped, not rejected. The registry handler passes 500 when the `limit` key is absent from the call, while the schema declares 2000; a provider that fills schema defaults sends 2000.
+
+### Description
+
+`read_file`: 1058 characters, 1062 bytes, 1 line, approximately 224 tokens.
+
+The string names the `LINE_NUM|CONTENT` format, the similar-filename suggestion, `offset` and `limit` paging, the roughly 100K character budget with `next_offset`, the extraction list (notebooks, `.docx`, and `.xlsx` built in; PDF, legacy Office, OpenDocument, RTF, and EPUB through the optional anydoc converter), the PDF text-layer caveat with its coverage warning, and one rule: images and other binaries go to `vision_analyze`. It does not state the path rule, the 2000-line default, or directory behaviour; the 2000-line default and the one-based offset are in the parameter descriptions, which are not counted.
+
+**`read_file` (1058 characters)**
+
+```text
+Read a text file with line numbers and pagination. Use this instead of cat/head/tail in terminal. Output format: 'LINE_NUM|CONTENT'. Suggests similar filenames if not found. Use offset and limit for large files. Reads exceeding ~100K characters are truncated on a line boundary and return a next_offset; continue with offset to read the rest. Jupyter notebooks (.ipynb), Word documents (.docx), and Excel workbooks (.xlsx) are auto-extracted to readable text; PDF, legacy Office (.doc/.ppt/.xls), OpenDocument, RTF, and EPUB convert too when the optional anydoc converter is available (auto-installed on first use where installs are permitted). PDF conversion reads the text layer only: scanned/image pages yield no text, and when many pages come back empty the output ends with an EXTRACTION COVERAGE WARNING listing the affected pages — follow its instructions (render pages with pdftoppm and inspect via vision_analyze, or OCR) instead of treating the extraction as complete. NOTE: Cannot read images or other binary files — use vision_analyze for images.
+```
+
+### Path handling
+
+Relative paths resolve, in order, against the session's recorded cwd, a registered task or session override, an absolute `TERMINAL_CWD`, then the process working directory. The sentinel values `.`, `auto`, and `cwd` count as unconfigured. `~` expands through the profile home. Host paths go through `Path.resolve()`, so symlinks are followed before any guard runs; container backends normalise lexically without host dereference. There is no workspace containment: absolute paths and `..` are accepted by read, write, replace, and search. Only V4A patch headers reject `..`.
+
+When the size probe fails, `_unicode_variant_match` lists the directory and compares entries after NFC normalisation and replacement of U+202F, U+00A0, U+2019, and U+2018 with plain characters. Exactly one equivalent entry is read in place of the request, and the result carries a note in `hint`:
+
+```text
+Note: '<path>' not found byte-for-byte; resolved to the unicode-equivalent file '<variant>' (invisible encoding difference: NFC/NFD or special space/quote characters).
+```
+
+With zero or several equivalents the tool falls through to `_suggest_similar_files`. That scores the first 50 directory entries: same stem with a different extension scores 90, prefix in either direction 70, substring 60, reverse substring 40, same extension with 40 percent character overlap 30, and a `difflib` ratio of 0.8 or more scores 50. The top five become `similar_files` beside `"error": "File not found: <path>"`. A per-task negative cache with a 60 second TTL returns the same JSON on a repeat miss without listing the directory again; a write to the path or any non-read tool call clears it. Pi resolves the same variants without telling the model; see [Pi](./pi.mdx).
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Device paths | `/dev/zero`, `/dev/random`, `/dev/urandom`, `/dev/full`, `/dev/stdin`, `/dev/tty`, `/dev/console`, `/dev/stdout`, `/dev/stderr`, `/dev/fd/0-2`, and any `/proc/` path ending in `/fd/0-2`, `/environ`, `/cmdline`, `/maps`, `/smaps`, `/smaps_rollup`, `/numa_maps`, `/mem`, `/auxv`, or `/pagemap`. Checked on the literal path, on each of up to 20 symlink hops, and on the real path, before any I/O |
+| Special file types | On host-visible backends a `stat` guard refuses FIFOs, sockets, character devices, and block devices. The shell size probe returns a not-regular sentinel for remote backends |
+| Hermes internal files | `skills/.hub` cache; `auth.json`, `auth.lock`, `.anthropic_oauth.json`, `.env`, `webhook_subscriptions.json`, `auth/google_oauth.json`, `cache/bws_cache.json`, and `mcp-tokens/` under the Hermes home and root |
+| Project secret files | `.env`, `.env.local`, `.env.development`, `.env.production`, `.env.test`, `.env.staging`, `.envrc` anywhere on disk |
+| Approval | None for reads |
+| Denial text | `Cannot read '<path>': this is a device file that would block or produce infinite output.`; `Access denied: <path> is a secret-bearing environment file and cannot be read to prevent credential leakage. If you need to check the file structure, read .env.example instead. (Defense-in-depth — not a security boundary; the terminal tool can still bypass.)` and three sibling `Access denied:` shapes for the cache, credential, and token cases |
+
+The source states that the denylist is not a security boundary: the terminal runs as the same OS user and can `cat` any of these files.
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | Extension list in `binary_extensions.py` before any I/O; then a 1000-byte sample fetched through the backend: a NUL byte or invalid UTF-8, allowing one cut multibyte sequence at the end |
+| Refusal | Extension guard: `Cannot read binary file '<path>' (<ext>). Use vision_analyze for images, or terminal to inspect binary files.`; byte sniff: `Binary file (<kind>, <size>) — cannot display as text.` with the kind from magic bytes |
+| Notebooks | `.ipynb` extracted to text with the standard library; each output block bounded at 20,000 characters. A malformed notebook falls through to the raw JSON read |
+| Office and PDF text | `.docx` and `.xlsx` built in; `.pdf`, `.doc`, `.ppt`, `.pptx`, `.xls`, OpenDocument, RTF, and EPUB when `firecrawl-anydoc` loads. Inputs capped at 50 MiB. XLSX capped at 5000 rows and 256 columns per sheet. PDF uses the text layer and can call `pdftotext` to flag pages with little text. The result adds `extracted_document: true`; failure returns `Cannot read '<path>' (<ext>): document extraction failed — <reason>. Use terminal utilities to inspect or convert the file.` |
+| Images | Refused at the extension guard, which names `vision_analyze`. A lower `is_image` redirect exists in `file_operations.py` for `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`, and `.ico`, reachable only by callers that bypass the wrapper |
+| Audio and video | Refused at the extension guard |
+| Encoding | UTF-8 with replacement characters through the backend transport. A UTF-8 BOM is stripped on the first page. A file that trips the binary sniff is re-probed for UTF-16 by BOM or zero-byte parity and transcoded when it matches |
+
+Text writes to opaque document containers are refused, and an existing PDF cannot be overwritten with the text tools; see Edit, Whole-file write.
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 2000 lines | |
+| Ceiling | `tool_output.max_lines`, default 2000; a larger `limit` is clamped | |
+| Long line | 2000 characters, `tool_output.max_line_length`; clamped first in the shell with `cut -b` at four times the limit plus one byte | `... [truncated]` appended to the line |
+| Output budget | 100,000 characters of numbered content, `file_read_max_chars`; trimmed to the last complete line | `Output truncated at the 100,000-char read budget after <n> line(s) (showing lines <a>-<b> of <total>). Use offset=<n> to continue.` in `hint`, plus `truncated_by: "bytes"` and `next_offset` |
+| First line over the budget | Cut on a code-point boundary | The hint adds `Note: the first line alone exceeded the budget and was clamped mid-line; its remainder is not retrievable via offset.` |
+| Whole-file size | None for text; the page is read with `sed -n` and never loaded whole. 50 MiB for documents | Files over 512,000 bytes read with a `limit` above 200 add `_hint`: `This file is large (<bytes> bytes). Consider reading only the section you need with offset and limit to keep context usage efficient.` |
+| Offset past end | Empty content, not an error | `hint`: `Note: offset <n> is beyond the end of the file (<total> lines total). Retry with offset <= <total>.` |
+| Outer result cap | The registry entry declares a 100,000-character result maximum; a larger result is persisted to a spillover file and replaced by a preview block that names the path | |
+
+The line, per-line, and byte limits are read from `tool_output` in `config.yaml`; invalid values fall back to the defaults and the values are cached for the process.
+
+### Output
+
+```json
+{"content": "1|import { x } from \"./x\"\n2|export const y = x", "total_lines": 2, "file_size": 44, "truncated": false, "is_binary": false, "is_image": false}
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | A JSON object. `content` is one string with escaped newlines. Fields whose value is `None` or an empty list are dropped, so `false`, `0`, and `""` remain |
+| Line prefix | `N\|text`, unpadded. The source records an A/B test in which the compact gutter matched a padded one and dropping numbers made the model miscount lines |
+| End marker | None |
+| Truncation notice | `truncated: true` with `hint`: `Use offset=<n> to continue reading (showing <a>-<b> of <total> lines)` at the line limit; the character-budget fields above when that stops the read first |
+| Error transport | JSON in the same string. A missing file returns `error`, `similar_files`, and the boolean fields; other failures go through `tool_error` and return `error` with optional extra keys. The registry emits the JSON as ordinary tool result text |
+
+The example is reconstructed from the format code. An empty file returns `content: ""`, `total_lines: 0`, and `hint: "File is empty (0 bytes)."`. A final line without a newline is preserved: the shell `cut` adds one and the tool probes the last byte to remove it.
+
+### Notable
+
+- Repeat-read guard: the same resolved path, `offset`, and `limit` with an unchanged mtime returns `status: "unchanged"` with the message `File unchanged since last read. The content from the earlier read_file result in this conversation is still current — refer to that instead of re-reading.` A second stub for the same key is a hard block. Four consecutive real reads of one region block with `BLOCKED: You have read this exact file region <n> times in a row. ...`; the third adds `_warning`. Any tool other than `read_file` and `search_files` resets the counters, and context compression clears the dedup cache.
+- `redact_sensitive_text` runs over every returned page after the budget check. No content is injected after the read.
+- Each read records an mtime stamp per task and a cross-agent read record with a partial flag when `offset` is above 1 or the read was truncated. The write tools use both for stale warnings.
+- The read runs as `sed -n '<a>,<b>p' <path> | cut -b1-<n>` then `wc -l` through the backend, so a shell with `sed`, `cut`, `wc`, `head`, `ls`, and `base64` is assumed. The shell clamp keeps a single 400 MB line from crossing the transport.
+- Cancellation: None. The read has no abort signal; the backend exec timeout bounds it.
+- Batch planning treats reads and searches as path readers and writes and patches as path writers; reader overlap runs in parallel and any writer overlap forms an ordered barrier. `read_file` does not take the writer's path lock, so a read from another task can overlap a write outside one planned batch.
+
+## Edit
+
+### Signature
+
+```ts
+write_file({ path: string, content: string, cross_profile?: boolean })
+patch({ mode: "replace" | "patch", path?: string, old_string?: string, new_string?: string, replace_all?: boolean, patch?: string, cross_profile?: boolean })
+```
+
+`patch` has one required field, `mode`, with default `replace`. Replace mode needs `path`, `old_string`, and `new_string`; `replace_all` defaults to false. Patch mode needs `patch`, one V4A string with `*** Begin Patch`, headers `*** Update File:`, `*** Add File:`, `*** Delete File:`, or `*** Move File: <src> -> <dst>`, `@@` context hunks, and `*** End Patch`. `cross_profile` opts out of a soft guard on writes into another Hermes profile's skills, plugins, cron, or memories directory. There is no delete tool outside V4A.
+
+### Description
+
+`write_file`: 512 characters, 516 bytes, 1 line, approximately 108 tokens.
+`patch`: 483 characters, 483 bytes, 4 lines, approximately 107 tokens.
+
+`write_file` tells the model to use it instead of heredocs, that parents are created, that the whole file is replaced, that syntax checks report only new errors, and that `verified:true` means the on-disk hash matched so a re-read is not needed. `patch` names nine fuzzy strategies, promises a unified diff and syntax checks, and lists the required parameters for each mode. Neither string mentions the `LINE_NUM|CONTENT` prefix that `read_file` output carries; a separate runtime check refuses content that looks like that display text.
+
+**`write_file` (512 characters)**
+
+```text
+Write content to a file, completely replacing existing content. Use this instead of echo/cat heredoc in terminal. Creates parent directories automatically. OVERWRITES the entire file — use 'patch' for targeted edits. Auto-runs syntax checks on .py/.json/.yaml/.toml and other linted languages; only NEW errors introduced by this write are surfaced (pre-existing errors are filtered out). The result's verified:true means the on-disk content hash was confirmed — do NOT re-read the file to check the write landed.
+```
+
+**`patch` (483 characters)**
+
+```text
+Targeted find-and-replace edits in files. Use this instead of sed/awk in terminal. Uses fuzzy matching (9 strategies) so minor whitespace/indentation differences won't break it. Returns a unified diff. Auto-runs syntax checks after editing.
+
+REPLACE MODE (mode='replace', default): find a unique string and replace it. REQUIRED PARAMETERS: mode, path, old_string, new_string.
+PATCH MODE (mode='patch'): apply V4A multi-file patches for bulk changes. REQUIRED PARAMETERS: mode, patch.
+```
+
+### Whole-file write
+
+`write_file` runs the sensitive-path, binary-document, protected-instruction, SSH-config approval, cross-profile, and display-text checks, then takes a per-path lock and hands the content to `ShellFileOperations.write_file`. Content travels over stdin, never in the command line. Before any byte touches disk, JSON, YAML, and TOML candidates pass a fail-closed in-process syntax gate: `Refusing to write '<path>': candidate content fails <ext> syntax validation (<reason>). The file was NOT created or modified. Fix the content and retry.` A lone surrogate in the content is refused the same way. Python and other linted languages keep a post-write lint delta instead.
+
+The write is one shell script: resolve a symlink target so the link is edited rather than replaced, `mkdir -p` the parent, `mktemp` in the same directory, copy the existing mode with `stat` and `chmod` on a best-effort basis, `cat` stdin into the temp file, give a new file `chmod =rw` so the umask applies, then `mv -f` over the target. A trap removes the temp file on any failure. CRLF is preserved when the existing file uses it, and a UTF-8 BOM that the read layer hid is restored.
+
+After the rename, `sha256sum` output is compared with the intended bytes. A mismatch is a hard error: `Post-write verification failed for <path>: on-disk content hash differs from the intended write. The write did not persist correctly — re-read the file and retry.` A backend without a working hash command leaves `verified` unset. Syntax delta and, for local backends inside a Git workspace, LSP diagnostics follow in separate fields.
+
+### Matching
+
+Replace mode reads the whole file with `cat`, strips a leading BOM, and calls `fuzzy_find_and_replace`. Nine strategies run in order: exact, line-trimmed, whitespace-normalised, indentation-flexible, escape-normalised, trimmed-boundary, unicode-normalised, block-anchor, and context-aware. The first strategy that finds a match wins. The model is not told which strategy matched. Without `replace_all`, more than one match is an error that lists the locations. With `replace_all`, a similarity strategy that finds several matches is refused so approximate blocks are not rewritten together. When the matched strategy is not exact, an escape-drift guard refuses a `new_string` whose backslash escapes do not appear in the matched region. An empty or whitespace-only `old_string` and identical strings are errors.
+
+An edit that is already present returns `success: true` with `no_change: true` and `note`: `File already contains the target text — the edit appears to be already applied to <path>. No write performed; do not re-send this patch.` A miss can carry a `Did you mean one of these sections?` snippet. After the third consecutive miss on one path the wrapper adds `_hint`: `This is failure #<n> patching '<path>'. Stop retrying with variations of the same old_string. Either: (1) re-read the file fresh to verify current content, (2) use a longer / more unique old_string with surrounding context lines, or (3) use write_file to replace the entire file if the targeted region is hard to anchor.`
+
+### Multi-file patch
+
+Present as `mode="patch"`. The wrapper extracts every header path, rejects `..` components, runs the path policy on each, rewrites host paths in the headers to the resolved absolute targets, sorts them, and takes one lock per path in stable order. `apply_v4a_patch` validates every operation before any write: `Patch validation failed (no files were modified):` followed by one bullet per problem. Apply then runs add, delete, move, and update in order. There is no rollback. A later failure returns the diffs and file lists already produced with ``Apply phase failed (state may be inconsistent — run `git diff` to assess):`` and one bullet per failure.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Not enforced. `file_state.check_stale` warns when a sibling task wrote the path after this task's last read, when the on-disk mtime moved, when the last read was a partial view, or when another task wrote a path this task never read. The write proceeds with the highest-priority warning in `_warning` |
+| Stale-file check | mtime only. A per-task read stamp gives `Warning: <path> was modified since you last read it (external edit or concurrent agent). The content you read may be stale. Consider re-reading the file to verify before writing.` when the mtime moved. A content change that keeps the mtime is not detected |
+| Lock | A process-local lock per resolved path around the read, check, write region. V4A holds sorted locks for all targets. Different paths stay parallel |
+| Cross-process coordination | None. Locks and read stamps cover threads in one Hermes process. Other processes and remote backends rely on the mtime warnings and the atomic rename |
+| Post-write checks | sha256 identity check; syntax lint delta in `lint`; LSP diagnostics in `lsp_diagnostics` for local backends; `files_modified` and `resolved_path` name the absolute targets |
+| Change tracking | Successful edits mark verification evidence stale for the workspace. `HERMES_DISABLE_FILE_STATE_GUARD=1` turns the cross-agent registry off |
+
+A relative path that resolves outside the active workspace root gets a lower-priority warning that names both paths and asks for an absolute path; it does not block.
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write_file` | JSON with `bytes_written`, `dirs_created`, `verified` when the backend could hash, `lint`, `lsp_diagnostics`, `resolved_path`, `files_modified`, and `_warning` when present |
+| `patch` | JSON with `success`, a unified `diff`, `files_modified`, `files_created`, `files_deleted`, `lint`, `lsp_diagnostics`, `no_change` and `note` for an already-applied edit, `_hint` after a miss, and `error` |
+
+### Notable
+
+- Writes to `/etc/`, `/boot/`, `/usr/lib/systemd/`, the Docker sockets, and the Hermes config file are refused: `Refusing to write to sensitive system path: <path>` and `Refusing to write to Hermes config file: <path>`.
+- Writes to `AGENTS.md`, `CLAUDE.md`, `SOUL.md`, `.cursorrules`, and immediate children of project `.hermes` directories always ask the user, ignore yolo and persistent allowlists, and fail closed without a human channel: `BLOCKED: write to protected agent-instruction file(s) (<targets>) <reason> The user has NOT consented to this write. ...`.
+- Opaque document containers (`.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.odt`, `.ods`, `.odp`) are never written as text; an existing PDF is not overwritten; a new `.pdf` path is allowed.
+- Content dominated by `N|` numbered lines, or by the dedup status message, is refused before the write.
+- The patch description promises fuzzy matching and the runtime delivers it. No notebook editor, undo tool, or checkpoint tool exists in this family.
+
+## Shell
+
+### Signature
+
+```ts
+terminal({ command: string, background?: boolean, timeout?: integer, workdir?: string, pty?: boolean, notify_on_complete?: boolean, watch_patterns?: string[] })
+process({ action: "list" | "poll" | "log" | "wait" | "kill" | "write" | "submit" | "close", session_id?: string, data?: string, timeout?: integer, offset?: integer, limit?: integer })
+```
+
+`timeout` is in seconds with a schema `minimum` of 1; the foreground default is 180 from `TERMINAL_TIMEOUT` and the foreground maximum is 600 from `TERMINAL_MAX_FOREGROUND_TIMEOUT`. A non-positive value is rejected, and a foreground timeout above the maximum is rejected with a pointer to `background=true`. `workdir` must be absolute. `pty` works on local and SSH backends only. `notify_on_complete` and `watch_patterns` are mutually exclusive; when both are set the patterns are dropped. `process` needs `session_id` for every action except `list`, and a unique ID prefix is accepted. The Python `terminal_tool` function has a `force` argument that is absent from the model schema.
+
+### Description
+
+`terminal`: 1744 characters, 1750 bytes, 11 lines, approximately 385 tokens.
+`process`: 358 characters, 358 bytes, 1 line, approximately 86 tokens.
+
+`terminal` says the filesystem, cwd, and exported variables persist between calls, sends file work to the four file tools, forbids piping builds through `tail` or `head` because the pipe masks the exit code, describes foreground return and the background session ID with `notify_on_complete`, forbids `nohup`, `setsid`, and a trailing `&`, explains `workdir` and the `cwd` field, and names `pty=true` for interactive CLIs. `process` lists its eight actions in one sentence.
+
+**`terminal` (1744 characters)**
+
+```text
+Execute shell commands on a Linux environment. Filesystem, current working directory, and exported environment variables persist between calls.
+
+Do NOT use cat/head/tail (use read_file), grep/rg/find/ls (use search_files), sed/awk (use patch), or echo/heredoc file creation (use write_file). Reserve terminal for: builds, installs, git, processes, scripts, network, package managers, and anything that needs a shell.
+NEVER pipe a build/test command through tail/head/cat to shorten output (e.g. `cargo build | tail -20`): output is auto-truncated with the full text saved to a file, and the pipe makes exit_code report the LAST pipeline command's status (tail's 0), masking real failures. Run the command bare; the same applies to `cmd || echo failed`, which also masks the exit code.
+Environment state persists: activate a virtualenv or export variables once per session, not before every command.
+
+Foreground (default): returns INSTANTLY when the command finishes, even with a high timeout — set timeout generously for long builds.
+Background: set background=true (returns a session_id). Pair with notify_on_complete=true for bounded tasks; leave silent only for servers/daemons that never exit. Never use nohup/setsid/trailing '&' — use background=true so Hermes tracks the process. After starting a server, verify readiness with a health check, then act in a separate call; no blind sleep loops. Manage with process(action="poll"/"wait").
+Working directory: use 'workdir' for per-command cwd. When a command changes the session cwd (cd, pushd), the result includes a "cwd" field — trust it instead of prefixing every command with 'cd'.
+PTY: set pty=true for interactive CLIs (they hang without it). Pipe git output to cat if it might page.
+```
+
+**`process` (358 characters)**
+
+```text
+Manage background processes started with terminal(background=true). Actions: 'list' (show all), 'poll' (check status + new output), 'log' (full output with pagination), 'wait' (block until done or timeout), 'kill' (terminate), 'write' (send raw stdin data without newline), 'submit' (send data + Enter, for answering prompts), 'close' (close stdin/send EOF).
+```
+
+### Working directory and environment
+
+The backend comes from `TERMINAL_ENV`: `local` by default, or `docker`, `singularity`, `modal`, `daytona`, `ssh`, or `vercel_sandbox`. Top-level and delegated tasks share one environment unless a task carries an isolation override. `LocalEnvironment` spawns a fresh `bash` for every call, restores a session snapshot of exported variables before each command, and re-reads the cwd from a file after each command, which is how the description's persistence claim is met. A `cd` or `pushd` that changes the session cwd adds a `cwd` field to the result. `workdir` sets a per-command cwd; it is validated for disallowed characters and remapped when it cannot exist inside a sandbox. Login shell: Not surveyed.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | Foreground: one bounded execution per call. Background: a registered session with a `session_id`, a PID, and `exit_code: 0` at launch |
+| Background | Managed through `process`. The registry keeps a rolling 200,000-character output buffer, at most 64 processes, finished sessions for 30 minutes, and active sessions for 24 hours. A checkpoint file supports crash recovery in the gateway |
+| stdin | `write` sends raw data, `submit` adds a newline, `close` sends EOF |
+| Notifications | `notify_on_complete` fires once at exit. `watch_patterns` is limited to one match per 15 seconds per process, disables after three strike windows, and has a global circuit breaker of 15 per 10 seconds |
+| Cancellation | Foreground timeout returns `exit_code: 124`. A user interrupt returns 130 with a `[Command interrupted]` marker in the output. Transient execution exceptions retry up to three times with exponential delay. `kill` terminates a background session |
+| PTY | `pty=true` on local and SSH backends; elsewhere the result carries `pty_note` |
+
+A foreground command that wraps itself in `nohup`, `setsid`, `disown`, or a trailing `&`, or that looks like a long-lived server or watcher, is returned unrun with `status: "error"` and guidance to resend it with `background=true`.
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | The backend captures a head and tail window in bounded mode. stdout and stderr are one stream |
+| Model-visible budget | 50,000 characters, `tool_output.max_bytes`: the first 40 percent and the last 60 percent are kept |
+| Truncation text | `... [OUTPUT TRUNCATED - <n> chars omitted out of <total> total] ...` between the head and the tail |
+| Spill file | When bounded capture spills, `full_output_path` names the file and `truncation_note` reads `Output exceeded the capture window (head+tail shown). Full output (<n> chars) saved to <path> — search it with search_files or page it with read_file instead of re-running the command.` The spill is rewritten with secret redaction through an exclusive, symlink-checked open; if redaction fails the file is removed and the handle dropped |
+| Post-processing | ANSI stripped, secrets redacted, known failures annotated in `hint`, special exit codes explained in `exit_code_meaning`, an approval note recorded in `approval` |
+| Outer cap | The registry entry declares a 100,000-character result maximum; larger results are persisted and replaced by a preview block |
+
+A plugin `transform_terminal_output` hook can replace the bounded output before the final truncation, ANSI removal, and redaction.
+
+### Sandbox
+
+Depends on the backend. `local` is direct host execution as the Hermes process account with no OS sandbox, seccomp profile, or network restriction. Docker, Singularity, Modal, Daytona, SSH, and Vercel Sandbox run the command inside their own environment, and the file tools run inside the same namespace because they issue shell commands through the same backend. The isolation those services provide was not inspected.
+
+### Approval
+
+Before execution Hermes validates `workdir`, applies gateway-lifecycle and Windows self-repository hard blocks where relevant, then runs the Tirith scanner and a dangerous-command pattern list. Tirith is an external binary whose exit code is the verdict (allow, block, warn) and which is downloaded with checksum verification when absent. The pattern list covers recursive and root deletes, `mkfs`, `dd` to a block device, fork bombs, `kill -1`, and Windows destructive and encoded commands. A flagged command returns `status: "pending_approval"` with `command`, `description`, `pattern_key`, and `allow_permanent`, or `status: "blocked"` with `Command denied: <description>. Use the approval prompt to allow it, or rephrase the command.` An approved run records `Command required approval (<description>) and was approved by the user.` in `approval`. Approval scopes are once, session, or always; `--yolo`, the gateway `/yolo` toggle, and `approvals.mode: off` bypass the prompt, and the CLI yolo flag is frozen at import so a skill cannot flip it mid-process.
+
+### Notable
+
+- A non-zero exit is a normal result with `error: null` and the real `exit_code`. Hermes interprets known codes, for example a no-match `grep`, in `exit_code_meaning`.
+- Infrastructure connection failures return a `degraded` result with a reason and retry hint under the default `terminal.degraded_mode: warn`.
+- Background output goes through the same secret redaction before it reaches the model.
+- The description calls the environment persistent; the local backend achieves that with a snapshot and a cwd file around spawn-per-call processes.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `search_files` | `pattern: string`, `target?: "content" \| "files"`, `path?: string`, `file_glob?: string`, `limit?: integer`, `offset?: integer`, `output_mode?: "content" \| "files_only" \| "count"`, `context?: integer` | 50 results, `offset` 0; `limit` has no upper bound; `offset` clamped to at least 0. Search commands time out after 60 seconds and set `limit_reason: "search_timeout"` | Content: `rg --line-number --no-heading --with-filename`, so `.gitignore` applies and hidden files are skipped; `--multiline` is added when the pattern holds `\n`. Files: `rg --files --sortr=modified -g <glob>`, then unsorted `rg`, then `find` with hidden directories excluded. A hidden search root lifts the hidden exclusion |
+| List | Not applicable. `search_files` with `target="files"` lists a tree, newest first | | |
+| Stat, mkdir | None | | |
+
+The result is JSON with `total_count`, then `matches`, `files`, or `counts`, plus `truncated`, `limit_reason`, and `warning`. Five or more content matches render as one `matches_text` block with `matches_format` set to `path-grouped: each file path on its own line, followed by indented '<line>: <content>' rows for matches in that file`; fewer arrive as an array of `path`, `line`, and `content` objects. A truncated result appends `[Hint: Results truncated. Use offset=<n> to see more, or narrow with a more specific pattern or file_glob.]` after the JSON. A zero-result content search runs bounded probes for case-insensitive, hidden or ignored, and literal readings. A `path` that looks like several paths is split and the missing roots are reported. Result paths that hit the read denylist are removed and counted in `_omitted`; match content is secret-redacted. Three identical searches add `_warning`; the fourth is blocked. Pagination arguments are part of the key, so paging does not trip the guard.
+
+### Description
+
+`search_files`: 435 characters, 437 bytes, 5 lines, approximately 96 tokens.
+
+The string names the two targets, the three output modes, the ripgrep backing, the glob examples, and the rule that file search replaces `ls` with results sorted by modification time. It does not state the 50-result default or the pagination fields.
+
+**`search_files` (435 characters)**
+
+```text
+Search file contents or find files by name. Use this instead of grep/rg/find/ls in terminal. Ripgrep-backed, faster than shell equivalents.
+
+Content search (target='content'): Regex search inside files. Output modes: full matches with line numbers, file paths only, or match counts.
+
+File search (target='files'): Find files by glob pattern (e.g., '*.py', '*config*'). Also use this instead of ls — results sorted by modification time.
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `File not found: <path>` with `similar_files` up to five entries | JSON `error` field in an ordinary tool result |
+| Unicode-equivalent name | Not an error; the variant is read and `hint` carries the note above | JSON |
+| Directory, FIFO, socket, or device by probe | `Cannot read '<path>': not a regular file (directory, FIFO, socket, or device). Reading it could block indefinitely.` | JSON `error` |
+| FIFO or socket by `stat` on a host backend | `'<path>' is a FIFO (named pipe), not a regular file — reading it would block indefinitely, so no read was attempted. Use terminal utilities if you need to interact with it.` | JSON with `success: false` and `note` |
+| Device or `/proc` path | `Cannot read '<path>': this is a device file that would block or produce infinite output.` | JSON `error` |
+| Denied Hermes or project secret file | `Access denied: <path> is ...` in four shapes | JSON `error` |
+| Binary file | `Cannot read binary file '<path>' (<ext>). Use vision_analyze for images, or terminal to inspect binary files.`; `Binary file (<kind>, <size>) — cannot display as text.` | JSON `error` |
+| Document extraction failed | `Cannot read '<path>' (<ext>): document extraction failed — <reason>. Use terminal utilities to inspect or convert the file.` | JSON `error` |
+| OS read failure | `Failed to read file: <shell output>` | JSON `error` |
+| Offset past end | Not an error; empty `content` with the `hint` above | JSON |
+| Repeated read | `BLOCKED: You have read this exact file region <n> times in a row. The content has NOT changed. You already have this information. STOP re-reading and proceed with your task.`; `BLOCKED: You have called read_file on this exact region <n> times and the file has NOT changed. ...` | JSON `error` with `path` and `already_read` |
+| Missing write arguments | `write_file: missing required field 'path'. Re-emit the tool call with both 'path' and 'content' set.`; `write_file: missing required field 'content'. The tool call included a path but no content argument — this is almost always a dropped-arg bug under context pressure. ...`; `write_file: 'content' must be a string, got <type>.` | JSON `error` |
+| Sensitive or protected write | `Refusing to write to sensitive system path: <path>`; `Refusing to write to Hermes config file: <path>`; `BLOCKED: write to protected agent-instruction file(s) (<targets>) ...` | JSON `error` |
+| Binary document write | `Refusing to write plain text to binary document '<path>' (<ext>). ...`; `Refusing to overwrite existing PDF '<path>' with plain text. ...` | JSON `error` |
+| Display text as content | `Refusing to write internal read_file display text as file content. Strip read_file line-number prefixes or reconstruct the intended file contents before writing.` | JSON `error` |
+| Syntax gate | `Refusing to write '<path>': candidate content fails <ext> syntax validation (<reason>). The file was NOT created or modified. Fix the content and retry.` | JSON `error` |
+| Write verification | `Post-write verification failed for <path>: on-disk content hash differs from the intended write. The write did not persist correctly — re-read the file and retry.` | JSON `error` |
+| Edit match failed | `Could not find match for old_string in <path>` with an optional `Did you mean one of these sections?` block, and `_hint` after repeats | JSON `error` |
+| Edit not unique | `Found <n> matches for old_string. Provide more context to make it unique, or use replace_all=True. Matches:` then the locations | JSON `error` |
+| Edit approximate with `replace_all` | `Found <n> approximate matches via the '<strategy>' strategy; replace_all only applies to exact matches. Provide the precise text (whitespace included) so an exact/line-trimmed match can be made.` | JSON `error` |
+| Edit no change | `No edit was applied because old_string and new_string are identical. Provide the existing text to replace in old_string and the changed replacement text in new_string.`; `old_string cannot be empty`; `old_string is only whitespace — provide non-blank text to match` | JSON `error` |
+| Patch verification | `Post-write verification failed for <path>: on-disk content differs from intended write (wrote <n> chars, read back <m> chars after normalizing line endings). The patch did not persist. Re-read the file and try again.` | JSON `error` |
+| V4A traversal | `V4A patch header contains '..' traversal: '<path>'. Use the agent's cwd-relative path (no '..') or an absolute path in '*** Update File:' / '*** Add File:' / '*** Delete File:' / '*** Move File:' headers.` | JSON `error` |
+| V4A validation or apply | `Patch validation failed (no files were modified):` list; ``Apply phase failed (state may be inconsistent — run `git diff` to assess):`` list | JSON `error` with partial `diff` and file lists on apply failure |
+| Stale file | Not an error; `_warning` on the write result | JSON |
+| Command timeout | `Command timed out after <n> seconds` | JSON with `exit_code: 124` |
+| Command interrupted | `[Command interrupted]` marker in `output` | JSON with `exit_code: 130` |
+| Command denied | `Command denied: <description>. Use the approval prompt to allow it, or rephrase the command.` | JSON with `status: "blocked"` and `exit_code: -1` |
+| Command awaiting approval | Empty `error` | JSON with `status: "pending_approval"`, `command`, `description`, `pattern_key` |
+| Invalid timeout | `timeout must be a positive number of seconds (got <n>).`; `Foreground timeout <n>s exceeds the maximum of 600s. Use background=true with notify_on_complete=true for long-running commands.` | JSON `error` |
+| Invalid command | `Invalid command: expected string, got <type>`; `terminal received a 'code' parameter, but it requires a shell command in 'command'. ...` | JSON `error` |
+| Search root missing | `Path not found: <path>` then `Similar paths: <list>` when the parent exists | JSON `error` |
+| Search failed | `Search failed: <ripgrep diagnostics>` on exit code 2 with no usable matches; `File search requires 'rg' (ripgrep) or 'find'. ...` | JSON `error` |
+| Repeated search | `BLOCKED: You have run this exact search <n> times in a row. The results have NOT changed. You already have this information. STOP re-searching and proceed with your task.` | JSON `error` with `pattern` and `already_searched` |
+| Handler exception | `tool_error(str(e))`, bounded in length | JSON `error` |
+
+Every file tool returns a JSON string and the registry passes it to the model as ordinary result text; there is no error flag at the transport level. Command failures keep their real exit code with `error: null`. The table runs past the outline's fifteen-row guide because each condition has its own string.
+
+## Evidence
+
+### What was verified and how
+
+| Section | Label | Pin | Note |
+|---|---|---|---|
+| Tool inventory | Source | `9452bca` | `file_tools.py`, `terminal_tool.py`, `process_registry.py`, `read_terminal_tool.py`, `close_terminal_tool.py`, `registry.py`; 2026-08-23 report |
+| Read | Source | `9452bca` | `file_tools.py`, `file_operations.py`, `binary_extensions.py`, `read_extract.py`, `tool_output_limits.py`, `agent/file_safety.py`; 2026-09-16 survey. Output example is Reconstructed. Guard, hint, and dedup strings re-read from source on 2026-09-18 |
+| Descriptions | Source | `9452bca` | `.txt` files copied byte for byte from the extraction in the 2026-09-16 scratch folder. Every string is a literal in `file_tools.py`, `terminal_tool.py`, or `process_registry.py`; none is a template |
+| Edit | Source | `9452bca` | `file_tools.py`, `file_operations.py`, `fuzzy_match.py`, `patch_parser.py`, `file_state.py`; 2026-08-23 report. Error and hint strings re-read from source on 2026-09-18 |
+| Shell | Source | `9452bca` | `terminal_tool.py`, `process_registry.py`, `approval.py`, `tirith_security.py`, `environments/local.py`; 2026-08-23 report. Timeout, truncation, and approval strings re-read on 2026-09-18 |
+| Search and listing | Source | `9452bca` | `file_tools.py`, `file_operations.py`; 2026-08-23 report. The schema was read from source, which has one `context` integer rather than the two context fields the condensed schema table lists |
+| Errors | Source | `9452bca` | Strings re-read from the files above on 2026-09-18; transport from `registry.py` |
+
+No claim on this page is Observed. No command was run through a live Hermes model session.
+
+### Gaps
+
+- Working directory and environment, login shell: Not surveyed.
+- Sandbox: the isolation of the Docker, Singularity, Modal, Daytona, SSH, and Vercel backends was not inspected; only the repository integration was.
+- Output limits, outer result cap: the spillover preview format in `tool_result_storage.py` was read for its shape only; the threshold interaction with context-scaled budgets in `budget_config.py` was not traced.
+- Read, `limit` absent from the call: the 500-line handler default is Source; which providers fill schema defaults was not tested.
+- Plugin hooks: `pre_tool_call`, `transform_tool_result`, and `transform_terminal_output` can change any behaviour above; no plugin was inspected.
+
+### Refresh notes
+
+Diff the `sourceFiles` list between `9452bca388f4644de000c5d99ebb0f9fab28d74a` and the target commit. The description strings are literals: `READ_FILE_SCHEMA`, `WRITE_FILE_SCHEMA`, `PATCH_SCHEMA`, and `SEARCH_FILES_SCHEMA` at the end of `tools/file_tools.py`, `TERMINAL_TOOL_DESCRIPTION` in `tools/terminal_tool.py`, and `PROCESS_SCHEMA` in `tools/process_registry.py`; a change to any of them changes the counts. Check `tools/tool_output_limits.py` for the three defaults, `normalize_read_pagination` in `tools/file_operations.py` for the clamp, `_get_max_read_chars` in `tools/file_tools.py` for the character budget, and the strategy list in `fuzzy_find_and_replace` for the nine-strategy claim. Re-extract with `extract_hermes.py` and recount with `count.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`.

@@ -1,0 +1,673 @@
+---
+title: Oh My Pi
+description: Read, edit, shell, and search tools in the Oh My Pi coding agent at 18.2.1, with every model-facing description in full
+harness: oh-my-pi
+kind: cli
+repo: can1357/oh-my-pi
+commit: 1e57a90f1a25516a3474e4cbfb74efefdbb19906
+version: 18.2.1
+license: MIT
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - packages/coding-agent/src/tools/essential-tools.ts
+  - packages/coding-agent/src/tools/index.ts
+  - packages/coding-agent/src/tools/read.ts
+  - packages/coding-agent/src/tools/read-format.ts
+  - packages/coding-agent/src/tools/read-path-resolution.ts
+  - packages/coding-agent/src/tools/read-archive.ts
+  - packages/coding-agent/src/tools/read-sqlite.ts
+  - packages/coding-agent/src/tools/path-utils.ts
+  - packages/coding-agent/src/tools/output-meta.ts
+  - packages/coding-agent/src/tools/write.ts
+  - packages/coding-agent/src/tools/file-write-fallback.ts
+  - packages/coding-agent/src/tools/auto-generated-guard.ts
+  - packages/coding-agent/src/tools/plan-mode-guard.ts
+  - packages/coding-agent/src/tools/bash.ts
+  - packages/coding-agent/src/tools/tool-timeouts.ts
+  - packages/coding-agent/src/tools/glob.ts
+  - packages/coding-agent/src/tools/grep.ts
+  - packages/coding-agent/src/tools/match-line-format.ts
+  - packages/coding-agent/src/exec/bash-executor.ts
+  - packages/coding-agent/src/session/streaming-output.ts
+  - packages/coding-agent/src/edit/index.ts
+  - packages/coding-agent/src/edit/schemas.ts
+  - packages/coding-agent/src/edit/store.ts
+  - packages/coding-agent/src/lsp/writethrough.ts
+  - packages/coding-agent/src/config/settings-schema.ts
+  - packages/coding-agent/src/prompts/tools/read.md
+  - packages/coding-agent/src/prompts/tools/write.md
+  - packages/coding-agent/src/prompts/tools/glob.md
+  - packages/coding-agent/src/prompts/tools/grep.md
+  - packages/coding-agent/src/prompts/tools/bash.md
+  - packages/utils/src/prompt.ts
+  - packages/utils/src/binary.ts
+  - packages/agent/src/agent-loop.ts
+  - crates/pi-edit/prompts/hashline.md
+  - crates/pi-edit/src/engine.rs
+  - crates/pi-edit/src/session.rs
+  - crates/pi-edit/src/path_policy.rs
+  - crates/pi-edit/src/modes/hashline/mismatch.rs
+  - crates/pi-edit/src/modes/hashline/messages.rs
+  - crates/pi-edit/src/modes/hashline/patcher.rs
+  - crates/pi-natives/src/grep.rs
+  - crates/pi-shell/src/shell.rs
+  - docs/approval-mode.md
+  - docs/bash-tool-runtime.md
+  - docs/natives-shell-pty-process.md
+---
+
+Oh My Pi is an open-source terminal coding agent published by can1357 as a fork of Pi. Its model-facing file family is six dedicated tools: `read`, `write`, `edit`, `bash`, `glob`, and `grep`. The `read` tool takes one path string with an optional selector suffix and reads files, directories, archives, SQLite databases, images, documents, URLs, and internal resources through the same parameter. The default edit mode is hashline: read output carries a `[path#TAG]` snapshot header, and the `edit` tool requires that tag in every section it touches. Search, edit parsing, and the shell run in a native Rust addon.
+
+## Source pin
+
+| Item | Value |
+|---|---|
+| Repository | [can1357/oh-my-pi](https://github.com/can1357/oh-my-pi) |
+| Commit | `1e57a90f1a25516a3474e4cbfb74efefdbb19906` on `main`, committed 2026-09-16 |
+| Package versions | `@oh-my-pi/pi-coding-agent@18.2.1`, `@oh-my-pi/pi-agent-core@18.2.1`, `@oh-my-pi/pi-natives@18.2.1` |
+| Licence | MIT for first-party code; vendored and ported components keep their upstream notices |
+| Surveyed | 2026-09-15 for edit, shell, search, and approval; 2026-09-16 for read and the description strings. Both surveys used the same commit |
+| Verified | 2026-09-16 |
+| Configuration surveyed | Setting defaults: `edit.mode` is `hashline`, `read.defaultLimit` is 300, `tools.outputMaxColumns` is 768, `tools.approvalMode` is `yolo`, `bashInterceptor.enabled` is off, `async.enabled` is on |
+| Files read | The `sourceFiles` list in the frontmatter |
+| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-09-15-omp-fs-tools-audit/omp` (clone); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction scripts, `descriptions/omp/*.txt`, counts) |
+| Evidence status | Open source inspected. No live model session was run. The native addon was not built |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read` | Read one path: file, directory, archive member, SQLite table, image, document, URL, or internal URL | Yes | `loadMode` is `essential`; read tier, exec tier for `ssh://` paths and PDF page images |
+| `write` | Create or replace a file, archive member, or SQLite row | Yes | Essential; write tier for local files |
+| `edit` | Apply a targeted edit in the active mode | Yes | Essential; `hashline` by default; `replace`, `patch`, `apply_patch`, and `sloppy` are settings |
+| `bash` | Run a command in the embedded shell | Yes | Essential; exec tier; one-shot, persistent, PTY, and async job paths |
+| `glob` | Find paths with an ignore-aware walker | Yes | Essential |
+| `grep` | Search file contents with Rust regex and a PCRE2 fallback | Discoverable | `loadMode` is `discoverable`; the full schema can be mounted behind `xd://` instead of staying top-level |
+
+Four more built-ins touch files and are outside this page: `ast_edit` (on by default through `astEdit.enabled`), `ast_grep` (off by default), `eval` (persistent Python or JavaScript that can call the agent's tools), and `lsp`. Their description strings were not extracted in the survey. There is no separate list tool: `read` on a directory lists it. `edit` and `write` declare `concurrency = "exclusive"`; `bash` is shared unless `pty` is set.
+
+## Read
+
+### Signature
+
+```ts
+read({ path: string })
+```
+
+One required string. Line selection is a suffix on the path: `:50`, `:50-200`, `:50+150`, `:-60`, `:5-16,960-973`, `:raw`, and `:raw:2-4`. Other suffixes select conflicts, SVG rasterisation, archive members, SQLite tables and rows, video frames, and vision questions through `?q=`. Line numbers are one-based. A literal path wins over selector parsing when `lstat` finds it, so a file named `report:1-2` reads as a file.
+
+### Description
+
+`read`: 3284 characters, 3342 bytes, 33 lines, approximately 996 tokens.
+
+The string is a Handlebars template rendered with the setting defaults: `read` and `grep` render in hashline display mode because `edit.mode` defaults to `hashline`, and `glob` and `grep` render with eager delegation and the scout agent available. The string lists every selector form, tells the model that a parseable code file with no selector returns a structural summary whose footer names the ranges to re-read, describes the `[foo.ts#1A2B]` header and says never to fabricate the tag, and covers directories, SQLite, archives, documents, notebooks, images, videos, URLs, internal URIs, and `ssh://`. It does not state the 300-line default window or the byte budget.
+
+**`read` (3284 characters)**
+
+```text
+Read files, directories, archives, SQLite, images, documents, internal resources, and web URLs via `path`.
+
+<instruction>
+- SHOULD parallelize independent reads.
+- SHOULD use `read` (not browser) for web content; browser only when `read` can't deliver.
+</instruction>
+
+## Selectors — append `:<sel>` to `path` (e.g. `src/foo.ts:50-200`, `src/foo.ts:raw`, `db.sqlite:users:42`)
+
+- `:50` / `:50-` — from line 50 | `:50-200` — inclusive | `:50+150` — 150 lines from 50 | `:-60` — last 60 lines | `:5-16,960-973` — multiple ranges
+- `:raw` — verbatim, no anchors/prefixes | `:2-4:raw` / `:raw:2-4` — range + verbatim
+- `:conflicts` — one line per unresolved git merge conflict block
+- `:img` — rasterize a local `.svg`/`.svgz` as a PNG image; use when visual layout matters
+- Bare image path → sent directly to the active model when it supports image input.
+- `?q=<question>` — image only (also `.svg:img?q=`, `attachment://N?q=`, `local://…?q=`): vision-model answer as text instead of pixels (works on any model); prefer bare image path when active model supports image input.
+- Videos (`.mp4`, `.mov`, `.mkv`, `.webm`, `.m4v`, `.avi`, `.wmv`) need system `ffmpeg`/`ffprobe`: bare read returns a preview grid plus metadata (resolution, codecs, duration, fps); `:412` extracts frame 412, `:1h5m42s`/`:90s`/`:01:23` seeks to a timestamp
+
+## Source kinds
+
+- Parseable code, no selector → structural summary (declarations only, body elided). Footer names recovery selector — re-issue ONLY those ranges.
+- File + selector → `[foo.ts#1A2B]` snapshot header + numbered lines. Copy `[FILENAME#TAG]` for anchored edits; NEVER fabricate the tag.
+- Directory → depth-limited dirent listing. Root is complete; page long listings with `:N-M`/`:-N`. Child dirs cap at 12 entries (`… N more` marker) — read the sub-path to expand.
+- SQLite (`.sqlite`, `.sqlite3`, `.db`, `.db3`): `file.db` (tables), `file.db:table` (schema+rows), `file.db:table:key` (by PK), `?limit=`/`?where=`/`?q=SELECT`.
+- Archives (`.zip` family incl. `.jar`/`.apk`/`.whl`, `.tar` incl. `.tar.{gz,bz2,xz,zst}`, `.rar`, `.7z`, `.iso`, `.cab`, `.deb`/`.rpm`/`.cpio`/`.ar`/`.a`, `.lzh`/`.arj`, `.asar`; single-stream `.gz`/`.bz2`/`.xz`/`.zst`): `archive.ext:path/inside/archive` reads a member.
+- Documents → extracted text. Notebooks → editable cells. Images → decoded inline for vision-capable models (prefer bare image path); `img.png?q=<question>` asks a vision model and returns text (spares context; works on any model). Videos → preview grid plus metadata. SVGs read as text unless `:img` is specified; `:raw` bypasses converters.
+- URLs → reader-mode clean text/markdown; `:raw` → untouched HTML. Bare `host:port` needs trailing slash.
+- Internal URIs — all schemes take selectors. `artifact://<id>` recovers spilled output; page with `:N-M`/`:raw:N-M`.
+- `ssh://host/<path>` reads remote file/dir (UTF-8, ≤1 MiB); bare `ssh://` lists hosts; writable with `write` and searchable with `grep`.
+  Literal `:`, `?`, `#` → percent-encode (`%3A`/`%3F`/`%23`). Requires a verified POSIX shell on the remote host. For Windows or other unsupported hosts, use `bash` with a remote SSH command or mount with `sshfs`.
+
+<critical>
+Summary footer names elided ranges? Re-issue ONLY those ranges. NEVER guess `..`/`…` content.
+</critical>
+```
+
+### Path handling
+
+`resolveToCwd` resolves relative paths against the session cwd, expands `~`, strips a leading `@`, converts `file://` URLs, folds several Unicode space characters to a plain space, handles Windows drive aliases, and maps a bare `/` to the cwd. Absolute paths and `..` are accepted. There is no containment check.
+
+When the resolved path does not exist, `resolveReadPath` in `path-utils.ts` tries a shell-escape stripped variant when the string holds both a backslash and a slash, then four macOS variants in order: a narrow no-break space (U+202F) before `AM` or `PM`, the NFD form of the path, straight apostrophes replaced by U+2019, and NFD with curly quotes together. The first variant that exists is read. The model is not told that a variant was used.
+
+When `stat` still fails, three more attempts run: a path containing `;` is split and read as several files; a unique workspace suffix match runs `glob` for `**/<normalized path>` from the cwd with a five second timeout, and one match is used with a notice at the top of the output; an approved-plan alias is tried for plan files. Remote mount prefixes skip the glob. Zero or several suffix matches fall through to the error.
+
+```text
+[Path '<from>' not found; resolved to '<to>' via suffix match]
+```
+
+```text
+Path '<path>' not found
+```
+
+Symlinks: followed with no check on the ordinary read path. The optional speculative read path resolves the real path and rejects targets outside the cwd, non-regular files, and files above 4 MiB, but that path protects latency and stale authorisation, not confinement.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Approval tier | `read` for local paths; `exec` for `ssh://` paths and for PDF page-image reads. With the default `tools.approvalMode` of `yolo` every tier is auto-approved; `always-ask` auto-approves the read tier only. `tools.approval.read` can allow, prompt, or deny in every mode |
+| Path rules | None. No allow or deny list and no workspace root for local files |
+| Plan mode | Reads are unaffected; plan mode restricts writes |
+| Device and special files | None. `Bun.file(...).stat()` separates directories from files; no regular-file guard runs before the open. Native `grep` skips non-regular candidates, and the speculative read path rejects them, so the check depends on the path taken |
+| Artifacts | An unbounded `:raw` read of an `artifact://` resource over 50 KiB is refused: `Unbounded raw read blocked for <artifact> (<size>). ...` with `:raw:1-3000` suggested |
+| Denial text | Not surveyed. The host prompt renders the denial |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | An 8 KiB header sample: a NUL byte or invalid UTF-8 marks the file binary. `:raw` skips the check |
+| Refusal | `[Cannot read binary file '<rel>' (<size>); not valid UTF-8 text. Use ':raw' to read bytes verbatim.]` returned as success text |
+| Notebooks | `.ipynb` renders as editable cell-marked text unless `:raw` is selected; `edit` writes the virtual view back to notebook JSON |
+| Office and PDF text | `.pdf`, `.docx`, `.pptx`, `.xlsx`, and `.epub` convert to markdown through `markit`; the converted text goes through the same selector engine, so `report.pdf:50-100` slices the conversion. A failure returns `[Cannot read <ext> file: <reason>]` |
+| Images | PNG, JPEG, GIF, WebP and others by magic bytes. Resized when `images.autoResize` is on and sent as image content to a vision model; `?q=<question>` asks a vision model and returns text; `.svg` rasterises with `:img` |
+| Video | `.mp4`, `.mov`, `.mkv`, `.webm`, `.m4v`, `.avi`, `.wmv` through system `ffmpeg`: preview grid plus metadata, `:412` for a frame, `:90s` for a timestamp |
+| Other sources | SQLite tables, schemas, rows, and bounded queries; archive members by `archive.ext:path`; macOS `sample` and V8 `.cpuprofile` summaries; git conflict blocks with `:conflicts`; URLs in reader mode; `ssh://` files up to 1 MiB |
+| Media size guard | 20 MiB: `Image file too large: <size> exceeds <max> limit.` |
+| Encoding | BOM stripped and CRLF normalised to LF for the addressable lines; the snapshot hash is taken over the normalised text |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 300 lines. `read.defaultLimit` offers 200, 300, 500, 1000, and 5000; the value is clamped to the ceiling | |
+| Ceiling | 3000 lines per call (`DEFAULT_MAX_LINES`), including the context lines added to a range | |
+| Long line | Cut at 768 characters for display only. `tools.outputMaxColumns` offers 0 to 4096; `:raw` bypasses the cut. The bytes used for the snapshot hash are untouched | `…` appended to the cut line; `Some lines truncated to 768 chars` joined into the trailing bracket notice |
+| Output budget | The larger of 50 KiB and 512 bytes per collected line; whole lines only | `[Showing lines <a>-<b> of <total> (50.0KB limit). Use :<n> to continue]` |
+| First line over budget | Refused in hashline mode; a byte-capped preview in plain mode | `[Line <n> is <size>, exceeds <budget> limit. Hashline output requires full lines; cannot emit an editable numbered preview for a truncated line.]` |
+| Whole-file size | None. Files at or below 4 MiB are read into one buffer; larger files stream and stop after the requested window, so the total line count is unknown | `[More lines in file (<size> total; not scanned to EOF). Use :<n> to continue]` |
+| Offset past end | Success text, not an error | `Line <n> is beyond end of file (<total> lines total). Use :1 to read from the start, or :<total> to read the last line.` |
+
+A ranged read adds one leading and three trailing context lines around the requested range (`RANGE_LEADING_CONTEXT_LINES` and `RANGE_TRAILING_CONTEXT_LINES` in `read-format.ts`). `:raw` disables the context.
+
+### Output
+
+```text
+[src/app.ts#1A2B]
+1:import { x } from "./x"
+2:export const y = x
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | `[<relative path>#<TAG>]` in hashline mode, which is the default. The tag is four uppercase hex characters from the session edit store. No header with `:raw` |
+| Line prefix | `N:text`, unpadded, in hashline mode. `N\|text` when hashline is off and `readLineNumbers` is on. Bare lines with `:raw` or when both are off |
+| End marker | None |
+| Truncation notice | After a blank line: `[Showing lines <a>-<b> of <total>. Use :<n> to continue]` at the line cap; the `(50.0KB limit)` form above at the byte cap; `[<n> more lines in file. Use :<n> to continue]` when the requested range stopped before the end; the `not scanned to EOF` form for streamed files. When the result spilled to an artifact the notice adds `Read artifact://<id> for full output` |
+| Error transport | `ToolError` thrown; agent core returns the message as one text part with `isError` |
+
+The example is reconstructed from the format code. A parseable code file read with no selector returns a structural summary instead of numbered lines: declarations stay, bodies collapse to `12-40:function f() { … }` rows, and a footer such as `[…180ln elided; re-read needed ranges with src/app.ts:12-40,55-90]` names the ranges to fetch. `read.summarize.enabled` defaults to true; `read.summarize.prose` is off, so Markdown and plain text are not summarised.
+
+### Notable
+
+- The snapshot header tag is a hash of the whole file when the file fits the 4 MiB buffer or a whole-file window was read. A partial view of a larger file records only the displayed line provenance. Every numbered line shown is recorded as seen for the `edit.enforceSeenLines` guard.
+- Block-aware rendering can insert `…` rows for elided lines inside a ranged view.
+- An empty file returns `Line 1 is beyond end of file (0 lines total). The file is empty.` An empty directory returns `(empty directory)`.
+- A directory read builds a depth-two tree. The root has no entry cap; each child directory shows up to 12 entries with a `… N more` marker. Selectors page the rendered listing: `[<n> more lines in listing. Use :<n> to continue]`.
+- The tool accepts an abort signal and checks it between steps; the plain-file line collector runs without the signal so a read is never abandoned mid-stream.
+- When an ACP client supplies an editor buffer, `read` uses that buffer and falls back to disk if the bridge fails.
+- No repeat-read guard, no content injection after the read, no redaction.
+- `read` is not in the exclusive concurrency set, so it can run beside a `write` or `edit` on the same path inside one tool batch.
+
+## Edit
+
+### Signature
+
+```ts
+write({ path: string, content: string })
+edit({ input: string })
+```
+
+`edit` takes one `input` string in the default `hashline` mode, and also in `apply_patch` and `sloppy` modes. The other modes change the schema: `replace` takes `path`, `old_string`, `new_string`, and optional `replace_all`; `patch` takes `path` and an `edits` array of `op`, `rename`, and `diff` entries. The mode is the `edit.mode` setting and is fixed for the session. `write` on a `.zip`, `.jar`, `.war`, `.ear`, `.apk`, `.tar`, `.tar.gz`, `.tgz`, `.tar.zst`, or `.asar` member path rewrites the archive; on a SQLite `db:table` or `db:table:key` path it inserts, updates, or deletes a row.
+
+### Description
+
+`write`: 764 characters, 766 bytes, 14 lines, approximately 187 tokens.
+`edit`: 5235 characters, 5267 bytes, 135 lines, approximately 1574 tokens.
+
+`write` states create-or-overwrite, lists the writable archive formats and the SQLite row operations, and gives three rules: prefer `edit` for existing files, no documentation files unless asked, no emojis. `edit` is the full native hashline prompt from `crates/pi-edit/prompts/hashline.md`; a compact variant exists for models whose catalog entry selects it. It defines the section header `[PATH#TAG]`, the `PUT`, `CUT`, `REM`, and `MV` operations with line, range, block, gap, and register forms, the `+` body rows, a rule list, worked examples, anti-patterns, and three closing rules: re-ground after every edit, keep ranges tight, body rows are final content.
+
+**`write` (764 characters)**
+
+```text
+Creates or overwrites file at specified path.
+
+<conditions>
+- Creating new files explicitly required by task
+- Replacing entire file contents when editing would be more complex
+- Supports `.zip` (and ZIP-based `.jar`/`.war`/`.ear`/`.apk`), `.tar`, `.tar.gz`/`.tgz`, `.tar.zst`, and `.asar` archive entries via `archive.ext:path/inside/archive`; other archive formats (`.rar`, `.7z`, `.iso`, …) are read-only
+- Supports SQLite row operations via `db.sqlite:table` (insert), `db.sqlite:table:key` (update with JSON content, delete with empty content)
+</conditions>
+
+<critical>
+- You SHOULD use Edit tool for modifying existing files
+- You NEVER create documentation files (*.md, README) unless explicitly requested
+- You NEVER use emojis unless requested
+</critical>
+```
+
+**`edit` (5235 characters)**
+
+````text
+Line-anchored patch language: name original lines/gaps to replace, insert, cut, or paste; then give new content. `:` headers take `+` body rows; colonless paste `PUT`, `CUT`, `REM`, `MV` take none.
+
+<headers>
+Section: `[PATH#TAG]`; `TAG`: 4-hex snapshot from latest `read`/`search`, REQUIRED each section. New files: `write`; hashline edits existing files only.
+</headers>
+
+<ops>
+`PUT N.=M:`: replace original inclusive lines N–M with body.
+`PUT N*:`: replace syntactic block beginning N; closing line resolved.
+`PUT <N:` insert body rows before line N (`PUT <1:` = file head).
+`PUT >N:` insert body rows after line N (`PUT >$:` = file tail).
+`PUT >N*:`: insert after block N's end, at sibling depth. Append inside block: `PUT >M:`.
+`PUT <N @name` / `PUT >N @name` paste register `@name` at the gap before/after line N; omit `@name` for the anonymous register.
+`PUT N.=M @name` / `PUT N* @name` paste `@name` over the range / resolved block; `@name` required here.
+`CUT N.=M` / `CUT N*`: delete and capture inclusive lines N–M / block N; anonymous or given `@name`.
+`REM`: delete section file. `MV DEST`: move/rename (quote paths with spaces); prior edits apply to source, final content to `DEST`.
+Single line: `PUT N.=N:` / `CUT N.=N`. Ranges name original inclusive touched lines; body length irrelevant.
+</ops>
+
+<body-rows>
+Only below `:` headers. Row: verbatim `+TEXT` (leading whitespace preserved); `+`: blank. NEVER `-old`, bare, or context rows: range deletes; body is final content. Keep line: exclude it from every range. Literal initial `-`/`+`: `- item` → `+- item`; `+ item` → `++ item`.
+</body-rows>
+
+<rules>
+- Numbers and `#TAG`: latest `read`/`search` `LINE:TEXT`; numbers are original, never shifted by hunks.
+- Each edit renumbers and changes `#TAG` → next numbers from edit response or fresh `read`.
+- Touch displayed lines only; undisplayed hunks REJECTED. Far from read window: re-`read`; confirm construct.
+- Elisions UNSEEN: `…`, `..`, collapsed `N-M:` rows. NEVER hunk in/across one; `read` first.
+- NEVER start/end range mid-expression or mid-block.
+- Ranges: changed lines only; NEVER widen over keepers. Non-adjacent changes: separate hunks.
+- Whole construct: `PUT N*:`; internal lines: `PUT N.=M:`.
+- `PUT N*:` resolves exactly node N. Leading decorators/attributes/doc-comments are separate nodes: point N at first decorator to include both. Standalone line-comments never swept: use `PUT N.=M:`.
+- Block ops: opening line of multi-line construct, NEVER closer, last line, bare inner statement. One statement: plain `PUT N.=N:` / `CUT N.=N` / `PUT >N:`. At closer: `PUT >M:`.
+- Markdown headings are block openers. Block op on `##`/`###`: whole section through deeper headings to next same/higher heading. After section `PUT >N*:`: end body with blank line to separate next heading.
+- Pure addition: `PUT <N:` / `PUT >N:`, NEVER widened `PUT N.=M:`.
+- Move: `CUT`+`PUT`; `CUT 5.=9 @fn` → `@fn`, `PUT >40 @fn` pastes. Single call-local move: unlabeled `CUT` + `PUT >40`. Named registers persist across edit calls.
+- NEVER format/restyle with this tool; run project formatter.
+</rules>
+
+<example>
+`read` output shape:
+```
+[greet.py#A1B2]
+1:def greet(name):
+2:    msg = "Hello, " + name
+3:    print(msg)
+4:greet("world")
+```
+
+Edit, then move:
+```
+[greet.py#A1B2]
+PUT 1.=3:
++def greet(name):
++    print(f"Hi, {name}")
+MV lib/greet.py
+```
+
+Markdown bullets — file receives `- task`:
+```
+[PLAN.md#A1B2]
+PUT >2:
++- task
++  - nested task
+```
+
+Move `greet` to sibling file via named register; flows across sections:
+```
+[greet.py#A1B2]
+CUT 1* @fn
+[other.py#3C4D]
+PUT <1 @fn
+```
+
+`PUT 1*:` resolves lines 1–3 (`def` through `print(msg)`); line 4 separate, remains:
+```
+[greet.py#A1B2]
+PUT 1*:
++def greet(name):
++    print(f"Hello, {name}")
+```
+
+Decorator/doc-comment separate block: point N at decorator to include both; anchoring `def` line 2 orphans `@cache`:
+```
+[svc.py#C3D4]
+PUT 1*:
++@cache
++def load(key):
++    return store[key]
+```
+</example>
+
+<anti-patterns>
+# WRONG — empty `PUT` to delete. RIGHT: `CUT 4.=4`
+PUT 4.=4:
+
+# WRONG — range sized to the post-edit content. RIGHT: `PUT 1.=1:` (body length irrelevant)
+PUT 1.=2:
++def greet(name):
+
+# WRONG — `-` rows / bare context lines do not exist; the range deletes, the body is only new content.
+PUT 3.=3:
+    msg = "Hello, " + name
+-   print(msg)
++   return msg
+# RIGHT
+PUT 3.=3:
++   return msg
+
+# WRONG — pure insertion as a widened `PUT`: retyped keepers get dropped (here line 4).
+PUT 2.=4:
++    msg = "Hello, " + name
++    extra = compute(name)
++    print(msg)
+# RIGHT — touch nothing you keep.
+PUT >2:
++    extra = compute(name)
+
+# WRONG — `PUT >N*:` anchored on the closing delimiter / last visible line. RIGHT: plain `PUT >M:`
+PUT >3*:
++after()
+# RIGHT
+PUT >3:
++after()
+
+# WRONG — body rows under register PUT; register pastes take no body. RIGHT: bodyless `PUT >20 @fn`.
+PUT >20 @fn:
++function f() {}
+</anti-patterns>
+
+<critical>
+1. RE-GROUND AFTER EVERY EDIT: edits renumber and change `#TAG`; take next numbers from edit response or fresh `read`. Stale tag/surprise: STOP; re-`read`.
+2. RANGES TIGHT: changed lines only. Whole construct: `PUT N*:`.
+3. BODY FINAL CONTENT: every row starts `+`; Markdown bullet: `+- item`, not `- item`.
+</critical>
+````
+
+### Whole-file write
+
+`write` resolves the path, checks plan mode and the auto-generated-file guard, refuses a path that looks like a read-selector misfire, and refuses content that ends with a read truncation notice and covers less than the current file. It then routes through the ACP bridge when an editor owns the path, or through the LSP writethrough callback, or calls `Bun.write` directly. The destination is written in place. There is no temporary file and rename for ordinary files, no expected hash, and no compare-and-swap. A permission-denied write can be brokered through a host-provided privileged channel, which receives the symlink-resolved target. Parent directories: Unverified. The Bun runtime documents that `Bun.write` creates missing parents; the tool adds no `mkdir` of its own. Mode: a file whose content starts with `#!` is made executable and the result says `[Notice: Made executable via chmod +x]`. BOM and line endings: Not surveyed. The content is written as supplied.
+
+Archive-member writes read the archive, replace one member, write a temporary whole archive, and rename it over the original. SQLite writes open with a busy timeout and run one statement.
+
+After the write the LSP writethrough can format the content and return diagnostics. Formatter drift is recorded so the returned snapshot tag matches what landed on disk. The scan cache used by `glob` is invalidated.
+
+### Matching
+
+Hashline is content-addressed and line-addressed, not text-matched. Every section names a path and a four-hex tag from the latest `read` or `grep` output. The engine compares the tag with the current file hash. A recognised tag from an earlier snapshot in the session can be recovered: the engine remaps anchors onto unchanged live lines and adds a warning to the result. An unrecognised tag or unrecoverable drift rejects the edit before any file is staged. Line numbers in `PUT` and `CUT` ranges are original numbers from that read; `PUT N*:` resolves a syntactic block from its opening line through the native parser. With `edit.enforceSeenLines` (off by default) a range that a prior read or search never displayed in full is rejected with a preview of the actual lines.
+
+`replace`, `patch`, and `sloppy` modes match text. They use fuzzy matching when `edit.fuzzyMatch` is on, which is the default, at a similarity threshold of `0.95`. The model is not told when a fuzzy match was used in those modes.
+
+### Multi-file patch
+
+Present in every mode. A hashline payload can carry several `[PATH#TAG]` sections, including `MV` moves and `REM` deletes, and `apply_patch` takes a `*** Begin Patch` envelope. The engine stages every file in memory, validates every operation and plan restriction, then calls the host writer file by file in payload order. A writer failure after earlier files landed leaves those files written. Validation is all-or-nothing; application is ordered and best-effort. Two sections that resolve to the same file are rejected.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Enforced for hashline `edit` through the tag: a section without a tag, or with a tag the session never issued, is rejected. `write` has no read requirement |
+| Stale-file check | Hashline compares the snapshot tag with the live file hash and re-checks anchors against live content. `write`, `replace`, and `patch` have no revision precondition; `write` has only the truncated-projection guard |
+| Lock | `edit` and `write` are `concurrency = "exclusive"`: agent core runs an exclusive call after the last exclusive call and every running shared call, and the call becomes the next barrier. `bash` and `read` are not held. No cross-process lock |
+| Cross-process coordination | None. Shell writes, external editors, and other processes are outside the check; the next hashline edit sees the changed hash |
+| Post-write checks | LSP formatting and diagnostics through the writethrough layer; deferred diagnostics can arrive after the result. When a file that parsed before the edit no longer parses, the result carries a warning, and `edit.autoRepair.enabled` (off by default) can ask a model to repair the region |
+| Change tracking | The session edit store keeps snapshots, seen lines, and named registers; mutations invalidate the native scan cache; `git`-backed checkpoints are a separate tool |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write` | `[<path>#<TAG>]` on the first line in hashline mode, then `Successfully wrote <n> bytes to <path>`. `<n>` is the JavaScript string length, not a UTF-8 byte count. Notes follow for stripped hashline prefixes, the executable bit, and LSP diagnostics |
+| `edit` | Per file: `[<path>#<NEWTAG>]`, an optional `Moved to <path>`, a compact diff preview of the change, and a `Warnings:` block when the engine recovered or auto-corrected something. Files are joined with a blank line. A delete prints `Deleted <path>`. The full diff, first changed line, and before and after snapshots go to `details` for the TUI |
+
+### Notable
+
+- Notebook edits run on the virtual cell text and serialise back to notebook JSON, preserving metadata and outputs where possible. `write` on an existing notebook expects notebook JSON.
+- The edit tool streams argument fragments: the native `EditSession` parses the payload as it arrives and emits previews before execution. `edit.recoverInlineEdits` (on by default) turns a hashline payload the model emitted as plain text into a tool call.
+- Internal URL writes: `local://` for the plan sandbox, `vault://`, `conflict://N` to replace one registered merge-conflict block, `conflict://*` for all blocks, and `xd://` as a transport that runs a mounted tool under that tool's own approval tier.
+- The auto-generated-file guard (`edit.blockAutoGenerated`, on by default) refuses files whose name or first 1 KiB matches a generator marker.
+- No undo tool in this family; `checkpoint` is a separate tool.
+
+## Shell
+
+### Signature
+
+```ts
+bash({ command: string, env?: Record<string, string>, timeout?: number, cwd?: string, pty?: boolean, async?: boolean })
+```
+
+`timeout` is in seconds and defaults to 300. Zero disables the deadline. Other values are clamped to 1 to 3600 and to `tools.maxTimeout` when that setting is above zero, with a notice: `Timeout clamped to <n>s (requested <m>s; allowed range 1-3600s).` `env` values apply to one command. `cwd` sets the working directory; a leading `cd <path> &&` on the first line is lifted into `cwd` when the parameter is absent. `pty` requests a pseudo-terminal. `async` returns a job ID and is present in the schema when `async.enabled` is on, which is the default.
+
+### Description
+
+`bash`: 1649 characters, 1655 bytes, 24 lines, approximately 454 tokens. Rendered with the setting defaults: async and auto-background enabled, a 60 second threshold, `ast_edit` on, `ast_grep` off, `grep`, `glob`, `hub`, and JavaScript eval on, in-process shell builtins on, skills present, and a non-Windows host.
+
+The string calls the shell persistent, limits the tool to one binary or a short pipeline and sends scripts to `eval`, tells the model to use `cwd` and `env` instead of `cd` and inline quoting, reserves `pty` for terminal interaction, lists the in-process utilities, forbids shell `grep`, `rg`, `ls`, and `find` in favour of the dedicated tools, says output is captured and linked as `artifact://<id>`, and explains auto-backgrounding and the timeout.
+
+**`bash` (1649 characters)**
+
+```text
+Runs commands in a persistent shell.
+
+Use ONLY for one binary or a short pipeline that computes a fact (`wc -l`, `sort | uniq -c`, `diff`).
+Inline scripts, heredocs, `$(…)`, complex control flow/quoting, and non-trivial pipelines → `eval`.
+
+<instruction>
+- Set `cwd` instead of `cd`; use `env: { NAME: "…" }` for multiline/quote-heavy values.
+- `pty: true` only for terminal interaction (`sudo`, `ssh`).
+- Order-dependent commands use `&&` in one call; independent calls may run concurrently.
+- Skill instructions resolve as `skill://<name>`; other internal URIs auto-resolve to paths.
+- aux utils available: mkdir, wc, sort, comm, diff, uniq, base64, cmp, md5sum, sha{1,224,256,384,512}sum, b2sum, basename, dirname, readlink, realpath, touch, stat, date, mktemp, seq, yes, printenv, truncate, tac, nproc, uname, whoami, hostname, which, ps, pgrep, pkill, pidwait, top, cut, tee, tr, paste, sed, xargs, jq, rm, mv, ln, ts, sponge, ifne, isutf8, combine, errno
+- `async: true` defers a finite command's result; it does not extend `timeout`.
+</instruction>
+
+<critical>
+- NEVER use shell `grep`/`rg`; use built-in `grep`.
+- List directories with `read` and find paths with `glob`; NEVER use `ls`/`find`.
+- Avoid `head`, `tail`, and redirection: output is captured, truncated, and linked as `artifact://<id>`.
+- Services, watchers, debuggers, and REPLs MUST use `hub` (`op:"start"`).
+</critical>
+
+Long foreground calls may auto-background by the configured threshold and deliver later.
+`timeout: 0` disables the job deadline; otherwise `timeout` sets it without extending foreground waiting.
+No truncation footer means the displayed output is complete.
+```
+
+### Working directory and environment
+
+The working directory is the session cwd unless `cwd` is given. A persistent shell keeps the cwd across calls: a command that changes directory changes the next command's start point. The shell is an embedded fork of brush running inside the native addon. It loads no user profile by default and registers bash builtins plus in-process utilities from `pi-builtins`: `cat`, `head`, `tail`, `wc`, `sort`, `uniq`, `ls`, `find`, `grep`, `rg`, `fd`, `sed`, `jq`, `diff`, `rm`, `mv`, `ln`, checksums, and process tools. `PI_DISABLE_UUTILS_BUILTINS` turns the utility set off.
+
+Non-interactive calls run with a hardened environment: pagers disabled, `TERM=dumb`, `NO_COLOR`, non-interactive Git and package-manager defaults, and reduced credential prompts. PTY calls skip that hardening. Session environment values apply when the shell is created; the `env` parameter is scoped to one command. A configured snapshot can restore aliases, functions, and options, and direnv or devenv preflight can add project variables. Login shell: None.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | A persistent native `Shell` cached by shell path, prefix, snapshot, environment, session key, and minimizer configuration. One instance runs one command at a time; an overlapping call runs in a fresh one-shot shell |
+| Background | `async: true` returns a managed job ID and the result is delivered later through the session. A foreground command that passes `bash.autoBackground.thresholdMs` (60 000 ms) is moved to the job manager. The native shell tracks `&` and `nohup` children so the session survives when background children remain |
+| stdin | Ignored on the non-PTY path. The PTY path accepts raw stdin writes, resize, and kill through a control object that exists before startup completes |
+| Cancellation | Abort and timeout terminate the process group and child PID with graceful then hard signals. A cancelled, timed-out, or failed persistent run drops the shell session after descendant cleanup |
+| Grandchildren | The native `Process` class kills the tree children-first with a hard-kill timeout |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | stdout and stderr arrive as one merged stream in `OutputSink`. The sink tracks total bytes and lines, shown bytes, elided bytes, and per-line column drops |
+| Model-visible budget | 50 KiB inline (`tools.artifactSpillThreshold`). Above that the output spills to a session artifact and the model sees a 20 KiB head and a 20 KiB tail (`tools.artifactHeadBytes`, `tools.artifactTailBytes`). Head size 0 keeps the tail only |
+| Long lines | 768 bytes per line (`tools.outputMaxColumns`), `…` appended, remainder dropped to the next newline |
+| Truncation text | `[Showing lines <a>-<b> and <c>-<d> of <total>; <n> middle lines (<size>) elided. Read artifact://<id> for full output]` for the head-and-tail form; `[Showing lines <a>-<b> of <total>. Read artifact://<id> for full output]` for tail-only; column drops add `Some lines truncated to 768 bytes` |
+| Spill file | An `artifact://<id>` session artifact with no size cap by default (`ARTIFACT_DEFAULT_MAX_BYTES` is 0). Readable through `read` with selectors |
+| Empty output | `(no output)` |
+| Minimizer | An optional output minimizer can rewrite noisy output; the raw stream is kept as a separate artifact with a `[raw output: artifact://<id>]` footer |
+
+### Sandbox
+
+None. No OS sandbox, container, seccomp, or Seatbelt policy. The network is unrestricted. The child runs under the Oh My Pi process account. Task isolation can give a child task its own worktree, branch, copy-on-write filesystem, or overlay, but that is a task feature and does not change a top-level `bash` call.
+
+### Approval
+
+Every tool declares a tier: `read`, `write`, or `exec`. `bash` is `exec`. The mode decides what is auto-approved:
+
+| Mode | Auto-approved |
+|---|---|
+| `always-ask` | `read` |
+| `write` | `read` and `write` |
+| `yolo` | All tiers |
+
+The schema default is `yolo`. ACP adapters can keep a client permission gate until `yolo` is configured explicitly. `tools.approval.<name>` can allow, prompt, or deny a tool in every mode, and a tool-declared denial wins. Bash pattern rules (`bash.approvalRules`) match literal commands or approved `&&` chains, with `*` wildcards only. Critical patterns force a prompt: destructive root removal, fork bombs, remote fetch-and-execute, sensitive system-file writes, and shutdown commands. The rules inspect command text and do not confine the process.
+
+The bash interceptor (`bashInterceptor.enabled`, off by default) can block `cat`, `grep`, `find`, `sed -i`, and redirection misuse with a message naming the replacement tool when that tool is active. The `eval` tool has its own approval path, so a bash rule is not a global shell policy.
+
+### Notable
+
+- A non-zero exit is an error result: the output, a blank line, and `Command exited with code <n>`, flagged `isError` with `details.exitCode`.
+- A timeout is an error result with `details.timedOut`: the output then `[Command timed out after <n> seconds]`. The renderer uses a warning border instead of error red.
+- Abort throws: the sink prepends `[Command cancelled]`; PTY and bridge output gets `[Command aborted]` appended instead.
+- `pty: true` makes the call exclusive in the concurrency scheduler and uses `portable-pty` with an interactive environment.
+- Services, watchers, and REPLs are routed to the separate `hub` tool by the description.
+- No streaming of partial output to the model. The TUI receives streamed chunks.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `glob` | `path?: string`, `hidden?: boolean`, `gitignore?: boolean`, `limit?: number` | 200 results, default and maximum; five second scan timeout; `No files found matching pattern` on zero results, `No matches before timeout (scan incomplete)` on timeout | `.gitignore` respected and hidden files included by default; `.git` excluded; `node_modules` excluded unless named by the pattern |
+| `grep` | `pattern: string`, `path?: string`, `case?: boolean`, `gitignore?: boolean`, `skip?: number` | 20 distinct files per page, 20 matches per file in a multi-file scope, 200 in a single-file scope, 2000 native matches collected; 512 bytes per line; 30 second native timeout; 4 MiB searched per file | Ignore files respected by default; hidden files included; non-regular files skipped; directory scans bypass the scan cache |
+| List | Not applicable. `read` on a directory returns a depth-two listing | | |
+| Stat, mkdir | None. `mkdir`, `stat`, and `realpath` are in-process `bash` builtins | | |
+
+`glob` has no separate `pattern` argument: the glob is the `path` string, or a `;`-separated list of them, and a simple pattern matches recursively. Results are newest-first, grouped by directory, with `/` on directories and mtime metadata in `details`. A path that is a file or does not exist fails with `Path is not a directory: <path>` or `Path not found: <path>`; searching from `/` is refused. The native `pi-walker` scan cache (1000 ms TTL, 16 entries, 64 MiB budget) serves `glob` and AST discovery and is invalidated by `write`, `edit`, rename, and delete, not by shell commands.
+
+`grep` accepts a file, directory, glob, `;`-delimited list, `<file>:<lines>` selector, archive member, URL, or internal URL. The native engine tries Rust regex, then PCRE2 for lookaround and backreferences, and falls back to a literal search when both reject the pattern. Files larger than 4 MiB are searched over a leading 4 MiB window and the result says so: `Searched only the first 4MB of large files (...)`. Output groups matches under relative paths. In hashline mode each file gets a `[<path>#<TAG>]` header and rows read `*N:text` for a match and ` N:text` for context, with `...` between gaps; with hashline off the separator is `|`. When the file window fills, the result ends with `Showing files <a>-<b> of <total>. Use skip=<n> for the next page, or narrow paths/pattern.` Zero matches return `No matches found`.
+
+### Description
+
+`glob`: 705 characters, 707 bytes, 16 lines, approximately 171 tokens.
+`grep`: 498 characters, 500 bytes, 13 lines, approximately 130 tokens.
+
+Both strings render with eager delegation and the scout agent available, which is the no-model default. `glob` names the `path` list form, `memory://` patterns, the `gitignore` and `hidden` defaults, and the newest-first grouped output, and sends open-ended discovery to a Task with a scout. `grep` names the two regex engines, the `;`-separated roots, the one-file line selector, the `\n` cross-line trigger, and two rules: use it instead of shell `grep` or `rg`, and use a Task for multi-round search.
+
+**`glob` (705 characters)**
+
+```text
+Globs files, directories, and path-backed internal URLs with fast pattern matching.
+
+<instruction>
+- `path`: glob, file, directory, or path-backed internal URL; separate targets with `;` (`src/**/*.ts; test/**/*.ts`).
+- `memory://` glob patterns are supported. `ssh://` has no local path; use `read`. Other internal URLs accept exact paths only.
+- `gitignore` defaults `true`. Set `false` for ignored files such as `.env*`, logs, or build output.
+- `hidden` defaults `true`; pair it with `gitignore: false` for ignored dotfiles.
+</instruction>
+
+<output>
+Matches are newest-first and grouped by directory; directories end in `/`.
+</output>
+
+<avoid>
+Open-ended multi-round discovery → Task + scout.
+</avoid>
+```
+
+**`grep` (498 characters)**
+
+```text
+Searches files/internal URLs: Rust regex, PCRE2 fallback.
+
+<instruction>
+- `path`: known files, directories, globs, internal URLs; roots `;`-separated.
+- Broad searches may time out → narrow scope or use `glob` first.
+- One-file line selector: `src/foo.ts:50-100`; never selects search root.
+- Literal `\n` or `\\n` enables cross-line patterns.
+</instruction>
+
+<critical>
+- MUST use instead of shell `grep`/`rg`.
+- Open-ended multi-round search MUST use Task + scout, not chained calls.
+</critical>
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing path on read | `Path '<path>' not found` | Thrown `ToolError`; text part with `isError` |
+| Directory on read | Not an error; the depth-two listing is returned. A tree build failure gives `Cannot read directory: <message>` | Thrown |
+| Offset past end | `Line <n> is beyond end of file (<total> lines total). Use :1 to read from the start, or :<total> to read the last line.` | Successful text result |
+| Binary file | `[Cannot read binary file '<rel>' (<size>); not valid UTF-8 text. Use ':raw' to read bytes verbatim.]` | Successful text result |
+| First line over budget | `[Line <n> is <size>, exceeds <budget> limit. Hashline output requires full lines; cannot emit an editable numbered preview for a truncated line.]` | Successful text result |
+| Invalid selector | `Invalid selector ':<sel>' on '<path>'. Use :N, :N-M, :N+K, :N- (open-ended), :-N (last N lines), a comma-separated list of ranges, :raw, :img for SVG rendering, or a range combined with raw (e.g. :raw:50-100).` | Thrown |
+| Image too large | `Image file too large: <size> exceeds <max> limit.` | Thrown |
+| OS permission denied | The raw Node error message | Thrown |
+| Write in plan mode | `Plan mode: the working tree is read-only. Write your plan to a local://<slug>-plan.md file instead.` | Thrown |
+| Write to a generated file | `Cannot modify auto-generated file: <path>` then a four-line explanation naming the detected marker | Thrown |
+| Write of a truncated read | `Refusing to overwrite '<path>' with an incomplete read projection: the content ends with an omp read truncation notice and covers less than the current source, so it would discard unseen content. Re-read the omitted ranges and write the complete file, or use edit for a partial change.` | Thrown |
+| Edit, missing tag | `` Missing hashline snapshot tag for <path>; use `[<path>#tag]` from your latest read/search output. To create a new file, use the write tool. `` | `isError` result from the native engine |
+| Edit, stale tag | `Edit rejected for <path>: file changed between read and edit.` then `` Section is bound to #<old>, but the current file hashes to #<new>. If a prior edit in this session modified this file, copy the [path#newhash] header from that edit's response; otherwise re-read the file with `read` to refresh the tag before retrying. `` and the anchored lines | `isError` result |
+| Edit, unknown tag | `Edit rejected for <path>: hash #<tag> is not from this session.` then `` The current file hashes to #<new>. Re-read the file with `read` to copy a current [path#tag] header — never invent the tag and never reuse one from a prior session. `` | `isError` result |
+| Edit, target missing | `File not found: <path>. Use the write tool to create new files.` | `isError` result |
+| Edit, line out of range | `Line <n> does not exist (file has <total> lines)` | `isError` result |
+| Edit, unseen lines | `This edit anchors to lines <ranges> of <path> that [<path>#<tag>] never displayed (it showed a partial range, a search hit, or a folded summary).` then a preview or a re-read instruction. Only with `edit.enforceSeenLines` | `isError` result |
+| Edit, no change | `Edits to <path> parsed and applied cleanly, but produced no change: your body row(s) are byte-identical to the file at the targeted lines. ...` | `isError` result |
+| Stale file on `write` | None. Not detected | |
+| Command exit non-zero | Output, blank line, `Command exited with code <n>` | Error result with `details.exitCode` |
+| Command timeout | Output, blank line, `[Command timed out after <n> seconds]` | Error result with `details.timedOut` |
+| Command aborted | `[Command cancelled]` before the output, or `[Command aborted]` after it | Thrown |
+| Async disabled | `Async bash execution is disabled. Enable async.enabled to use async mode.` | Thrown |
+| Glob path errors | `Path not found: <path>`; `Path is not a directory: <path>`; `Searching from root directory '/' is not allowed`; `Limit must be a positive number` | Thrown |
+| Grep errors | `Pattern must not be empty`; `Invalid regex: <message>`; `Skip must be a non-negative number`; `` Grep timed out after 30s; narrow paths or pattern, or scope with `glob` first `` | Thrown |
+
+Invalid path and regex errors are `ToolError` text. Native edit engine failures come back as `isError` outcomes rather than rejected promises. A completed command with a non-zero exit is an error result even though the process finished. Permission denials and host bridge failures may throw. There is no stable error code across the family; the structured `details` object carries exit codes, truncation, and diagnostics for the TUI.
+
+## Evidence
+
+### What was verified and how
+
+| Section | Label | Pin | Note |
+|---|---|---|---|
+| Tool inventory | Source | `1e57a90` | `essential-tools.ts`, `tools/index.ts`, `settings-schema.ts`; 2026-09-15 report. Load modes and tiers re-read from the tool classes on 2026-09-18 |
+| Read | Source | `1e57a90` | `read.ts`, `read-format.ts`, `path-utils.ts`, `output-meta.ts`, `streaming-output.ts`, `utils/binary.ts`, `settings-schema.ts`; 2026-09-16 survey. Notice, limit, and error strings re-read from source on 2026-09-18. Output example is Reconstructed |
+| Descriptions | Source | `1e57a90` | `.txt` files copied byte for byte from the extraction in the 2026-09-16 scratch folder; rendered from the `prompts/tools/*.md` templates and `crates/pi-edit/prompts/hashline.md` with the recorded defaults |
+| Edit | Source | `1e57a90` | `write.ts`, `file-write-fallback.ts`, `plan-mode-guard.ts`, `edit/index.ts`, `edit/schemas.ts`, `crates/pi-edit/src/session.rs`, `path_policy.rs`, `modes/hashline/*.rs`; 2026-09-15 report. Result and error strings re-read from source on 2026-09-18 |
+| Shell | Source | `1e57a90` | `bash.ts`, `tool-timeouts.ts`, `exec/bash-executor.ts`, `streaming-output.ts`, `settings-schema.ts`, `docs/bash-tool-runtime.md`, `docs/natives-shell-pty-process.md`, `docs/approval-mode.md`; 2026-09-15 report. Status strings re-read on 2026-09-18 |
+| Search and listing | Source | `1e57a90` | `glob.ts`, `grep.ts`, `match-line-format.ts`, `crates/pi-natives/src/grep.rs`; 2026-09-15 report. Schemas and notice strings re-read on 2026-09-18 |
+| Errors | Source | `1e57a90` | Strings re-read from the TypeScript tool files and the Rust `pi-edit` crate on 2026-09-18 |
+
+No claim on this page is Observed. No command was run through a live Oh My Pi model session, and the native addon was not built.
+
+### Gaps
+
+- Permissions, denial text: Not surveyed. The host prompt renders the denial.
+- Whole-file write, parent directory creation: Unverified. The behaviour belongs to the Bun runtime, which was not inspected.
+- Whole-file write, BOM and line-ending handling for `write`: Not surveyed. The `edit` engine normalises to LF and strips a BOM for matching; the `write` path was not traced for the same.
+- `ast_edit`, `ast_grep`, `eval`, and `lsp`: outside the surveyed families. `ast_edit` is on by default and its description was not extracted.
+- Read, `?q=` vision fallback and video frame extraction: Source only; the `ffmpeg` and vision-model paths were not exercised.
+- Shell, PTY: Source and documentation only; the `portable-pty` path was not exercised.
+- Edit, `replace`, `patch`, `apply_patch`, and `sloppy` modes: their error strings are not on this page; only the default `hashline` mode was traced for the Errors table.
+- Approval prompts through ACP: the client-side gate was not inspected.
+
+### Refresh notes
+
+Diff the `sourceFiles` list between `1e57a90f1a25516a3474e4cbfb74efefdbb19906` and the target commit. The description strings are Handlebars templates in `packages/coding-agent/src/prompts/tools/{read,write,glob,grep,bash}.md` and `crates/pi-edit/prompts/hashline.md`, rendered through `packages/utils/src/prompt.ts`; a change to a template or to any default it reads (`read.defaultLimit`, `async.enabled`, `bash.autoBackground.thresholdMs`, `astEdit.enabled`, `astGrep.enabled`) changes the counts. Check `settings-schema.ts` for `edit.mode`, `read.defaultLimit`, `tools.outputMaxColumns`, `tools.artifactSpillThreshold`, `tools.artifactHeadBytes`, and `tools.approvalMode`. Check `session/streaming-output.ts` for `DEFAULT_MAX_LINES`, `DEFAULT_MAX_BYTES`, and `DEFAULT_MAX_COLUMN`. Re-extract with `extract_ts_harnesses.ts` and `render.ts` and recount with `count.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`.
