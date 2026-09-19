@@ -24,21 +24,13 @@ sourceFiles:
 
 Groq Code CLI is an open-source terminal coding agent published by Groq as a small codebase for developers to modify. It ships seven filesystem and shell tools as OpenAI-style function schemas, `read_file`, `create_file`, `edit_file`, `delete_file`, `list_files`, `search_files`, and `execute_command`, plus two task-list tools, and sends all nine on every request. Every description is one line under 380 characters with a worked JSON example. Tool results travel to the model as one JSON object with `success`, `content`, `message`, and `error` fields, and `edit_file` is refused until the same session has read the file.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [build-with-groq/groq-code-cli](https://github.com/build-with-groq/groq-code-cli) |
 | Commit | `a303eb4be01a53aaf3fbf319636e2b608e80aeca` on `main`, committed 2025-09-05 |
-| Release | None on GitHub. Installed with `npx groq-code-cli@latest` |
-| Package version | `groq-code-cli@1.0.2` |
-| Licence | MIT |
-| Surveyed | 2026-09-19 |
-| Verified | 2026-09-19 |
-| Configuration surveyed | Default model `moonshotai/kimi-k2-instruct` with no saved settings. The tool set and descriptions do not change with model, settings, or approval state |
-| Files read | The `sourceFiles` list in the frontmatter, plus `README.md`, `src/utils/local-settings.ts`, `src/commands/`, and the TUI display components |
-| Scratch folder | `/home/gareth/Documents/Personal/scratch/2026-09-19-groq-code-cli-source/` (shallow clone, `descriptions/*.txt`, `count.ts`, `checks.ts`, `build.ts`) |
-| Evidence status | Open source inspected. The repository has been inactive since 2025-12-19; the pinned HEAD is dated 2025-09-05. No live model session was run |
+| Last updated | 2026-09-19 |
 
 ## Tool inventory
 
@@ -67,8 +59,6 @@ read_file({ file_path: string, start_line?: number, end_line?: number })
 ### Description
 
 `read_file`: 218 characters, 218 bytes, 1 line, approximately 52 tokens.
-
-The string says a line range is optional, that a read is required before `edit_file`, that the tool is the way to check whether a file exists, and gives one JSON example. It does not state a size or line limit, the output shape, or directory behaviour. The relative-path rule lives in the `file_path` parameter description, not in this string.
 
 **`read_file` (218 characters)**
 
@@ -159,8 +149,6 @@ delete_file({ file_path: string, recursive?: boolean })
 `edit_file`: 299 characters, 299 bytes, 1 line, approximately 73 tokens.
 `delete_file`: 138 characters, 138 bytes, 1 line, approximately 36 tokens.
 
-`create_file` tells the model to check existence with `list_files` or `read_file` first, to use `edit_file` for existing files, and to set `overwrite=true` only when it wants to replace content. `edit_file` calls the replacement exact including whitespace and repeats the read-first rule. `delete_file` says "use with caution" and shows the `recursive` flag. None of the three describes the result text or the `replace_all` flag.
-
 **`create_file` (376 characters)**
 
 ```text
@@ -231,8 +219,6 @@ The schema describes `timeout` as seconds in the range 1 to 300. The implementat
 
 `execute_command`: 367 characters, 367 bytes, 1 line, approximately 80 tokens.
 
-The string is a safety warning: use the tool only for commands that complete and exit, never for servers or other long-running processes, and prefer short commands. It gives one JSON example. It does not state the timeout, the output shape, or the working directory.
-
 **`execute_command` (367 characters)**
 
 ```text
@@ -295,8 +281,6 @@ None. The child runs as the CLI process account with the same filesystem and unr
 `search_files`: 196 characters, 196 bytes, 1 line, approximately 45 tokens.
 `list_files`: 218 characters, 218 bytes, 1 line, approximately 46 tokens.
 
-`search_files` names the use case and gives an example with `file_pattern` and `context_lines`. `list_files` tells the model to use it to check whether files exist before choosing between `create_file` and `edit_file`, and its example passes `pattern` and `recursive`, both of which the implementation ignores. Neither string states a cap or an ignore rule.
-
 **`search_files` (196 characters)**
 
 ```text
@@ -344,29 +328,3 @@ Every failure is `success: false` with an `error` string in the JSON tool messag
 | Dispatch failures | `Error: Unknown tool`; `Error: Tool not implemented`; `Error: Invalid tool arguments`; `Error: Unexpected tool error`; `Tool execution error: <error>` | JSON `error` field |
 
 Twenty-seven rows, above the outline's fifteen. Each row is a distinct string or a distinct absence.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `a303eb4` | `tool-schemas.ts` exports and the three approval classes; `agent.ts` request body |
-| Read | Source | `a303eb4` | `readFile()` in `tools.ts`; output example is Reconstructed |
-| Descriptions | Source | `a303eb4` | `descriptions/*.txt` extracted from `tool-schemas.ts` by importing `ALL_TOOL_SCHEMAS`, spliced into this page byte for byte |
-| Edit | Source | `a303eb4` | `createFile()`, `editFile()`, `deleteFile()`; `writeFile()` in `file-ops.ts`; `validators.ts`; the read gate in `agent.ts` |
-| Shell | Source | `a303eb4` | `executeCommand()`; `exec` defaults from the Node documentation |
-| Search and listing | Source | `a303eb4` | `listFiles()`, `searchFiles()`, `collectFiles()`, `matchesPattern()`, `isBinaryFile()`; `displayTree()` and `shouldIgnore()` in `file-ops.ts`; `constants.ts` |
-| Errors | Source | `a303eb4` | Strings read from `tools.ts`, `validators.ts`, and `agent.ts`; transport from `chat()` in `agent.ts` |
-
-The tool functions were also called directly from a Bun script against a fixture directory (`checks.ts` in the scratch folder) to confirm the result shapes, the read gate, the silent no-match edit, the ignored `list_files` arguments, and the millisecond timeout. That is not a live model session, so the examples stay Reconstructed.
-
-### Gaps
-
-- Shell, Working directory and environment: Windows shell path is Not surveyed.
-- Shell, Process lifecycle: grandchild cleanup on timeout is Unverified.
-- No live `groq` session was run. Model behaviour with the Kimi default, including how often it sends absolute paths against the parameter text, was not observed.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `a303eb4be01a53aaf3fbf319636e2b608e80aeca` and the target commit. The description strings are literals in `src/tools/tool-schemas.ts`; a change there changes the counts. `src/tools/tools.ts` holds every result and error string. Re-extract with `extract.ts`, recount with `count.ts`, rerun `checks.ts`, and rebuild with `build.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-19-groq-code-cli-source/`. The repository had no push after 2025-12-19 at survey time; check `pushed_at` before spending time on a refresh.

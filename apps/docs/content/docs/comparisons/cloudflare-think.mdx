@@ -23,20 +23,13 @@ sourceFiles:
 
 Cloudflare Think is an agent class in the `cloudflare/agents` repository that runs inside a Durable Object and drives an AI SDK loop. Its file family is eight dedicated tools, `read`, `write`, `edit`, `list`, `find`, `grep`, `delete`, and `bash`, composed on every turn over a virtual filesystem stored in the Durable Object's SQLite. The `bash` tool is an in-memory emulator that snapshots the workspace, runs one script, and writes changes back. This page describes the default configuration: a `@cloudflare/shell` `Workspace` created from `ctx.storage.sql` with no R2 bucket, `workspaceBash` left at `true`, and no opt-in `execute` tool. Cloudflare Computer is a separate package with its own tool set; see [Cloudflare Computer](./cloudflare-computer.mdx).
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [cloudflare/agents](https://github.com/cloudflare/agents) |
 | Commit | `a0e134bbc327fc8a519b5aa66cb8ce4038815d05` |
-| Package versions | `@cloudflare/think@0.16.0`, `@cloudflare/shell@0.4.3`, `agents@0.21.0` |
-| Licence | MIT |
-| Surveyed | 2026-08-23 for edit, shell, search, and permissions; 2026-09-16 for read and the description strings. Both surveys used the same commit |
-| Verified | 2026-09-16 |
-| Configuration surveyed | Default `Workspace` from `ctx.storage.sql`, no R2 bucket, `workspaceBash: true` with the default Bash options, no `execute` tool, no `getTools()` override |
-| Files read | The `sourceFiles` list in the frontmatter |
-| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-08-23-cloudflare-think-fs-audit/agents-src` (clone); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction scripts, `descriptions/cloudflare-think/*.txt`, counts) |
-| Evidence status | Open source inspected. No live model session was run. The repository marks Think as experimental |
+| Last updated | 2026-09-16 |
 
 ## Tool inventory
 
@@ -66,8 +59,6 @@ read({ path: string, offset?: number, limit?: number })
 ### Description
 
 `read`: 209 characters, 209 bytes, 1 line, approximately 43 tokens.
-
-The string says text comes back line-numbered, images and PDFs go to capable models as file content, and `offset` and `limit` are for large files. It states no limit, no offset base, and no line prefix shape. It promises `null` for a missing file; the runtime returns an error instead. See Errors.
 
 **`read` (209 characters)**
 
@@ -169,8 +160,6 @@ delete({ path: string, recursive?: boolean })
 `edit`: 268 characters, 268 bytes, 1 line, approximately 54 tokens.
 `delete`: 82 characters, 82 bytes, 1 line, approximately 16 tokens.
 
-`write` states create, overwrite, and parent creation. `edit` calls the match exact, names both parameters, and gives the empty-`old_string` creation rule. It does not mention the whitespace-folded fallback the runtime uses or the tab gutter the model must strip from `read` output. `delete` names the `recursive` flag.
-
 **`write` (132 characters)**
 
 ```text
@@ -244,8 +233,6 @@ bash({ script: string, cwd?: string })
 
 `bash`: 356 characters, 358 bytes, 1 line, approximately 70 tokens. The byte count exceeds the character count because the string holds one U+2014.
 
-The string says the script runs in a sandboxed virtual filesystem with the workspace at `/`, that there is no `/workspace` or `/home`, to use absolute paths, and that changed files are written back. It does not state the timeout, the output cap, the network default, or the file-count and file-size mount limits.
-
 **`bash` (356 characters)**
 
 ```text
@@ -315,8 +302,6 @@ None built in. `beforeToolCall` is the insertion point: it can block with a reas
 `find`: 202 characters, 202 bytes, 1 line, approximately 37 tokens.
 `grep`: 198 characters, 198 bytes, 1 line, approximately 36 tokens.
 
-`list` promises names, types, and sizes. `find` explains `*`, `**`, and `?`. `grep` names regex and fixed-string modes and the `include` glob. None of the three states its cap.
-
 **`list` (91 characters)**
 
 ```text
@@ -365,31 +350,3 @@ Search file contents using a regular expression or fixed string. Returns matchin
 | Blocked by hook | `Tool "<name>" was blocked by beforeToolCall.` or the hook's reason | Substituted output |
 
 The built-ins mix three shapes: `read` maps its `error` field to `error-text`; `edit` and `grep` return `{ error }` as a normal JSON result; `Workspace` errors such as `EISDIR`, `ENOTDIR`, `ENOTEMPTY`, and `ELOOP` are thrown as plain `Error` objects with POSIX-style text and no `code` property, and the AI SDK records them as tool errors.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `a0e134b` | `think.ts` constructor and turn assembly, `tools/workspace.ts`, `docs/think/tools.md`; 2026-08-23 report |
-| Read | Source | `a0e134b` | `tools/workspace.ts`, `shell/src/filesystem.ts`, `shell/src/fs/path-utils.ts`; 2026-09-16 survey. Output example is Reconstructed |
-| Descriptions | Source | `a0e134b` | `.txt` files copied byte for byte from the extraction in the 2026-09-16 scratch folder; the literals sit in `tools/workspace.ts` |
-| Edit | Source | `a0e134b` | `tools/workspace.ts`, `shell/src/filesystem.ts`; 2026-08-23 report. Error strings re-read from source on 2026-09-18 |
-| Shell | Source | `a0e134b` | `tools/workspace.ts` Bash section, `assistant-tools.test.ts`; 2026-08-23 report. Truncation and sync strings re-read on 2026-09-18 |
-| Search and listing | Source | `a0e134b` | `tools/workspace.ts`, `Workspace.readDir` and `Workspace.glob`; 2026-08-23 report |
-| Errors | Source | `a0e134b` | Strings re-read from `tools/workspace.ts` and `shell/src/filesystem.ts` on 2026-09-18; hook block text from `think.ts` |
-
-No claim on this page is Observed. The test suite was read as evidence and not run.
-
-### Gaps
-
-- Shell, emulator command coverage: Not surveyed. `just-bash` is an external dependency and its command set was not inspected.
-- `execute` tool: not covered. Its description is composed from host-supplied state, tools, and browser namespaces, so no fixed string exists to copy.
-- Whole-file write above the inline threshold with an R2 bucket: the R2 path was read but not exercised; the default configuration has no bucket.
-- Crash and replay: no test establishes exactly-once behaviour for the built-in tools across an interrupted turn.
-- Custom `WorkspaceLike` implementations, including the Computer compatibility adapter, define their own path, symlink, and error behaviour and were not inspected here.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `a0e134bbc327fc8a519b5aa66cb8ce4038815d05` and the target commit. The eight description strings are literals in `packages/think/src/tools/workspace.ts`; a change there changes the counts. Check the `MAX_LINES`, `MAX_LINE_LENGTH`, `MAX_MODEL_FILE_BYTES`, `MAX_MATCHES`, `MAX_FILE_SIZE`, and `DEFAULT_BASH_*` constants in the same file, the merge order in `think.ts`, and the `Workspace` error strings in `packages/shell/src/filesystem.ts`. Re-extract with `extract_ts_harnesses.ts` and recount with `count.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`.

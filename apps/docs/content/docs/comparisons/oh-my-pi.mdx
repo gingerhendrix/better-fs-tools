@@ -59,20 +59,13 @@ sourceFiles:
 
 Oh My Pi is an open-source terminal coding agent published by can1357 as a fork of Pi. Its model-facing file family is six dedicated tools: `read`, `write`, `edit`, `bash`, `glob`, and `grep`. The `read` tool takes one path string with an optional selector suffix and reads files, directories, archives, SQLite databases, images, documents, URLs, and internal resources through the same parameter. The default edit mode is hashline: read output carries a `[path#TAG]` snapshot header, and the `edit` tool requires that tag in every section it touches. Search, edit parsing, and the shell run in a native Rust addon.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [can1357/oh-my-pi](https://github.com/can1357/oh-my-pi) |
 | Commit | `1e57a90f1a25516a3474e4cbfb74efefdbb19906` on `main`, committed 2026-09-16 |
-| Package versions | `@oh-my-pi/pi-coding-agent@18.2.1`, `@oh-my-pi/pi-agent-core@18.2.1`, `@oh-my-pi/pi-natives@18.2.1` |
-| Licence | MIT for first-party code; vendored and ported components keep their upstream notices |
-| Surveyed | 2026-09-15 for edit, shell, search, and approval; 2026-09-16 for read and the description strings. Both surveys used the same commit |
-| Verified | 2026-09-16 |
-| Configuration surveyed | Setting defaults: `edit.mode` is `hashline`, `read.defaultLimit` is 300, `tools.outputMaxColumns` is 768, `tools.approvalMode` is `yolo`, `bashInterceptor.enabled` is off, `async.enabled` is on |
-| Files read | The `sourceFiles` list in the frontmatter |
-| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-09-15-omp-fs-tools-audit/omp` (clone); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction scripts, `descriptions/omp/*.txt`, counts) |
-| Evidence status | Open source inspected. No live model session was run. The native addon was not built |
+| Last updated | 2026-09-16 |
 
 ## Tool inventory
 
@@ -100,8 +93,6 @@ One required string. Line selection is a suffix on the path: `:50`, `:50-200`, `
 ### Description
 
 `read`: 3284 characters, 3342 bytes, 33 lines, approximately 996 tokens.
-
-The string is a Handlebars template rendered with the setting defaults: `read` and `grep` render in hashline display mode because `edit.mode` defaults to `hashline`, and `glob` and `grep` render with eager delegation and the scout agent available. The string lists every selector form, tells the model that a parseable code file with no selector returns a structural summary whose footer names the ranges to re-read, describes the `[foo.ts#1A2B]` header and says never to fabricate the tag, and covers directories, SQLite, archives, documents, notebooks, images, videos, URLs, internal URIs, and `ssh://`. It does not state the 300-line default window or the byte budget.
 
 **`read` (3284 characters)**
 
@@ -242,8 +233,6 @@ edit({ input: string })
 
 `write`: 764 characters, 766 bytes, 14 lines, approximately 187 tokens.
 `edit`: 5235 characters, 5267 bytes, 135 lines, approximately 1574 tokens.
-
-`write` states create-or-overwrite, lists the writable archive formats and the SQLite row operations, and gives three rules: prefer `edit` for existing files, no documentation files unless asked, no emojis. `edit` is the full native hashline prompt from `crates/pi-edit/prompts/hashline.md`; a compact variant exists for models whose catalog entry selects it. It defines the section header `[PATH#TAG]`, the `PUT`, `CUT`, `REM`, and `MV` operations with line, range, block, gap, and register forms, the `+` body rows, a rule list, worked examples, anti-patterns, and three closing rules: re-ground after every edit, keep ranges tight, body rows are final content.
 
 **`write` (764 characters)**
 
@@ -462,8 +451,6 @@ bash({ command: string, env?: Record<string, string>, timeout?: number, cwd?: st
 
 `bash`: 1649 characters, 1655 bytes, 24 lines, approximately 454 tokens. Rendered with the setting defaults: async and auto-background enabled, a 60 second threshold, `ast_edit` on, `ast_grep` off, `grep`, `glob`, `hub`, and JavaScript eval on, in-process shell builtins on, skills present, and a non-Windows host.
 
-The string calls the shell persistent, limits the tool to one binary or a short pipeline and sends scripts to `eval`, tells the model to use `cwd` and `env` instead of `cd` and inline quoting, reserves `pty` for terminal interaction, lists the in-process utilities, forbids shell `grep`, `rg`, `ls`, and `find` in favour of the dedicated tools, says output is captured and linked as `artifact://<id>`, and explains auto-backgrounding and the timeout.
-
 **`bash` (1649 characters)**
 
 ```text
@@ -568,8 +555,6 @@ The bash interceptor (`bashInterceptor.enabled`, off by default) can block `cat`
 `glob`: 705 characters, 707 bytes, 16 lines, approximately 171 tokens.
 `grep`: 498 characters, 500 bytes, 13 lines, approximately 130 tokens.
 
-Both strings render with eager delegation and the scout agent available, which is the no-model default. `glob` names the `path` list form, `memory://` patterns, the `gitignore` and `hidden` defaults, and the newest-first grouped output, and sends open-ended discovery to a Task with a scout. `grep` names the two regex engines, the `;`-separated roots, the one-file line selector, the `\n` cross-line trigger, and two rules: use it instead of shell `grep` or `rg`, and use a Task for multi-round search.
-
 **`glob` (705 characters)**
 
 ```text
@@ -640,34 +625,3 @@ Searches files/internal URLs: Rust regex, PCRE2 fallback.
 | Grep errors | `Pattern must not be empty`; `Invalid regex: <message>`; `Skip must be a non-negative number`; `` Grep timed out after 30s; narrow paths or pattern, or scope with `glob` first `` | Thrown |
 
 Invalid path and regex errors are `ToolError` text. Native edit engine failures come back as `isError` outcomes rather than rejected promises. A completed command with a non-zero exit is an error result even though the process finished. Permission denials and host bridge failures may throw. There is no stable error code across the family; the structured `details` object carries exit codes, truncation, and diagnostics for the TUI.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `1e57a90` | `essential-tools.ts`, `tools/index.ts`, `settings-schema.ts`; 2026-09-15 report. Load modes and tiers re-read from the tool classes on 2026-09-18 |
-| Read | Source | `1e57a90` | `read.ts`, `read-format.ts`, `path-utils.ts`, `output-meta.ts`, `streaming-output.ts`, `utils/binary.ts`, `settings-schema.ts`; 2026-09-16 survey. Notice, limit, and error strings re-read from source on 2026-09-18. Output example is Reconstructed |
-| Descriptions | Source | `1e57a90` | `.txt` files copied byte for byte from the extraction in the 2026-09-16 scratch folder; rendered from the `prompts/tools/*.md` templates and `crates/pi-edit/prompts/hashline.md` with the recorded defaults |
-| Edit | Source | `1e57a90` | `write.ts`, `file-write-fallback.ts`, `plan-mode-guard.ts`, `edit/index.ts`, `edit/schemas.ts`, `crates/pi-edit/src/session.rs`, `path_policy.rs`, `modes/hashline/*.rs`; 2026-09-15 report. Result and error strings re-read from source on 2026-09-18 |
-| Shell | Source | `1e57a90` | `bash.ts`, `tool-timeouts.ts`, `exec/bash-executor.ts`, `streaming-output.ts`, `settings-schema.ts`, `docs/bash-tool-runtime.md`, `docs/natives-shell-pty-process.md`, `docs/approval-mode.md`; 2026-09-15 report. Status strings re-read on 2026-09-18 |
-| Search and listing | Source | `1e57a90` | `glob.ts`, `grep.ts`, `match-line-format.ts`, `crates/pi-natives/src/grep.rs`; 2026-09-15 report. Schemas and notice strings re-read on 2026-09-18 |
-| Errors | Source | `1e57a90` | Strings re-read from the TypeScript tool files and the Rust `pi-edit` crate on 2026-09-18 |
-
-No claim on this page is Observed. No command was run through a live Oh My Pi model session, and the native addon was not built.
-
-### Gaps
-
-- Permissions, denial text: Not surveyed. The host prompt renders the denial.
-- Whole-file write, parent directory creation: Unverified. The behaviour belongs to the Bun runtime, which was not inspected.
-- Whole-file write, BOM and line-ending handling for `write`: Not surveyed. The `edit` engine normalises to LF and strips a BOM for matching; the `write` path was not traced for the same.
-- `ast_edit`, `ast_grep`, `eval`, and `lsp`: outside the surveyed families. `ast_edit` is on by default and its description was not extracted.
-- Read, `?q=` vision fallback and video frame extraction: Source only; the `ffmpeg` and vision-model paths were not exercised.
-- Shell, PTY: Source and documentation only; the `portable-pty` path was not exercised.
-- Edit, `replace`, `patch`, `apply_patch`, and `sloppy` modes: their error strings are not on this page; only the default `hashline` mode was traced for the Errors table.
-- Approval prompts through ACP: the client-side gate was not inspected.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `1e57a90f1a25516a3474e4cbfb74efefdbb19906` and the target commit. The description strings are Handlebars templates in `packages/coding-agent/src/prompts/tools/{read,write,glob,grep,bash}.md` and `crates/pi-edit/prompts/hashline.md`, rendered through `packages/utils/src/prompt.ts`; a change to a template or to any default it reads (`read.defaultLimit`, `async.enabled`, `bash.autoBackground.thresholdMs`, `astEdit.enabled`, `astGrep.enabled`) changes the counts. Check `settings-schema.ts` for `edit.mode`, `read.defaultLimit`, `tools.outputMaxColumns`, `tools.artifactSpillThreshold`, `tools.artifactHeadBytes`, and `tools.approvalMode`. Check `session/streaming-output.ts` for `DEFAULT_MAX_LINES`, `DEFAULT_MAX_BYTES`, and `DEFAULT_MAX_COLUMN`. Re-extract with `extract_ts_harnesses.ts` and `render.ts` and recount with `count.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`.

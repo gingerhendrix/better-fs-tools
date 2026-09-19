@@ -56,21 +56,13 @@ sourceFiles:
 
 Cline is an open-source coding agent published by Cline Bot Inc. as a VS Code extension, a terminal CLI, and a desktop app, all on one SDK. The model-facing file family is four dedicated tools in the default set: `read_files`, `editor`, `run_commands`, and `search_codebase`, with `apply_patch` swapped in for `editor` when the model ID contains `gpt` or `codex` or the provider is `openai-native`. The read, search, and shell tools take a batch and return a JSON array of per-item results, and the shell tool runs the items of one call concurrently. This page describes the `cline` CLI in its default `act` preset with auto-approve on, on a Linux host, with the SDK's Node executors and a model that keeps `editor`.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [cline/cline](https://github.com/cline/cline) |
 | Commit | `07ded51955e11a06873cbdae8c2cc22ea4cc46d2` on `main`, committed 2026-09-18 |
-| Release | None for the CLI or SDK. The latest GitHub release is `desktop-v0.0.32`, a desktop build, so the page pins HEAD on the survey date |
-| Package versions | `@cline/cli@3.0.62`, `@cline/core@0.0.83` |
-| Licence | Apache-2.0 |
-| Surveyed | 2026-09-19 |
-| Verified | 2026-09-19 |
-| Configuration surveyed | `cline` CLI, `act` preset (the default when no mode flag is passed), `toolPolicies["*"].autoApprove` true (the default), shell `/bin/bash` from `getDefaultShell`, executor defaults `includeLineNumbers: true`, `restrictToCwd: true`, `combineOutput: true`, and a model that does not match the `apply_patch` routing rules. `plan` and `yolo` presets and the routed `apply_patch` variant are described where they differ |
-| Files read | The `sourceFiles` list in the frontmatter, plus `LICENSE` |
-| Scratch folder | `/home/gareth/Documents/Personal/scratch/2026-09-19-cline-source/` (clone, `descriptions/*.txt`, `extract/` scripts and counts) |
-| Evidence status | Open source inspected. No live Cline session was run |
+| Last updated | 2026-09-19 |
 
 The VS Code host shares the SDK tool definitions but replaces the `run_commands` and `read_files` executors with terminal and editor backed ones. It is not surveyed.
 
@@ -99,8 +91,6 @@ read_files({ files: Array<{ path: string, start_line?: number | null, end_line?:
 ### Description
 
 `read_files`: 634 characters, 634 bytes, 1 line, approximately 130 tokens.
-
-The string states the absolute-path rule, the inclusive one-based range on the same entry as its path, the batching habit, the 2000-line and `~47k` character window with paging through `start_line` and `end_line`, and that non-image binaries and large files are unsupported. It does not state the line prefix or directory behaviour. `~47k` is `Math.round(48000 / 1024)`; the search and shell strings divide by 1000 and say `~48k`. The string ends with a space.
 
 **`read_files` (634 characters)**
 
@@ -211,8 +201,6 @@ apply_patch({ input: string })
 
 `editor`: 551 characters, 551 bytes, 1 line, approximately 113 tokens.
 `apply_patch`: 1224 characters, 1224 bytes, 37 lines, approximately 298 tokens.
-
-`editor` names the three operations, tells the model to prefer it over shell commands for small edits and new files, and asks for parallel calls when edits are known. It does not mention the line prefix of `read_files`. The 6000-character limit lives in the parameter descriptions. `apply_patch` gives the envelope, the four headers, five rules including no line numbers, and an example update. It says legacy `%%bash` and heredoc wrappers are accepted.
 
 **`editor` (551 characters)**
 
@@ -334,8 +322,6 @@ The runtime also accepts a bare string, an array, `{ command }`, `{ cmd }`, and 
 
 `run_commands`: 993 characters, 993 bytes, 1 line, approximately 197 tokens. Rendered for shell `/bin/bash` on a non-Windows host, which is what `getDefaultShell` returns on Linux and macOS. Six other renders follow, each selected by the configured shell and the host platform through `buildRunCommandsDescription`.
 
-The string names listing files, git status, builds, and tests as its jobs, requires non-interactive commands and names `git --no-pager`, asks for independent commands in one call with heredocs as one string, gives the `~48k` middle-cut rule with `grep`, `head`, and `tail`, and tells the model to background long commands with output redirected to a temp file.
-
 **`run_commands` (993 characters)**, shell `/bin/bash`, non-Windows host
 
 ```text
@@ -454,8 +440,6 @@ Each query first runs `rg --json --context=2 --max-count=1 -i <query>` in the se
 
 `search_codebase`: 444 characters, 444 bytes, 1 line, approximately 85 tokens.
 
-The string says regex, batching of independent patterns, the use cases, and the `~48k` per-query middle cut. It does not mention the one-match-per-file limit, case folding, or the fallback.
-
 **`search_codebase` (444 characters)**
 
 ```text
@@ -501,31 +485,3 @@ Perform regex pattern searches across the codebase. Supports multiple parallel s
 | Invalid arguments | The Zod validation error thrown by `validateWithZod` | Tool-level error result |
 
 Entry transport means one element of the JSON array returned by a successful tool call, with `query`, an empty `result` unless noted, `error`, and `success: false`. Tool-level transport means `{"error": <text>}` with `isError` set. The table has 33 rows because each row is a distinct string family in source.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `07ded51` | `presets.ts`, `model-tool-routing.ts`, `definitions.ts`, `runtime.ts`, `runtime-builder.ts`, `program.ts` |
-| Read | Source | `07ded51` | `file-read.ts`, `output-limits.ts`, `path-resolution.ts`, `message-builder.ts`, `ai-sdk-format.ts`. Output examples are Reconstructed |
-| Descriptions | Source | `07ded51` | Extracted by running the factory functions in `definitions.ts` under Bun with stubbed imports; copied byte for byte from `descriptions/*.txt` in the scratch folder |
-| Edit | Source | `07ded51` | `editor.ts`, `apply-patch.ts`, `apply-patch-parser.ts`, `line-endings.ts`, `helpers.ts`. Replace example is Reconstructed |
-| Shell | Source | `07ded51` | `bash.ts`, `run-command-execution-controller.ts`, `shell.ts`, `command-guard.ts`, `command-guard-extension.ts`, `agent-runtime.ts`, `tools.ts`, CLI approval files |
-| Search and listing | Source | `07ded51` | `search.ts`, `file-indexer.ts` |
-| Errors | Source | `07ded51` | Strings read from the files above on 2026-09-19 |
-
-No claim on this page is Observed. No command was run through a live Cline session.
-
-### Gaps
-
-- Windows, PowerShell, `cmd.exe`, and WSL behaviour: Source only. The six non-default `run_commands` strings are recorded; no Windows host was used.
-- The VS Code host, the desktop app, the hub daemon backend, ACP clients, and chat connectors are not surveyed. The VS Code host replaces the read and shell executors.
-- `fetch_web_content`, `skills`, `ask_question`, `submit_and_exit`, `spawn_agent`, team tools, `tasks`, and `web_search` are outside the filesystem and shell scope.
-- The CLI system prompt and the parameter descriptions in the JSON schemas are not counted.
-- Hook file semantics beyond the block, rewrite, and append-context outcomes are not surveyed.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `07ded51955e11a06873cbdae8c2cc22ea4cc46d2` and the target commit. Check `presets.ts` and `model-tool-routing.ts` first: a change to the `act` preset or the routing rules changes the default set. The description strings are concatenations in `definitions.ts` that read `MAX_READ_LINES`, `MAX_READ_OUTPUT_CHARS`, `MAX_SEARCH_OUTPUT_CHARS`, and `MAX_COMMAND_OUTPUT_CHARS` from `output-limits.ts`, and `buildRunCommandsDescription` reads shell helpers from `shared/src/parse/shell.ts`; a change to any of them changes the counts. Re-extract with `bun --preload ./preload.ts extract.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-19-cline-source/extract/`, recount with `count.ts`, and rebuild with `build.ts` there.

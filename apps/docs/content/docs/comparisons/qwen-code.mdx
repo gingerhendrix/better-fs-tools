@@ -60,22 +60,13 @@ sourceFiles:
 
 Qwen Code is Alibaba's open-source terminal coding agent. It began as a fork of Gemini CLI `v0.8.2` and stopped syncing with upstream at Qwen Code `v0.1`. Its model-facing file family is eight dedicated tools: `read_file`, `write_file`, `edit`, `notebook_edit`, `glob`, `grep_search`, `run_shell_command`, and `monitor`, with `list_directory` available as an opt-in. Two things set it apart from its parent. A session file-read cache turns read-before-write into an enforced rule with an mtime and size fingerprint, and the `read_file` description is rendered from the input modalities of the active model, so the same tool ships four different strings.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code) |
-| Commit | `56b003be0785412ed06673948f781dc70a686b5a`, the `v0.24.0` release commit, committed 2026-09-16 13:03:36 UTC. `main` was at `537311b` on 2026-09-18 when the survey was planned |
-| Release | `v0.24.0`, released 2026-09-16 |
-| Package versions | `@qwen-code/qwen-code@0.24.0` (CLI) and `@qwen-code/qwen-code-core@0.24.0` (core) |
-| Lineage | Fork of Gemini CLI `v0.8.2`; sync stopped at Qwen Code `v0.1`. The tool folder has since diverged in every family. Where a behaviour still matches the [Gemini CLI](./gemini-cli.mdx) page at `6a466a7`, the section says so |
-| Licence | Apache-2.0 |
-| Surveyed | 2026-09-19 |
-| Verified | 2026-09-19 |
-| Configuration surveyed | Linux host with `bash`; the Qwen OAuth default model `coder-model`, whose name resolves to image and video input modalities; `useRipgrep` and `useBuiltinRipgrep` at their `true` defaults; approval mode `default`; `truncateToolOutputThreshold` 25000 and `truncateToolOutputLines` 1000; file-read cache enabled; bare mode, code mode, agent teams, and omni off |
-| Files read | The `sourceFiles` list in the frontmatter, plus `packages/core/src/tools/tool-response-finalizer.ts`, `tool-result-retention.ts`, `syntheticOutput.ts`, and the worktree, cron, team, and task tool files for the inventory |
-| Scratch folder | `/home/gareth/Documents/Personal/scratch/2026-09-19-qwen-code-source/` (shallow clone at the tag under `qwen-code/`, `extract.ts`, `descriptions/*.txt`, `count.ts`, `counts.tsv`, `inventory.ts`, `build.ts`) |
-| Evidence status | Open source inspected. Descriptions extracted by importing the pinned modules with Bun. No model session, build, or test run |
+| Commit | `56b003be0785412ed06673948f781dc70a686b5a`, the `v0.24.0` release commit, committed 2026-09-16 |
+| Last updated | 2026-09-19 |
 
 ## Tool inventory
 
@@ -119,8 +110,6 @@ read_file({ file_path: string, offset?: integer, limit?: integer, pages?: string
 `read_file`, video input: 1791 characters, 1795 bytes, 1 line, approximately 395 tokens. This is the variant the default `coder-model` receives.
 `read_file`, audio input: 1784 characters, 1788 bytes, 1 line, approximately 394 tokens.
 `read_file`, audio and video input: 1877 characters, 1881 bytes, 1 line, approximately 425 tokens.
-
-`buildReadFileDescription(modalities)` in `read-file.ts` composes the string from a fixed preamble, a modality-dependent middle, and a fixed trailer. The preamble states the absolute-path rule with a worked example, says large files are truncated, and names `offset` and `limit` for continuation. The trailer covers line ranges, the `pages` parameter and its 20-page cap, PDF fallbacks and the vision bridge, and notebook reads. The middle lists the media formats; when audio or video is on it adds a sentence telling the model the media is delivered for direct perception and to re-read a clip after cutting it. No variant states the default window, the offset base, or the line prefix. The modalities come from `defaultModalities(model)` in `core/modalityDefaults.ts`, a name-pattern table where unknown models are text-only, unless a `modelProviders` entry sets them. The `schema` getter recomputes the string on every declaration build, so a `/model` switch changes it mid-session. Three of the four strings contain U+2014, which is why their byte counts exceed their character counts.
 
 **`read_file`, no audio or video input (1317 characters)**
 
@@ -252,8 +241,6 @@ All three require absolute paths. `replace_all` is a boolean defaulting to `fals
 `edit`: 1518 characters, 1518 bytes, 11 lines, approximately 309 tokens.
 `notebook_edit`: 260 characters, 260 bytes, 1 line, approximately 57 tokens.
 
-`write_file` tells the model that a request to create a file does not prove the path is new, that it MUST call `read_file` first unless the target's absence or contents are already established, that blind overwrites are rejected under prior-read enforcement, how to build the absolute path, and that HTML, PDF, image, notebook, and office files are registered as session artifacts unless `record_as_artifact=false` or written under `.qwen/tmp/`. `edit` carries the numbered rules from the Gemini CLI default-legacy `replace` string with the `instruction` rule removed and the `allow_multiple` flag renamed `replace_all`; it keeps the six-space indentation on its second paragraph. `notebook_edit` says to use it instead of `edit` or `write_file` for cells and to take cell ids from `read_file` output. The `write_file` string contains one U+2014.
-
 **`write_file` (1180 characters)**
 
 ```text
@@ -345,8 +332,6 @@ monitor({ command: string, description?: string, max_events?: integer, idle_time
 
 `run_shell_command`: 4946 characters, 4946 bytes, 59 lines, approximately 1187 tokens. Rendered by `getShellToolDescription()` for Linux with `bash -c <command>`. PowerShell and `cmd.exe` hosts render different quoting and sequencing blocks, and Windows omits the process-group sentence. No setting changes the string.
 `monitor`: 961 characters, 963 bytes, 16 lines, approximately 217 tokens. One static string with one U+2014.
-
-The shell string opens with the execution wrapper, tells the model to leave file operations to the dedicated tools by name, gives the 600000 ms ceiling and 120000 ms default, asks for a 5 to 10 word description, carries a Bash quoting block with a heredoc example, a sequencing block, a rule against `cd`, and a background versus foreground guide that names `task_stop` and forbids broad process kills. The monitor string lists watch and poll use cases, the auto-stop defaults, and three cases to send to `run_shell_command` instead.
 
 **`run_shell_command` (4946 characters)**
 
@@ -497,8 +482,6 @@ Permission is decided in layers. The tool's default (`L3`) is `ask` when the com
 `grep_search`, fallback: 452 characters, 452 bytes, 9 lines, approximately 111 tokens.
 `list_directory`: 150 characters, 150 bytes, 1 line, approximately 24 tokens.
 
-`glob` is a bullet list whose first line carries no bullet marker; it names the Agent tool for open-ended searches. Both `grep_search` strings call the tool `Grep`, forbid `grep` and `rg` through the shell, and name the `glob` filter; the ripgrep version adds an escaping note for `interface\{\}`, and the fallback version says matching is case-insensitive. `list_directory` is identical to the Gemini CLI string.
-
 **`glob` (543 characters)**
 
 ```text
@@ -586,30 +569,3 @@ Lists the names of files and subdirectories directly within a specified director
 | Directory listing errors | `Error: Path is not a directory: <path>`; `Error listing directory: <message>` | `error` field |
 
 Every tool returns a `ToolResult`. When `error` is set, the scheduler sends `{ error: <error.message> }` and discards `llmContent`, except for shell timeouts, where the `llmContent` becomes the error text. Validation failures become `Error: Invalid parameters provided. Reason: <message>`. A tool call that fails validation three times with the same error gets a retry-loop directive appended.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `56b003b` | `config.ts` `createToolRegistry()`, `tool-names.ts`, the `shouldDefer` flags in each tool file; `inventory.ts` in scratch printed name, kind, and defer flag by instantiating each class |
-| Read | Source | `56b003b` | `read-file.ts`, `fileUtils.ts`, `read-text-range.ts`, `file-read-permission.ts`, `fileReadCache.ts`, `modalityDefaults.ts`, `notebook.ts`, `image-view.ts`, `pdf.ts`. Output example is Reconstructed |
-| Descriptions | Source | `56b003b` | `extract.ts` imported the pinned modules with Bun, instantiated each tool with a stand-in config, and wrote `.description` to `descriptions/*.txt`; the four `read_file` variants come from `buildReadFileDescription()` and the default was checked against `new ReadFileTool(config).description`; `run_shell_command` rendered on Linux |
-| Edit | Source | `56b003b` | `write-file.ts`, `edit.ts`, `notebook-edit.ts`, `priorReadEnforcement.ts`, `editHelper.ts`, `fileSystemService.ts`, `atomicFileWrite.ts` |
-| Shell | Source | `56b003b` | `shell.ts`, `shellExecutionService.ts`, `shell-utils.ts`, `truncation.ts`, `monitor.ts`, `sandboxConfig.ts`, `permissionFlow.ts`, `coreToolScheduler.ts` |
-| Search and listing | Source | `56b003b` | `glob.ts`, `ripGrep.ts`, `grep.ts`, `ls.ts`, `grepReadTracking.ts`, `file-filtering-options.ts` |
-| Errors | Source | `56b003b` | Strings read from the tool files; transport from `coreToolScheduler.ts` `convertToFunctionResponse` and `createErrorResponse` |
-
-No claim on this page is Observed. No command was run through a live Qwen Code model session.
-
-### Gaps
-
-No top-level heading is answered with `Not surveyed.` or `Unverified.` Inside sections:
-
-- Search and listing, `GrepTool` fallback output shape: Not surveyed. Its description string was extracted and counted; its result format in `grep.ts` was not read.
-- Further limits on the evidence: the `auto` approval mode classifier prompt, the Tree-sitter read-only command table in `shell-utils.ts`, and the Windows shell paths were not read in detail; the omni media pipeline and the vision bridge service are described from their call sites in `fileUtils.ts` and `read-file.ts` only.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `56b003be0785412ed06673948f781dc70a686b5a` and the target commit. Check `createToolRegistry()` in `config/config.ts` first for tools added, removed, or gated. The description strings are template literals in `read-file.ts` (`buildReadFileDescription`), `write-file.ts`, `edit.ts`, `notebook-edit.ts`, `shell.ts` (`getShellToolDescription` and its two helpers), `monitor.ts`, `glob.ts`, `ripGrep.ts`, `grep.ts`, and `ls.ts`; a change to any of them, or a new entry in `MODALITY_PATTERNS`, changes the counts or adds a variant. Re-extract with `extract.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-19-qwen-code-source/` after `npm ci --ignore-scripts` in the clone, recount with `count.ts`, and rebuild the page with `build.ts`.

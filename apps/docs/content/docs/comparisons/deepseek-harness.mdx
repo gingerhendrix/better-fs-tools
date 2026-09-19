@@ -59,21 +59,13 @@ sourceFiles:
 
 DeepSeek Harness is an open-source coding agent published by DeepSeek as the `@deepseek-ai/dsh` npm package. It is a developer preview. Every part of it is a Cordis plugin, including each tool, so the model-facing tool set is a composition choice. The default composition offers ten filesystem and shell tools: `read`, `read_image`, `write`, `edit`, `glob`, `grep`, `bash`, and the three `job_*` tools that collect background commands. Descriptions are one or two sentences each, and cross-call guidance lives in system prompt sections. Four things mark this harness: a read-before-mutate policy with stale-version checks, a literal unique-match edit, an OS-level file sandbox around `bash`, and a same-turn escalation flow for sandbox denials. This page describes the `dsh` CLI with the shipped `dsh-base` bundle rows and the `standard` agent preset on a POSIX host; the web and desktop hosts run the same core through the same rows.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) |
 | Commit | `ddefc45fbc7f8e46dd73185e68295696d1297887` on `master`, committed 2026-09-17 |
-| Release | None on GitHub. The CLI package `apps/cli/package.json` reads `0.1.6-alpha.2`, a developer preview |
-| Package versions | `@deepseek-ai/dsh@0.1.6-alpha.2`; every workspace package carries the same version |
-| Licence | MIT |
-| Surveyed | 2026-09-19 |
-| Verified | 2026-09-19 |
-| Configuration surveyed | The `dsh-base` bundle (`packages/bundle/base/cordis.patch.yml`) as loaded by the `headless`, `sdk`, and `acp` profiles, and the `standard` agent preset the `web` profile selects by default. Both mount `tool-fs`, `tool-fs-search` with `sampleOverCapGlobResults: false`, `tool-bash` with `bash-sandbox`, `tool-jobs`, `fs-sandbox`, `fs-observation-policy`, `sandbox-policy` in `workspace-write` mode, `spill-policy` at 50000 bytes, and `attachment-local`. Tool presentation is `native`. POSIX host; the `tool-pwsh` rows are Windows-only and were not surveyed |
-| Files read | The `sourceFiles` list in the frontmatter |
-| Scratch folder | `/home/gareth/Documents/Personal/scratch/2026-09-19-deepseek-harness-source/` (shallow clone, `extract.ts`, `descriptions/*.txt`, `count.ts`, `counts.tsv`, `build.ts`) |
-| Evidence status | Open source inspected. No live `dsh` session was run |
+| Last updated | 2026-09-19 |
 
 Two other compositions exist in the repository and are not this page: the `minimal` agent preset and the `sdk-minimal` bundle mount one persistent `bash` PTY tool and the `str_replace_editor` tool instead of the set above. Their strings are on this page for completeness and are marked opt-in.
 
@@ -113,8 +105,6 @@ read_image({ file_path: string })
 
 `read`: 56 characters, 56 bytes, 1 line, approximately 14 tokens.
 `read_image`: 545 characters, 545 bytes, 1 line, approximately 101 tokens.
-
-The `read` string says only that the file is UTF-8 text and the result is line-numbered. The 2000-line default is in the `limit` parameter description, rendered from the `readLimit` config. The rest of the guidance is a system prompt section: use `read` rather than `cat`, results carry line numbers, use `offset` and `limit` to continue. `read_image` names the four formats, says extension-less files are sniffed, says the harness downscales large images, asks for small concurrent batches, and states the image-capable-model requirement.
 
 **`read` (56 characters)**
 
@@ -225,8 +215,6 @@ edit({ file_path: string, old_string: string, new_string: string, replace_all?: 
 `edit`: 59 characters, 59 bytes, 1 line, approximately 13 tokens.
 `str_replace_editor`: 1119 characters, 1119 bytes, 11 lines, approximately 249 tokens. Opt-in; the default `description` config of `tool-str-replace-editor`, which a row can replace.
 
-`write` and `edit` are one sentence each. The read-first rule, the uniqueness rule, and the `replace_all` advice are in system prompt sections registered by the same plugin, not in the description. `str_replace_editor` describes `view`, `create`, `str_replace`, and `insert`, the `cat -n` view format, a two-level directory listing, the `<response clipped>` marker, and the exact-match and uniqueness rules for `old_str`.
-
 **`write` (42 characters)**
 
 ```text
@@ -316,8 +304,6 @@ bash({ command: string, description: string, timeoutMs?: number, workdir?: strin
 `job_output`: 258 characters, 258 bytes, 1 line, approximately 53 tokens.
 `job_list`: 85 characters, 85 bytes, 1 line, approximately 18 tokens.
 `job_kill`: 136 characters, 136 bytes, 1 line, approximately 25 tokens.
-
-The `bash` string states the fresh-shell model and the `workdir` rule, the `[exit code: N]` marker, the managed `$DSH_*` variables, the sandbox denial marker with an instruction not to work around it, tail truncation with a spill file, and background jobs. The escalation paragraph tells the model that hitting a denial is expected, to retry the exact command once with `sandbox_permissions` and a `justification`, not to ask in chat first, and that a rejected escalation is final for that command. A system prompt section adds: check the exit marker on every result.
 
 **`bash` (1836 characters)**
 
@@ -433,8 +419,6 @@ Both tools spawn the bundled `@vscode/ripgrep` binary through the subprocess ser
 `glob` (sampled variant): 411 characters, 415 bytes, 1 line, approximately 77 tokens. Rendered with `sampleOverCapGlobResults: true`; this is the variant in the repository's generated tool catalog.
 `grep`: 269 characters, 269 bytes, 1 line, approximately 51 tokens. Rendered with `grepMaxMatches: 250`.
 
-`glob` says files only, hidden and ignored included, VCS directories excluded, the 100-path cap and its over-cap rule, and that it does not list directories. `grep` names ripgrep syntax, grouped output with line numbers, the 250-match cap, and points at `read` for context. System prompt sections add the basename-matching rule for patterns without `/`.
-
 **`glob` (407 characters)**
 
 ```text
@@ -492,32 +476,3 @@ Search file contents with a ripgrep regular expression. Returns matching lines w
 | Search raw output overflow | `<tool> produced <n> bytes of raw output, over the 20000000-byte cap; narrow pattern, path, or include and retry` | `SEARCH_RAW_OUTPUT_OVERFLOW` |
 
 Every tool error becomes one text block `Error: <message>` with `isError: true`. `FsError`, `SearchError`, and `HarnessError` instances also populate a structured `error.info.code`; plain `Error` throws carry the message only. The table has more than fifteen rows because each row is a distinct string family in source.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `ddefc45` | `base/cordis.patch.yml`, `web-app/cordis.patch.yml`, `standard/agent.cordis.yml`, `minimal/agent.cordis.yml`, `apps/cli/package.json`, `docs/tool-catalog.md` |
-| Read | Source | `ddefc45` | `tool-fs/src/read.ts`, `read-render.ts`, `read-target.ts`, `read-image.ts`, `fs-local/src/fsio.ts`, `attachment-local/src/index.ts`. Output example is Reconstructed |
-| Descriptions | Source | `ddefc45` | Literals located in the source files and templates rendered by `extract.ts` with the recorded settings; every string that the generated `docs/tool-catalog.md` also carries was compared byte for byte and matched (fourteen of sixteen); the `bash` confined variant and the `glob` non-sampled variant are rendered from the same template code as their catalog-matched twins |
-| Edit | Source | `ddefc45` | `write.ts`, `edit.ts`, `error.ts`, `sandbox.ts`, `fs-local/src/index.ts`, `fsio.ts`, `fs-sandbox/src/index.ts`, `fs-observation-policy/src/index.ts` |
-| Shell | Source | `ddefc45` | `tool-bash/src/*.ts`, `bash-local`, `bash-sandbox`, `shell-env`, `subprocess/src/index.ts`, `subprocess-local/src/output.ts`, `sandbox/src/escalation.ts`, `sandbox-local/src/profiles.ts`, `spill-policy`, `spill-local`, `tool-jobs` |
-| Search and listing | Source | `ddefc45` | `tool-fs-search/src/index.ts`, `glob.ts`, `grep.ts`, `search-core.ts` |
-| Errors | Source | `ddefc45` | Strings read from the files above; transport from `core/tools/src/index.ts` |
-
-No claim on this page is Observed. No `dsh` process was started.
-
-### Gaps
-
-- Shell, UI progress: Not surveyed.
-- `pwsh`, `pwsh` persistent, and the Windows ACL sandbox: Not surveyed beyond the description strings and the composition rows.
-- `str_replace_editor` and persistent `bash`: Not surveyed beyond the description strings, argument errors, and composition rows.
-- The system prompt sections that carry tool guidance (`tool:read`, `tool:write`, `tool:edit`, `tool:bash`, `tool:glob`, `tool:grep`) were read in source but are outside the description counts by the counting rules.
-- Web host per-session permission presets and the Plugins page were not exercised.
-- Image downscale output dimensions were taken from the normalization defaults, not observed.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `ddefc45fbc7f8e46dd73185e68295696d1297887` and the target commit. Check `packages/bundle/base/cordis.patch.yml` and the `standard` preset first: a new tool row, a `disabled` flag, or a changed `sampleOverCapGlobResults` changes the inventory and a description. The description templates are `bashDescription` in `tool-bash/src/index.ts`, `pwshDescription` in `tool-pwsh/src/index.ts`, `applyGlobTool` in `tool-fs-search/src/glob.ts`, and `applyGrepTool` in `grep.ts`; the rest are literals. `docs/tool-catalog.md` is regenerated by `pnpm run gen-tool-catalog` upstream and is the fastest cross-check. Re-extract with `extract.ts`, recount with `count.ts`, and rebuild with `build.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-19-deepseek-harness-source/`.

@@ -48,20 +48,13 @@ sourceFiles:
 
 Mastra is an open-source TypeScript agent framework published by mastra-ai. `createCodingAgent()` in `@mastra/core` returns an ordinary agent with a workspace attached, and every agent with a workspace receives the same dedicated tool family from `createWorkspaceTools()`: read, write, edit, list, delete, stat, mkdir, and grep over a `WorkspaceFilesystem` interface, plus execute, process output, and kill over a `WorkspaceSandbox`. Tool ids carry the `mastra_workspace_` prefix, the read window is a token estimate rather than a line count, and every cap on this page is a per-tool host setting. This page describes the default `createCodingAgent()` workspace: a `LocalFilesystem` rooted at `process.cwd()` with `contained: true`, and a `LocalSandbox` with the same working directory, isolation `none`, and a local process manager.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [mastra-ai/mastra](https://github.com/mastra-ai/mastra) |
-| Commit | `6517d9bb714d2587d4c4aaed9470112cd57e1b20` on `main`, committed 2026-09-16. No release tag; a sparse clone of `packages/core` was taken from `main` |
-| Package version | `@mastra/core@1.68.0-alpha.2`. The public reference page for `createCodingAgent()` documents `1.48.0` |
-| Licence | Apache-2.0 |
-| Surveyed | 2026-09-16 for the tool inventory, read, and the description strings. Edit, shell, search, and error strings were read from the same pinned clone on 2026-09-18 |
-| Verified | 2026-09-16 |
-| Configuration surveyed | Default `createCodingAgent()` workspace: `LocalFilesystem` at `process.cwd()` with `contained: true`, no `allowedPaths`, not read-only; `LocalSandbox` at the same directory with `isolation: 'none'`, an empty `env`, and `LocalProcessManager`. No LSP, no BM25 or vector store, no `@ast-grep/napi` unless installed |
-| Files read | The `sourceFiles` list in the frontmatter |
-| Scratch folder | `/home/gareth/Documents/Personal/scratch/2026-09-16-mastra-coding-agent/` (sparse clone at `mastra/`, `extract-descriptions.mjs`, `descriptions/*.txt` with `counts.json`, `verify-line-utils.ts`) |
-| Evidence status | Open source inspected. The line formatter and range extractor were executed from the clone to confirm output shapes. No live model session was run |
+| Commit | `6517d9bb714d2587d4c4aaed9470112cd57e1b20` on `main`, committed 2026-09-16 |
+| Last updated | 2026-09-16 |
 
 ## Tool inventory
 
@@ -101,8 +94,6 @@ mastra_workspace_read_file({
 ### Description
 
 `read_file`: 325 characters, 327 bytes, 1 line, approximately 68 tokens.
-
-The string names three outcomes: text with `offset` and `limit` for a line range, supported media as a native file part, and other binaries as metadata. It states no line default, no byte or token cap, no line prefix shape, and no directory behaviour. The one-based offset is in the parameter text, and the line prefix shape is in the `edit_file` string. The per-tool config has a `name` field but no description field, so a host that wants different text registers its own tool in place of this one.
 
 **`mastra_workspace_read_file` (325 characters)**
 
@@ -196,7 +187,7 @@ src/app.ts (42 bytes)
 | Truncation notice | After the kept text: `[output truncated: showing first ~2000 of ~<total> tokens]` |
 | Error transport | Thrown. The agent loop records a `tool-error` chunk and an `output-error` invocation whose `errorText` is the message |
 
-The example is reconstructed from the format code, which was executed from the clone. Line count comes from `split('\n')`, so a file that ends with a newline reports one extra empty line and shows it as a numbered blank row. The source comment says the format matches Claude Code, which used the arrow in an earlier release.
+The example is reconstructed from the format code. Line count comes from `split('\n')`, so a file that ends with a newline reports one extra empty line and shows it as a numbered blank row. The source comment says the format matches Claude Code, which used the arrow in an earlier release.
 
 ### Notable
 
@@ -234,8 +225,6 @@ mastra_workspace_ast_edit({
 `edit_file`: 591 characters, 593 bytes, 7 lines, approximately 122 tokens.
 `delete`: 56 characters, 56 bytes, 1 line, approximately 9 tokens.
 `ast_edit` (opt-in): 1028 characters, 1030 bytes, 16 lines, approximately 254 tokens.
-
-`write_file` states parent creation and nothing else; the `overwrite` default and the mtime check are not mentioned. `edit_file` calls the match exact and unique, tells the model to read first, shows the `"     1→"` prefix and says to keep the indentation after the arrow, asks for surrounding lines to make `old_string` unique, and reserves `replace_all` for intentional use. `delete` is one sentence. `ast_edit` lists three transforms with worked input objects and a pattern replace for everything else. The strings are literals in the tool files; the per-tool config has no description field, so a host replaces a tool, not its text.
 
 **`mastra_workspace_write_file` (90 characters)**
 
@@ -348,8 +337,6 @@ mastra_workspace_kill_process({ pid: string })
 `get_process_output`: 234 characters, 234 bytes, 3 lines, approximately 47 tokens.
 `kill_process`: 184 characters, 184 bytes, 3 lines, approximately 37 tokens, rendered with the shipped `KILL_TAIL_LINES` of 50.
 
-`execute_command` gives four example commands, says the command runs in a shell so pipes and chaining work, asks for quoted paths, names `timeout` in seconds with provider-dependent behaviour when omitted, names `cwd`, and describes `background: true` with a PID. It does not state the 200-line tail, the token budget, or the exit-code line; the tail default is in the parameter text. The two process strings tie themselves to `execute_command (background: true)`. The per-tool config has no description field.
-
 **`mastra_workspace_execute_command` (752 characters)**
 
 ```text
@@ -458,8 +445,6 @@ None by default. `requireApproval` on the tool, or at the top level of `workspac
 `file_stat`: 104 characters, 104 bytes, 1 line, approximately 20 tokens.
 `mkdir`: 46 characters, 46 bytes, 1 line, approximately 7 tokens.
 
-`list_files` and `grep` are mostly worked input objects. `list_files` promises a compact tab-indented listing, maps its options to `tree` flags, and ends with a rule not to pass `pattern: "*"`. `grep` shows ten input shapes and states no cap. `file_stat` and `mkdir` are one sentence each. The per-tool config has no description field.
-
 **`mastra_workspace_list_files` (654 characters)**
 
 ```text
@@ -540,34 +525,3 @@ Create a directory in the workspace filesystem
 | No filesystem or not initialised | `Workspace does not have a filesystem configured`; `Filesystem "<id>" is not ready. Call init() first or use ensureReady().` | Thrown |
 
 A thrown error becomes a `tool-error` chunk, and the message list records an `output-error` invocation whose `errorText` is the error message, in `llm-mapping-step.ts`. Twelve of the rows above are plain text results with no error flag, so the model has to read the text to learn that the call did not do what it asked. The filesystem errors carry POSIX-style codes (`ENOENT`, `EISDIR`, `EACCES`, `ESTALE`, `EEXIST`, `ENOTEMPTY`) on the error object; the code is not in the text the model sees.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `6517d9b` | `tools.ts`, `constants/index.ts`, `coding-agent/index.ts`, `types.ts`; 2026-09-16 note |
-| Read | Source | `6517d9b` | `read-file.ts`, `media.ts`, `output-helpers.ts`, `line-utils.ts`, `local-filesystem.ts`, `fs-utils.ts`, `workspace.ts`; 2026-09-16 survey. The formatter and extractor were run from the clone. Output example is Reconstructed |
-| Descriptions | Source | `6517d9b` | `.txt` files copied byte for byte from `extract-descriptions.mjs` output in the 2026-09-16 scratch folder; `kill_process` rendered with `KILL_TAIL_LINES` 50; `execute_command` is the background variant |
-| Edit | Source | `6517d9b` | `write-file.ts`, `edit-file.ts`, `delete-file.ts`, `ast-edit.ts`, `line-utils.ts`, `tools.ts`, `file-read-tracker.ts`, `file-write-lock.ts`, `local-filesystem.ts`; read from the pinned clone on 2026-09-18 |
-| Shell | Source | `6517d9b` | `execute-command.ts`, `get-process-output.ts`, `kill-process.ts`, `output-helpers.ts`, `local-sandbox.ts`, `local-process-manager.ts`, `mastra-sandbox.ts`, `process-manager.ts`, `process-handle.ts`; read on 2026-09-18 |
-| Search and listing | Source | `6517d9b` | `list-files.ts`, `tree-formatter.ts`, `grep.ts`, `file-stat.ts`, `mkdir.ts`, `gitignore.ts`, `fs-utils.ts`; read on 2026-09-18 |
-| Errors | Source | `6517d9b` | `errors.ts`, `line-utils.ts`, the tool files, and `llm-mapping-step.ts` for the transport; read on 2026-09-18 |
-
-No claim on this page is Observed. No command was run through a live Mastra model session. The 2026-09-16 note covered edit and shell in brief; every edit, shell, search, and error fact above was re-read from the pinned clone for this page.
-
-### Gaps
-
-- Whole-file write, mode preservation: Not surveyed.
-- Permissions and Approval, prompt and denial text: Not surveyed. The `requireApproval` flag hands the call to the agent loop; that flow and its strings were not inspected.
-- Sandbox, seatbelt and bwrap profiles: Not surveyed beyond the option surface in `local-sandbox.ts`.
-- Thread-scoped read tracker (`thread-state-read-tracker.ts`): not inspected. The page describes the in-memory tracker; the storage-backed one shares the same evaluation and messages through `evaluateReadRecord`.
-- `tokenx` estimation: the package is outside the sparse clone, so how the estimate is made was not inspected.
-- Agent-level background tool execution (`background` in the tool config): not inspected.
-- Windows shell path, `taskkill`, and `cmd.exe` behaviour: Source only.
-- Remote filesystem and sandbox providers, `CompositeFilesystem`, and mounts: not inspected. They change path handling, errors, and lifecycle without changing the strings on this page.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `6517d9bb714d2587d4c4aaed9470112cd57e1b20` and the target commit. Check `workspace/constants/index.ts` for the tool ids and `workspace/tools/tools.ts` for the registered set and wrapper order. The description strings are literals in the tool files; `kill_process` interpolates `KILL_TAIL_LINES` and `execute_command` concatenates `baseDescription` with the background paragraph, so a change to either changes the counts. Constants that set the numbers on this page: `DEFAULT_MAX_OUTPUT_TOKENS` and `DEFAULT_TAIL_LINES` in `output-helpers.ts`, `DEFAULT_MEDIA_TYPES` in `read-file.ts`, `DEFAULT_MAX_MEDIA_BYTES` in `media.ts`, the `1_000` fallback in `list-files.ts`, `GLOBAL_CAP`, `MAX_LINE_LENGTH`, and `MAX_PATTERN_LENGTH` in `grep.ts`, `DEFAULT_MAX_RETAINED_PROCESS_OUTPUT_BYTES` in `process-handle.ts`, and the `30_000` lock timeout in `file-write-lock.ts`. Re-extract with `extract-descriptions.mjs` in `/home/gareth/Documents/Personal/scratch/2026-09-16-mastra-coding-agent/`; it writes `descriptions/counts.json` beside the text files.

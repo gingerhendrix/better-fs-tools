@@ -87,21 +87,13 @@ sourceFiles:
 
 Kilo Code is an open-source coding agent published by Kilo Org. The CLI, `@kilocode/cli`, is a fork of OpenCode that tracks upstream at `v1.18.13` and keeps the same seven dedicated file tools: `read`, `glob`, `grep`, `write`, `edit`, `apply_patch`, and `bash`. It adds a `background_process` tool for long-running commands, opt-in `semantic_search` and `repo_clone` tools, document conversion for `.docx`, `.xlsx`, `.ods`, and `.ipynb` inside `read`, encoding-preserving writes, a default shell permission of ask with a read-only allowlist, and an optional Bubblewrap or Seatbelt sandbox. This page is a delta against the [OpenCode](./opencode.mdx) page: where a section says the behaviour is the same, the OpenCode page holds the detail.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [Kilo-Org/kilocode](https://github.com/Kilo-Org/kilocode) |
-| Commit | `01ef456fe7f41aa1f7b8a4e6b545dd1e0fbeeceb`, tag `v7.7.5`, committed 2026-09-18. The default branch HEAD on 2026-09-18 was `a85ae67`, a later commit that was not cloned |
-| Package versions | `@kilocode/cli@7.7.5`; the shared core keeps the upstream name `@opencode-ai/core@7.7.5` |
-| Licence | MIT |
-| Lineage | Fork of OpenCode. `.opencode-version` records the base as `v1.18.13` (`a105350`). Compared against the OpenCode page at `v1.18.21` (`3a31c4e`); between those two upstream tags only `registry.ts`, `task.ts`, `truncate.ts`, and `core/src/ripgrep.ts` changed in the surveyed folders, and none of those changes affects a fact on the OpenCode page |
-| Surveyed | 2026-09-19 |
-| Verified | 2026-09-19 |
-| Configuration surveyed | `KILO_CLIENT=cli` (the default), default agent `build`, `sandbox.enabled` false, `indexing.enabled` false, no `KILO_EXPERIMENTAL_SCOUT`. The VS Code and JetBrains hosts add tools and are not surveyed |
-| Files read | The `sourceFiles` list in the frontmatter |
-| Scratch folder | `/home/gareth/Documents/Personal/scratch/2026-09-19-kilocode-source/` (shallow clone, OpenCode tool folders exported at `v1.18.13` and `v1.18.21`, diffs, extracted descriptions, counts, build script) |
-| Evidence status | Open source inspected. No live model session was run |
+| Commit | `01ef456fe7f41aa1f7b8a4e6b545dd1e0fbeeceb`, tag `v7.7.5`, committed 2026-09-18 |
+| Last updated | 2026-09-19 |
 
 The fork marks its changes with `kilocode_change` comments in the upstream leaves and keeps its own modules under `packages/opencode/src/kilocode/`. The application registry still builds the model-facing tools from `packages/opencode/src/tool/`; the newer `packages/core/src/tool/*` architecture is present and not imported by the CLI.
 
@@ -135,8 +127,6 @@ Same as OpenCode: `filePath` is described as absolute and relative paths resolve
 ### Description
 
 `read`: 1158 characters, 1158 bytes, 15 lines, approximately 259 tokens. Byte-identical to the OpenCode string.
-
-The string states the absolute-path rule, the 2000-line default, the one-indexed `offset`, the line prefix shape, directory listing with a trailing `/`, the 2000-character line cut, image and PDF attachments, and the parallel-read and no-tiny-slices habits. It does not mention the document conversion or the encoding fallback that Kilo adds.
 
 **`read` (1158 characters)**
 
@@ -256,8 +246,6 @@ Parameters and the patch envelope grammar are the same as OpenCode. Selection di
 `write`: 623 characters, 623 bytes, 9 lines, approximately 124 tokens. Byte-identical to OpenCode.
 `edit`: 1369 characters, 1369 bytes, 11 lines, approximately 289 tokens. Byte-identical to OpenCode.
 `apply_patch`: 1092 characters, 1098 bytes, 34 lines, approximately 263 tokens. Byte-identical to OpenCode.
-
-The strings say what they say on the OpenCode page: `write` claims a read-first check the runtime does not enforce, `edit` quotes two failure strings the runtime does not throw, and `apply_patch` explains the envelope with an example.
 
 **`write` (623 characters)**
 
@@ -384,8 +372,6 @@ bash({ command: string, timeout?: number, workdir?: string, description?: string
 
 `bash`: 5070 characters, 5070 bytes, 63 lines, approximately 1159 tokens. Rendered for `os=linux`, `shell=bash`, the default 2000-line and 51200-byte output limits, the 120000 ms timeout, and `/tmp/kilo` as the temporary directory (`Global.Path.tmp` is `os.tmpdir()/kilo`). PowerShell and `cmd.exe` profiles render different text.
 `background_process`: 2229 characters, 2229 bytes, 29 lines, approximately 488 tokens.
-
-The `bash` string differs from the OpenCode string in five places: the intro says `Executes a given command` instead of `Executes a given bash command`; the temporary directory is `/tmp/kilo`; a usage note asks for a 5-10 word description; `Avoid using Bash with` becomes `Avoid using the shell with`; and the Git section opens with a bullet about the sandbox and one-shot confirmation for mutating Git commands. Everything else is the same text. `background_process` tells the model to use the tool only for processes that must outlive the call, never for waits, lists the six actions, the three lifetimes, and the two readiness probes.
 
 **`bash` (5070 characters)**
 
@@ -550,8 +536,6 @@ The Tree-sitter parse, per-command patterns, arity-based always patterns, and th
 `semantic_search`: 1214 characters, 1228 bytes, 28 lines, approximately 257 tokens. Opt-in.
 `repo_clone`: 461 characters, 461 bytes, 6 lines, approximately 93 tokens. Opt-in.
 
-`grep` now tells the model that regex is the default, that `literal=true` switches to plain text, and that `ignoreCase`, `context`, and `limit` exist. The reworded bullet says `deep search that may require multiple tool invocations` where OpenCode says `open-ended search that may require multiple rounds of globbing and grepping`. When `semantic_search` is enabled, one more line is appended to both `glob` and `grep`, shown as variants after the four strings.
-
 **`glob` (517 characters)**
 
 ```text
@@ -695,34 +679,3 @@ Fork differences: absolute-pattern splitting and the result shape in `tool/glob.
 | Glob timeout | `Glob search timed out after 2 minutes. Narrow the search path or pattern.` | Thrown |
 
 Most leaves still run through `Effect.orDie`, so operational errors surface as defects at the integration boundary and the session processor records them as tool errors with the leaf's message text, as on the OpenCode page.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Lineage | Source | `01ef456` | `.opencode-version`; `diff -rq` of the tool, permission, and core folders against OpenCode `v1.18.13` and `v1.18.21` exported from the OpenCode clone |
-| Tool inventory | Source | `01ef456` | `tool/registry.ts`, `kilocode/tool/registry.ts`, `agent/agent.ts`, `kilocode/agent/index.ts`, `effect/runtime-flags.ts` |
-| Read | Source | `01ef456` | `read.ts` diff plus the Kilo helpers named under Notable. Output example is Reconstructed |
-| Descriptions | Source | `01ef456` | `.txt` files copied byte for byte from `descriptions/` in the scratch folder; `bash` rendered from `shell/prompt.ts` with the recorded defaults; `grep` suffix from `grep-signal-controls.ts`; variants from `kilocode/tool/registry.ts` |
-| Edit | Source | `01ef456` | `write.ts`, `edit.ts`, `apply_patch.ts` diffs; `encoded-io.ts`, `config-validation.ts`, `protection.ts`, `diagnostics.ts` |
-| Shell | Source | `01ef456` | `shell.ts`, `shell/prompt.ts` diffs; `process/env.ts`, `command-timeout.ts`, `shell-pattern.ts`, `shell-unparsed.ts`, `background-process.ts`, `sandbox/policy.ts`, `sandbox/config.ts`, `kilo-sandbox/src/backend.ts` |
-| Search and listing | Source | `01ef456` | `glob.ts`, `grep.ts`, `grep-signal-controls.ts`, `core/src/ripgrep.ts`, `core/src/kilocode/ripgrep-grep.ts`, `semantic-search.ts`, `repo_clone.ts` |
-| Errors | Source | `01ef456` | Strings read from the leaves and from `core/src/v1/permission.ts` and `kilocode/tool/tool.ts` |
-
-Facts described as "same as OpenCode" were confirmed by reading the Kilo diff against the `v1.18.21` export, not by re-deriving them. No claim on this page is Observed.
-
-### Gaps
-
-- Whole-file write, mode preservation: Not surveyed.
-- Working directory and environment, login shell: Not surveyed.
-- Process lifecycle, grandchild cleanup: Unverified, as on the OpenCode page.
-- Search and listing, `semantic_search` default caps: Not surveyed. The indexing service was not inspected.
-- PowerShell and `cmd.exe` description variants: not rendered or counted.
-- The VS Code and JetBrains hosts, the notebook tools, and the code-mode `execute` tool: not surveyed.
-- Sandbox profile details beyond `policy.ts`, `config.ts`, and `backend.ts` (Bubblewrap and Seatbelt argument construction): not inspected.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `01ef456fe7f41aa1f7b8a4e6b545dd1e0fbeeceb` and the target commit. Check `.opencode-version` first: a new upstream base means the OpenCode page may need to move too, and the "same as OpenCode" sentences need re-checking against that base. Then check `packages/opencode/src/tool/registry.ts` for a switch to `packages/core/src/tool/*`. Description strings come from the `.txt` files beside each leaf, `shell/prompt.ts`, `kilocode/tool/grep-signal-controls.ts` (the `grep` suffix), and `kilocode/tool/registry.ts` (the semantic hint). Re-extract with `extract.ts`, recount with `count.ts`, and rebuild with `build.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-19-kilocode-source/`. The OpenCode exports at both upstream tags are in `opencode-v1.18.13/` and `opencode-v1.18.21/` in that folder for the next diff.

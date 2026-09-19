@@ -42,20 +42,13 @@ sourceFiles:
 
 OpenCode is an open-source terminal coding agent published by anomalyco. Its model-facing file family is seven dedicated tools: `read`, `glob`, `grep`, `write`, `edit`, `apply_patch`, and `bash`. The mutation set changes with the model: `apply_patch` replaces `write` and `edit` for GPT model IDs. The read tool wraps its output in `path`, `type`, and `content` tags, lists directories itself, and appends project instruction files to the result as a system reminder.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [anomalyco/opencode](https://github.com/anomalyco/opencode) |
 | Commit | `3a31c4ea801915c0b050df4b3842997ea62b6e93` on `dev`, committed 2026-08-22 |
-| Release | `v1.18.21` at `826d9ad`, released 2026-08-21. The pinned files are identical at both commits |
-| Package versions | `opencode@1.18.21`, private `@opencode-ai/core@1.18.21` |
-| Licence | MIT |
-| Surveyed | 2026-08-23 for edit, shell, search, and permissions; 2026-09-16 for read and the description strings. Both surveys used the same commit |
-| Verified | 2026-09-16 |
-| Files read | The `sourceFiles` list in the frontmatter, plus `test/tool/edit.test.ts` and `test/tool/apply_patch.test.ts` |
-| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-08-23-opencode-fs-audit/opencode` (clone); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction scripts, `descriptions/opencode/*.txt`, counts) |
-| Evidence status | Open source inspected. No live model session was run |
+| Last updated | 2026-09-16 |
 
 The repository also carries a newer tool architecture under `packages/core/src/tool/*`. At this pin the application registry in `packages/opencode/src/tool/registry.ts` still constructs the tools described here. This page covers that active path.
 
@@ -86,8 +79,6 @@ read({ filePath: string, offset?: number, limit?: number })
 ### Description
 
 `read`: 1158 characters, 1158 bytes, 15 lines, approximately 259 tokens.
-
-The string states the absolute-path rule, the 2000-line default, the one-indexed `offset`, the line prefix shape with a worked example, directory listing with a trailing `/` on subdirectories, the 2000-character line cut, image and PDF attachments, and three habits: use `grep` and `glob` first, call `read` in parallel, and avoid small repeated slices.
 
 **`read` (1158 characters)**
 
@@ -211,8 +202,6 @@ apply_patch({ patchText: string })
 `edit`: 1369 characters, 1369 bytes, 11 lines, approximately 289 tokens.
 `apply_patch`: 1092 characters, 1098 bytes, 34 lines, approximately 263 tokens.
 
-`write` tells the model an existing file must be read first and that the tool fails otherwise; the runtime has no such check. `edit` names the line prefix format as number, colon, space, tells the model to keep indentation after that prefix, and quotes two failure messages. The strings the runtime throws differ from those quoted: see Errors. `apply_patch` explains the envelope grammar with an example and two rules: every section needs a header, and new lines carry a `+` prefix.
-
 **`write` (623 characters)**
 
 ```text
@@ -331,8 +320,6 @@ bash({ command: string, timeout?: number, workdir?: string })
 ### Description
 
 `bash`: 4628 characters, 4628 bytes, 61 lines, approximately 1056 tokens. Rendered for `os=linux`, `shell=bash`, the default 2000-line and 51200-byte output limits, the 120000 ms timeout, and `/tmp/opencode` as the temporary directory. PowerShell and `cmd.exe` profiles render different, longer text.
-
-The string tells the model to use `workdir` instead of `cd`, that `/tmp/opencode` is pre-approved, to leave file operations to the dedicated tools, to verify parent directories and quote paths, how the timeout and truncation work, to run independent commands as parallel calls and dependent ones with `&&`, and a set of git rules. It opens by calling the session persistent; each call runs one child process.
 
 **`bash` (4628 characters)**
 
@@ -471,8 +458,6 @@ shell tool terminated command after exceeding timeout <n> ms. If this command is
 `glob`: 517 characters, 517 bytes, 7 lines, approximately 109 tokens.
 `grep`: 657 characters, 657 bytes, 9 lines, approximately 149 tokens.
 
-Both strings are bullet lists. `glob` names the pattern syntax, says to use it for filename search, points open-ended searches at a Task tool, and asks for speculative parallel searches. `grep` names the regex syntax and the `include` filter, describes the output as paths with line numbers, and tells the model to use `rg` through the shell for counting matches.
-
 **`glob` (517 characters)**
 
 ```text
@@ -524,33 +509,3 @@ Both strings are bullet lists. `glob` names the pattern syntax, says to use it f
 | Glob path is a file | `glob path must be a directory: <path>` | Thrown |
 
 Most leaves run through `Effect.orDie`, so operational errors surface as defects at the integration boundary and the session processor records them as tool errors with the leaf's message text. There is no stable public error union.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `3a31c4e` | `registry.ts`, `permission/index.ts`; 2026-08-23 report |
-| Read | Source | `3a31c4e` | `read.ts`, `external-directory.ts`, `util/media.ts`, `core/fs-util.ts`; 2026-09-16 survey. Output example is Reconstructed |
-| Descriptions | Source | `3a31c4e` | `.txt` files copied byte for byte from the extraction in the 2026-09-16 scratch folder; `bash` rendered from `shell/prompt.ts` with the recorded defaults |
-| Edit | Source | `3a31c4e` | `write.ts`, `edit.ts`, `apply_patch.ts`, `format/index.ts`, `core/fs-util.ts`, plus `edit.test.ts` and `apply_patch.test.ts`; 2026-08-23 report. Error strings re-read from source on 2026-09-18 |
-| Shell | Source | `3a31c4e` | `shell.ts`, `shell/prompt.ts`, `shell/id.ts`, `truncate.ts`, `permission/arity.ts`, `agent/agent.ts`; 2026-08-23 report |
-| Search and listing | Source | `3a31c4e` | `glob.ts`, `grep.ts`, `core/ripgrep.ts`; 2026-08-23 report |
-| Errors | Source | `3a31c4e` | Strings re-read from the leaves on 2026-09-18 |
-
-No claim on this page is Observed. No command was run through a live OpenCode model session.
-
-### Gaps
-
-- Permissions, denial text: Not surveyed. The host renders the denial; the leaf source does not hold the string.
-- Errors, invalid arguments: Not surveyed for the exact text. `tool/invalid.ts` holds it.
-- Whole-file write, mode preservation: Not surveyed.
-- Working directory and environment, login shell: Not surveyed.
-- Process lifecycle, grandchild cleanup: Unverified. The child-process library owns process-group kill behaviour.
-- Read, empty-file result: the survey records no explicit notice; the exact end marker for a zero-line file was not confirmed.
-- Hosted or remote workspaces: not inspected. They can add isolation outside these leaves.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `3a31c4ea801915c0b050df4b3842997ea62b6e93` and the target commit. Check `packages/opencode/src/tool/registry.ts` first: if the registry starts importing `packages/core/src/tool/*`, every section needs re-survey against the new leaves. The description strings come from the `.txt` files beside each leaf and from `shell/prompt.ts`; a change to any of them changes the counts. Re-extract with `extract_ts_harnesses.ts` and `render.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`, and recount with `count.ts` there.

@@ -43,22 +43,13 @@ sourceFiles:
 
 Cloudflare Computer is a preview workspace and execution package published by Cloudflare as `@cloudflare/computer`. Its filesystem is a virtual tree rooted at `/` and stored in Durable Object SQLite; there is no host filesystem behind the tools. `createAITools()` from `@cloudflare/computer/tools` builds the model-facing set: `read`, `ls`, `find`, and `grep` always, `write`, `edit`, and `delete` unless the host sets `readonly: true`, and `exec` when the host supplies shell options. The read tool streams from a ranged source and hands back a JSON object with line and byte continuations when it truncates, and the three mutation tools share one in-isolate lock per path. This page describes `createAITools()` with its defaults, `readonly: false`, no assets, and a `shell` option that names one backend, `"shell"`. Cloudflare Think can run its own built-in tools over Computer storage through `useThink: true`; that is a different tool set and is described on [Cloudflare Think](./cloudflare-think.mdx).
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [cloudflare/computer](https://github.com/cloudflare/computer) |
 | Commit | `de87919a4fd37242e960e13b7b3ba802d1eef0a0`, committed 2026-08-21 |
-| Package version | `@cloudflare/computer@0.2.1`; the npm registry reported the same version on 2026-08-23 |
-| Licence | MIT |
-| Surveyed | 2026-08-23 for edit, shell, search, locks, and sync as section 5 of the Cloudflare Think report; 2026-09-16 for read and the description strings. Both surveys used the same commit |
-| Verified | 2026-09-16 |
-| Configuration surveyed | `createAITools()` defaults: `readonly` false, no `assets`, `shell` present with one backend `"shell"` and no callable backends |
-| Files read | The `sourceFiles` list in the frontmatter, plus `packages/computer/src/tools/ai.test.ts` for the backend example |
-| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-08-23-cloudflare-think-fs-audit/computer-src` (clone at the pin) and `computer-pkg` (the published tarball); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction scripts, `descriptions/cloudflare-computer/*.txt`, counts) |
-| Evidence status | Open source inspected. Sync and backend network policy are Documentation from the repository docs. No live model session was run |
-
-The Think report is the parent of this page. Sections 1 to 4, 6, and 7 of that report describe Think; section 5 describes Computer and is the edit, shell, and search source here.
+| Last updated | 2026-09-16 |
 
 ## Tool inventory
 
@@ -88,8 +79,6 @@ read({ path: string, offset?: number, byteOffset?: number, limit?: number })
 ### Description
 
 `read`: 170 characters, 170 bytes, 1 line, approximately 37 tokens.
-
-The string names images and PDFs, the 2000-line and 256 KB caps, and the line and byte continuations. It does not state the path rule, the offset base, the line prefix, or directory behaviour. The template renders `maxLines` and `maxBytes`, so a host that changes either option changes the string. Render settings for every counted Computer string: `read` renders with the 2000-line and 256 KiB defaults, `ls` with the 200-entry default, and `exec` with one host backend, `"shell": fast shell`, taken from the package tests, and no callable backends.
 
 **`read` (170 characters)**
 
@@ -202,8 +191,6 @@ delete({ path: string, recursive?: boolean })
 `edit`: 199 characters, 199 bytes, 1 line, approximately 42 tokens.
 `delete`: 82 characters, 82 bytes, 1 line, approximately 17 tokens.
 
-`write` states overwrite only. `edit` calls the replacement exact, requires each `oldText` to match a unique non-overlapping region of the original file, and gives one habit: merge two changes that touch the same block. `delete` names the `recursive` flag. None of the three mentions a read-before-write rule, the 2 MiB caps, or the returned patch.
-
 **`write` (66 characters)**
 
 ```text
@@ -280,8 +267,6 @@ exec({ command: string, cwd?: string, backend?: string, env?: Record<string, str
 
 `exec`: 703 characters, 703 bytes, 9 lines, approximately 145 tokens. The string ends with a newline. It is rendered from the host's backend map: one bullet per backend with the host's description text, the default backend ID, and a callable paragraph that appears only when a backend accepts structured input. The counted text uses the one-backend example from the package tests.
 
-The string tells the model to pick the cheapest backend, to retry on another backend after a `command not found` style failure, to use the tool for builds, tests, typechecks, formatters, and git plumbing, to prefer the file tools for file operations, and that long output is truncated.
-
 **`exec` (703 characters)**
 
 ```text
@@ -357,8 +342,6 @@ Each tool asks the workspace for one entry more than the page size to decide whe
 `find`: 129 characters, 129 bytes, 1 line, approximately 25 tokens.
 `grep`: 140 characters, 140 bytes, 1 line, approximately 23 tokens.
 
-`ls` states sizes and mtimes, the 200-entry default rendered from `DEFAULT_LIMIT`, and paging with `limit` and `offset`. `find` explains the three glob operators. `grep` names literal and regex search, paths with line numbers, and context lines. The `ls` string is stored as `list.txt` in the extraction folder and counted under the name `list`; the model-facing key is `ls`.
-
 **`ls` (169 characters)**
 
 ```text
@@ -411,35 +394,3 @@ Search workspace text with a literal string or regular expression. Results inclu
 | Search path errors | `no such path: <path>: <path>`; `not a directory: <path>: <path>`; `Invalid regular expression: <message>` | `error` field |
 
 Only `read` maps its result to an `error-text` model output. The other seven tools return an object with an `error` string as a normal result, so a provider sees JSON rather than an error-flagged tool message. Workspace errors carry a POSIX-style `code` such as `ENOENT`, `EISDIR`, `EINVAL`, `EROFS`, or `ELOOP`, and the tools pass through the message only.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `de87919` | `tools/ai.ts`, `tools/index.ts`; Think report section 5.2 |
-| Read | Source | `de87919` | `fs/read.ts`, `fs/media.ts`, `fs/store.ts`, `fs/types.ts`; 2026-09-16 survey. Path rules re-read from `dofs/src/path.ts` and `fs/resolve.ts` on 2026-09-18. Output examples are Reconstructed |
-| Descriptions | Source | `de87919` | `.txt` files copied byte for byte from the extraction in the 2026-09-16 scratch folder; `read`, `ls`, and `exec` rendered with the recorded defaults |
-| Edit | Source | `de87919` | `fs/write.ts`, `fs/edit.ts`, `fs/edit-diff.ts`, `fs/delete.ts`, `fs/locks.ts`; Think report section 5.2. Error strings re-read from source on 2026-09-18 |
-| Shell | Source, Documentation | `de87919` | `tools/exec.ts`, `runtime/runtime.ts`; Think report section 5.3. Backend behaviour, network policy, and restart handling from `docs/16_code_execution.md` and `docs/12_worker_backend.md` |
-| Search and listing | Source | `de87919` | `fs/list.ts`, `fs/find.ts`, `fs/grep.ts`; workspace messages from `dofs/src/fs/readdir.ts`, `find.ts`, `grep.ts`, `errors.ts` on 2026-09-18 |
-| Sync and conflicts | Documentation | `de87919` | `docs/02_sync_protocol.md`; Think report section 5.4 |
-| Errors | Source | `de87919` | Strings re-read from the tool files and `dofs` on 2026-09-18 |
-
-No claim on this page is Observed. No command was run through a live model session, and no package test suite was run.
-
-### Gaps
-
-- Whole-file write, atomic replace: Not surveyed. The SQLite transaction boundary inside `dofs` `writeFile` was not inspected.
-- Working directory and environment, backend cwd resolution and environment inheritance: Not surveyed.
-- Process lifecycle, timeout: Not surveyed at the backend level. The tool has none.
-- Shell Notable, PTY and interactive input: Not surveyed.
-- Sandbox: container network, image, and resource limits are application configuration and were not inspected. Worker network policy is Documentation.
-- `publish`: present in `createAITools()` when assets are configured; not covered.
-- Errors over Workers RPC: the doubled-path messages are the in-process form. Whether the RPC client rewraps them was not checked.
-- Relative-path handling depends on the `dofs` version the host installs; the monorepo `packages/dofs` at this commit was read.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `de87919a4fd37242e960e13b7b3ba802d1eef0a0` and the target commit. Check `tools/ai.ts` first for the tool keys and the `readonly` and `shell` conditions. The `read`, `ls`, and `exec` descriptions are templates; `read` reads `maxLines` and `maxBytes`, `ls` reads `DEFAULT_LIMIT`, and `exec` is assembled from the host backend map, so recount after any change to those files or to the test backend example in `tools/ai.test.ts`. Re-extract with `extract_ts_harnesses.ts` and `render.ts` and recount with `count.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`. Path and error strings live in `packages/dofs/src/path.ts`, `errors.ts`, and `fs/*.ts`, which may move to a separate release cadence.

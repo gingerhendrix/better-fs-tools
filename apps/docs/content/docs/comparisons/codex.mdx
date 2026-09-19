@@ -47,19 +47,13 @@ sourceFiles:
 
 Codex CLI is the open-source terminal coding agent published by OpenAI. Its built-in local file family is three tools: `exec_command`, `write_stdin`, and `apply_patch`. There is no read, write, list, or search tool; the model reads, lists, and searches through shell commands, and `apply_patch` is the structured mutation path. Shell commands can outlive the call that started them and are resumed by session ID, and every command runs under a host sandbox and approval policy.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [openai/codex](https://github.com/openai/codex) |
-| Commit | `c9b19deb09c1841ce7acc33ddb96276030936a29`, committed 2026-08-23 10:06:57 UTC |
-| Version | `@openai/codex` carries the placeholder `0.0.0-dev` in the source tree. The commit is the pin |
-| Licence | Apache-2.0 |
-| Surveyed | 2026-08-23 for edit, shell, permissions, and errors; 2026-09-16 for the shell-read rows and the description strings. Both surveys used the same commit |
-| Verified | 2026-09-16 |
-| Files read | The `sourceFiles` list in the frontmatter |
-| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-08-23-codex-fs-audit/codex` (clone); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction scripts, `descriptions/codex/*.txt`, counts) |
-| Evidence status | Open source inspected. No live model session was run |
+| Commit | `c9b19deb09c1841ce7acc33ddb96276030936a29`, committed 2026-08-23 |
+| Last updated | 2026-09-16 |
 
 ## Tool inventory
 
@@ -186,8 +180,6 @@ The Add, Delete, and Update hunk headers are the three operations. `*** Move to:
 
 `apply_patch`: 108 characters, 108 bytes, 1 line, approximately 29 tokens.
 
-The string says the tool edits files and that the patch must not be wrapped in JSON. The grammar itself travels as the tool's `format` definition, outside the description. Editing guidance lives in the system prompt: use `apply_patch` for single-file edits, and use a script or formatter for generated files or bulk search and replace.
-
 **`apply_patch` (108 characters)**
 
 ```text
@@ -263,8 +255,6 @@ Both are non-strict JSON function tools with a declared output schema. `tty` def
 
 `exec_command`: 82 characters, 82 bytes, 1 line, approximately 18 tokens.
 `write_stdin`: 80 characters, 80 bytes, 1 line, approximately 13 tokens.
-
-Each string is one sentence. `exec_command` says a command runs in a PTY and returns output or a session ID; the runtime default is pipes, and a PTY needs `tty: true`. `write_stdin` says it writes characters to a session and returns recent output. Defaults, ranges, and permission use live in the parameter descriptions and the system prompt, not in these strings. The counted `exec_command` string is the non-Windows one.
 
 **`exec_command` (82 characters)**
 
@@ -382,32 +372,3 @@ Not applicable. No search or listing tool exists, so there is no description str
 | Command exit non-zero | `Process exited with code <n>` | Successful tool result; code in the header |
 
 Shell handler failures use `FunctionCallError::RespondToModel`, which delivers the text as the tool result marked as an error. Patch failures after verification go through `ToolEmitter::finish`, which reports the committed delta on the lifecycle event and the error text to the model.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `c9b19de` | `spec_plan.rs`, `features/src/lib.rs`, `openai_models.rs`; 2026-08-23 report. Feature defaults re-read on 2026-09-18 |
-| Read | Source | `c9b19de` | `unified_exec/mod.rs`, `process_manager.rs`, `context.rs`; 2026-09-16 survey. Output example is Reconstructed |
-| Descriptions | Source | `c9b19de` | `.txt` files copied byte for byte from the extraction in the 2026-09-16 scratch folder; the Windows addition copied from `shell_spec.rs` on 2026-09-18 |
-| Edit | Source | `c9b19de` | `apply_patch_spec.rs`, `apply_patch.lark`, `handlers/apply_patch.rs`, `runtimes/apply_patch.rs`, `apply-patch/src/*`, `safety.rs`; 2026-08-23 report. Matching stages and error strings re-read from source on 2026-09-18 |
-| Shell | Source | `c9b19de` | `shell_spec.rs`, `unified_exec.rs`, `exec_command.rs`, `write_stdin.rs`, `unified_exec/*`, `orchestrator.rs`, `parallel.rs`, `events.rs`, `protocol.rs`; 2026-08-23 report. Truncation and error strings re-read on 2026-09-18 |
-| Search and listing | Source | `c9b19de` | `gpt-5.2-codex_prompt.md`; 2026-08-23 report |
-| Errors | Source | `c9b19de` | Strings re-read from `errors.rs`, `exec_command.rs`, `unified_exec.rs`, `handlers/apply_patch.rs`, and `apply-patch/src/*` on 2026-09-18 |
-
-No claim on this page is Observed. No command was run through a live Codex model session.
-
-### Gaps
-
-- Tool inventory, `request_permissions` and `view_image`: Not surveyed. Both are outside the three families; the second is on by default.
-- Binary and conversion, images: Not surveyed for `view_image`.
-- Whole-file write, BOM and mode preservation: Not surveyed.
-- Sandbox backends: Source only. No OS sandbox backend was exercised, and remote executor behaviour was not run.
-- Feature defaults: read from `features/src/lib.rs` at the pin. Managed configuration, model metadata, and rollout can change them.
-- Windows behaviour: Source only. The Windows yield floor and the shell guidance block were read, not run.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `c9b19deb09c1841ce7acc33ddb96276030936a29` and the target commit. The description strings are literals in `shell_spec.rs` and `apply_patch_spec.rs`; the grammar is `apply_patch.lark`; the Windows addition is `windows_shell_guidance()` in `shell_spec.rs`. Check `spec_plan.rs` first for new tool registrations or a change to the feature gates, then `features/src/lib.rs` for default flips on `unified_exec`, `exec_permission_approvals`, `request_permissions_tool`, `apply_patch_preserve_line_endings`, and `shell_zsh_fork`. The three Codex strings are literals in `extract.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`, not parsed from the Rust source; update them by hand from the two spec files and recount with `count.ts` there. The build script in `/home/gareth/Documents/Personal/scratch/2026-09-18-codex-comparison-draft/` checks the extraction files against the Rust literals.

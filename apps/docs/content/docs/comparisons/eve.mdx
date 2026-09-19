@@ -47,20 +47,13 @@ sourceFiles:
 
 Eve is an open-source framework from Vercel for durable backend agents; an agent is a directory, and each framework tool occupies an `agent/tools/<name>.ts` slot that the host can replace, wrap, or disable. Eve is not a coding agent: its file family is three default tools, `bash`, `read_file`, and `write_file`, plus opt-in `glob` and `grep`, with no edit tool. Every tool runs in the app runtime and proxies into a per-session sandbox through a `SandboxSession`, so path, error, and shell behaviour depend on the backend. This page describes the default tool set over the `just-bash` backend, the dependency-free fallback at the end of the `defaultSandbox()` chain, and names the Docker and Vercel Sandbox backends where their read, write, or shell paths differ.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [vercel/eve](https://github.com/vercel/eve) |
-| Commit | `31bed12d6961e348903457dbc43f3e19f5c09425` on `main`, cloned 2026-09-16. No release tag was checked out |
-| Package version | `eve@0.57.0`; peer `ai@^7.0.93`; optional peer `just-bash@^3.1.0`, pinned `3.1.0` in dev; `@vercel/sandbox@3.2.1` |
-| Licence | Apache-2.0 |
-| Surveyed | 2026-09-16 for the investigation note and the description strings. Every read, write, shell, search, and error fact on this page was re-read from the same pinned clone on 2026-09-19 |
-| Verified | 2026-09-16 |
-| Configuration surveyed | Default tool set from `framework/sources/registry.ts` with `defaultTools` unset, no `agent/tools/*.ts` overrides, and `glob` and `grep` added through `eve add tool/glob` and `eve add tool/grep`. Sandbox: `defaultSandbox()` resolved to the `just-bash` backend (`process.env.VERCEL` unset, no Linux Docker daemon, no microsandbox support), with the default `ReadWriteFs` filesystem and no `customCommands`. Docker and Vercel Sandbox facts are marked where they differ. microsandbox was not surveyed |
-| Files read | The `sourceFiles` list in the frontmatter |
-| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-09-16-eve-investigation/` (clone at `eve/`, `count-descriptions.mjs`, `desc-*.txt`); `/home/gareth/Documents/Personal/scratch/2026-09-19-eve-comparison-draft/` (`extract-descriptions.ts`, `descriptions/*.txt` with `counts.json`, `build.ts`) |
-| Evidence status | Open source inspected. No Eve agent was run. The Vercel Sandbox path was traced to the SDK call only |
+| Commit | `31bed12d6961e348903457dbc43f3e19f5c09425` on `main`, committed 2026-09-16 |
+| Last updated | 2026-09-16 |
 
 ## Tool inventory
 
@@ -96,8 +89,6 @@ read_file({ filePath: string, offset?: number, limit?: number })
 ### Description
 
 `read_file`: 784 characters, 784 bytes, 11 lines, approximately 182 tokens.
-
-The string gives the absolute-path rule, the 2000-line default, the one-based offset, paging by a larger offset, the `<line>: <content>` prefix with a worked example, the 2000-character line cut, parallel calls, and a rule against small repeated slices. It does not state the 50 KiB byte cap, the JSON result fields, the NUL-byte refusal, or the read stamp that `write_file` checks. The text is a literal in `tools/provided/read-file.ts`. A host replaces or wraps it with `defineTool({ ...readFile, description: "..." })` in `agent/tools/read_file.ts`.
 
 **`read_file` (784 characters)**
 
@@ -209,8 +200,6 @@ write_file({ filePath: string, content: string })
 
 `write_file`: 627 characters, 627 bytes, 8 lines, approximately 125 tokens.
 
-The string states that an existing file is overwritten, that the model must call `read_file` first and the tool fails otherwise, that editing existing files is preferred to writing new ones, that documentation files are not created unprompted, and that emojis are avoided. It does not state the stale-read check, the `$HOME` prefix, or the JSON result. The "prefer editing existing files" line has no edit tool behind it; the only ways to honour it are a full `write_file` or `bash` with `sed`. The text is a literal in `tools/provided/write-file.ts`. A host replaces or wraps it with `defineTool({ ...writeFile, description: "..." })` in `agent/tools/write_file.ts`.
-
 **`write_file` (627 characters)**
 
 ```text
@@ -282,8 +271,6 @@ One `command` string. There is no `timeout`, `cwd`, `env`, `background`, or perm
 ### Description
 
 `bash`: 60 characters, 60 bytes, 1 line, approximately 10 tokens.
-
-One sentence. It names the shared workspace and nothing else: no working directory, no output limit, no exit-code rule. The framework expects `instructions.md` to carry shell guidance. The text is a literal in `tools/provided/bash.ts`. A host replaces or wraps it with `defineTool({ ...bash, description: "..." })` in `agent/tools/bash.ts`.
 
 **`bash` (60 characters)**
 
@@ -368,8 +355,6 @@ A probe runs `command -v rg` and one `rg` search once and caches the answer by `
 `glob` (opt-in): 249 characters, 249 bytes, 6 lines, approximately 53 tokens.
 `grep` (opt-in): 452 characters, 452 bytes, 9 lines, approximately 102 tokens.
 
-`glob` names two example patterns, says it returns paths, and asks for parallel calls. `grep` names regex support with two examples, the `glob` filter, the row shape, parallel calls, and the 2000-character line cut. Neither states the default path, the result limit, the hidden-file rule, or the `.git` exclusion; those sit in the parameter text or in the executor. Both are literals in `tools/provided/glob.ts` and `tools/provided/grep.ts`. A host replaces or wraps either string with `defineTool({ ...glob, description: "..." })` in `agent/tools/glob.ts`, and the same for `grep`.
-
 **`glob` (249 characters, opt-in)**
 
 ```text
@@ -422,37 +407,3 @@ Usage:
 | `grep` zero results | `No matches found` in `content` with `matchCount: 0` | Successful JSON result |
 
 The provided executors throw plain `Error` objects with no code. The harness does not catch them; the AI SDK records a `tool-error` part, and `createToolResultMessagePartFromToolError` in `harness/action-result-helpers.ts` places the message in a `tool-result` part with output type `error-text` so the model sees the text. A `semantic-errors` classifier reads the same errors for telemetry without changing the text. The exact bytes the AI SDK sends for the part were not observed.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source, Documentation | `31bed12` | `framework/sources/registry.ts`, `compiler/default-tool-policy.ts`, `docs/concepts/built-in-tools.md` |
-| Read | Source | `31bed12` | `execution/sandbox/read-file.ts`, `require-sandbox.ts`, `session.ts`, `truncate-output.ts`, `shared/skill-paths.ts`, `bindings/just-bash-runtime.ts`, `bindings/docker-session.ts`, `bindings/vercel.ts`; 2026-09-16 note. Output example is Reconstructed |
-| Descriptions | Source | `31bed12` | `descriptions/*.txt` extracted from `tools/provided/*.ts` by `extract-descriptions.ts` on 2026-09-19 and compared byte for byte with the 2026-09-16 `desc-*.txt` files; the fences are spliced from those files |
-| Edit | Source | `31bed12` | `execution/sandbox/write-file.ts`, `execution/tools/file-state.ts`, `execution/compaction.ts`, the backend write primitives; 2026-09-16 note. Output example is Reconstructed |
-| Shell | Source | `31bed12` | `execution/sandbox/bash.ts`, `session.ts`, `bindings/just-bash-runtime.ts`, `bindings/docker-session.ts`, `bindings/docker-network.ts`, `bindings/vercel.ts`, `sandbox/backends/default.ts`, `shared/sandbox-network-policy.ts` |
-| Search and listing | Source | `31bed12` | `execution/sandbox/glob-tool.ts`, `grep-tool.ts`, `ripgrep-probe.ts` |
-| Errors | Source | `31bed12` | Strings re-read from the files above and `context/build-callback-context.ts`; transport from `harness/tools.ts` and `harness/action-result-helpers.ts` |
-
-No claim on this page is Observed. No Eve agent was run. The 2026-09-16 note stands in for the research note; every fact was re-read from the pinned clone on 2026-09-19 and three of its statements were corrected from source: the `$HOME` fallback applies to `$HOME/.agents/skills` paths, the tool context does bind the abort signal to the session, and the ripgrep probe runs an `rg` search after `command -v rg`.
-
-### Gaps
-
-- Symlink handling on Vercel Sandbox: Unverified. The read path was traced to `sandbox.readFile` in `@vercel/sandbox@3.2.1` and not into the SDK.
-- Whole-file size on Vercel Sandbox: Unverified, for the same reason.
-- Parent directory creation on Vercel Sandbox writes: Unverified. `resolveVercelWritePath` and `sandbox.writeFiles` were not followed into the SDK.
-- microsandbox backend: Not surveyed for read, write, shell, and network policy.
-- Special files under the `just-bash` host directory: Not surveyed.
-- Whole-file write, mode preservation: Not surveyed.
-- Shell variable persistence between `bash` calls inside one `just-bash` interpreter: Not surveyed.
-- Approval prompt and denial text: Not surveyed. The provided tools set no `approval`.
-- Schema validation error text: Not surveyed. The AI SDK synthesises the `tool-error` part.
-- The exact bytes of the `tool-error` part and the JSON spacing of tool results: not observed, since no agent was run.
-- The `self-modification` extension and its `edit_file`: outside this page.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `31bed12d6961e348903457dbc43f3e19f5c09425` and the target commit. The description strings are array literals joined with `\n` in `tools/provided/read-file.ts`, `write-file.ts`, `glob.ts`, and `grep.ts`, and one string literal in `bash.ts`; `extract-descriptions.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-19-eve-comparison-draft/` evaluates those literals and writes `descriptions/counts.json`. Constants that set the numbers on this page: `DEFAULT_LIMIT` in `execution/sandbox/read-file.ts`; `MAX_OUTPUT_LINES`, `MAX_OUTPUT_BYTES`, `MAX_LINE_LENGTH`, and `LINE_TRUNCATION_SUFFIX` in `truncate-output.ts`; `DEFAULT_GLOB_LIMIT`, `MAX_GLOB_LIMIT`, `DEFAULT_GREP_LIMIT`, and `MAX_GREP_LIMIT` in `glob-tool.ts` and `grep-tool.ts`; `WORKSPACE_ROOT` in `runtime/workspace/types.ts`. Check `framework/sources/registry.ts` for the default tool slots, `sandbox/backends/default.ts` for the backend chain, and `bindings/just-bash-runtime.ts` for the `ReadWriteFs` options and the `eval` wrapper. `build.ts` in the same scratch folder splices the fences and runs the page checks.

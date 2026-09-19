@@ -19,21 +19,15 @@ sourceFiles:
 
 Claude Code is Anthropic's terminal coding agent, shipped as a proprietary native binary with public TypeScript declarations. Its model-facing file family is dedicated tools: `Read`, `Write`, `Edit`, `NotebookEdit`, `Glob`, `Grep`, and `Bash`, with no directory-listing tool. The read tool counts tokens with the provider tokenizer and paginates a whole-file read that passes the cap, and a conversation-local read ledger gates `Edit` and `Write`. There is no public source, so this page rests on template strings extracted from the installed binary, the package declarations, a live session, and vendor documentation.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [anthropics/claude-code](https://github.com/anthropics/claude-code), the package homepage. The production CLI is a native executable and is not public source |
-| Pin for Read | Installed CLI `2.1.273`, strings dumped from the binary on 2026-09-16, plus tool definitions observed in a live session with model `opus` that day |
-| Pin for Edit, Shell, Search and listing | npm `@anthropic-ai/claude-code@2.1.241`, SHA-512 `S7DWEmJJAsI5taAUjhKm6soXcFJYIVeTH6Lg9kmp3yntFllCP612hGwZ7thOGh8r7YaRUH9+1jCX5A9QGazsxg==`, with `@anthropic-ai/claude-agent-sdk@0.3.241`, and vendor documentation fetched 2026-08-23 |
-| Licence | Proprietary. `SEE LICENSE IN README.md`; `LICENSE.md` says Anthropic retains all rights |
-| Surveyed | 2026-08-23 for edit, shell, search, permissions, and sandbox at `2.1.241`; 2026-09-16 for read and the description strings at `2.1.273` |
-| Verified | 2026-09-16 |
-| Files read | The `sourceFiles` list in the frontmatter; the `2.1.273` strings dump; the fetched pages `tools-reference.md`, `cli-permissions.md`, `cli-sandboxing.md`, `cli-hooks.md`, `checkpointing.md` |
-| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-08-23-claude-code-fs-audit/` (package extracts under `claude-code/package/` and `sdk/package/`, fetched docs under `docs/`); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (`claude-2.1.273-strings.txt`, `descriptions/claude-code/*.txt`, counts) |
-| Evidence status | Proprietary; binary strings and public declarations. No source clone was inspected |
+| Commit | None. Read and the description strings come from the installed CLI `2.1.273`; edit, shell, and search structure comes from npm `@anthropic-ai/claude-code@2.1.241` with `@anthropic-ai/claude-agent-sdk@0.3.241` |
+| Last updated | 2026-09-16 |
 
-The two pins are not merged. Read facts, the description strings, and every quoted error or notice string come from the `2.1.273` binary. Edit, Shell, and Search and listing structure comes from the `2.1.241` declarations and the documentation fetched with them. The Evidence section records the split per section.
+The two pins are not merged. Read facts, the description strings, and every quoted error or notice string come from the `2.1.273` binary. Edit, Shell, and Search and listing structure comes from the `2.1.241` declarations and the documentation fetched with them.
 
 ## Tool inventory
 
@@ -65,8 +59,6 @@ Read({ file_path: string, offset?: number, limit?: number, pages?: string })
 ### Description
 
 `Read`: 790 characters, 794 bytes, 9 lines, approximately 191 tokens.
-
-This is the lean variant observed on 2026-09-16, selected by model and a lean-prompt flag. It states the absolute-path rule, the 2000-line default, the `cat -n` line format starting at 1, image, PDF, and notebook support, the behaviour for a directory, a missing file, and an empty file, and one rule: do not re-read a file after editing it. A fuller non-lean variant exists in the binary and opens with "Reads a file from the local filesystem. You can access any file directly by using this tool." Another variant of the format bullet names the separator as a tab or a colon and says the content after it is verbatim, including leading whitespace.
 
 **`Read` (790 characters)**
 
@@ -178,8 +170,6 @@ NotebookEdit({ notebook_path: string, new_source: string, cell_id?: string, cell
 `Edit`: 360 characters, 362 bytes, 5 lines, approximately 76 tokens.
 `NotebookEdit`: Not surveyed. The string was not extracted in the 2026-09-16 session.
 
-`Write` says an existing file must have been read and that the tool fails otherwise, and points partial changes at `Edit`. `Edit` states the read-before-edit rule, exact and unique matching, the instruction to strip the line prefix, named as line number plus tab, and `replace_all`. Both are the variants active in the observed session; the binary holds other variants, including one that names the prefix separator as a tab or a colon and one that asks for a minimal `old_string`.
-
 **`Write` (240 characters)**
 
 ```text
@@ -262,8 +252,6 @@ Bash({ command: string, timeout?: number, description?: string, run_in_backgroun
 `Bash`: 1331 characters, 1333 bytes, 13 lines, approximately 309 tokens.
 `PowerShell`, `TaskOutput`, `TaskStop`: Not surveyed. The strings were not extracted in the 2026-09-16 session.
 
-The `Bash` string says the working directory persists and shell state does not, tells the model to prefer absolute paths because `cd` can trigger a prompt, lists the commands to leave to dedicated tools, gives the timeout default and maximum, explains `run_in_background`, says foreground `sleep` is blocked, and closes with four git rules. It says output is displayed to the model and not reliably to the user.
-
 **`Bash` (1331 characters)**
 
 ```text
@@ -345,8 +333,6 @@ Modes are `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, and `bypassPermis
 `Glob`: 140 characters, 140 bytes, 1 line, approximately 28 tokens.
 `Grep`: 477 characters, 481 bytes, 6 lines, approximately 136 tokens.
 
-`Glob` is one sentence group: pattern syntax by example and modification-time order. `Grep` tells the model to prefer it over shell `grep` or `rg` because results join the permission UI and file links, names ripgrep syntax with the brace-escaping rule, the `glob` and `type` filters, the three output modes, and `multiline`.
-
 **`Glob` (140 characters)**
 
 ```text
@@ -400,34 +386,3 @@ Content search built on ripgrep. Prefer this over `grep`/`rg` via Bash — resul
 | Sandbox violation | Returned to the model; exact text: Not surveyed | `is_error` |
 
 Messages above are template strings from the `2.1.273` binary with placeholders in angle brackets; the transport column follows the tool result shape used for the `Read` errors, which the survey observed. Hook failure inputs carry the error as a string; there is no public error-code union. Numeric `errorCode` values exist inside the binary per tool and are not shown to the model.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Declaration, Documentation | `2.1.241` | `sdk-tools.d.ts`, `sdk.d.ts`, tools reference; 2026-08-23 report |
-| Read | Binary, Observed, Documentation | `2.1.273` (binary, session); `2.1.241` (declaration, docs) | `FileReadTool` strings in `claude-2.1.273-strings.txt`, re-read on 2026-09-18; signature from `FileReadInput`. Line example is Reconstructed; the first `PARTIAL view` banner is Observed |
-| Descriptions | Observed, Binary | `2.1.273` | Tool definitions from the live session, cross-checked against the binary; `.txt` files copied byte for byte from the 2026-09-16 extraction |
-| Edit | Declaration, Documentation, Binary | `2.1.241` (structure, rules); `2.1.273` (strings, matching cascade, write verification) | Structure and read-ledger rules from `sdk-tools.d.ts` and the tools reference; the cascade, guards, and messages re-read from the binary on 2026-09-18 |
-| Shell | Declaration, Documentation, Binary | `2.1.241` (structure, limits, sandbox, approval); `2.1.273` (result strings) | `BashInput`, `BashOutput`, tools reference, permissions, sandboxing; background and truncation strings from the binary |
-| Search and listing | Declaration, Documentation, Binary | `2.1.241`; `2.1.273` (result strings) | `GlobInput`, `GrepInput`, tools reference; `No files found`, truncation, and `Found <n> files` strings from the binary |
-| Errors | Binary, Documentation | `2.1.273`; `2.1.241` for conditions without a string | Strings grepped from the binary on 2026-09-18 |
-
-No source file was inspected. The binary strings are minified template literals, so a placeholder position is certain and a surrounding condition is inferred from the minified code. Facts marked Documentation track the vendor pages fetched on 2026-08-23, which can change without a release.
-
-### Gaps
-
-- Descriptions, `NotebookEdit`, `PowerShell`, `TaskOutput`, `TaskStop`: Not surveyed. Extract from the binary or a live session and count with the 2026-09-16 rules.
-- Permissions, FIFOs and sockets outside the device list: Not surveyed.
-- Whole-file write, atomic replace: Unverified. Parent creation, mode preservation, `fsync`: Not surveyed.
-- Edit and Write output, rendered model text: Not surveyed. A live session at the pin would fill it.
-- Shell, stdin transport, shell binary selection, login shell, combined display ordering: Not surveyed.
-- Process lifecycle, signal choice and process-group cleanup: Unverified.
-- Errors, Glob null-byte text and sandbox violation text: Not surveyed.
-- Read symlink identity check: from the 2026-09-16 survey; the binary condition was not re-read for this page.
-
-### Refresh notes
-
-Re-dump strings from the installed binary and diff the `FileReadTool`, `Edit`, `Write`, `Bash`, `Glob`, and `Grep` template literals against `claude-2.1.273-strings.txt`. Re-capture the tool definitions in a live session and recount with `count.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`; the lean-prompt flag and model change the active variant, so record both. For the `2.1.241` side, fetch the new `sdk-tools.d.ts` and `sdk.d.ts` and diff `FileReadInput`, `FileEditInput`, `FileWriteInput`, `NotebookEditInput`, `GlobInput`, `GrepInput`, `BashInput`, and the matching output types; re-fetch the tools reference, permissions, sandboxing, hooks, and checkpointing pages. Move both pins to one version when a single survey covers every section.

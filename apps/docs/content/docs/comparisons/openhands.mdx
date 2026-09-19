@@ -51,20 +51,13 @@ sourceFiles:
 
 OpenHands is an open-source software agent platform. The code surveyed here is its Python Software Agent SDK, which owns the tools, conversations, and workspaces behind the OpenHands app, CLI, and agent server. The default tool preset gives the model two file tools: `file_editor`, one tool whose `command` field selects view, create, string replace, insert, or undo, and `terminal`, a persistent shell session that is a tmux pane pool on a Unix host. `glob`, `grep`, and `apply_patch` are registered but opt-in, and the GPT-5 preset swaps `file_editor` for `apply_patch`. This page describes the default preset on a Unix host with tmux installed and a local workspace; the sandbox choice (local process, Docker, or remote) sits outside the tools and is named where it matters.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk) |
 | Commit | `9d143aac35c2dcec9cbb046ff9f35ac5eb072f6a`, tag `v1.44.1`, committed 2026-08-28 |
-| Package versions | `openhands-sdk`, `openhands-tools` at `1.44.1` |
-| Licence | MIT |
-| Surveyed | 2026-09-16 for read and the description strings from the pinned clone; the 2026-09-16 report used public documentation for edit, shell, permissions, and hooks. Edit, shell, search, and error facts on this page were re-read from the clone on 2026-09-18 |
-| Verified | 2026-09-16 |
-| Configuration surveyed | Default preset from `preset/default.py`; `TerminalTool` auto-detection on Unix with tmux present, so pool mode; local workspace; non-vision model for the `file_editor` string |
-| Files read | The `sourceFiles` list in the frontmatter |
-| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-09-16-openhands-sdk-source/software-agent-sdk` (shallow clone at the tag); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction scripts, `descriptions/openhands/*.txt`, counts) |
-| Evidence status | Open source inspected. No live model session was run. Confirmation policies and hooks are Documentation with class names checked in source |
+| Last updated | 2026-09-16 |
 
 ## Tool inventory
 
@@ -91,8 +84,6 @@ file_editor({ command: "view", path: string, view_range?: [number, number] })
 ### Description
 
 `file_editor`: 2126 characters, 2126 bytes, 34 lines, approximately 460 tokens. This is the whole `file_editor` string; view, create, replace, insert, and undo share it, so the count covers every command. The read guidance is two lines of it: the `view` bullet, which names `cat -n` and the two-level directory listing, and the truncation bullet, which names `<response clipped>`. The rest of the string is edit guidance and is not repeated under Edit.
-
-The string is a template. It is rendered here as the non-vision variant with `/workspace` as the conversation working directory, which is appended at creation time; a vision-capable model gets one extra bullet after the second line: `` * If `path` is an image file (.png, .jpg, .jpeg, .gif, .webp, .bmp), `view` displays the image content ``.
 
 **`file_editor` (2126 characters)**
 
@@ -301,8 +292,6 @@ terminal({ command: string, is_input?: boolean, timeout?: number, reset?: boolea
 
 `terminal`: 1763 characters, 1763 bytes, 38 lines, approximately 424 tokens. This is the Unix string; on Windows the tool ships a PowerShell string with the same sections.
 
-The string states the one-command rule, the persistent session, a soft timeout, a ban on `set -e` variants, backgrounding with output redirected to a file, the exit code `-1` protocol with `is_input`, the key names it accepts, two habits about parent directories and absolute paths, a one-line truncation warning, and `reset`. It names a 10 second soft timeout; `NO_CHANGE_TIMEOUT_SECONDS` in `constants.py` is 30, and the `timeout` parameter description renders that constant.
-
 **`terminal` (1763 characters)**
 
 ```text
@@ -427,8 +416,6 @@ hello
 `glob` (opt-in): 670 characters, 670 bytes, 15 lines, approximately 152 tokens.
 `grep` (opt-in): 634 characters, 634 bytes, 11 lines, approximately 129 tokens.
 
-Both strings are templates: the working directory line at the end is appended at creation time and is rendered here as `/workspace`. `glob` names the pattern syntax, the modification-time sort, the 100-result cap, and four example patterns. `grep` names the regex syntax, the `include` filter, the modification-time sort, and the cap, and says the result is file paths.
-
 **`glob` (670 characters, opt-in)**
 
 ```text
@@ -501,32 +488,3 @@ When searching for content, searches are performed in this directory.
 | Bad regex | `Invalid regex pattern: <e>` | Error observation |
 
 `file_editor` and `terminal` raise `ToolError` subclasses inside the executor and convert them to observations with `is_error` set; the SDK's `Observation.to_llm_content` prepends the fixed header as a separate text part. The agent loop converts a `ValueError` from any tool into an agent error event with the `Error executing tool` prefix. The `file_editor` size check and binary sniff open the file before the wrapped read, so an OS error at that stage is not a `ToolError`; how the loop reports it: Unverified.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `9d143aa` | `preset/default.py`, `preset/gpt5.py`, `tool/tool.py` naming |
-| Read | Source | `9d143aa` | `file_editor/editor.py`, `impl.py`, `exceptions.py`, `utils/constants.py`, `utils/encoding.py`, `sdk/utils/path.py`, `sdk/utils/truncate.py`; 2026-09-16 survey. Output example is Reconstructed |
-| Descriptions | Source | `9d143aa` | `.txt` files copied byte for byte from the 2026-09-16 extraction; `file_editor`, `glob`, and `grep` rendered with `/workspace`; `terminal` is the Unix string from `terminal/descriptions.py` |
-| Edit | Source | `9d143aa` | `file_editor/editor.py`, `utils/history.py`, `apply_patch/definition.py`, `apply_patch/core.py`; re-read on 2026-09-18. The 2026-09-16 report covered this area from documentation only |
-| Shell | Source, Documentation | `9d143aa` | `terminal/definition.py`, `impl.py`, `constants.py`, `metadata.py`, `timeout_policy.py`, `terminal/terminal_session.py`, `tmux_terminal.py`, `tmux_pane_pool.py`, `factory.py`, `utils/command.py`; re-read on 2026-09-18. Sandbox and Approval facts are Documentation from the report with class names checked in `sdk/security/confirmation_policy.py` |
-| Search and listing | Source | `9d143aa` | `glob/definition.py`, `glob/impl.py`, `grep/definition.py`, `grep/impl.py`; re-read on 2026-09-18 |
-| Errors | Source | `9d143aa` | Strings re-read from the files above on 2026-09-18; transport from `sdk/tool/schema.py` and `sdk/agent/agent.py` |
-
-No claim on this page is Observed. No command was run through a live OpenHands session. The pool-mode continuation behaviour under Process lifecycle is read from `impl.py` and `tmux_pane_pool.py`; it was not exercised.
-
-### Gaps
-
-- Permissions, confirmation rejection text: Not surveyed. The policy and analyzer layer renders it outside the tool files read here.
-- Whole-file write, BOM preservation: Not surveyed.
-- Errors, OS failure at the size check or binary sniff: Unverified. The agent loop catches `ValueError` only in the code read; other exception handling was not traced.
-- Docker and remote workspaces: not inspected. They change the sandbox answer and may change the working directory and persistence directory.
-- Windows: the PowerShell description and backend are Source only and not counted or described here.
-- The vision variant of the `file_editor` string is described from `definition.py` and not extracted or counted.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `9d143aac35c2dcec9cbb046ff9f35ac5eb072f6a` and the target tag. The description strings are `TOOL_DESCRIPTION` in `file_editor/definition.py`, `glob/definition.py`, and `grep/definition.py`, `UNIX_TOOL_DESCRIPTION` in `terminal/descriptions.py`, and `_DESCRIPTION` in `apply_patch/definition.py`; the first three gain the working directory suffix in `create()`. Check `constants.py` under `terminal` for `NO_CHANGE_TIMEOUT_SECONDS` and `MAX_CMD_OUTPUT_SIZE`, and `file_editor/utils/constants.py` for `MAX_RESPONSE_LEN_CHAR`. Check `preset/default.py` for the default tool list. Re-extract with `extract_python_harnesses.py` and `render.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`, and recount with `count.ts` there.

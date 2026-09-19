@@ -28,20 +28,13 @@ sourceFiles:
 
 Deep Agents is an open-source Python agent framework published by LangChain on top of LangChain agents and LangGraph. `create_deep_agent()` installs a `FilesystemMiddleware` that gives the model seven dedicated file tools, `ls`, `read_file`, `write_file`, `edit_file`, `delete`, `glob`, and `grep`, plus `execute` when the backend can run commands. One tool schema sits over pluggable storage: LangGraph state by default, a store, a local directory, a composite of routed prefixes, or a remote sandbox. The read tool takes a zero-based `offset`, defaults to 100 lines, and carries the line range in a status header instead of a gutter. This page describes `FilesystemBackend` with `virtual_mode=True` rooted at the process working directory for the file tools, and its subclass `LocalShellBackend` for `execute`.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [langchain-ai/deepagents](https://github.com/langchain-ai/deepagents) |
 | Commit | `7f9e8ed3a555933902045792da9bb184950ee7b2`, committed 2026-09-15 |
-| Package version | `deepagents==0.7.14` on PyPI, uploaded 2026-09-14; the pinned tree carries the same version in `libs/deepagents/pyproject.toml` |
-| Licence | MIT |
-| Surveyed | 2026-09-15 for the tool inventory, backends, edit, shell, search, permissions, and errors; 2026-09-16 for read and the description strings. Both surveys used the same commit |
-| Verified | 2026-09-16 |
-| Configuration surveyed | `FilesystemMiddleware` defaults with `FilesystemBackend(virtual_mode=True)` rooted at the process working directory, no permission rules, and the text-only `read_file` variant. Shell facts refer to `LocalShellBackend` with its defaults. The default `StateBackend` is named where it differs |
-| Files read | The `sourceFiles` list in the frontmatter |
-| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-09-15-deepagents-research/deepagents` (clone at the pin, plus fetched documentation pages and PyPI metadata); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction scripts, `descriptions/deepagents/*.txt`, counts); `/home/gareth/Documents/Personal/scratch/2026-09-18-deep-agents-comparison-draft/` (page build script and a tool-level probe with its output) |
-| Evidence status | Open source inspected. The pinned tools were invoked directly on 2026-09-18 where marked Observed. No live model session was run |
+| Last updated | 2026-09-16 |
 
 Deep Agents is a library. Every behaviour on this page depends on the backend the host passes to `create_deep_agent()` and on the middleware settings. The Notable list under each family names the knobs that change that family.
 
@@ -73,8 +66,6 @@ read_file({ file_path: string, offset?: number, limit?: number })
 ### Description
 
 `read_file`: 1124 characters, 1124 bytes, 11 lines, approximately 260 tokens.
-
-The counted text is the text-only variant, rendered without the video dependencies installed. The string states the 100-line default, the `offset` and `limit` paging, the `@@ field | field @@` header shape and the rule never to include it in an edit, the habit of batching reads, the empty-file reminder, offloaded large results, multimodal blocks for images, audio, video, and PDF, the text-only nature of paging for those, and the read-before-edit rule. It does not state the offset base or the line prefix. A host can replace the string through `FilesystemMiddleware(custom_tool_descriptions=...)`, and `create_deep_agent()` passes the active harness profile's `tool_description_overrides` into that argument; the shipped NVIDIA Nemotron 3 Ultra profile replaces `read_file` with its own text.
 
 **`read_file` (1124 characters)**
 
@@ -198,8 +189,6 @@ delete({ file_path: string })
 `edit_file`: 366 characters, 366 bytes, 7 lines, approximately 72 tokens.
 `delete`: 363 characters, 363 bytes, 8 lines, approximately 72 tokens.
 
-`write_file` says the file is created or replaced whole and that no prior read is needed. `edit_file` calls the replacement exact, says the tool errors when the file was not read first, and tells the model to keep source indentation and to leave the read header out of both strings. `delete` says removal is permanent and recursive. A host can replace any of the three through `custom_tool_descriptions`.
-
 **`write_file` (322 characters)**
 
 ```text
@@ -244,7 +233,7 @@ Usage:
 
 ### Multi-file patch
 
-None. `edit_file` covers one file and one string per call. There is no patch grammar. The report notes that a host can add a custom tool or use `execute` for one.
+None. `edit_file` covers one file and one string per call. There is no patch grammar. A host can add a custom tool or use `execute` for one.
 
 ### Verification and mutation state
 
@@ -288,8 +277,6 @@ execute({ command: string, timeout?: number })
 ### Description
 
 `execute`: 839 characters, 839 bytes, 11 lines, approximately 190 tokens.
-
-The counted text is the variant rendered when both `glob` and `grep` are visible to the model; when only one of them is visible the search guidance names that tool alone and drops the other bad example, and when neither is visible the guidance sentence and both examples are gone. The string calls the environment an isolated sandbox, which is not the case for `LocalShellBackend`. It gives quoting and chaining rules, tells the model to use absolute paths and avoid `cd`, points search at `grep` and `glob` and reading at `read_file`, and says the tool errors on a backend without command execution. A host can replace it through `custom_tool_descriptions`.
 
 **`execute` (839 characters)**
 
@@ -372,8 +359,6 @@ None. `LocalShellBackend` has no OS sandbox, container, seccomp profile, or cred
 `glob`: 809 characters, 809 bytes, 7 lines, approximately 207 tokens.
 `grep`: 638 characters, 638 bytes, 6 lines, approximately 142 tokens.
 
-`ls` tells the model to list before reading or editing. `glob` documents the wildcard forms, the basename rule for patterns without `/`, the anchoring rule for a leading `/`, and the dot-name rule. `grep` says the search is literal, shows how `|` and `.` are taken verbatim, points regex needs at `execute` with `rg`, and names `/large_tool_results/` as the place offloaded results live. The counted `grep` text is the variant shown when `execute` is visible; without an execution backend the regex bullet is removed at request time. A host can replace any of the three through `custom_tool_descriptions`.
-
 **`ls` (206 characters)**
 
 ```text
@@ -439,33 +424,3 @@ Returns matching files or content per `output_mode`. Offloaded large tool result
 | `grep` partial failure | The backend error text, then `Partial matches:` and the matches found | Same |
 
 Backend results carry human-readable strings in an `error` field, and the middleware prefixes most of them with `Error: ` and sets the message status. The protocol defines four standard error literals (`file_not_found`, `permission_denied`, `is_directory`, `invalid_path`) for upload and download only. `ls` is the one built-in whose backend error strings use that vocabulary in the model-facing text.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `7f9e8ed` | `graph.py`, `middleware/filesystem.py` tool factories and request-time filtering; 2026-09-15 report |
-| Read | Source, Observed | `7f9e8ed` | `middleware/filesystem.py`, `backends/utils.py`, `backends/filesystem.py`; 2026-09-16 survey. Header, notice, reminder, and error shapes confirmed by invoking the pinned tools directly on 2026-09-18 |
-| Descriptions | Source | `7f9e8ed` | `.txt` files copied byte for byte from the extraction in the 2026-09-16 scratch folder; the video bullet re-read from `middleware/filesystem.py` on 2026-09-18 |
-| Edit | Source, Observed | `7f9e8ed` | `backends/filesystem.py`, `backends/utils.py`, `middleware/filesystem.py`; 2026-09-15 report. Result and error strings confirmed by direct tool invocation on 2026-09-18 |
-| Shell | Source, Observed | `7f9e8ed` | `backends/local_shell.py`, `middleware/filesystem.py`, `middleware/_message_eviction.py`; 2026-09-15 report. Status, timeout, and truncation strings confirmed by direct tool invocation on 2026-09-18. Eviction is Source only |
-| Search and listing | Source, Observed | `7f9e8ed` | `backends/filesystem.py`, `backends/utils.py`, `middleware/filesystem.py`; 2026-09-15 report. Note strings and the list-literal output confirmed by direct tool invocation on 2026-09-18 with ripgrep 15.2.0 on the path |
-| Errors | Source, Observed | `7f9e8ed` | Strings re-read from the leaves and confirmed by direct tool invocation on 2026-09-18 |
-| Package metadata | Documentation | `0.7.14` | PyPI JSON fetched 2026-09-15, saved in the research scratch folder |
-
-Observed on this page means the pinned package was installed into a scratch virtual environment and the `FilesystemMiddleware` tools were invoked directly against a temporary root, bypassing the model and the tool node. The probe script and its output are in `/home/gareth/Documents/Personal/scratch/2026-09-18-deep-agents-comparison-draft/`. No command was run through a live Deep Agents model session, so the tool-result eviction wrapper and the request-time description swap were not exercised. The 2026-09-15 report describes 5000-character line splitting for `read_file`; at this pin that formatter serves only the eviction preview, and `read_file` emits lines whole, so the page follows the source.
-
-### Gaps
-
-- Errors, resolved path outside the root: Unverified. The `ValueError` leaves the backend uncaught; how LangChain's tool node renders it to the model was not inspected.
-- Process lifecycle, grandchildren: Unverified. `subprocess.run` kills the shell; cleanup of the new session was not traced.
-- Read, model-family variant: the NVIDIA Nemotron 3 Ultra harness profile replaces the `read_file` description. That string was not extracted or counted and is not on this page.
-- Remote sandbox backends (`BaseSandbox`, the LangSmith adapter) were not inspected for this page beyond the protocol. Their path, cancellation, and error behaviour differ.
-- `StateBackend` and `StoreBackend` read, write, and delete paths were not re-read for this page; the 2026-09-15 report covers them in outline.
-- No live model session. The Observed label covers direct tool invocation only; the eviction wrapper, the request-time filtering of `execute` and `delete`, and the `grep` and `execute` description swaps are Source.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `7f9e8ed3a555933902045792da9bb184950ee7b2` and the target commit. The description strings are module constants in `libs/deepagents/deepagents/middleware/filesystem.py` (`LIST_FILES_TOOL_DESCRIPTION`, `READ_FILE_TOOL_DESCRIPTION`, `WRITE_FILE_TOOL_DESCRIPTION`, `EDIT_FILE_TOOL_DESCRIPTION`, `DELETE_TOOL_DESCRIPTION`, `GLOB_TOOL_DESCRIPTION`, `GREP_TOOL_DESCRIPTION`, `EXECUTE_TOOL_DESCRIPTION`); a change to any of them or to the templates they are rendered from changes the counts. Check `DEFAULT_READ_LIMIT`, `NUM_CHARS_PER_TOKEN`, `TOOLS_EXCLUDED_FROM_EVICTION`, and the `FilesystemMiddleware.__init__` defaults first. Re-extract with `extract_python_harnesses.py` and recount with `count.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`.

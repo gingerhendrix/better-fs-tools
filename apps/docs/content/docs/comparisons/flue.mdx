@@ -27,20 +27,13 @@ sourceFiles:
 
 Flue is an open-source TypeScript agent framework from the Astro team, published as `@flue/runtime`. An agent has no filesystem or shell until it calls `useSandbox()`; with a sandbox attached the model sees six dedicated tools, `read`, `write`, `edit`, `bash`, `grep`, and `glob`, all built in one file, `packages/runtime/src/agent.ts`, over a `Sandbox` interface that the adapter implements. The agent loop is Pi's `@earendil-works/pi-agent-core`, and each of the six descriptions is one sentence group of at most 136 characters. This page describes the `local()` Node adapter from `@flue/runtime/node` with `process.cwd()` as the working directory and the default environment allowlist, and names the `just-bash` virtual sandbox and the `cloudflareSandbox` container adapter where their behaviour differs.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [withastro/flue](https://github.com/withastro/flue) |
 | Commit | `4b4a8e0c879fe2c3b4b30e34c2541cf4d715ff04`, the `Version Packages (#712)` release commit |
-| Package versions | `@flue/runtime@2.0.8`, `@flue/sdk@2.0.8`, `@flue/cli@2.0.8`. Depends on `@earendil-works/pi-agent-core@^0.83.0` |
-| Licence | Apache-2.0 |
-| Surveyed | 2026-09-16 for the sandbox contract, read, and the description strings. Edit, shell, search, and error strings were re-read from the same pinned clone on 2026-09-19 |
-| Verified | 2026-09-16 |
-| Configuration surveyed | `useSandbox(local())` from `@flue/runtime/node`: host `node:fs/promises` and `child_process.spawn`, `cwd` at `process.cwd()`, the default environment allowlist, no `cwd` option on `useSandbox`, no `tools` override on the factory, no skills declared. The `bash()` factory over `just-bash` and the `cloudflareSandbox()` adapter are named where they differ |
-| Files read | The `sourceFiles` list in the frontmatter |
-| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-09-16-flue-source/` (clone at `flue/`, `count.mjs`, `descriptions/*.txt`); `/home/gareth/Documents/Personal/scratch/2026-09-19-flue-comparison-draft/` (extraction check and page build script) |
-| Evidence status | Open source inspected. No Flue agent was run; every output example is Reconstructed |
+| Last updated | 2026-09-16 |
 
 ## Tool inventory
 
@@ -71,8 +64,6 @@ read({ path: string, offset?: number, limit?: number })
 ### Description
 
 `read`: 90 characters, 92 bytes, 1 line, approximately 25 tokens.
-
-The string states the 2000-line and 50 KB caps and tells the model to use `offset` and `limit` for large files. It does not state the offset base, the line prefix, directory behaviour, or image handling. The em dash inside the string is the reason the byte count exceeds the character count. The string is a literal in `createReadTool`; a source comment says the tool block is kept static so the provider prompt cache prefix stays stable. A host can replace the whole tool list through the factory's `tools(sandbox, options)` function, and a tool built that way carries the host's own description; the exported `createReadTool` keeps this string.
 
 **`read` (90 characters)**
 
@@ -172,8 +163,6 @@ edit({ path: string, oldText: string, newText: string, replaceAll?: boolean })
 `write`: 86 characters, 86 bytes, 1 line, approximately 18 tokens.
 `edit`: 136 characters, 136 bytes, 1 line, approximately 28 tokens.
 
-`write` states create and parent creation. `edit` calls the replacement exact, requires `oldText` to match a unique region, and points at `replaceAll` for multiple occurrences. Neither string mentions a read-before-write rule or a line prefix, and `read` output has no prefix to strip. A host can replace the whole tool list through the factory's `tools(sandbox, options)` function; `createWriteTool` and `createEditTool` keep these strings.
-
 **`write` (86 characters)**
 
 ```text
@@ -238,8 +227,6 @@ bash({ command: string, timeout?: number })
 ### Description
 
 `bash`: 102 characters, 102 bytes, 1 line, approximately 25 tokens.
-
-The string says stdout and stderr are returned and gives the 2000-line and 50 KB tail rule. It does not mention the timeout parameter, the working directory, or the exit code line. The system prompt adds `Working directory: <cwd>` and a `Directory structure:` block of bare entry names, and no tool-usage guidance. A host can replace the whole tool list through the factory's `tools(sandbox, options)` function; a source comment says to leave `bash` out of that list for sandboxes without `exec`.
 
 **`bash` (102 characters)**
 
@@ -311,8 +298,6 @@ Both tools run through `env.exec`. `grep` probes `rg --version` once per underly
 `grep`: 98 characters, 98 bytes, 1 line, approximately 18 tokens.
 `glob`: 93 characters, 93 bytes, 1 line, approximately 17 tokens.
 
-`grep` states the regex input and the output shape. `glob` names `find -name` semantics, which tells the model the pattern matches basenames rather than paths. Neither states its cap. A host can replace the whole tool list through the factory's `tools(sandbox, options)` function; `createGrepTool` and `createGlobTool` keep these strings.
-
 **`grep` (98 characters)**
 
 ```text
@@ -356,32 +341,3 @@ Find files by filename pattern using shell find -name semantics. Returns matchin
 | Command denied | Not applicable. No approval layer | |
 
 The tools throw. Pi's agent loop catches the exception, places the message in one text part, and sets `isError` on the tool result. The model sees text, not a code; Node error text and absolute paths pass through on `local()`. Shell exit codes, timeouts, and output overflow are all delivered as ordinary results with the exit line, so the model can recover from them without an error turn.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `4b4a8e0` | `session.ts` `createBuiltinToolGroups`, `types.ts` `SandboxFactory`, `hooks/use-sandbox.ts`; 2026-09-16 investigation |
-| Read | Source | `4b4a8e0` | `agent.ts` `createReadTool`, `formatReadContent`, `truncateHead`, `overlayPackagedSkills`; `node/local-env.ts`; `sandbox.ts` resolvers; 2026-09-16 investigation. Output example is Reconstructed |
-| Descriptions | Source | `4b4a8e0` | Literals in `agent.ts`, re-extracted on 2026-09-19 and compared byte for byte with the 2026-09-16 `descriptions/*.txt` files |
-| Edit | Source | `4b4a8e0` | `agent.ts` `createWriteTool`, `createEditTool`, `withFileMutationLock`; `sandbox.ts` `writeFileCreatingParents`; `node/local-env.ts`. Read on 2026-09-19 |
-| Shell | Source, Documentation | `4b4a8e0` | `agent.ts` `createBashTool`, `formatBashResult`, `truncateTail`; `abort.ts`; `sandbox.ts` `raceExecAbort`; `node/local-env.ts`; `cloudflare/cf-sandbox.ts`; `shell.ts`; the sandboxes guide. Read on 2026-09-19 |
-| Search and listing | Source | `4b4a8e0` | `agent.ts` `createGrepTool`, `createGlobTool`, `resolveGrepBackend`. Read on 2026-09-19 |
-| Errors | Source | `4b4a8e0` | Strings re-read from `agent.ts`, `abort.ts`, `sandbox.ts`, `errors.ts`, and `node/local-env.ts` on 2026-09-19. Node error text is the standard `ENOENT`, `EISDIR`, and `EACCES` form |
-
-No Flue agent was run for this page or for the 2026-09-16 investigation. Every output example is Reconstructed from the format code.
-
-### Gaps
-
-- Read, Path handling: the `just-bash` adapter's missing-file text is Unverified; it comes from an earlier runtime assessment and was not re-tested against the `^3.0.1` range Flue declares. The `cloudflareSandbox` `readFile` error text is Not surveyed.
-- Edit, Whole-file write, mode preservation: Not surveyed.
-- Third-party provider blueprints (Boxd, Daytona, E2B, exe.dev, Islo, Mirage, Modal, Vercel, Cloudflare Computer): Not surveyed beyond the `SandboxDriver` mapping. Their `readFile` and `exec` error texts are theirs.
-- Unit tests for the six tools were not located; the clone is depth one and the runtime package holds no `test/` directory at that depth.
-- Windows shell selection: Source only, not exercised.
-- ripgrep ignore behaviour under `grep`: stated from ripgrep defaults, not from Flue source.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `4b4a8e0c879fe2c3b4b30e34c2541cf4d715ff04` and the target commit. All nine description strings are literals in `packages/runtime/src/agent.ts`, as are the read, grep, and glob constants; a change there changes the counts. `session.ts` `createBuiltinToolGroups` decides which tools are present and is the file to check when a framework tool appears or disappears. Re-extract with `extract-check.ts` and rebuild the page with `build.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-19-flue-comparison-draft/`; the description files and `count.mjs` live in `/home/gareth/Documents/Personal/scratch/2026-09-16-flue-source/`.

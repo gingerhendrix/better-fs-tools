@@ -34,19 +34,13 @@ sourceFiles:
 
 Hermes Agent is an open-source agent runtime and CLI published by Nous Research. Its model-facing file family is four dedicated tools, `read_file`, `write_file`, `patch`, and `search_files`, with `terminal` and `process` for shell work. Every file tool returns a JSON string, and every file operation runs as a quoted shell command through the active terminal backend, so the same tools operate on local, Docker, SSH, and hosted sandbox environments. The read tool repairs unicode-equivalent file names and tells the model, refuses device files and FIFOs by type, extracts documents to text, and redacts secrets before content reaches the model.
 
-## Source pin
+## Source
 
 | Item | Value |
 |---|---|
 | Repository | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) |
-| Commit | `9452bca388f4644de000c5d99ebb0f9fab28d74a`, committed 2026-08-23. Git description `v2026.8.19-309-g9452bca38` |
-| Package version | `0.20.5` in `pyproject.toml` and `hermes_cli/__init__.py`. The Git tag and the package use separate version schemes; the commit is the pin |
-| Licence | MIT |
-| Surveyed | 2026-08-23 for edit, shell, search, and permissions; 2026-09-16 for read and the description strings. Both surveys used the same commit |
-| Verified | 2026-09-16 |
-| Files read | The `sourceFiles` list in the frontmatter |
-| Scratch folders | `/home/gareth/Documents/Personal/scratch/2026-08-23-hermes-fs-audit/hermes-agent` (clone, plus line-range extracts of the files above); `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/` (extraction scripts, `descriptions/hermes/*.txt`, counts) |
-| Evidence status | Open source inspected. No live model session was run. The isolation of Docker, Modal, Daytona, Vercel, and SSH backends was not inspected |
+| Commit | `9452bca388f4644de000c5d99ebb0f9fab28d74a`, committed 2026-08-23 |
+| Last updated | 2026-09-16 |
 
 ## Tool inventory
 
@@ -74,8 +68,6 @@ read_file({ path: string, offset?: integer, limit?: integer })
 ### Description
 
 `read_file`: 1058 characters, 1062 bytes, 1 line, approximately 224 tokens.
-
-The string names the `LINE_NUM|CONTENT` format, the similar-filename suggestion, `offset` and `limit` paging, the roughly 100K character budget with `next_offset`, the extraction list (notebooks, `.docx`, and `.xlsx` built in; PDF, legacy Office, OpenDocument, RTF, and EPUB through the optional anydoc converter), the PDF text-layer caveat with its coverage warning, and one rule: images and other binaries go to `vision_analyze`. It does not state the path rule, the 2000-line default, or directory behaviour; the 2000-line default and the one-based offset are in the parameter descriptions, which are not counted.
 
 **`read_file` (1058 characters)**
 
@@ -178,8 +170,6 @@ patch({ mode: "replace" | "patch", path?: string, old_string?: string, new_strin
 `write_file`: 512 characters, 516 bytes, 1 line, approximately 108 tokens.
 `patch`: 483 characters, 483 bytes, 4 lines, approximately 107 tokens.
 
-`write_file` tells the model to use it instead of heredocs, that parents are created, that the whole file is replaced, that syntax checks report only new errors, and that `verified:true` means the on-disk hash matched so a re-read is not needed. `patch` names nine fuzzy strategies, promises a unified diff and syntax checks, and lists the required parameters for each mode. Neither string mentions the `LINE_NUM|CONTENT` prefix that `read_file` output carries; a separate runtime check refuses content that looks like that display text.
-
 **`write_file` (512 characters)**
 
 ```text
@@ -256,8 +246,6 @@ process({ action: "list" | "poll" | "log" | "wait" | "kill" | "write" | "submit"
 
 `terminal`: 1744 characters, 1750 bytes, 11 lines, approximately 385 tokens.
 `process`: 358 characters, 358 bytes, 1 line, approximately 86 tokens.
-
-`terminal` says the filesystem, cwd, and exported variables persist between calls, sends file work to the four file tools, forbids piping builds through `tail` or `head` because the pipe masks the exit code, describes foreground return and the background session ID with `notify_on_complete`, forbids `nohup`, `setsid`, and a trailing `&`, explains `workdir` and the `cwd` field, and names `pty=true` for interactive CLIs. `process` lists its eight actions in one sentence.
 
 **`terminal` (1744 characters)**
 
@@ -341,8 +329,6 @@ The result is JSON with `total_count`, then `matches`, `files`, or `counts`, plu
 
 `search_files`: 435 characters, 437 bytes, 5 lines, approximately 96 tokens.
 
-The string names the two targets, the three output modes, the ripgrep backing, the glob examples, and the rule that file search replaces `ls` with results sorted by modification time. It does not state the 50-result default or the pagination fields.
-
 **`search_files` (435 characters)**
 
 ```text
@@ -394,31 +380,3 @@ File search (target='files'): Find files by glob pattern (e.g., '*.py', '*config
 | Handler exception | `tool_error(str(e))`, bounded in length | JSON `error` |
 
 Every file tool returns a JSON string and the registry passes it to the model as ordinary result text; there is no error flag at the transport level. Command failures keep their real exit code with `error: null`. The table runs past the outline's fifteen-row guide because each condition has its own string.
-
-## Evidence
-
-### What was verified and how
-
-| Section | Label | Pin | Note |
-|---|---|---|---|
-| Tool inventory | Source | `9452bca` | `file_tools.py`, `terminal_tool.py`, `process_registry.py`, `read_terminal_tool.py`, `close_terminal_tool.py`, `registry.py`; 2026-08-23 report |
-| Read | Source | `9452bca` | `file_tools.py`, `file_operations.py`, `binary_extensions.py`, `read_extract.py`, `tool_output_limits.py`, `agent/file_safety.py`; 2026-09-16 survey. Output example is Reconstructed. Guard, hint, and dedup strings re-read from source on 2026-09-18 |
-| Descriptions | Source | `9452bca` | `.txt` files copied byte for byte from the extraction in the 2026-09-16 scratch folder. Every string is a literal in `file_tools.py`, `terminal_tool.py`, or `process_registry.py`; none is a template |
-| Edit | Source | `9452bca` | `file_tools.py`, `file_operations.py`, `fuzzy_match.py`, `patch_parser.py`, `file_state.py`; 2026-08-23 report. Error and hint strings re-read from source on 2026-09-18 |
-| Shell | Source | `9452bca` | `terminal_tool.py`, `process_registry.py`, `approval.py`, `tirith_security.py`, `environments/local.py`; 2026-08-23 report. Timeout, truncation, and approval strings re-read on 2026-09-18 |
-| Search and listing | Source | `9452bca` | `file_tools.py`, `file_operations.py`; 2026-08-23 report. The schema was read from source, which has one `context` integer rather than the two context fields the condensed schema table lists |
-| Errors | Source | `9452bca` | Strings re-read from the files above on 2026-09-18; transport from `registry.py` |
-
-No claim on this page is Observed. No command was run through a live Hermes model session.
-
-### Gaps
-
-- Working directory and environment, login shell: Not surveyed.
-- Sandbox: the isolation of the Docker, Singularity, Modal, Daytona, SSH, and Vercel backends was not inspected; only the repository integration was.
-- Output limits, outer result cap: the spillover preview format in `tool_result_storage.py` was read for its shape only; the threshold interaction with context-scaled budgets in `budget_config.py` was not traced.
-- Read, `limit` absent from the call: the 500-line handler default is Source; which providers fill schema defaults was not tested.
-- Plugin hooks: `pre_tool_call`, `transform_tool_result`, and `transform_terminal_output` can change any behaviour above; no plugin was inspected.
-
-### Refresh notes
-
-Diff the `sourceFiles` list between `9452bca388f4644de000c5d99ebb0f9fab28d74a` and the target commit. The description strings are literals: `READ_FILE_SCHEMA`, `WRITE_FILE_SCHEMA`, `PATCH_SCHEMA`, and `SEARCH_FILES_SCHEMA` at the end of `tools/file_tools.py`, `TERMINAL_TOOL_DESCRIPTION` in `tools/terminal_tool.py`, and `PROCESS_SCHEMA` in `tools/process_registry.py`; a change to any of them changes the counts. Check `tools/tool_output_limits.py` for the three defaults, `normalize_read_pagination` in `tools/file_operations.py` for the clamp, `_get_max_read_chars` in `tools/file_tools.py` for the character budget, and the strategy list in `fuzzy_find_and_replace` for the nine-strategy claim. Re-extract with `extract_hermes.py` and recount with `count.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-16-harness-tool-descriptions/`.
