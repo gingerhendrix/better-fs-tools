@@ -1,0 +1,615 @@
+---
+title: Qwen Code
+description: Read, edit, shell, and search tools in Qwen Code at v0.24.0, with every model-facing description in full, including the four modality variants of read_file
+harness: qwen-code
+kind: cli
+repo: QwenLM/qwen-code
+commit: 56b003be0785412ed06673948f781dc70a686b5a
+version: v0.24.0
+license: Apache-2.0
+surveyed: 2026-09-19
+verified: 2026-09-19
+sourceFiles:
+  - packages/core/src/config/config.ts
+  - packages/core/src/config/approval-mode.ts
+  - packages/core/src/core/modalityDefaults.ts
+  - packages/core/src/core/coreToolScheduler.ts
+  - packages/core/src/core/permissionFlow.ts
+  - packages/core/src/core/prompts.ts
+  - packages/core/src/tools/tools.ts
+  - packages/core/src/tools/tool-names.ts
+  - packages/core/src/tools/tool-registry.ts
+  - packages/core/src/tools/tool-error.ts
+  - packages/core/src/tools/read-file.ts
+  - packages/core/src/tools/readManyFiles.ts
+  - packages/core/src/tools/write-file.ts
+  - packages/core/src/tools/edit.ts
+  - packages/core/src/tools/notebook-edit.ts
+  - packages/core/src/tools/priorReadEnforcement.ts
+  - packages/core/src/tools/file-read-permission.ts
+  - packages/core/src/tools/grepReadTracking.ts
+  - packages/core/src/tools/shell.ts
+  - packages/core/src/tools/monitor.ts
+  - packages/core/src/tools/exec.ts
+  - packages/core/src/tools/glob.ts
+  - packages/core/src/tools/grep.ts
+  - packages/core/src/tools/ripGrep.ts
+  - packages/core/src/tools/ls.ts
+  - packages/core/src/tools/truncation.ts
+  - packages/core/src/tools/diffOptions.ts
+  - packages/core/src/tools/modifiable-tool.ts
+  - packages/core/src/services/fileReadCache.ts
+  - packages/core/src/services/fileSystemService.ts
+  - packages/core/src/services/shellExecutionService.ts
+  - packages/core/src/utils/fileUtils.ts
+  - packages/core/src/utils/read-text-range.ts
+  - packages/core/src/utils/text-range-constants.ts
+  - packages/core/src/utils/image-view.ts
+  - packages/core/src/utils/pdf.ts
+  - packages/core/src/utils/notebook.ts
+  - packages/core/src/utils/editHelper.ts
+  - packages/core/src/utils/atomicFileWrite.ts
+  - packages/core/src/utils/paths.ts
+  - packages/core/src/utils/workspaceContext.ts
+  - packages/core/src/utils/shell-utils.ts
+  - packages/core/src/utils/file-filtering-options.ts
+  - packages/core/src/utils/ignorePatterns.ts
+  - packages/cli/src/config/settingsSchema.ts
+  - packages/cli/src/config/sandboxConfig.ts
+---
+
+Qwen Code is Alibaba's open-source terminal coding agent. It began as a fork of Gemini CLI `v0.8.2` and stopped syncing with upstream at Qwen Code `v0.1`. Its model-facing file family is eight dedicated tools: `read_file`, `write_file`, `edit`, `notebook_edit`, `glob`, `grep_search`, `run_shell_command`, and `monitor`, with `list_directory` available as an opt-in. Two things set it apart from its parent. A session file-read cache turns read-before-write into an enforced rule with an mtime and size fingerprint, and the `read_file` description is rendered from the input modalities of the active model, so the same tool ships four different strings.
+
+## Source pin
+
+| Item | Value |
+|---|---|
+| Repository | [QwenLM/qwen-code](https://github.com/QwenLM/qwen-code) |
+| Commit | `56b003be0785412ed06673948f781dc70a686b5a`, the `v0.24.0` release commit, committed 2026-09-16 13:03:36 UTC. `main` was at `537311b` on 2026-09-18 when the survey was planned |
+| Release | `v0.24.0`, released 2026-09-16 |
+| Package versions | `@qwen-code/qwen-code@0.24.0` (CLI) and `@qwen-code/qwen-code-core@0.24.0` (core) |
+| Lineage | Fork of Gemini CLI `v0.8.2`; sync stopped at Qwen Code `v0.1`. The tool folder has since diverged in every family. Where a behaviour still matches the [Gemini CLI](./gemini-cli.mdx) page at `6a466a7`, the section says so |
+| Licence | Apache-2.0 |
+| Surveyed | 2026-09-19 |
+| Verified | 2026-09-19 |
+| Configuration surveyed | Linux host with `bash`; the Qwen OAuth default model `coder-model`, whose name resolves to image and video input modalities; `useRipgrep` and `useBuiltinRipgrep` at their `true` defaults; approval mode `default`; `truncateToolOutputThreshold` 25000 and `truncateToolOutputLines` 1000; file-read cache enabled; bare mode, code mode, agent teams, and omni off |
+| Files read | The `sourceFiles` list in the frontmatter, plus `packages/core/src/tools/tool-response-finalizer.ts`, `tool-result-retention.ts`, `syntheticOutput.ts`, and the worktree, cron, team, and task tool files for the inventory |
+| Scratch folder | `/home/gareth/Documents/Personal/scratch/2026-09-19-qwen-code-source/` (shallow clone at the tag under `qwen-code/`, `extract.ts`, `descriptions/*.txt`, `count.ts`, `counts.tsv`, `inventory.ts`, `build.ts`) |
+| Evidence status | Open source inspected. Descriptions extracted by importing the pinned modules with Bun. No model session, build, or test run |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read_file` | Read a text file by line window, or a media, PDF, or notebook file | Yes | Four description strings selected by the model's input modalities |
+| `write_file` | Create or overwrite a whole file | Yes | Prior-read enforcement applies to existing files |
+| `edit` | Replace one or all occurrences of a string in one file | Yes | Legacy alias `replace` is mapped to it |
+| `notebook_edit` | Replace, insert, or delete one `.ipynb` cell | Yes | Requires an untruncated prior read of the notebook |
+| `glob` | Find file paths by glob pattern | Yes | npm `glob` package with ignore-aware traversal |
+| `grep_search` | Search file contents by regex | Yes | `RipGrepTool` when a ripgrep binary is found, otherwise `GrepTool` under the same name. Two description strings. Legacy alias `search_file_content` |
+| `list_directory` | List the direct children of one directory | No | Opt-in through `tools.listDirectory.enabled` or the `coreTools` allowlist |
+| `run_shell_command` | Run one command through `bash -c`, foreground or managed background | Yes | Description rendered from platform and shell |
+| `monitor` | Start a shell command and stream its output lines as notification events | Yes | Registered last; plan mode treats it like the shell tool |
+| `exec` | Run JavaScript in an isolated runtime that calls the other tools as `tools.<name>()` | No | Only in code mode (`--code-mode-only`). Not a shell tool |
+| `zoom_image`, `display_image` | Crop a region of an image at full resolution; show a workspace PNG in the terminal | Yes | Image tools, not file readers. `zoom_image` is deferred; `display_image` is interactive-only |
+| `tool_search`, `read_mcp_resource` | Fetch deferred tool declarations; read an MCP resource | Yes | `tool_search` is how the model reaches deferred tools |
+| `agent`, `list_agents`, `task_stop`, `send_message`, `skill`, `ask_user_question`, `report_findings`, `web_fetch` | Subagents, background tasks, skills, questions, review findings, URL fetch | Yes | `task_stop` also stops managed background shells. `ask_user_question` needs an interactive host |
+| `enter_plan_mode`, `exit_plan_mode` | Switch approval mode to and from plan | Yes | Not registered in SDK mode |
+| `enter_worktree`, `exit_worktree` | Create a git worktree under `.qwen/worktrees/<slug>` and make it the working root; leave it | Yes | Deferred. Later file and shell calls operate inside the worktree |
+| `cron_create`, `cron_list`, `cron_delete`, `loop_wakeup` | Schedule prompts and loop wakeups | Yes | Deferred; removed when `QWEN_CODE_DISABLE_CRON=1` |
+| `todo_write` | User-visible task list | No | `todoWriteEnabled` defaults to `false` |
+| `team_create`, `team_delete`, `task_create`, `task_update`, `task_list`, `team_plan_approval`, `request_shutdown` | Experimental agent teams | No | `QWEN_CODE_ENABLE_AGENT_TEAM=1` or the setting |
+| `web_search`, `image_gen`, `lsp`, `artifact`, `record_artifact`, `record_source`, `workflow`, `create_sub_session`, `structured_output`, `get_goal`, `update_goal`, `propose_goal`, `omni_*` | Search backends, media, language server, artifacts, workflows, daemon sub-sessions, goals | Conditional | Each is gated on a setting, a backend, a host feature, or a CLI flag |
+
+There is no `read_many_files` tool at this pin. The `readManyFiles()` helper in `readManyFiles.ts` serves `@path` references in the prompt and the ACP session; the model cannot call it. There is no delete, move, or multi-file patch tool. Tools marked deferred are left out of the initial declaration list and enter the session when the model calls `tool_search`. The `coreTools` allowlist and `excludeTools` can remove any built-in. Bare mode (`--bare`) registers only `read_file`, `edit`, `notebook_edit`, and `run_shell_command`. MCP tools and discovered tools are outside this page.
+
+## Read
+
+### Signature
+
+```ts
+read_file({ file_path: string, offset?: integer, limit?: integer, pages?: string })
+```
+
+`file_path` must be absolute; a relative path fails validation. `offset` is zero-based and `limit` is a count, so `offset: 10, limit: 20` returns lines 11 to 30 in the one-based numbering the response uses. With neither, the first 1000 lines are returned (`truncateToolOutputLines`). `pages` selects PDF pages, one-based, at most 20 per call, and open-ended ranges are rejected. `offset`, `limit`, and `pages` are rejected for `.ipynb` files.
+
+### Description
+
+`read_file`, no audio or video input: 1317 characters, 1317 bytes, 1 line, approximately 293 tokens.
+`read_file`, video input: 1791 characters, 1795 bytes, 1 line, approximately 395 tokens. This is the variant the default `coder-model` receives.
+`read_file`, audio input: 1784 characters, 1788 bytes, 1 line, approximately 394 tokens.
+`read_file`, audio and video input: 1877 characters, 1881 bytes, 1 line, approximately 425 tokens.
+
+`buildReadFileDescription(modalities)` in `read-file.ts` composes the string from a fixed preamble, a modality-dependent middle, and a fixed trailer. The preamble states the absolute-path rule with a worked example, says large files are truncated, and names `offset` and `limit` for continuation. The trailer covers line ranges, the `pages` parameter and its 20-page cap, PDF fallbacks and the vision bridge, and notebook reads. The middle lists the media formats; when audio or video is on it adds a sentence telling the model the media is delivered for direct perception and to re-read a clip after cutting it. No variant states the default window, the offset base, or the line prefix. The modalities come from `defaultModalities(model)` in `core/modalityDefaults.ts`, a name-pattern table where unknown models are text-only, unless a `modelProviders` entry sets them. The `schema` getter recomputes the string on every declaration build, so a `/model` switch changes it mid-session. Three of the four strings contain U+2014, which is why their byte counts exceed their character counts.
+
+**`read_file`, no audio or video input (1317 characters)**
+
+Selected when the active model has neither audio nor video input, for example `qwen3-coder-*`, `deepseek*`, `claude-*`, and every unlisted model name.
+
+```text
+Reads and returns the content of a specified file. The file_path argument MUST be an absolute path. Always construct it by combining the project root with the file's relative path (e.g. project root '/path/to/project/' + relative 'foo/bar.txt' = '/path/to/project/foo/bar.txt'). If the user provides a relative path, resolve it against the project root first. If the file is large, the content will be truncated. The tool's response will clearly indicate if truncation has occurred and will provide details on how to read more of the file using the 'offset' and 'limit' parameters. Handles text, images (PNG, JPG, GIF, WEBP, SVG, BMP), PDF files, and Jupyter notebooks (.ipynb). For text files, it can read specific line ranges. For PDF files, use the 'pages' parameter to extract specific page ranges as text (e.g. '1-5'). Max 20 pages per request. Large PDFs cannot be read all at once when the model does not support native PDF input; retry with narrower page ranges if the tool reports a PDF is too large. With a configured vision bridge, failed PDF text extraction or an irreducibly large single page may be transcribed automatically, at most four pages per call; this transcription is lossy and marked as untrusted. This tool can read Jupyter notebooks (.ipynb) and returns structured cell content with outputs.
+```
+
+**`read_file`, video input (1791 characters)**
+
+Selected when the model has video input and no audio input: `coder-model`, `qwen3.5-plus` and later Plus models, `qwen-vl-*`, `qwen3-vl-*`, `kimi-k3`, `minimax-m3`.
+
+```text
+Reads and returns the content of a specified file. The file_path argument MUST be an absolute path. Always construct it by combining the project root with the file's relative path (e.g. project root '/path/to/project/' + relative 'foo/bar.txt' = '/path/to/project/foo/bar.txt'). If the user provides a relative path, resolve it against the project root first. If the file is large, the content will be truncated. The tool's response will clearly indicate if truncation has occurred and will provide details on how to read more of the file using the 'offset' and 'limit' parameters. Handles text, images (PNG, JPG, GIF, WEBP, SVG, BMP), video, PDF files, and Jupyter notebooks (.ipynb); video (MP4, MOV, MKV, WEBM, AVI) require the selected model to support the corresponding modality. When multimodal support is enabled, video files are delivered to you for DIRECT perception — you can actually watch a video (frames + audio) by reading it. In particular, after you cut or downscale a media segment with a clip/extract tool, call read_file on the resulting clip to actually view/hear that segment yourself before answering — do not assume its contents. For text files, it can read specific line ranges. For PDF files, use the 'pages' parameter to extract specific page ranges as text (e.g. '1-5'). Max 20 pages per request. Large PDFs cannot be read all at once when the model does not support native PDF input; retry with narrower page ranges if the tool reports a PDF is too large. With a configured vision bridge, failed PDF text extraction or an irreducibly large single page may be transcribed automatically, at most four pages per call; this transcription is lossy and marked as untrusted. This tool can read Jupyter notebooks (.ipynb) and returns structured cell content with outputs.
+```
+
+**`read_file`, audio input (1784 characters)**
+
+Selected when the model has audio input and no video input. No entry in the shipped pattern table produces this combination; a `modelProviders` entry can.
+
+```text
+Reads and returns the content of a specified file. The file_path argument MUST be an absolute path. Always construct it by combining the project root with the file's relative path (e.g. project root '/path/to/project/' + relative 'foo/bar.txt' = '/path/to/project/foo/bar.txt'). If the user provides a relative path, resolve it against the project root first. If the file is large, the content will be truncated. The tool's response will clearly indicate if truncation has occurred and will provide details on how to read more of the file using the 'offset' and 'limit' parameters. Handles text, images (PNG, JPG, GIF, WEBP, SVG, BMP), audio, PDF files, and Jupyter notebooks (.ipynb); audio (MP3, M4A, WAV, FLAC, OGG, AAC) require the selected model to support the corresponding modality. When multimodal support is enabled, audio files are delivered to you for DIRECT perception — you can actually listen to an audio file by reading it. In particular, after you cut or downscale a media segment with a clip/extract tool, call read_file on the resulting clip to actually hear that segment yourself before answering — do not assume its contents. For text files, it can read specific line ranges. For PDF files, use the 'pages' parameter to extract specific page ranges as text (e.g. '1-5'). Max 20 pages per request. Large PDFs cannot be read all at once when the model does not support native PDF input; retry with narrower page ranges if the tool reports a PDF is too large. With a configured vision bridge, failed PDF text extraction or an irreducibly large single page may be transcribed automatically, at most four pages per call; this transcription is lossy and marked as untrusted. This tool can read Jupyter notebooks (.ipynb) and returns structured cell content with outputs.
+```
+
+**`read_file`, audio and video input (1877 characters)**
+
+Selected when the model has both audio and video input: `gemini-*` and the Qwen Omni models.
+
+```text
+Reads and returns the content of a specified file. The file_path argument MUST be an absolute path. Always construct it by combining the project root with the file's relative path (e.g. project root '/path/to/project/' + relative 'foo/bar.txt' = '/path/to/project/foo/bar.txt'). If the user provides a relative path, resolve it against the project root first. If the file is large, the content will be truncated. The tool's response will clearly indicate if truncation has occurred and will provide details on how to read more of the file using the 'offset' and 'limit' parameters. Handles text, images (PNG, JPG, GIF, WEBP, SVG, BMP), audio, video, PDF files, and Jupyter notebooks (.ipynb); audio (MP3, M4A, WAV, FLAC, OGG, AAC) and video (MP4, MOV, MKV, WEBM, AVI) require the selected model to support the corresponding modality. When multimodal support is enabled, audio and video files are delivered to you for DIRECT perception — you can actually watch a video (frames + audio) or listen to an audio file by reading it. In particular, after you cut or downscale a media segment with a clip/extract tool, call read_file on the resulting clip to actually view/hear that segment yourself before answering — do not assume its contents. For text files, it can read specific line ranges. For PDF files, use the 'pages' parameter to extract specific page ranges as text (e.g. '1-5'). Max 20 pages per request. Large PDFs cannot be read all at once when the model does not support native PDF input; retry with narrower page ranges if the tool reports a PDF is too large. With a configured vision bridge, failed PDF text extraction or an irreducibly large single page may be transcribed automatically, at most four pages per call; this transcription is lossy and marked as untrusted. This tool can read Jupyter notebooks (.ipynb) and returns structured cell content with outputs.
+```
+
+### Path handling
+
+Validation trims the path and, outside Windows, removes backslash escapes before shell metacharacters, so `my\ file.txt` becomes `my file.txt`. The path must be absolute; otherwise `File path must be absolute, but was relative: <path>. You must provide an absolute path.` is returned as a validation error. Execution calls `path.resolve` and reads through `fs.stat`, so symlinks are followed. No tilde expansion and no URL handling.
+
+Near-miss recovery: None. A missing file returns:
+
+```text
+File not found: <path>
+```
+
+The message travels in the function response `error` field. The tool's `llmContent` for that case, `Could not read file because no file was found at the specified path.`, is dropped by the scheduler when an error is set; see Errors. This matches the Gemini CLI page.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Default permission | `allow` when the real path sits under a workspace directory, the project temp directory, the project `subagents` directory, the global temp directory, a user skills or extensions directory, the plans directory, the user workflows directory, the workflow runs directory, or a managed auto-memory root. Otherwise `ask`, which raises a confirmation dialog. The candidate is canonicalised with `realpathNearestExisting` before the check, so a symlink planted inside the workspace that points outside is treated by its target |
+| Permission rules | `Read(<path-glob>)` rules from settings can override with `allow`, `ask`, or `deny`. A deny returns `This "read_file" invocation was denied by permission rules. Matching deny rule: "<rule>". Other uses of this tool are still permitted.` |
+| Approval modes | `yolo` skips the dialog. `plan` allows reads. `auto` runs an LLM classifier for calls that are not already allowed |
+| Ignore rules | `.qwenignore`, `.agentignore`, and `.aiignore` patterns are checked at validation: `File path '<path>' is ignored by <ignore file> pattern(s).` `.gitignore` does not apply to `read_file` |
+| Device and special files | `stats.isFile()` must hold. FIFOs, sockets, and devices return `Not a regular file: <path>` |
+| Blocked segments | None. No `.git`, `.env`, or `node_modules` refusal in the read path |
+| Denial text for invalid parameters | `Error: Invalid parameters provided. Reason: <message>` |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | `.ts`, `.mts`, `.cts`, `.tsx` are text; `.svg` and `.ipynb` have their own types. Then a `mime` lookup: `image/*` is sniffed over 8 KiB of magic bytes for PNG, JPEG, WebP, and GIF; `audio/*`, `video/*`, and `application/pdf` map directly; declared text MIME types are trusted. Then the `BINARY_EXTENSIONS` list, a curated text extension list, a text basename list (`Dockerfile`, `Makefile`, lockfiles), and finally a 4 KiB sample: a NUL byte or more than 30 percent non-printable bytes means binary; a BOM means text |
+| Refusal | `Cannot display content of binary file: <rel>` returned as success text with no error field |
+| Notebooks | Rendered as `Jupyter Notebook (<language>, <n> cells)` followed by one block per cell with its id and outputs. Output is capped at 100 000 characters with a `... [<n> remaining cells truncated ...]` line; a truncated notebook read does not unlock `notebook_edit` |
+| SVG | Read as text up to 1 MiB; `Cannot display content of SVG file larger than 1MB: <rel>` above that |
+| Images | PNG, JPEG, and WebP are decoded with `sharp`, oriented, scaled to at most 1568 pixels on the long edge, and returned as a JPEG `inlineData` part preceded by `Image overview: <w>x<h>; oriented source: <w>x<h>. If details are too small, use tool_search for "zoom image", then call zoom_image with coordinates normalized from 0 to 1000.` GIF is validated and forwarded as-is. Other image MIME types are omitted with `Image format <mime> (<rel>) cannot be safely sent to the model, so its data was omitted from the request. ...`. Source files over 100 MB are refused. A model without image input gets `[Unsupported image file: "<name>". This model does not support image input. ...]` as success text |
+| PDF | With `pdf` modality and no `pages`, the whole file as base64 `inlineData` under 10 MB. Otherwise `pdftotext` extraction, capped at 12 000 estimated tokens; full-text extraction refuses files over 100 MB and page-range extraction over 512 MB. On overflow or failure a vision-capable model gets pages rendered to images (at most 20); a text-only model with a configured vision bridge gets at most four pages transcribed; otherwise guidance to narrow `pages` is returned as an error |
+| Audio and video | Base64 `inlineData` when the model has the modality and the encoded size is under 10 MB (9.9 MB threshold); otherwise `[Unsupported <audio\|video> file: "<name>". ...]` as success text. With the opt-in omni pipeline, media is uploaded instead of inlined |
+| Encoding | BOM-aware for UTF-8, UTF-16 LE and BE, and UTF-32 LE and BE; a file without a BOM that fails UTF-8 validation is detected with `chardet` and decoded with `iconv-lite`; the detected encoding and BOM are carried to later writes |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 1000 lines (`truncateToolOutputLines`; `0` or less removes the cap) | |
+| Ceiling | The model's `limit`. No upper bound on the request | |
+| Character budget | 25 000 characters of selected lines (`truncateToolOutputThreshold`). The line that crosses the budget is cut with `... [truncated]` and the read stops there | The banner below reports the lines shown |
+| Byte budget | The read stops at `max(25000, threshold * 4)` bytes, 100 000 by default; `... [truncated]` is appended | |
+| Long line | No per-line cap. Only the character budget cuts a line | |
+| Whole-file size | None for text. Files of 10 MiB and above are streamed with a bounded scan and report the total as `at least <n>` | |
+| Offset past end | Not an error. The banner reports `Showing lines <offset+1>-<offset+1> of <total> total lines.` over an empty body | |
+| Line handling | Split on `\n`; every returned line has trailing whitespace removed | |
+
+### Output
+
+```text
+Showing lines 1-1000 of 5000 total lines.
+
+---
+
+import { x } from "./x"
+export const y = x
+```
+
+The example is reconstructed from the format code. A read that returns the whole file has no banner: the content is bare, with no line numbers and no end marker. The banner appears when the read stopped before the end, when `offset` was above zero, or when the character or byte budget cut a line.
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | None on a full read. `Showing lines <a>-<b> of <total> total lines.`, a blank line, `---`, and a blank line when truncated or offset |
+| Line prefix | None. Lines are bare |
+| End marker | None |
+| Truncation notice | The banner above, before the content. A `... [truncated]` marker ends the content when the character or byte budget cut it |
+| Error transport | Function response `{ error: "<message>" }` with no `output` field; the success response is `{ output: "<text>" }` or media parts |
+
+### Notable
+
+- Repeat-read guard: a full read of a file whose inode, mtime, and size match the last full text read in this session, with no write since and the earlier result still in history, returns `[File <rel> unchanged since last read in this session — the full content was provided earlier in this conversation. If you cannot retrieve that prior content (e.g. after context compaction) or you suspect the file was modified outside the read/edit tools (shell command, MCP tool, another process), re-read with explicit offset/limit to fetch current content.]` instead of content. `fileReadCacheDisabled: true` turns this off.
+- Every text read records the file's `dev:ino` key, mtime, and size in the session `FileReadCache`. `edit`, `write_file`, and `notebook_edit` consult it; see Edit.
+- An empty file returns `(read_file completed with no output)`, inserted by the scheduler's truncation pass.
+- Auto-memory files under the managed memory roots get a freshness reminder prepended and never take the repeat-read fast path.
+- After the content, the scheduler can append a `system-reminder` envelope with conditional rules or activated skills matched by the path, so the result can carry text that is not in the file.
+- `read_file` is exempt from the scheduler's per-tool character truncation (`maxOutputChars` is `Infinity`). The per-message batch budget of 200 000 characters across all tool results still applies; the largest results are offloaded to disk with a `persisted-output` stub.
+
+## Edit
+
+### Signature
+
+```ts
+write_file({ file_path: string, content: string, record_as_artifact?: boolean })
+edit({ file_path: string, old_string: string, new_string: string, replace_all?: boolean })
+notebook_edit({ notebook_path: string, cell_id?: string, new_source?: string, cell_type?: "code" | "markdown", edit_mode?: "replace" | "insert" | "delete" })
+```
+
+All three require absolute paths. `replace_all` is a boolean defaulting to `false`. `record_as_artifact` defaults to `true` for artifact-like extensions and only matters when artifact recording is enabled. `notebook_edit` defaults `edit_mode` to `replace`; `cell_id` is required for `replace` and `delete`, and `new_source` for `replace` and `insert`. The legacy name `replace` resolves to `edit`. There is no delete tool and no multi-file patch tool. All three are `Kind.Edit`, which the scheduler treats as mutators.
+
+### Description
+
+`write_file`: 1180 characters, 1184 bytes, 5 lines, approximately 239 tokens.
+`edit`: 1518 characters, 1518 bytes, 11 lines, approximately 309 tokens.
+`notebook_edit`: 260 characters, 260 bytes, 1 line, approximately 57 tokens.
+
+`write_file` tells the model that a request to create a file does not prove the path is new, that it MUST call `read_file` first unless the target's absence or contents are already established, that blind overwrites are rejected under prior-read enforcement, how to build the absolute path, and that HTML, PDF, image, notebook, and office files are registered as session artifacts unless `record_as_artifact=false` or written under `.qwen/tmp/`. `edit` carries the numbered rules from the Gemini CLI default-legacy `replace` string with the `instruction` rule removed and the `allow_multiple` flag renamed `replace_all`; it keeps the six-space indentation on its second paragraph. `notebook_edit` says to use it instead of `edit` or `write_file` for cells and to take cell ids from `read_file` output. The `write_file` string contains one U+2014.
+
+**`write_file` (1180 characters)**
+
+```text
+Writes content to a specified file in the local filesystem. A request to create or generate a file does not establish that the target path is new. Unless the target's absence or current text contents have already been established in this session, you MUST use the read_file tool first; if the file does not exist, then create it. With prior-read enforcement enabled, blind overwrites are rejected. The file_path argument MUST be an absolute path. Always construct it by combining the project root with the file's relative path (e.g. project root '/path/to/project/' + relative 'foo/bar.txt' = '/path/to/project/foo/bar.txt'). If the user provides a relative path, resolve it against the project root first.
+
+Artifact-like files such as HTML, PDF, images, notebooks, and office documents are automatically registered as session artifacts. Intermediate files that exist only to produce another artifact — for example HTML written solely to print a PDF — must set record_as_artifact=false, or be written under .qwen/tmp/ so they are not registered. Delete those intermediates when done.
+
+The user has the ability to modify `content`. If modified, this will be stated in the response.
+```
+
+**`edit` (1518 characters)**
+
+```text
+Replaces text within a file. By default, replaces a single occurrence. Set `replace_all` to true when you intend to modify every instance of `old_string`. This tool requires providing significant context around the change to ensure precise targeting. Always use the read_file tool to examine the file's current content before attempting a text replacement.
+
+      The user has the ability to modify the `new_string` content. If modified, this will be stated in the response.
+
+Expectation for required parameters:
+1. `file_path` MUST be an absolute path; otherwise an error will be thrown.
+2. `old_string` MUST be the exact literal text to replace (including all whitespace, indentation, newlines, and surrounding code etc.).
+3. `new_string` MUST be the exact literal text to replace `old_string` with (also including all whitespace, indentation, newlines, and surrounding code etc.). Ensure the resulting code is correct and idiomatic.
+4. NEVER escape `old_string` or `new_string`, that would break the exact literal text requirement.
+**Important:** If ANY of the above are not satisfied, the tool will fail. CRITICAL for `old_string`: Must uniquely identify the single instance to change. Include at least 3 lines of context BEFORE and AFTER the target text, matching whitespace and indentation precisely. If this string matches multiple locations, or does not match exactly, the tool will fail.
+**Multiple replacements:** Set `replace_all` to true when you want to replace every occurrence that matches `old_string`.
+```
+
+**`notebook_edit` (260 characters)**
+
+```text
+Edits a Jupyter notebook (.ipynb) safely at the cell level. Use this instead of edit or write_file for notebook cells. Supports replacing, inserting, and deleting cells. Always read the notebook first with read_file; then use the cell IDs shown in that output.
+```
+
+### Whole-file write
+
+Validation rejects a relative path, a directory target (`Path is a directory, not a file: <path>`), and content that would place a secret in a team memory file. Before the confirmation diff and again in `execute`, the tool runs `checkPriorRead` against the session cache: once before reading the current file, once after reading it, and once more just before the write, each time re-stating the file. Any rejection returns the enforcement message as an error and leaves the file untouched. Parent directories are created with `mkdirSync({ recursive: true })` only after the last check passes.
+
+The write goes through `StandardFileSystemService.writeTextFile`, which prepares the bytes and calls `atomicWriteFile`: a temporary file in the same directory, `fsync`, then `rename`, with three retries on `EPERM` or `EACCES`. The existing file's permission bits are preserved. BOM: an existing UTF-8 BOM is re-emitted; a new file gets one when `defaultFileEncoding` is `utf-8-bom` or when the platform heuristic asks for it (`.ps1` on Windows). Encoding: a file detected as GBK, Shift_JIS, UTF-16, or another non-UTF-8 encoding is written back in that encoding through `iconv-lite`. Line endings: when the existing file used CRLF, every line ending in the new content is converted to CRLF; on Windows a small extension list forces CRLF for new files. After the write the tool re-stats the file and records the write in the cache so the next read bypasses the repeat-read guard. A file history snapshot is taken before the write. Commit attribution records the AI contribution. No post-write verification of the bytes.
+
+### Matching
+
+`edit` reads the file, normalises CRLF to LF, and asks `normalizeEditStrings` for the canonical slice. The cascade is: a literal `indexOf`; then `indexOf` after mapping hyphen, dash, curly quote, and Unicode space variants to ASCII in both strings; then a line-based search whose passes compare lines exactly, then with trailing whitespace trimmed, then with the Unicode mapping plus trailing trim. Leading whitespace is never relaxed. The first pass that finds the lines returns the exact bytes from disk, and those bytes become `old_string`, so the replacement always operates on file content. `new_string` is kept as supplied, except that a trailing newline is dropped when the matched slice dropped one. The model is not told which pass matched. When `new_string` is empty and the file holds `old_string` followed by a newline, the newline is consumed so the deletion leaves no blank line.
+
+Occurrences are then counted on the canonical `old_string`. Without `replace_all` the count must be exactly one. An empty `old_string` creates the file when it does not exist and fails when it does. Equal strings, or a replacement that leaves the content unchanged, fail with a no-change error. The replacement itself uses `safeLiteralReplace`, which handles `$` sequences literally. Validation completes before any write. There is no LLM correction path.
+
+### Multi-file patch
+
+None. `edit` covers one file per call. There is no patch grammar and no multi-file tool.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Enforced for `edit`, `write_file`, and `notebook_edit` through the session `FileReadCache`. A file counts as read when `read_file` returned it as text (a partial read is enough), when it appeared in `grep_search` results, or when the model created it with these tools. Unread: `File <path> has not been read in this session. Use the read_file tool first to load the current content (a partial read with offset / limit is fine — you only need to have seen the bytes you intend to edit) before editing it.` The `write_file` variant says to read the full file because overwriting discards unseen bytes |
+| Stale-file check | The recorded mtime and size must match the current stat, checked three times per call: `File <path> has been modified since you last read it (mtime or size changed). Re-read it with the read_file tool before editing it to ensure your changes are based on current content.` A file that disappears between checks: `File <path> disappeared after the model read it (stat now returns ENOENT). ...`. A filesystem with `ino` 0 cannot be verified and is refused |
+| Non-text payload | A file last read as image, PDF, audio, video, binary, or notebook: `File <path> is a binary / image / audio / video / PDF / notebook payload that the read_file tool returns as a structured value rather than as plain text. ...` with a pointer to `notebook_edit` |
+| Notebook edits | `notebook_edit` needs a full, untruncated read: `Notebook <path> has not been fully read in this session. Use the read_file tool first, without offset or limit, before editing cells.` |
+| Lock | None. The source comments name the remaining stat-to-write window |
+| Cross-process coordination | None. Writes by `run_shell_command`, MCP tools, or other processes are seen only through the mtime and size drift |
+| Post-write checks | None. No syntax or LSP check. A file history backup is taken before each write; commit attribution tracks changed ranges |
+| Opt-out | `fileReadCacheDisabled: true` removes the enforcement and the repeat-read guard |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write_file` | `Successfully created and wrote to new file: <path>.` or `Successfully overwrote file: <path>.`; then ``User modified the `content` to be: <content>`` when the user edited it; then, when artifact recording is on and the extension qualifies, `This file was automatically recorded as a workspace artifact with workspacePath "<path>". No extra artifact registration step is needed.` |
+| `edit` | `Created new file: <path> with provided content.` or `The file: <path> has been updated.`, then `Showing lines <a>-<b> of <total> from the edited file:`, a blank line, `---`, a blank line, and the changed region with four lines of context. The snippet is omitted when the changed region spans more than 1000 lines |
+| `notebook_edit` | `Notebook <path> has been updated. <mode> cell <id>.` then, for replace and insert, `Updated source:`, `---`, and the new source; a different sentence when the user modified the proposal |
+
+### Notable
+
+- The confirmation for all three tools shows a diff and lets the user modify the proposed content before it is written; the model is told when that happens. Choosing "always" switches the session to `auto-edit`.
+- Writes to the private auto-memory files are allowed without a prompt; team memory files always ask and are scanned for secrets.
+- A single-file `sed` substitution through `run_shell_command` is intercepted: the shell tool runs the same prior-read check, shows a `Confirm Sed Edit` diff, and applies the change through the file system service instead of the shell.
+- The `edit` description promises exact matching; the runtime accepts the normalisation cascade above.
+
+## Shell
+
+### Signature
+
+```ts
+run_shell_command({ command: string, is_background?: boolean, timeout?: integer, description?: string, directory?: string })
+monitor({ command: string, description?: string, max_events?: integer, idle_timeout_ms?: integer, directory?: string })
+```
+
+`timeout` is 1 to 600000 milliseconds; the default is 120000 unless `tools.shell.defaultTimeoutMs` sets another value, and `0` there disables the timeout. `is_background` defaults to `false`. `directory` must be absolute, inside a workspace directory, and outside the user skills directories. The `command` parameter description is rendered per shell; on Linux it reads ``Exact bash command to execute as `bash -c <command>` ``. `monitor` defaults `max_events` to 1000 (maximum 10000) and `idle_timeout_ms` to 300000 (maximum 600000).
+
+### Description
+
+`run_shell_command`: 4946 characters, 4946 bytes, 59 lines, approximately 1187 tokens. Rendered by `getShellToolDescription()` for Linux with `bash -c <command>`. PowerShell and `cmd.exe` hosts render different quoting and sequencing blocks, and Windows omits the process-group sentence. No setting changes the string.
+`monitor`: 961 characters, 963 bytes, 16 lines, approximately 217 tokens. One static string with one U+2014.
+
+The shell string opens with the execution wrapper, tells the model to leave file operations to the dedicated tools by name, gives the 600000 ms ceiling and 120000 ms default, asks for a 5 to 10 word description, carries a Bash quoting block with a heredoc example, a sequencing block, a rule against `cd`, and a background versus foreground guide that names `task_stop` and forbids broad process kills. The monitor string lists watch and poll use cases, the auto-stop defaults, and three cases to send to `run_shell_command` instead.
+
+**`run_shell_command` (4946 characters)**
+
+`````text
+Executes a given shell command (as `bash -c <command>`) in a subprocess with optional timeout, ensuring proper handling and security measures.
+
+IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO NOT use it for file operations (reading, writing, editing, searching, finding files) - use the specialized tools for this instead.
+
+**Usage notes**:
+- The command argument is required.
+- You can specify an optional timeout in milliseconds (up to 600000ms / 10 minutes). If not specified, commands will timeout after 120000ms (2 minutes). For longer commands, use `is_background: true` and observe the managed task instead of passing a larger timeout.
+- It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
+
+- Avoid using run_shell_command with the `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk`, or `echo` commands, unless explicitly instructed or when these commands are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
+  - File search: Use glob (NOT find or ls)
+  - Content search: Use grep_search (NOT grep or rg)
+  - Read files: Use read_file (NOT cat/head/tail)
+  - Edit files: Use edit (NOT sed/awk)
+  - Write files: Use write_file (NOT echo >/cat <<EOF)
+  - Communication: Output text directly (NOT echo/printf)
+- **Shell argument quoting and special characters**: The active shell is Bash. When passing arguments that contain special characters (parentheses `()`, backticks ````, dollar signs `$`, backslashes `\`, semicolons `;`, pipes `|`, angle brackets `<>`, ampersands `&`, exclamation marks `!`, etc.), you MUST ensure they are properly quoted to prevent Bash from misinterpreting them as shell syntax:
+  - **Single quotes** `'...'` pass everything literally, but cannot contain a literal single quote.
+  - **ANSI-C quoting** `$'...'` supports escape sequences (e.g. `\n` for newline, `\'` for single quote) and is the safest approach for multi-line strings or strings with single quotes.
+  - **Heredoc** is the most robust approach for large, multi-line text with mixed quotes:
+    ```bash
+    gh pr create --title "My Title" --body "$(cat <<'HEREDOC'
+    Multi-line body with (parentheses), `backticks`, and 'single-quotes'.
+    HEREDOC
+    )"
+    ```
+  - NEVER use unescaped single quotes inside single-quoted strings (e.g. `'it\'s'` is wrong; use `$'it\'s'` or `"it's"` instead).
+  - If unsure, prefer double-quoting arguments and escape inner double-quotes as `\"`.
+- When issuing multiple commands:
+  - If the commands are independent and can run in parallel, make multiple run_shell_command tool calls in a single message. For example, if you need to run "git status" and "git diff", send a single message with two run_shell_command tool calls in parallel.
+  - If the commands depend on each other and must run sequentially, use a single run_shell_command call with '&&' to chain them together (e.g., `git add . && git commit -m "message" && git push`). For instance, if one operation must complete before another starts (like mkdir before cp, Write before run_shell_command for git operations, or git add before git commit), run these operations sequentially instead.
+  - Use ';' only when you need to run commands sequentially but don't care if earlier commands fail.
+  - DO NOT use newlines to separate commands (newlines are ok in quoted strings).
+- Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it.
+  <good-example>
+  pytest /foo/bar/tests
+  </good-example>
+  <bad-example>
+  cd /foo/bar && pytest tests
+  </bad-example>
+
+**Background vs Foreground Execution:**
+- You should decide whether commands should run in background or foreground based on their nature:
+- Use background execution (is_background: true) for:
+  - Long-running development servers: `npm run start`, `npm run dev`, `yarn dev`, `bun run start`
+  - Build watchers: `npm run watch`, `webpack --watch`
+  - Database servers: `mongod`, `mysql`, `redis-server`
+  - Web servers: `python -m http.server`, `php -S localhost:8000`
+  - Any command expected to run indefinitely until manually stopped
+
+  - Command is executed as a subprocess that leads its own process group. Command process group can be terminated as `kill -- -PGID` or signaled as `kill -s SIGNAL -- -PGID`.
+  - To stop a background command started by this tool, use `task_stop` when a task id is available. Do not use broad process-name kills such as `kill $(pgrep node)`, `pkill node`, or `killall node`; use a specific PID or process group id where supported.
+- Use foreground execution (is_background: false) for:
+  - One-time commands: `ls`, `cat`, `grep`
+  - Build commands: `npm run build`, `make`
+  - Installation commands: `npm install`, `pip install`
+  - Git operations: `git commit`, `git push`
+  - Test runs: `npm test`, `pytest`
+`````
+
+**`monitor` (961 characters)**
+
+```text
+Starts a long-running shell command and streams its stdout/stderr as event notifications back to you.
+
+Use this tool for:
+- Watching log files: `tail -f /var/log/app.log`
+- Monitoring build output: `npm run build --watch`
+- Polling for state changes: `while true; do curl -s http://localhost:8080/health; sleep 1; done`
+- Watching file changes: `fswatch -r ./src`
+
+Each output line from the command becomes a notification event delivered to you. The monitor runs in the background — you can continue working while it streams events.
+
+**Auto-stop:** The monitor automatically stops after max_events (default 1000) events or after idle_timeout_ms (default 5 minutes) of silence. The process is killed when the monitor stops.
+
+**Do NOT use this tool for:**
+- One-shot commands (use run_shell_command instead)
+- Commands you need the full output from (use run_shell_command instead)
+- Commands with no output (use run_shell_command with is_background: true instead)
+```
+
+### Working directory and environment
+
+The working directory is the target directory unless `directory` is given; the value must pass the workspace check at validation. Unix hosts run `bash -c <command>`; Windows uses Git Bash when detected, otherwise PowerShell or `cmd.exe` from `ComSpec`. `ShellExecutionService` starts from a sanitised copy of `process.env`, sets `QWEN_CODE=1` and `TERM=xterm-256color`, applies pager defaults, and adds context variables such as the active model. On non-Windows hosts the child runs under `node-pty` with an 80 by 24 terminal (`shouldDefaultToNodePty`); a PTY load failure falls back to `child_process` with a warning line in the output. Login shell: None.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One process per call, detached so it leads its own process group on Unix |
+| Background | `is_background: true` starts the process, registers it with the background shell registry under `bg_<hex>`, and returns `Background shell started.`, `id: <id>`, `pid: <pid>`, `output file: <path>`, `status file: <path>`, guidance to read the status file for liveness, and a pointer to `/tasks`. A `git commit` in background mode is refused so attribution can run in the foreground path |
+| Promotion | In the interactive TUI a foreground command can be promoted to background with Ctrl+B; a warning is shown 15 seconds before the timeout |
+| stdin | `ignore` for `child_process`; the UI can write to a PTY, the model cannot |
+| Cancellation | Abort or timeout sends `SIGTERM` to the process group, waits 200 ms, then `SIGKILL` |
+| Stopping | `task_stop <id>` for managed background shells and monitors |
+| Blocked commands | A foreground `sleep` of two seconds or more is rejected with `Blocked: <description>. Run blocking commands in the background with is_background: true. For streaming events (watching logs, polling APIs), use the Monitor tool. ...` unless a trailing `# intentional-sleep: <reason>` comment is present; a command that would kill all node or qwen-code processes is rejected; `is_background` with a trailing bare `&` is rejected |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | stdout and stderr decoded and interleaved into one string; the raw capture stops at 64 MiB (`maxBufferedOutputBytes`, ceiling 256 MiB) and appends `[Output exceeded the maximum captured size of <n>; captured the first <n> of <total> and discarded the rest to avoid constructing an oversized JavaScript string.]` |
+| Binary output | A 4 KiB sniff; a binary stream stops text rendering and shows `[Binary output detected. Halting stream...]` then byte-count progress |
+| Model-visible budget | 30 000 characters by default (`DEFAULT_SHELL_OUTPUT_THRESHOLD`), or `truncateToolOutputThreshold` when the user set it explicitly. Above that the tool keeps a head and tail preview of at most 4000 characters, one fifth head and four fifths tail, and writes the full text to a spill file |
+| Truncation text | `Tool output was too large and has been truncated.`, `The full output has been saved to: <file>`, `To read the complete output, use the read_file tool with the absolute file path above.`, an explanation of the `... [CONTENT TRUNCATED] ...` marker, then `Truncated part of the output:` and the preview |
+| Spill file | `<projectTempDir>/run_shell_command_<hex>.output`, mode 0600. No cleanup deadline in the source |
+| Empty output | `(empty)` |
+
+### Sandbox
+
+Optional and off by default. `--sandbox`, `QWEN_SANDBOX`, or the `tools.sandbox` setting select a whole-process sandbox that relaunches the CLI inside `docker`, `podman`, `sandbox-exec` on macOS, or `bwrap` on Linux, after a probe confirms the runtime works. Without it, `run_shell_command` and `monitor` run as the user's process with no seccomp profile, no network policy, and no filesystem scope beyond the `directory` validation. There is no per-call tool sandbox in this path; the Gemini CLI `SandboxManager` layer is absent.
+
+### Approval
+
+Permission is decided in layers. The tool's default (`L3`) is `ask` when the command contains substitution syntax (`$()`, backticks, `<()`, `>()`), `allow` when a Tree-sitter parse classifies every segment as read-only in the target directory, and `ask` otherwise. Permission rules (`L4`) of the form `Bash(<prefix> *)` can allow, ask, or deny; a deny returns `This "run_shell_command" invocation was denied by permission rules. Matching deny rule: "<rule>". Other uses of this tool are still permitted.` The approval mode (`L5`) then applies: `default` shows a `Confirm Shell Command` dialog with the root commands, suggested `Bash(<rule>)` rules narrowed to the sub-commands that need approval, and a warning line when substitution is present; `auto-edit` auto-approves only edit-type confirmations, which includes the simulated `sed` edits; `yolo` approves everything except `ask_user_question`; `auto` sends the command and recent transcript to an LLM classifier; `plan` rejects commands classified as writes and asks for unknown ones. `monitor` follows the same default logic under its own `Monitor(...)` rule namespace.
+
+### Notable
+
+- A non-zero exit is an error result. Exit codes of 2 and above always fail; exit code 1 fails unless the segment that set it is `grep`, `rg`, `diff`, `test`, `[`, or `[[`. The error message is the formatted result text.
+- The success text is a fixed block: `Command: <command>`, `Directory: <directory or (root)>`, `Output: <text or (empty)>`, `Error: <message or (none)>`, `Exit Code: <n or (none)>`, `Signal: <sig or (none)>`, `Process Group PGID: <pgid or (none)>`, each on its own line.
+- A timeout is an error with type `execution_timeout`: `Command timed out after <n>ms before it could complete.` followed by ` Below is the output before it timed out:` and the output, or ` There was no output before it timed out.` User cancellation is a success result: `Command was cancelled by user before it could complete.` plus the output clause, or `Command was cancelled by user before it could start.`
+- A foreground command that ran for at least half its timeout gets ``Note: this foreground command ran for <n>s. Next time you run a similar long-running process ... pass `is_background: true` ... `` appended after truncation.
+- `git commit` commands receive a co-author trailer and a git note; `gh pr create` bodies receive an attribution line.
+- `monitor` returns `Monitor started.` with the id, command, limits, and a note that events arrive as notifications; at most 16 monitors run at once.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `glob` | `pattern`, `path?` | 100 paths shown (`min(100, truncateToolOutputLines)`); collection stops at 1000 matches with `[Results truncated after scanning <n> matching files. Narrow the pattern or path.]`; otherwise `[<n> files truncated] ...`. Files modified in the last 24 hours first, newest first, then alphabetical | `nocase`, `dot: true`, `follow: false`, `nodir`; `.gitignore`, `.qwenignore`, `.agentignore`, and `.aiignore` prune traversal and filter results |
+| `grep_search` (ripgrep) | `pattern`, `glob?`, `path?`, `limit?` | 1000 lines (`truncateToolOutputLines`, lowered by `limit`) and 25 000 characters, then `[<n> lines truncated] ...`; the scheduler caps the result at 20 000 characters (`maxOutputChars`) | `rg --json --no-messages --ignore-case --threads 4`; `.gitignore` native; the Qwen ignore files through `--ignore-file`; matches are re-filtered against `.qwenignore` |
+| `grep_search` (fallback) | Same parameters | Same caps | `GrepTool` when no ripgrep binary is found; output shape: Not surveyed |
+| `list_directory` | `path`, `ignore?`, `file_filtering_options?` | 100 entries (`min(100, truncateToolOutputLines)`), then `[<n> items truncated] ...` | `.gitignore` and `.qwenignore` by default, per-call overrides; `ignore` globs on the basename |
+| Stat, find, mkdir | None | | |
+
+`glob` searches every workspace directory when `path` is omitted and asks for confirmation when `path` is outside the workspace. It returns `Found <n> file(s) matching "<pattern>" in the workspace directory, sorted by modification time (newest first):`, a `---` line, and absolute paths one per line, or `No files found matching pattern "<pattern>" <location>`. `grep_search` searches every workspace directory by default, accepts a file as `path`, and returns `Found <n> match(es) for pattern "<pattern>" in the workspace directory:`, a `---` line, and `<path>:<line>:<text>` rows. Path prefixes follow the search path ripgrep was given, so workspace searches print absolute paths. Zero matches return `No matches found for pattern "<pattern>" <location>.`; an incomplete scan appends `[Search did not complete: the results above may not include all matches.]`. Every file in the visible matches is recorded in the read cache as partially read, so a following `edit` passes enforcement. `list_directory` returns `Listed <n> item(s) in <path>:`, a `---` line, `[DIR] <name>` rows first, then file names, alphabetical within each group, plus `(<n> git-ignored, <m> qwen-ignored)` when entries were filtered. An empty directory returns `Directory <path> is empty.`
+
+### Description
+
+`glob`: 543 characters, 543 bytes, 6 lines, approximately 112 tokens.
+`grep_search`, ripgrep: 547 characters, 547 bytes, 9 lines, approximately 137 tokens.
+`grep_search`, fallback: 452 characters, 452 bytes, 9 lines, approximately 111 tokens.
+`list_directory`: 150 characters, 150 bytes, 1 line, approximately 24 tokens.
+
+`glob` is a bullet list whose first line carries no bullet marker; it names the Agent tool for open-ended searches. Both `grep_search` strings call the tool `Grep`, forbid `grep` and `rg` through the shell, and name the `glob` filter; the ripgrep version adds an escaping note for `interface\{\}`, and the fallback version says matching is case-insensitive. `list_directory` is identical to the Gemini CLI string.
+
+**`glob` (543 characters)**
+
+```text
+Fast file pattern matching tool that works with any codebase size
+- Supports glob patterns like "**/*.js" or "src/**/*.ts"
+- Returns matching file paths sorted by modification time
+- Use this tool when you need to find files by name patterns
+- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead
+- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.
+```
+
+**`grep_search`, ripgrep (547 characters)**
+
+Selected when `useRipgrep` is on and `canUseRipgrep()` finds the bundled or a system binary, which is the default.
+
+```text
+A powerful search tool built on ripgrep
+
+  Usage:
+  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.
+  - Supports full regex syntax (e.g., "log.*Error", "function\s+\w+")
+  - Filter files with glob parameter (e.g., "*.js", "**/*.tsx")
+  - Use Agent tool for open-ended searches requiring multiple rounds
+  - Pattern syntax: Uses ripgrep (not grep) - special regex characters need escaping (use `interface\{\}` to find `interface{}` in Go code)
+```
+
+**`grep_search`, fallback (452 characters)**
+
+Selected when `useRipgrep` is off or no ripgrep binary is available.
+
+```text
+A powerful search tool for finding patterns in files
+
+  Usage:
+  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.
+  - Supports full regex syntax (e.g., "log.*Error", "function\s+\w+")
+  - Filter files with glob parameter (e.g., "*.js", "**/*.tsx")
+  - Case-insensitive by default
+  - Use Agent tool for open-ended searches requiring multiple rounds
+```
+
+**`list_directory` (150 characters)**
+
+```text
+Lists the names of files and subdirectories directly within a specified directory path. Can optionally ignore entries matching provided glob patterns.
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Relative path on read | `File path must be absolute, but was relative: <path>. You must provide an absolute path.` | Validation error, `Error: Invalid parameters provided. Reason: <message>` |
+| Missing file on read | `File not found: <path>` | `error` field; `llmContent` dropped |
+| Directory on read | `Path is a directory, not a file: <path>` | `error` field |
+| Special file on read | `Not a regular file: <path>` | `error` field |
+| Ignored path on read | `File path '<path>' is ignored by <ignore file> pattern(s).` | Validation error |
+| Binary file | `Cannot display content of binary file: <rel>` | Success text |
+| Unsupported modality | `[Unsupported <image\|audio\|video> file: "<name>". This model does not support <modality> input. ...]` | Success text |
+| Too large | `File size exceeds the 10MB limit: <path> (<size>MB)`; `Image file exceeds the 100 MB source limit: <path>`; `File exceeds the 10MB data URI limit after base64 encoding: <path> (<size>MB encoded)`; `PDF exceeds extraction size limit: <path> (<size>MB)` | `error` field |
+| Invalid offset, limit, or pages | `Offset must be a non-negative integer`; `Limit must be a positive integer`; `Invalid pages parameter: '<pages>'. Use formats like '5' or '1-10'.`; `Pages range exceeds maximum of 20 pages per request.` | Validation error |
+| Offset past end | Not an error; banner over an empty body | Success text |
+| Edit target missing | `File not found: <path>` | `error` field |
+| Edit match failed | `Failed to edit, 0 occurrences found for old_string in <path>. No edits made. The exact text in old_string was not found. Ensure you're not escaping content incorrectly and check whitespace, indentation, and context. Use read_file tool to verify.` | `error` field |
+| Edit not unique | `Failed to edit. Found <n> occurrences for old_string in <path> but replace_all was not enabled.` | `error` field |
+| Edit no change | `No changes to apply. The old_string and new_string are identical in file: <path>`; `No changes to apply. The new content is identical to the current content in file: <path>` | `error` field |
+| Edit create on existing file | `File already exists, cannot create: <path>` | `error` field |
+| File not read | `File <path> has not been read in this session. Use the read_file tool first ... before <editing\|overwriting> it.` | `error` field, type `edit_requires_prior_read` |
+| Stale file | `File <path> has been modified since you last read it (mtime or size changed). Re-read it with the read_file tool before <editing\|overwriting> it to ensure your changes are based on current content.` | `error` field, type `file_changed_since_read` |
+| Non-text payload | `File <path> is a binary / image / audio / video / PDF / notebook payload that the read_file tool returns as a structured value rather than as plain text. ...` | `error` field |
+| Write target is a directory | `Path is a directory, not a file: <path>` at validation; `Target is a directory, not a file: <path> (EISDIR)` at write | Validation error; `error` field |
+| Write permission or space | `Permission denied writing to file: <path> (EACCES)`; `No space left on device: <path> (ENOSPC)` | `error` field |
+| Notebook not fully read | `Notebook <path> has not been fully read in this session. Use the read_file tool first, without offset or limit, before editing cells.` | `error` field |
+| Command exit non-zero | The formatted result block with `Exit Code: <n>` | `error` field, type `shell_execute_error` |
+| Command timeout | `Command timed out after <n>ms before it could complete.` plus the output clause | `error` field, type `execution_timeout` |
+| Command cancelled | `Command was cancelled by user before it could complete.` plus the output clause | Success text |
+| Command spawn failure | `<spawn error message>` as reported by the service | `error` field, type `shell_execute_error` |
+| Empty command | `Command cannot be empty.` | Validation error |
+| Foreground sleep | `Blocked: <description>. Run blocking commands in the background with is_background: true. ...` | Validation error |
+| Self-kill | `Blocked: this command may terminate the running qwen-code process because it targets all node/qwen-code processes. Use task_stop for managed background shells, or kill a specific PID instead.` | Validation error |
+| Invalid timeout | `Timeout must be an integer number of milliseconds.`; `Timeout must be a positive number.`; `Timeout cannot exceed 600000ms (10 minutes).` | Validation error |
+| Directory outside workspace | `Directory '<path>' is not within any of the registered workspace directories.`; `Directory must be an absolute path.` | Validation error |
+| Permission rule denied | `This "<tool>" invocation was denied by permission rules. Matching deny rule: "<rule>". Other uses of this tool are still permitted.` | `error` field, type `execution_denied` |
+| Search path errors | `Path does not exist: <path>`; `Path is not a directory: <path>` for in-workspace paths; external paths skip the existence check and raise a confirmation instead | Validation error |
+| Invalid regex | `Invalid regular expression pattern: <pattern>. Error: <message>` | Validation error |
+| Directory listing errors | `Error: Path is not a directory: <path>`; `Error listing directory: <message>` | `error` field |
+
+Every tool returns a `ToolResult`. When `error` is set, the scheduler sends `{ error: <error.message> }` and discards `llmContent`, except for shell timeouts, where the `llmContent` becomes the error text. Validation failures become `Error: Invalid parameters provided. Reason: <message>`. A tool call that fails validation three times with the same error gets a retry-loop directive appended.
+
+## Evidence
+
+### What was verified and how
+
+| Section | Label | Pin | Note |
+|---|---|---|---|
+| Tool inventory | Source | `56b003b` | `config.ts` `createToolRegistry()`, `tool-names.ts`, the `shouldDefer` flags in each tool file; `inventory.ts` in scratch printed name, kind, and defer flag by instantiating each class |
+| Read | Source | `56b003b` | `read-file.ts`, `fileUtils.ts`, `read-text-range.ts`, `file-read-permission.ts`, `fileReadCache.ts`, `modalityDefaults.ts`, `notebook.ts`, `image-view.ts`, `pdf.ts`. Output example is Reconstructed |
+| Descriptions | Source | `56b003b` | `extract.ts` imported the pinned modules with Bun, instantiated each tool with a stand-in config, and wrote `.description` to `descriptions/*.txt`; the four `read_file` variants come from `buildReadFileDescription()` and the default was checked against `new ReadFileTool(config).description`; `run_shell_command` rendered on Linux |
+| Edit | Source | `56b003b` | `write-file.ts`, `edit.ts`, `notebook-edit.ts`, `priorReadEnforcement.ts`, `editHelper.ts`, `fileSystemService.ts`, `atomicFileWrite.ts` |
+| Shell | Source | `56b003b` | `shell.ts`, `shellExecutionService.ts`, `shell-utils.ts`, `truncation.ts`, `monitor.ts`, `sandboxConfig.ts`, `permissionFlow.ts`, `coreToolScheduler.ts` |
+| Search and listing | Source | `56b003b` | `glob.ts`, `ripGrep.ts`, `grep.ts`, `ls.ts`, `grepReadTracking.ts`, `file-filtering-options.ts` |
+| Errors | Source | `56b003b` | Strings read from the tool files; transport from `coreToolScheduler.ts` `convertToFunctionResponse` and `createErrorResponse` |
+
+No claim on this page is Observed. No command was run through a live Qwen Code model session.
+
+### Gaps
+
+No top-level heading is answered with `Not surveyed.` or `Unverified.` Inside sections:
+
+- Search and listing, `GrepTool` fallback output shape: Not surveyed. Its description string was extracted and counted; its result format in `grep.ts` was not read.
+- Further limits on the evidence: the `auto` approval mode classifier prompt, the Tree-sitter read-only command table in `shell-utils.ts`, and the Windows shell paths were not read in detail; the omni media pipeline and the vision bridge service are described from their call sites in `fileUtils.ts` and `read-file.ts` only.
+
+### Refresh notes
+
+Diff the `sourceFiles` list between `56b003be0785412ed06673948f781dc70a686b5a` and the target commit. Check `createToolRegistry()` in `config/config.ts` first for tools added, removed, or gated. The description strings are template literals in `read-file.ts` (`buildReadFileDescription`), `write-file.ts`, `edit.ts`, `notebook-edit.ts`, `shell.ts` (`getShellToolDescription` and its two helpers), `monitor.ts`, `glob.ts`, `ripGrep.ts`, `grep.ts`, and `ls.ts`; a change to any of them, or a new entry in `MODALITY_PATTERNS`, changes the counts or adds a variant. Re-extract with `extract.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-19-qwen-code-source/` after `npm ci --ignore-scripts` in the clone, recount with `count.ts`, and rebuild the page with `build.ts`.

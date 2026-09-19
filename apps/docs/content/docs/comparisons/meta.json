@@ -12,6 +12,13 @@
     "cloudflare-computer",
     "deep-agents",
     "mastra",
-    "openhands"
+    "openhands",
+    "cline",
+    "qwen-code",
+    "kilocode",
+    "deepseek-harness",
+    "groq-code-cli",
+    "flue",
+    "eve"
   ]
 }

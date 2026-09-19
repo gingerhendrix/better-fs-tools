@@ -1,0 +1,728 @@
+---
+title: Kilo Code
+description: Read, edit, shell, and search tools in the Kilo Code CLI at v7.7.5, a fork of OpenCode, with every model-facing description in full
+harness: kilocode
+kind: cli
+repo: Kilo-Org/kilocode
+commit: 01ef456fe7f41aa1f7b8a4e6b545dd1e0fbeeceb
+version: v7.7.5
+license: MIT
+surveyed: 2026-09-19
+verified: 2026-09-19
+sourceFiles:
+  - .opencode-version
+  - packages/opencode/src/tool/registry.ts
+  - packages/opencode/src/tool/tool.ts
+  - packages/opencode/src/tool/truncate.ts
+  - packages/opencode/src/tool/external-directory.ts
+  - packages/opencode/src/tool/diagnostics.ts
+  - packages/opencode/src/tool/read.ts
+  - packages/opencode/src/tool/read.txt
+  - packages/opencode/src/tool/write.ts
+  - packages/opencode/src/tool/write.txt
+  - packages/opencode/src/tool/edit.ts
+  - packages/opencode/src/tool/edit.txt
+  - packages/opencode/src/tool/apply_patch.ts
+  - packages/opencode/src/tool/apply_patch.txt
+  - packages/opencode/src/tool/glob.ts
+  - packages/opencode/src/tool/glob.txt
+  - packages/opencode/src/tool/grep.ts
+  - packages/opencode/src/tool/grep.txt
+  - packages/opencode/src/tool/shell.ts
+  - packages/opencode/src/tool/shell/prompt.ts
+  - packages/opencode/src/tool/shell/shell.txt
+  - packages/opencode/src/tool/shell/id.ts
+  - packages/opencode/src/tool/repo_clone.ts
+  - packages/opencode/src/tool/repo_clone.txt
+  - packages/opencode/src/kilocode/tool/registry.ts
+  - packages/opencode/src/kilocode/tool/tool.ts
+  - packages/opencode/src/kilocode/tool/read-object.ts
+  - packages/opencode/src/kilocode/tool/read-extract.ts
+  - packages/opencode/src/kilocode/tool/read-docx.ts
+  - packages/opencode/src/kilocode/tool/xlsx.ts
+  - packages/opencode/src/kilocode/tool/ods.ts
+  - packages/opencode/src/kilocode/tool/notebook.ts
+  - packages/opencode/src/kilocode/tool/encoded-io.ts
+  - packages/opencode/src/kilocode/tool/grep-signal-controls.ts
+  - packages/opencode/src/kilocode/tool/shell-pattern.ts
+  - packages/opencode/src/kilocode/tool/shell-unparsed.ts
+  - packages/opencode/src/kilocode/tool/shell-heredoc.ts
+  - packages/opencode/src/kilocode/tool/background-process.ts
+  - packages/opencode/src/kilocode/tool/background-process.txt
+  - packages/opencode/src/kilocode/tool/semantic-search.ts
+  - packages/opencode/src/kilocode/tool/semantic-search.txt
+  - packages/opencode/src/kilocode/text-stream.ts
+  - packages/opencode/src/kilocode/encoding.ts
+  - packages/opencode/src/kilocode/config-validation.ts
+  - packages/opencode/src/kilocode/command-timeout.ts
+  - packages/opencode/src/kilocode/ignore-migrator.ts
+  - packages/opencode/src/kilocode/process/env.ts
+  - packages/opencode/src/kilocode/reference/contains.ts
+  - packages/opencode/src/kilocode/agent-manager/protection.ts
+  - packages/opencode/src/kilocode/agent/index.ts
+  - packages/opencode/src/kilocode/background-process/index.ts
+  - packages/opencode/src/kilocode/background-process/runner.ts
+  - packages/opencode/src/kilocode/permission/read.ts
+  - packages/opencode/src/kilocode/permission/rule.ts
+  - packages/opencode/src/kilocode/permission/config-paths.ts
+  - packages/opencode/src/kilocode/permission/external-directory.ts
+  - packages/opencode/src/kilocode/permission/headless.ts
+  - packages/opencode/src/kilocode/sandbox/policy.ts
+  - packages/opencode/src/kilocode/sandbox/config.ts
+  - packages/opencode/src/kilocode/sandbox/git.ts
+  - packages/opencode/src/permission/index.ts
+  - packages/opencode/src/permission/arity.ts
+  - packages/opencode/src/agent/agent.ts
+  - packages/opencode/src/session/tools.ts
+  - packages/opencode/src/effect/runtime-flags.ts
+  - packages/core/src/ripgrep.ts
+  - packages/core/src/kilocode/ripgrep-grep.ts
+  - packages/core/src/fs-util.ts
+  - packages/core/src/global.ts
+  - packages/core/src/flag/flag.ts
+  - packages/core/src/v1/permission.ts
+  - packages/kilo-sandbox/src/backend.ts
+  - packages/kilo-sandbox/src/profile.ts
+---
+
+Kilo Code is an open-source coding agent published by Kilo Org. The CLI, `@kilocode/cli`, is a fork of OpenCode that tracks upstream at `v1.18.13` and keeps the same seven dedicated file tools: `read`, `glob`, `grep`, `write`, `edit`, `apply_patch`, and `bash`. It adds a `background_process` tool for long-running commands, opt-in `semantic_search` and `repo_clone` tools, document conversion for `.docx`, `.xlsx`, `.ods`, and `.ipynb` inside `read`, encoding-preserving writes, a default shell permission of ask with a read-only allowlist, and an optional Bubblewrap or Seatbelt sandbox. This page is a delta against the [OpenCode](./opencode.mdx) page: where a section says the behaviour is the same, the OpenCode page holds the detail.
+
+## Source pin
+
+| Item | Value |
+|---|---|
+| Repository | [Kilo-Org/kilocode](https://github.com/Kilo-Org/kilocode) |
+| Commit | `01ef456fe7f41aa1f7b8a4e6b545dd1e0fbeeceb`, tag `v7.7.5`, committed 2026-09-18. The default branch HEAD on 2026-09-18 was `a85ae67`, a later commit that was not cloned |
+| Package versions | `@kilocode/cli@7.7.5`; the shared core keeps the upstream name `@opencode-ai/core@7.7.5` |
+| Licence | MIT |
+| Lineage | Fork of OpenCode. `.opencode-version` records the base as `v1.18.13` (`a105350`). Compared against the OpenCode page at `v1.18.21` (`3a31c4e`); between those two upstream tags only `registry.ts`, `task.ts`, `truncate.ts`, and `core/src/ripgrep.ts` changed in the surveyed folders, and none of those changes affects a fact on the OpenCode page |
+| Surveyed | 2026-09-19 |
+| Verified | 2026-09-19 |
+| Configuration surveyed | `KILO_CLIENT=cli` (the default), default agent `build`, `sandbox.enabled` false, `indexing.enabled` false, no `KILO_EXPERIMENTAL_SCOUT`. The VS Code and JetBrains hosts add tools and are not surveyed |
+| Files read | The `sourceFiles` list in the frontmatter |
+| Scratch folder | `/home/gareth/Documents/Personal/scratch/2026-09-19-kilocode-source/` (shallow clone, OpenCode tool folders exported at `v1.18.13` and `v1.18.21`, diffs, extracted descriptions, counts, build script) |
+| Evidence status | Open source inspected. No live model session was run |
+
+The fork marks its changes with `kilocode_change` comments in the upstream leaves and keeps its own modules under `packages/opencode/src/kilocode/`. The application registry still builds the model-facing tools from `packages/opencode/src/tool/`; the newer `packages/core/src/tool/*` architecture is present and not imported by the CLI.
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read` | Read a text file, image, PDF, document, or directory page | Yes | Same leaf as OpenCode with Kilo changes; description byte-identical |
+| `glob` | Find file paths by glob pattern | Yes | Absolute patterns accepted; description byte-identical |
+| `grep` | Search file contents by regex or literal | Yes | Four new parameters; description extended at runtime |
+| `write` | Create or replace a whole file | Yes | Kilo keeps it visible in patch mode |
+| `edit` | Replace one unique string or all occurrences | Model dependent | Hidden when patch mode is on |
+| `apply_patch` | Add, update, move, or delete files with a patch envelope | Model dependent | Shown for model IDs containing `gpt-` or families starting with `gpt`, except `gpt-4`, `oss`, and `gpt-image` |
+| `bash` | Run one command in the configured shell | Yes | Optional `description` parameter; default permission is ask |
+| `background_process` | Start, inspect, and stop tracked background processes | Yes | Present when `KILO_CLIENT` is `cli` or `vscode` |
+| `semantic_search` | Rank code snippets by meaning through the Kilo index | No | Present when `indexing.enabled` is true; adds a hint line to `glob` and `grep` |
+| `repo_clone` | Clone a repository into the Kilo data directory for reading | No | Behind `KILO_EXPERIMENTAL_SCOUT`; base permission `deny` |
+
+There is no separate list tool: `read` on a directory lists it. The VS Code host adds notebook and browser tools that the CLI does not register. Builtins outside this survey include `task`, `webfetch`, `websearch`, `todowrite`, `skill`, `question`, `plan_exit`, `suggest`, `kilo_local_recall`, the memory and wakeup tools, `notify_user`, `send_file`, the code-mode `execute` tool, and the flagged `lsp` tool. Plugins can still rewrite any description through the `tool.definition` hook.
+
+## Read
+
+### Signature
+
+```ts
+read({ filePath: string, offset?: number, limit?: number })
+```
+
+Same as OpenCode: `filePath` is described as absolute and relative paths resolve against the instance directory; `offset` is one-based with zero mapped to one; `limit` defaults to 2000. Kilo clamps `limit` to at least 1 so a zero limit cannot loop.
+
+### Description
+
+`read`: 1158 characters, 1158 bytes, 15 lines, approximately 259 tokens. Byte-identical to the OpenCode string.
+
+The string states the absolute-path rule, the 2000-line default, the one-indexed `offset`, the line prefix shape, directory listing with a trailing `/`, the 2000-character line cut, image and PDF attachments, and the parallel-read and no-tiny-slices habits. It does not mention the document conversion or the encoding fallback that Kilo adds.
+
+**`read` (1158 characters)**
+
+```text
+Read a file or directory from the local filesystem. If the path does not exist, an error is returned.
+
+Usage:
+- The filePath parameter should be an absolute path.
+- By default, this tool returns up to 2000 lines from the start of the file.
+- The offset parameter is the line number to start from (1-indexed).
+- To read later sections, call this tool again with a larger offset.
+- Use the grep tool to find specific content in large files or files with long lines.
+- If you are unsure of the correct file path, use the glob tool to look up filenames by glob pattern.
+- Contents are returned with each line prefixed by its line number as `<line>: <content>`. For example, if a file has contents "foo\n", you will receive "1: foo\n". For directories, entries are returned one per line (without line numbers) with a trailing `/` for subdirectories.
+- Any line longer than 2000 characters is truncated.
+- Call this tool in parallel when you know there are multiple files you want to read.
+- Avoid tiny repeated slices (30 line chunks). If you need more context, read a larger window.
+- This tool can read image files and PDFs and return them as file attachments.
+```
+
+### Path handling
+
+Relative paths, Windows normalisation, no tilde, and no URL handling are the same as OpenCode. Two things differ.
+
+A missing path returns `File not found: <path>` with no sibling suggestions. Kilo removed the parent-directory scan; the `miss` function resolves the parent with `realPath`, runs the external-directory check on it, asks the `read` permission for the requested path and the parent, then fails.
+
+```text
+File not found: <path>
+```
+
+Symlinks are resolved before authorization. For a file, `KiloReadObject.file` stats the requested path, resolves `realpath`, stats the resolved path, and fails when device and inode differ. The containment check and the `read` permission then run on the resolved target, so an in-worktree symlink to a file outside the project triggers the `external_directory` prompt. The file is opened with `O_RDONLY | O_NONBLOCK | O_NOFOLLOW`, stat-ed again on the handle, and re-resolved through `/proc/self/fd` on Linux; a change at any step fails with `File changed after authorization: <path>`. Directories are listed at their resolved path, which is also the path printed in the `path` tag. A configured git reference (`references` in config) that contains the target bypasses the external-directory check.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| `read` permission | Asked per path as in OpenCode. Rules resolve as agent ruleset, then saved global rules, then session rules; a deny anywhere wins and a saved allow can lift an agent ask |
+| `.env` hardening | A broad `read` allow (`*` permission or `*` pattern) is downgraded to ask for paths matching `*.env` or `*.env.*`; `*.env.example` stays allowed |
+| Default agent | `build` allows everything, asks for `.env` reads, allows `.env.example`. Same shape as OpenCode with more pre-approved external directories: the truncation dir, `/tmp/kilo`, skill dirs, the global config dir, `~/.kilo`, `~/.kilocode`, and configured reference dirs |
+| Ignore files | `.kilocodeignore` in the project and `~/.kilocode/.kilocodeignore` are converted to `read` and `edit` deny rules |
+| Outside the project | `external_directory` ask on the parent directory glob, evaluated on the resolved path. A filesystem root no longer counts as containing everything |
+| Device and special files | `Not a regular file: <path>` for FIFOs, sockets, and devices after `stat`; Windows named-pipe paths fail with `Named pipes cannot be read: <path>` |
+| Denial text | `The user rejected permission to use this specific tool call.`; with feedback, `... with the following feedback: <feedback>`; for a rule, `The user has specified a rule which prevents you from using this specific tool call. Here are some of the relevant rules <json>` |
+| Headless runs | A subagent ask under a plain `kilo run` session fails with the rule-denied text instead of waiting |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | Same extension list and 4 KiB sample as OpenCode. A UTF-16 or UTF-32 byte-order mark at the start of the sample skips the NUL heuristic |
+| Refusal | `Cannot read binary file: <path>` |
+| Notebooks | `.ipynb` markdown and code cells are rendered as `<markdown_cell>` and `<code_cell>` blocks; other JSON is returned raw; no cells gives `(Notebook contains no markdown or code cell content.)` |
+| Office | `.docx` through mammoth raw text, with `(DOCX extraction warnings: ...)` appended when the library warns. `.xlsx` and `.ods` through SheetJS: `--- Sheet: <name> ---` then tab-separated rows, hidden sheets skipped, 50 000 rows per sheet then `[... truncated at row 50000 ...]`, 50 MB input limit |
+| Images | JPEG, PNG, GIF, WebP as `data:` URL attachments; text `Image read successfully` |
+| PDF | Whole file as a `data:` attachment; text `PDF read successfully` |
+| Audio and video | None |
+| Media size guard | None before the full read |
+| Encoding | UTF-8 streamed with a fatal decoder; on the first invalid sequence the whole file is decoded with `chardet` and `iconv-lite`. UTF-16 and UTF-32 need a BOM. Converted documents pass through the same line collector |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 2000 lines | |
+| Ceiling | The model's `limit`, at least 1 | |
+| Long line | Cut at 2000 code units; a trailing high surrogate is dropped first | `... (line truncated to <kept> chars)` appended to the line, where `<kept>` is 2000 or 1999 |
+| Output budget | 50 KiB of rendered lines; the loop breaks and the stream is destroyed | `(Output capped at 50 KB. Showing lines <a>-<b>. Use offset=<n> to continue.)` |
+| Whole-file size | None for text; 50 MB for spreadsheets | `Cannot read spreadsheet file: <path> exceeds the 50 MB size limit` |
+| Offset past end | Error | `Offset <n> is out of range for this file (<total> lines)` |
+| Directory page | 2000 entries by default, with `offset` and `limit` | The listing reports the page and total entry count |
+
+Line splitting uses Node `readline` with `crlfDelay: Infinity`, so a CRLF pair is one line break. The tool abort signal is combined with the read's own signal and stops the file stream.
+
+### Output
+
+```text
+<path>/repo/src/app.ts</path>
+<type>file</type>
+<content>
+1: import { x } from "./x"
+2: export const y = x
+
+(End of file - total 2 lines)
+</content>
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | `path`, `type`, and `content` tags; the `path` tag holds the resolved target |
+| Line prefix | `N: text`, unpadded |
+| End marker | `(End of file - total <n> lines)` then the closing `content` tag |
+| Truncation notice | Replaces the end marker: `(Showing lines <a>-<b> of <total>. Use offset=<n> to continue.)` or the byte-cap message above |
+| Error transport | Thrown error, delivered as an AI SDK `output-error` part whose text is the message |
+
+The example is reconstructed from the format code; the format is the same as OpenCode.
+
+### Notable
+
+- The `system-reminder` block with instruction files, the LSP warm-up, the unbounded-concurrency directory stat, and the locale sort are the same as OpenCode. `ctx.extra.includeInstructions === false` suppresses the instruction lookup. No repeat-read guard, no redaction, no explicit empty-file notice; a zero-line file returns `(End of file - total 0 lines)`.
+- Directory attachments (`ctx.extra.denyDirectory`) re-resolve the path after approval and fail with `Directory attachments cannot be expanded: <path>` when the canonical target moved.
+- Fork differences: `kilocode/tool/read-object.ts` (realpath and inode binding, `O_NOFOLLOW`, non-regular refusal), `kilocode/tool/read-extract.ts` with `read-docx.ts`, `xlsx.ts`, `ods.ts`, and `notebook.ts` (document conversion), `kilocode/text-stream.ts` and `kilocode/encoding.ts` (UTF-8 fast path with encoding fallback, surrogate-safe line cut), `kilocode/reference/contains.ts` (reference bypass), the removed sibling suggestions in `read.ts`, and the root-boundary change in `tool/external-directory.ts`. `packages/core/src/file.ts` is identical to upstream and not used by the CLI read path.
+
+## Edit
+
+### Signature
+
+```ts
+write({ filePath: string, content: string })
+edit({ filePath: string, oldString: string, newString: string, replaceAll?: boolean })
+apply_patch({ patchText: string })
+```
+
+Parameters and the patch envelope grammar are the same as OpenCode. Selection differs: Kilo hides only `edit` when patch mode is on and keeps `write` in the list. Patch mode is on when the model ID contains `gpt-` or the model family starts with `gpt`, unless the ID or family contains `gpt-4` or `oss` or the family is `gpt-image`; `KILO_E2E_LLM_URL` forces it on. All three ask under the shared `edit` permission.
+
+### Description
+
+`write`: 623 characters, 623 bytes, 9 lines, approximately 124 tokens. Byte-identical to OpenCode.
+`edit`: 1369 characters, 1369 bytes, 11 lines, approximately 289 tokens. Byte-identical to OpenCode.
+`apply_patch`: 1092 characters, 1098 bytes, 34 lines, approximately 263 tokens. Byte-identical to OpenCode.
+
+The strings say what they say on the OpenCode page: `write` claims a read-first check the runtime does not enforce, `edit` quotes two failure strings the runtime does not throw, and `apply_patch` explains the envelope with an example.
+
+**`write` (623 characters)**
+
+```text
+Writes a file to the local filesystem.
+
+Usage:
+- This tool will overwrite the existing file if there is one at the provided path.
+- If this is an existing file, you MUST use the Read tool first to read the file's contents. This tool will fail if you did not read the file first.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
+```
+
+**`edit` (1369 characters)**
+
+```text
+Performs exact string replacements in files. 
+
+Usage:
+- You must use your `Read` tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file. 
+- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: line number + colon + space (e.g., `1: `). Everything after that space is the actual file content to match. Never include any part of the line number prefix in the oldString or newString.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
+- The edit will FAIL if `oldString` is not found in the file with an error "oldString not found in content".
+- The edit will FAIL if `oldString` is found multiple times in the file with an error "Found multiple matches for oldString. Provide more surrounding lines in oldString to identify the correct match." Either provide a larger string with more surrounding context to make it unique or use `replaceAll` to change every instance of `oldString`. 
+- Use `replaceAll` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.
+```
+
+**`apply_patch` (1092 characters)**
+
+````text
+Use the `apply_patch` tool to edit files. Your patch language is a stripped‑down, file‑oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high‑level envelope:
+
+*** Begin Patch
+[ one or more file sections ]
+*** End Patch
+
+Within that envelope, you get a sequence of file operations.
+You MUST include a header to specify the action you are taking.
+Each operation starts with one of three headers:
+
+*** Add File: <path> - create a new file. Every following line is a + line (the initial contents).
+*** Delete File: <path> - remove an existing file. Nothing follows.
+*** Update File: <path> - patch an existing file in place (optionally with a rename).
+
+Example patch:
+
+```
+*** Begin Patch
+*** Add File: hello.txt
++Hello world
+*** Update File: src/app.py
+*** Move to: src/main.py
+@@ def greet():
+-print("Hi")
++print("Hello, world!")
+*** Delete File: obsolete.txt
+*** End Patch
+```
+
+It is important to remember:
+
+- You must include a header with your intended action (Add/Delete/Update)
+- You must prefix new lines with `+` even when creating a new file
+````
+
+### Whole-file write
+
+The permission preview diff, the single ask, the direct platform write with parent creation, UTF-8 BOM preservation, formatters, LSP diagnostics, and file and watcher events are the same as OpenCode. Kilo adds four steps. `assertMutablePath` refuses `.kilo/agent-manager.json` and `.kilocode/agent-manager.json` before any check. The existing file is read with `EncodedIO.read`, which detects the encoding as under Read, and written back with `EncodedIO.write` in that encoding; a new file is UTF-8. When the sandbox is enabled the write runs inside a `batchMutations` block with a sandbox-aware `ensureDirectory`. After the write, `ConfigValidation.check` appends a `config_validation` block when the path is a Kilo config file: `kilo.json`, `kilo.jsonc`, `opencode.json`, `opencode.jsonc`, `AGENTS.md`, anything under `.kilo/` or `.kilocode/` except `plans/`, or anything under the global config directories.
+
+```text
+<config_validation>
+Config file validated successfully.
+</config_validation>
+```
+
+The block otherwise reads `ERROR: Config file at <path> is not valid JSON(C)` with the parse errors, `WARNING: Configuration is invalid at <path>` with one schema issue per line, or `ERROR: <path>` with a frontmatter message for agent and command Markdown files. Mode preservation: Not surveyed.
+
+### Matching
+
+Same as OpenCode: nine replacers in order, first candidate wins, the model is not told which stage matched, non-unique candidates skipped without `replaceAll`, the disproportionate-span guard, empty `oldString` creates a file, equal strings error. The only change is that the file is decoded with the detected encoding before matching and encoded back the same way.
+
+### Multi-file patch
+
+Same as OpenCode: every hunk parsed first, Update and Delete targets verified before one shared `edit` approval, file-by-file application with no rollback, Add overwrites. Kilo runs `assertMutablePath` per hunk, reads Update and Delete targets with `EncodedIO.read` and turns a read failure into `apply_patch verification failed: <message>`, records an encoding per change (adds are UTF-8), writes and moves with `EncodedIO.write`, and appends a `config_validation` block for every non-delete change.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Described, not enforced. Same as OpenCode |
+| Stale-file check | None. Same as OpenCode |
+| Lock | The `edit` semaphore keyed by realpath, as OpenCode. `write`, `apply_patch`, `bash` take no lock |
+| Cross-process coordination | None |
+| Post-write checks | LSP diagnostics as OpenCode, now filtered to the changed files in metadata; the `config_validation` block for config files |
+| Sandbox | When enabled, `packages/core/src/fs-util.ts` wraps the platform filesystem with `decorateFileSystem` from `@kilocode/sandbox`, so every `FSUtil` mutation from these tools is confined to the profile's writable paths |
+| Change tracking | File and watcher events and Git snapshots, as OpenCode |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write` | `Wrote file successfully.` then the LSP blocks as OpenCode, then the `config_validation` block when the path is a config file |
+| `edit` | `Edit applied successfully.` then the same. The diff and a `filediff` object with additions and deletions go to metadata; the patch text is omitted from `filediff` when either side exceeds 500 000 characters |
+| `apply_patch` | `Success. Updated the following files:` with one line per file, the LSP blocks, then one `config_validation` block per changed config file |
+
+### Notable
+
+- Same as OpenCode: the permission request carries a preview diff; no notebook editor, undo, or checkpoint tool in the CLI (the VS Code host registers `notebook_edit` behind `experimental.native_notebook_tools`); the `edit` description's quoted failure strings are not the runtime strings.
+- Fork differences: `kilocode/tool/encoded-io.ts` (encoding-preserving read, write, and sync; sandbox mutation batching), `kilocode/config-validation.ts`, `kilocode/agent-manager/protection.ts`, `tool/diagnostics.ts` (diagnostics filtered to changed files), `buildFileDiff` in `edit.ts`, and the `write` visibility change in `tool/registry.ts`. `packages/core/src/patch.ts` is identical to upstream and not used by the CLI.
+
+## Shell
+
+### Signature
+
+```ts
+bash({ command: string, timeout?: number, workdir?: string, description?: string })
+```
+
+`timeout` and `workdir` are as OpenCode: milliseconds, default 120000, negative rejected. `description` is new and optional; its parameter text begins `Recommended: a clear, concise description of what this command does in 5-10 words.` and gives four input and output examples. When `KILO_COMMAND_TIMEOUT_MAX_MS` is set, `timeout` is clamped to it. The tool ID and permission key are `bash` on every shell.
+
+### Description
+
+`bash`: 5070 characters, 5070 bytes, 63 lines, approximately 1159 tokens. Rendered for `os=linux`, `shell=bash`, the default 2000-line and 51200-byte output limits, the 120000 ms timeout, and `/tmp/kilo` as the temporary directory (`Global.Path.tmp` is `os.tmpdir()/kilo`). PowerShell and `cmd.exe` profiles render different text.
+`background_process`: 2229 characters, 2229 bytes, 29 lines, approximately 488 tokens.
+
+The `bash` string differs from the OpenCode string in five places: the intro says `Executes a given command` instead of `Executes a given bash command`; the temporary directory is `/tmp/kilo`; a usage note asks for a 5-10 word description; `Avoid using Bash with` becomes `Avoid using the shell with`; and the Git section opens with a bullet about the sandbox and one-shot confirmation for mutating Git commands. Everything else is the same text. `background_process` tells the model to use the tool only for processes that must outlive the call, never for waits, lists the six actions, the three lifetimes, and the two readiness probes.
+
+**`bash` (5070 characters)**
+
+```text
+Executes a given command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
+
+Be aware: OS: linux, Shell: bash
+
+All commands run in the current working directory by default. Use the `workdir` parameter if you need to run a command in a different directory. AVOID using `cd <directory> && <command>` patterns - use `workdir` instead.
+
+Use `/tmp/kilo` for temporary work outside the workspace. This directory has already been created, already exists, and is pre-approved for external directory access.
+
+IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO NOT use it for file operations (reading, writing, editing, searching, finding files) - use the specialized tools for this instead.
+
+Before executing the command, please follow these steps:
+
+1. Directory Verification:
+   - If the command will create new directories or files, first use `ls` to verify the parent directory exists and is the correct location
+   - For example, before running "mkdir foo/bar", first use `ls foo` to check that "foo" exists and is the intended parent directory
+
+2. Command Execution:
+   - Always quote file paths that contain spaces with double quotes (e.g., rm "path with spaces/file.txt")
+   - Examples of proper quoting:
+     - mkdir "/Users/name/My Documents" (correct)
+     - mkdir /Users/name/My Documents (incorrect - will fail)
+     - python "/path/with spaces/script.py" (correct)
+     - python /path/with spaces/script.py (incorrect - will fail)
+   - After ensuring proper quoting, execute the command.
+   - Capture the output of the command.
+
+Usage notes:
+  - The command argument is required.
+  - You can specify an optional timeout in milliseconds. If not specified, commands will time out after 120000ms.
+  - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
+  - If the output exceeds 2000 lines or 51200 bytes, it will be truncated and the full output will be written to a file. You can use Read with offset/limit to read specific sections or Grep to search the full content. Do NOT use `head`, `tail`, or other truncation commands to limit output; the full output will already be captured to a file for more precise searching.
+
+  - Avoid using the shell with the `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk`, or `echo` commands, unless explicitly instructed or when these commands are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
+    - File search: Use Glob (NOT find or ls)
+    - Content search: Use Grep (NOT grep or rg)
+    - Read files: Use Read (NOT cat/head/tail)
+    - Edit files: Use Edit (NOT sed/awk)
+    - Write files: Use Write (NOT echo >/cat <<EOF)
+    - Communication: Output text directly (NOT echo/printf)
+  - When issuing multiple commands:
+    - If the commands are independent and can run in parallel, make multiple bash tool calls in a single message. For example, if you need to run "git status" and "git diff", send a single message with two bash tool calls in parallel.
+    - If the commands depend on each other and must run sequentially, use a single Bash call with '&&' to chain them together (e.g., `git add . && git commit -m "message" && git push`). For instance, if one operation must complete before another starts (like mkdir before cp, Write before Bash for git operations, or git add before git commit), run these operations sequentially instead.
+    - Use ';' only when you need to run commands sequentially but don't care if earlier commands fail
+    - DO NOT use newlines to separate commands (newlines are ok in quoted strings)
+  - AVOID using `cd <directory> && <command>`. Use the `workdir` parameter to change directories instead.
+    <good-example>
+    Use workdir="/foo/bar" with command: pytest tests
+    </good-example>
+    <bad-example>
+    cd /foo/bar && pytest tests
+    </bad-example>
+
+# Git and GitHub
+- When the sandbox is active, read-only Git commands can run normally. Mutating Git commands such as `git add`, `git commit`, `git merge`, `git checkout`, `git reset`, and `git stash` require a separate confirmation and run unsandboxed only for that command. The confirmation is always one-shot and cannot be saved as an always-allow rule.
+- Only commit, amend, push, or create PRs when explicitly requested.
+- Before committing, inspect `git status`, `git diff`, and `git log --oneline -10`; stage only intended files and never commit secrets.
+- Write a concise commit message that matches the repo style.
+- Do not update git config, skip hooks, use interactive `-i`, force-push, or create empty commits unless explicitly requested.
+- If a commit fails or hooks reject it, fix the issue and create a new commit; do not amend the failed commit.
+- Before creating a PR, inspect status, diff, remote tracking, recent commits, and the diff from the base branch.
+- Review all commits included in the PR, not just the latest commit.
+- Use `gh` for GitHub tasks, including PRs, issues, checks, and releases; return the PR URL when done.
+```
+
+**`background_process` (2229 characters)**
+
+```text
+Run and manage long-running background processes.
+
+Use this tool only for processes that must keep running independently after this tool call returns, such as development servers, file watchers, local services, and test watchers (`npm run dev`, `next dev`, `vite`, or `bun --watch`).
+
+This tool cannot wait: `start` returns immediately and never blocks your turn. Do not start `sleep`, timers, cooldowns, delays, or polling loops with this tool. To wait a fixed time before your next action, run the wait as a normal blocking shell command and set its `timeout` higher than the wait.
+
+Do not use the shell tool with `&`, `nohup`, `disown`, `setsid`, `Start-Process`, or similar backgrounding patterns. Processes started with this tool are tracked and shown in the CLI sidebar.
+
+Actions:
+- `start`: start a new background process. Include `command`, optional `workdir`, optional `description`, optional `ready` detection, and at most one lifetime option.
+- `list`: list background processes for this session.
+- `status`: inspect one process by `id`.
+- `logs`: return the retained tail output for one process.
+- `stop`: terminate one process and its child process tree.
+- `restart`: stop and restart one process with its original command and lifetime.
+
+Lifetime options for `start`:
+- By default, the process stops when its session ends, the user switches session groups, or Kilo exits.
+- Set `inherit: true` only from a subagent when the process should transfer to the immediate parent session after the subagent ends. It then follows the parent session lifetime.
+- Set `persistent: true` when the process must survive both session closure and Kilo shutdown. Persistent processes are visible and manageable from every session, including after Kilo starts again.
+- `inherit` and `persistent` cannot be combined.
+
+Only include `id` for `status`, `logs`, `stop`, and `restart`. Do not invent or pass an `id` when starting a process.
+
+Readiness:
+- Use `ready.pattern` when the process prints a recognizable line like `ready`, `Local:`, or `started server`.
+- Use `ready.port` when a local server should accept TCP connections on a known port.
+- If readiness is not known, omit `ready`; the process is returned as running immediately.
+```
+
+### Working directory and environment
+
+The working directory is the instance directory unless `workdir` is given, as OpenCode. The environment starts from `process.env` plus the plugin `shell.env` result, then Kilo deletes `KILO_SERVER_PASSWORD`, `KILO_SERVER_USERNAME`, `KILO_BROWSER_BROKER_URL`, `KILO_BROWSER_BROKER_TOKEN`, `KILO_CONFIG`, `KILO_CONFIG_CONTENT`, and `KILO_CONFIG_DIR`. Shell selection is as OpenCode. PowerShell arguments come from `Shell.args` in `packages/core/src/shell.ts`. Login shell: Not surveyed.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One child process per call, as OpenCode |
+| Background | `background_process` starts tracked, detached processes with `start`, `list`, `status`, `logs`, `stop`, and `restart`. Lifetimes are `session` (default), `parent` (`inherit: true` from a subagent), and `persistent`. Readiness by regex or TCP port with a 30 second wait. About 200 KiB of tail output is retained per process. `start` and `restart` are refused while the sandbox is enabled |
+| stdin | Ignored after launch |
+| Detach | POSIX children detached; Windows children not |
+| Cancellation | Exit, abort, and timeout race; kill with a three-second force-kill deadline, as OpenCode. After exit the tool waits up to three seconds for the output reader so trailing chunks are kept |
+| Result title | The model's `description` when given, otherwise the command; the command moves to metadata |
+| Grandchildren | Unverified |
+
+### Output limits
+
+Same as OpenCode: combined stdout and stderr, rolling in-memory tail, spill to a `tool_*` file after 2000 lines or 50 KiB, `...output truncated...` then `Full output saved to: <file>`, `(no output)`, `tool_output.max_lines` and `tool_output.max_bytes` overrides, seven-day cleanup by file mtime. `background_process` `logs` returns the retained tail or `(no output)`.
+
+### Sandbox
+
+Off by default. `sandbox.enabled` defaults to false and `sandbox.network` to `deny`. When enabled, every tool call in the session runs under `SandboxPolicy.executeTool`: Bubblewrap on Linux, Seatbelt on macOS, unavailable on Windows. The profile allows writes to the worktree and instance directory, the Kilo data, cache, config, state, tmp, bin, log, and repos directories, and `sandbox.writable_paths`; denies writes to the sandbox store, the sandbox preference file, and the global config directory; denies any path named `.git`; and strips the `KILO_*` credential variables. Network is denied, proxied to `sandbox.allowed_hosts`, or allowed. A project config can tighten the global sandbox and cannot loosen it. Mutating Git commands need a separate `sandbox_escalation` permission that cannot be saved as always and must be answered by an interactive client; when approved, that single command runs unrestricted. Without the sandbox there is no isolation, as OpenCode.
+
+### Approval
+
+The Tree-sitter parse, per-command patterns, arity-based always patterns, and the file-command path scan that raises `external_directory` before `bash` are the same as OpenCode. Kilo changes what the patterns look like and what the defaults are.
+
+- Patterns are rendered from the parse tree with operator characters masked as `_` where the parser proves them inert: inside quotes, ANSI-C strings, heredoc bodies, `/dev/null` redirects, and fd duplication. A quoted `|` no longer matches a `*|*` deny rule.
+- A command the grammar fails to parse still yields at least one pattern: the text of each parser error node, or the raw command. `Failed to parse command` remains for a null parse tree.
+- Plain `cat` and `get-content` without redirects are tagged as read access; an `external_directory` request tagged `read` is exempt from the config-path protection below.
+- The default `bash` ruleset for every built-in agent is `*` ask, with allow for `cat`, `head`, `tail`, `less`, `ls`, `tree`, `pwd`, `echo`, `wc`, `which`, `type`, `file`, `diff`, `du`, `df`, `date`, `uname`, `whoami`, `printenv`, `man`, `grep`, `rg`, `ag`, `sort`, `uniq`, `cut`, `tr`, `jq`, `touch`, `mkdir`, `cp`, `mv`, `tsc`, `tsgo`, `tar`, `unzip`, `gzip`, and `gunzip`, each as `<cmd> *`. OpenCode's `build` agent allows every command. `hardenPlan` and `hardenExplore` give the `plan` and `explore` agents a read-only ruleset that denies `*` and most `git` and allows listed read-only `git` and `gh` subcommands.
+- "Always" approvals are persisted to the global config `permission` block. Requests that touch Kilo config paths cannot be saved as always and the UI is told through `disableAlways` metadata; global skill directories are the exception.
+- Rejecting one request rejects the session's pending requests. Requests marked `skillShell` or `sandboxEscalation` need an interactive reply and ignore machine approvals.
+
+### Notable
+
+- Same as OpenCode: a non-zero exit code is a normal result with the code in metadata; timeout and abort return normal results with a `shell_metadata` block; no PTY, no streaming to the model, no interactive input. The timeout text is unchanged unless the environment cap was the limit, in which case it reads `shell tool terminated command after exceeding environment timeout <n> ms.` followed by `KILO_COMMAND_TIMEOUT_MAX_MS_MESSAGE` when set.
+- Fork differences: the `description` parameter and reworded template in `tool/shell/prompt.ts` and `shell.txt`; `ShellPermission` in `tool/shell.ts` with `kilocode/tool/shell-pattern.ts`, `shell-unparsed.ts`, and `shell-heredoc.ts`; `kilocode/process/env.ts`; `kilocode/command-timeout.ts`; the `bash` allowlist in `kilocode/agent/index.ts`; `kilocode/tool/background-process.ts`; `kilocode/sandbox/*` with `packages/kilo-sandbox`. `packages/core/src/pty.ts` serves the UI terminal over HTTP and is not a model tool. `packages/core/src/tool-output-store.ts` is identical to upstream and not used by the CLI.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `glob` | `pattern: string`, `path?: string` | 100 paths; `(Results are truncated: showing first 100 results. Consider using a more specific path or pattern.)`; two-minute timeout | Same ripgrep invocation as OpenCode; ordinary ignore files apply; `.git` excluded |
+| `grep` | `pattern: string`, `path?: string`, `include?: string`, `context?: number`, `limit?: number`, `literal?: boolean`, `ignoreCase?: boolean` | 100 match rows by default, `limit` overrides; 2000-character line cut; `Found <n> matches (more matches available)` and `<limit> matches limit reached. Use limit=<n> for more, or refine pattern.` | `rg --json --hidden --no-messages` plus `--fixed-strings`, `--ignore-case`, `--context=N` when asked; `.git` excluded |
+| `semantic_search` | `query: string`, `path?: string` | Not surveyed | Indexed workspace only |
+| `repo_clone` | `repository: string`, `refresh?: boolean`, `branch?: string` | Not applicable | Not applicable |
+| List | Not applicable. `read` on a directory returns the listing | | |
+
+`glob` is as OpenCode with three changes: an absolute pattern such as `/home/me/.config/kilo/command/*.md` is split into a search directory and a relative pattern; truncation comes from the ripgrep result rather than a count of exactly 100; and `(Some discovered files could not be read.)` is appended after a partial ripgrep exit. A search over two minutes fails with `Glob search timed out after 2 minutes. Narrow the search path or pattern.`. The abort signal now reaches ripgrep. `grep` keeps the `Found <n> matches` header and the `<path>:` grouping. With `context` zero each row is `  Line <n>: <text>` as OpenCode; with `context` above zero rows are `  [match] Line <n>: <text>` and `  [context] Line <n>: <text>`, and the count excludes context rows. When any line was cut at 2000 characters the output ends with `Some matching or context lines were truncated. Use read for full lines.`; a partial ripgrep exit adds `(Some paths were inaccessible.)`. A file target is passed to ripgrep as a single file. A target that is neither a file nor a directory returns `No files found`. `pattern is required` and the empty-result text are unchanged.
+
+`semantic_search` asks the `semantic_search` permission with the query, then returns ranked snippets with file path and line range from the Kilo indexing service. `repo_clone` asks the `repo_clone` permission, clones or refreshes into the Kilo data directory, and returns `Repository ready: <label>`, `Status: cached|cloned|refreshed`, `Local path: <path>`, and optional `Branch:` and `HEAD:` lines.
+
+### Description
+
+`glob`: 517 characters, 517 bytes, 7 lines, approximately 109 tokens. Byte-identical to OpenCode.
+`grep`: 922 characters, 922 bytes, 12 lines, approximately 198 tokens. The `grep.txt` file rewords one bullet and `KiloGrep.describe` appends three bullets at runtime.
+`semantic_search`: 1214 characters, 1228 bytes, 28 lines, approximately 257 tokens. Opt-in.
+`repo_clone`: 461 characters, 461 bytes, 6 lines, approximately 93 tokens. Opt-in.
+
+`grep` now tells the model that regex is the default, that `literal=true` switches to plain text, and that `ignoreCase`, `context`, and `limit` exist. The reworded bullet says `deep search that may require multiple tool invocations` where OpenCode says `open-ended search that may require multiple rounds of globbing and grepping`. When `semantic_search` is enabled, one more line is appended to both `glob` and `grep`, shown as variants after the four strings.
+
+**`glob` (517 characters)**
+
+```text
+- Fast file pattern matching tool that works with any codebase size
+- Supports glob patterns like "**/*.js" or "src/**/*.ts"
+- Returns matching file paths
+- Use this tool when you need to find files by name patterns
+- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead
+- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.
+```
+
+**`grep` (922 characters)**
+
+```text
+- Fast content search tool that works with any codebase size
+- Searches file contents using regular expressions
+- Supports full regex syntax (eg. "log.*Error", "function\s+\w+", etc.)
+- Filter files by pattern with the include parameter (eg. "*.js", "*.{ts,tsx}")
+- Returns file paths and line numbers with matching lines
+- Use this tool when you need to find files containing specific patterns
+- If you need to identify/count the number of matches within files, use the Bash tool with `rg` (ripgrep) directly. Do NOT use `grep`.
+- When you are doing a deep search that may require multiple tool invocations, use the Task tool instead
+
+- Searches file contents using regular expressions by default; use literal=true for plain-text patterns
+- Use ignoreCase=true for case-insensitive matching, context=N for surrounding lines, and limit=N to bound matches (default 100)
+- Context lines are explicitly labeled when requested
+```
+
+**`semantic_search` (1214 characters, opt-in)**
+
+```text
+Find code snippets by semantic meaning and return ranked matches with file paths and line ranges.
+
+## When to use
+
+Use early for open-ended exploration when you know the intent
+but not the exact identifiers or the semantics. Once likely files or symbols are found,
+follow up with Grep and Read. Prefer Grep directly when exact terms are already known.
+
+## When NOT to use
+
+- Search for an exact symbol or regex pattern — use `Grep`
+- Find files by filename or extension — use `Glob`
+- Read the contents of a known file — use `Read`
+- Explore files outside the current workspace - use `Grep`, `Glob`, and `Read`
+
+## Examples
+
+- "User login and password hashing" → search for auth-related code by meaning
+- "Database connection pooling" → find conceptually similar implementations
+- "Session resume flow" → retrieve snippets involved in restoring session state
+- "Tool approval UI" with `path: "packages/opencode/src"` → combine a natural-language query with `path`
+
+## Constraints
+
+- Write the query in English.
+- Searches the entire current workspace by default. Limit semantic search to one subdirectory with `path`.
+- Cannot search outside the current workspace. Use other tools if this functionality is needed.
+```
+
+**`repo_clone` (461 characters, opt-in)**
+
+```text
+- Clone or refresh a repository into Kilo's managed cache under the data directory
+- Accepts git URLs, forge host/path references, or GitHub owner/repo shorthand
+- Returns the cached absolute local path so other tools can explore the cloned source
+- Use this before Read, Glob, or Grep when the code you need lives outside the current workspace
+- This tool is intended for dependency and documentation research workflows, not for modifying the user's workspace
+```
+
+Variant: when `indexing.enabled` is true the registry appends one hint line to `glob` (715 characters, 715 bytes, 8 lines, approximately 156 tokens) and `grep` (1120 characters, 1120 bytes, 13 lines, approximately 246 tokens).
+
+**`glob` variant with semantic search (715 characters)**
+
+```text
+- Fast file pattern matching tool that works with any codebase size
+- Supports glob patterns like "**/*.js" or "src/**/*.ts"
+- Returns matching file paths
+- Use this tool when you need to find files by name patterns
+- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead
+- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.
+
+- When you are doing an open-ended search where you do not know the exact symbol name, use the `semantic_search` tool first to narrow down the search scope, then follow up with `Grep` and/or `Read`
+```
+
+**`grep` variant with semantic search (1120 characters)**
+
+```text
+- Fast content search tool that works with any codebase size
+- Searches file contents using regular expressions
+- Supports full regex syntax (eg. "log.*Error", "function\s+\w+", etc.)
+- Filter files by pattern with the include parameter (eg. "*.js", "*.{ts,tsx}")
+- Returns file paths and line numbers with matching lines
+- Use this tool when you need to find files containing specific patterns
+- If you need to identify/count the number of matches within files, use the Bash tool with `rg` (ripgrep) directly. Do NOT use `grep`.
+- When you are doing a deep search that may require multiple tool invocations, use the Task tool instead
+
+- Searches file contents using regular expressions by default; use literal=true for plain-text patterns
+- Use ignoreCase=true for case-insensitive matching, context=N for surrounding lines, and limit=N to bound matches (default 100)
+- Context lines are explicitly labeled when requested
+- When you are doing an open-ended search where you do not know the exact symbol name, use the `semantic_search` tool first to narrow down the search scope, then follow up with `Grep` and/or `Read`
+```
+
+Fork differences: absolute-pattern splitting and the result shape in `tool/glob.ts`; the four parameters, labels, and notices in `tool/grep.ts` and `kilocode/tool/grep-signal-controls.ts`; `context`, `literal`, `ignoreCase`, the two-minute glob timeout, and the `items`, `truncated`, `partial` result in `packages/core/src/ripgrep.ts` and `core/src/kilocode/ripgrep-grep.ts`; the `semantic_search` and `repo_clone` tools; and the hint line in `kilocode/tool/registry.ts`.
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `File not found: <path>` with no suggestions | Thrown; AI SDK `output-error` part |
+| Directory on read | Not an error; the listing is returned | |
+| Path changed between stat and realpath | `Path changed while inspecting: <path>` | Thrown |
+| Non-regular file | `Not a regular file: <path>` | Thrown |
+| Windows named pipe | `Named pipes cannot be read: <path>` | Thrown |
+| File replaced after approval | `File changed after authorization: <path>` | Thrown |
+| Directory attachment moved | `Directory attachments cannot be expanded: <path>` | Thrown |
+| Offset past end | `Offset <n> is out of range for this file (<total> lines)` | Thrown |
+| Binary file | `Cannot read binary file: <path>` | Thrown |
+| Spreadsheet too large, not a zip, or unreadable | `Cannot read spreadsheet file: <path> exceeds the 50 MB size limit`; `Cannot read spreadsheet file: <path> is not a valid spreadsheet`; `Cannot read spreadsheet file: <path>: <message>` | Thrown |
+| DOCX extraction failed | `Failed to extract text from DOCX file: <path>` then the library message | Thrown |
+| OS permission denied | The platform `stat` or open error message | Thrown |
+| Permission rejected or denied | `The user rejected permission to use this specific tool call.`; `The user rejected permission to use this specific tool call with the following feedback: <feedback>`; `The user has specified a rule which prevents you from using this specific tool call. Here are some of the relevant rules <json>` | Thrown |
+| Invalid arguments | `The <tool> tool was called with invalid arguments: <detail>.` then `Please rewrite the input so it satisfies the expected schema.`; `<detail>` is one `<path>: <reason>` line per schema issue, at most twenty lines and 4 KiB | Error result |
+| Agent Manager state file | `Do not edit Agent Manager state directly. Use the agent_manager tool: call action=list to read section and session IDs, then call action=move with the returned IDs.` | Thrown |
+| Edit, no change | `No changes to apply: oldString and newString are identical.` | Thrown |
+| Edit, empty `oldString` on an existing file | `oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use write for an intentional full-file replacement.` | Thrown |
+| Edit match failed | `Could not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.` | Thrown |
+| Edit not unique | `Found multiple matches for oldString. Provide more surrounding context to make the match unique.` | Thrown |
+| Edit span guard | `Refusing replacement because the matched span is much larger than oldString. Re-read the file and provide the full exact oldString for the intended replacement.` | Thrown |
+| Edit target missing or a directory | `File <path> not found`; `Path is a directory, not a file: <path>` | Thrown |
+| Patch verification | `apply_patch verification failed: <reason>`; `patch rejected: empty patch` | Thrown |
+| Stale file | None. Not detected | |
+| Command timeout | Normal result with `exit: null` and the `shell_metadata` block; under the environment cap the text reads `shell tool terminated command after exceeding environment timeout <n> ms.` | Successful tool result |
+| Command aborted | Normal result with `User aborted the command` in `shell_metadata` | Successful tool result |
+| Command exit non-zero | Normal result; code in `metadata.exit` | Successful tool result |
+| Command parse failure | `Failed to parse command` for a null tree; otherwise the raw text becomes the permission pattern | Thrown |
+| Invalid timeout | `Invalid timeout value: <n>. Timeout must be a positive number.` | Thrown |
+| Background process while sandboxed | `Background processes are unavailable while the sandbox is enabled for action: <action>` | Successful tool result |
+| Background process unknown ID | `Background process not found: <id>` | Successful tool result |
+| Glob path is a file | `glob path must be a directory: <path>` | Thrown |
+| Glob timeout | `Glob search timed out after 2 minutes. Narrow the search path or pattern.` | Thrown |
+
+Most leaves still run through `Effect.orDie`, so operational errors surface as defects at the integration boundary and the session processor records them as tool errors with the leaf's message text, as on the OpenCode page.
+
+## Evidence
+
+### What was verified and how
+
+| Section | Label | Pin | Note |
+|---|---|---|---|
+| Lineage | Source | `01ef456` | `.opencode-version`; `diff -rq` of the tool, permission, and core folders against OpenCode `v1.18.13` and `v1.18.21` exported from the OpenCode clone |
+| Tool inventory | Source | `01ef456` | `tool/registry.ts`, `kilocode/tool/registry.ts`, `agent/agent.ts`, `kilocode/agent/index.ts`, `effect/runtime-flags.ts` |
+| Read | Source | `01ef456` | `read.ts` diff plus the Kilo helpers named under Notable. Output example is Reconstructed |
+| Descriptions | Source | `01ef456` | `.txt` files copied byte for byte from `descriptions/` in the scratch folder; `bash` rendered from `shell/prompt.ts` with the recorded defaults; `grep` suffix from `grep-signal-controls.ts`; variants from `kilocode/tool/registry.ts` |
+| Edit | Source | `01ef456` | `write.ts`, `edit.ts`, `apply_patch.ts` diffs; `encoded-io.ts`, `config-validation.ts`, `protection.ts`, `diagnostics.ts` |
+| Shell | Source | `01ef456` | `shell.ts`, `shell/prompt.ts` diffs; `process/env.ts`, `command-timeout.ts`, `shell-pattern.ts`, `shell-unparsed.ts`, `background-process.ts`, `sandbox/policy.ts`, `sandbox/config.ts`, `kilo-sandbox/src/backend.ts` |
+| Search and listing | Source | `01ef456` | `glob.ts`, `grep.ts`, `grep-signal-controls.ts`, `core/src/ripgrep.ts`, `core/src/kilocode/ripgrep-grep.ts`, `semantic-search.ts`, `repo_clone.ts` |
+| Errors | Source | `01ef456` | Strings read from the leaves and from `core/src/v1/permission.ts` and `kilocode/tool/tool.ts` |
+
+Facts described as "same as OpenCode" were confirmed by reading the Kilo diff against the `v1.18.21` export, not by re-deriving them. No claim on this page is Observed.
+
+### Gaps
+
+- Whole-file write, mode preservation: Not surveyed.
+- Working directory and environment, login shell: Not surveyed.
+- Process lifecycle, grandchild cleanup: Unverified, as on the OpenCode page.
+- Search and listing, `semantic_search` default caps: Not surveyed. The indexing service was not inspected.
+- PowerShell and `cmd.exe` description variants: not rendered or counted.
+- The VS Code and JetBrains hosts, the notebook tools, and the code-mode `execute` tool: not surveyed.
+- Sandbox profile details beyond `policy.ts`, `config.ts`, and `backend.ts` (Bubblewrap and Seatbelt argument construction): not inspected.
+
+### Refresh notes
+
+Diff the `sourceFiles` list between `01ef456fe7f41aa1f7b8a4e6b545dd1e0fbeeceb` and the target commit. Check `.opencode-version` first: a new upstream base means the OpenCode page may need to move too, and the "same as OpenCode" sentences need re-checking against that base. Then check `packages/opencode/src/tool/registry.ts` for a switch to `packages/core/src/tool/*`. Description strings come from the `.txt` files beside each leaf, `shell/prompt.ts`, `kilocode/tool/grep-signal-controls.ts` (the `grep` suffix), and `kilocode/tool/registry.ts` (the semantic hint). Re-extract with `extract.ts`, recount with `count.ts`, and rebuild with `build.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-19-kilocode-source/`. The OpenCode exports at both upstream tags are in `opencode-v1.18.13/` and `opencode-v1.18.21/` in that folder for the next diff.

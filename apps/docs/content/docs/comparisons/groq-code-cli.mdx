@@ -1,0 +1,372 @@
+---
+title: Groq Code CLI
+description: Read, edit, shell, and search tools in Groq Code CLI at 1.0.2, with every model-facing description in full
+harness: groq-code-cli
+kind: cli
+repo: build-with-groq/groq-code-cli
+commit: a303eb4be01a53aaf3fbf319636e2b608e80aeca
+version: 1.0.2
+license: MIT
+surveyed: 2026-09-19
+verified: 2026-09-19
+sourceFiles:
+  - package.json
+  - src/tools/tool-schemas.ts
+  - src/tools/tools.ts
+  - src/tools/validators.ts
+  - src/utils/file-ops.ts
+  - src/utils/constants.ts
+  - src/core/agent.ts
+  - src/core/cli.ts
+  - src/ui/hooks/useAgent.ts
+  - src/ui/components/input-overlays/PendingToolApproval.tsx
+---
+
+Groq Code CLI is an open-source terminal coding agent published by Groq as a small codebase for developers to modify. It ships seven filesystem and shell tools as OpenAI-style function schemas, `read_file`, `create_file`, `edit_file`, `delete_file`, `list_files`, `search_files`, and `execute_command`, plus two task-list tools, and sends all nine on every request. Every description is one line under 380 characters with a worked JSON example. Tool results travel to the model as one JSON object with `success`, `content`, `message`, and `error` fields, and `edit_file` is refused until the same session has read the file.
+
+## Source pin
+
+| Item | Value |
+|---|---|
+| Repository | [build-with-groq/groq-code-cli](https://github.com/build-with-groq/groq-code-cli) |
+| Commit | `a303eb4be01a53aaf3fbf319636e2b608e80aeca` on `main`, committed 2025-09-05 |
+| Release | None on GitHub. Installed with `npx groq-code-cli@latest` |
+| Package version | `groq-code-cli@1.0.2` |
+| Licence | MIT |
+| Surveyed | 2026-09-19 |
+| Verified | 2026-09-19 |
+| Configuration surveyed | Default model `moonshotai/kimi-k2-instruct` with no saved settings. The tool set and descriptions do not change with model, settings, or approval state |
+| Files read | The `sourceFiles` list in the frontmatter, plus `README.md`, `src/utils/local-settings.ts`, `src/commands/`, and the TUI display components |
+| Scratch folder | `/home/gareth/Documents/Personal/scratch/2026-09-19-groq-code-cli-source/` (shallow clone, `descriptions/*.txt`, `count.ts`, `checks.ts`, `build.ts`) |
+| Evidence status | Open source inspected. The repository has been inactive since 2025-12-19; the pinned HEAD is dated 2025-09-05. No live model session was run |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read_file` | Read a whole text file or a one-based line range | Yes | No prompt |
+| `create_file` | Create a file or directory; replace a file with `overwrite` | Yes | Prompt, unless session auto-approve is on |
+| `edit_file` | Replace one exact string, or all occurrences | Yes | Prompt, unless session auto-approve is on; refused until the file was read |
+| `delete_file` | Delete a file or directory inside the working directory | Yes | Always prompts |
+| `list_files` | One-level tree of a directory | Yes | No prompt |
+| `search_files` | Regex, substring, exact, or fuzzy search over text files | Yes | No prompt |
+| `execute_command` | Run one command through `child_process.exec` | Yes | Always prompts |
+
+`ALL_TOOL_SCHEMAS` in `src/tools/tool-schemas.ts` goes whole into every chat completion with `tool_choice: 'auto'`. The same file defines three classes: `SAFE_TOOLS` run without a prompt, `APPROVAL_REQUIRED_TOOLS` prompt unless the user chose "don't ask again this session", and `DANGEROUS_TOOLS` prompt every time. `create_tasks` and `update_tasks` are also in the set; they manage an in-memory task list and are outside this page. Tool calls in one assistant turn run one after another; a rejection stops the rest and ends the turn.
+
+## Read
+
+### Signature
+
+```ts
+read_file({ file_path: string, start_line?: number, end_line?: number })
+```
+
+`start_line` and `end_line` are one-based, inclusive, with `minimum: 1` in the schema. There is no `limit` and no default window: a call without `start_line` returns the whole file.
+
+### Description
+
+`read_file`: 218 characters, 218 bytes, 1 line, approximately 52 tokens.
+
+The string says a line range is optional, that a read is required before `edit_file`, that the tool is the way to check whether a file exists, and gives one JSON example. It does not state a size or line limit, the output shape, or directory behaviour. The relative-path rule lives in the `file_path` parameter description, not in this string.
+
+**`read_file` (218 characters)**
+
+```text
+Read file contents with optional line range. REQUIRED before edit_file. Use to check if files exist and examine current code before making changes. Example: {"file_path": "src/app.js", "start_line": 10, "end_line": 20}
+```
+
+### Path handling
+
+`path.resolve(file_path)` against the process working directory. The parameter description says relative paths only and no leading slash, but the code accepts an absolute path and reads it. A leading slash on a relative path resolves to the filesystem root and fails with `Error: File not found`. There is no `~` expansion, no URL handling, no unicode normalisation, no containment check, and no near-miss suggestion: None. Symlinks are followed; the tool uses `access`, `stat`, and `readFile` with no `lstat`.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Path rules | None. No allow or deny list, no ignore rules on read |
+| Approval | None. `read_file` is in `SAFE_TOOLS` |
+| Device and special files | None. `stats.isFile()` must be true, which excludes directories and FIFOs but not symlinks to regular files |
+| Denial text | Not applicable |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | None on read. `search_files` skips a binary extension list; `read_file` does not use it |
+| Refusal | None. Every file decodes as UTF-8 with replacement characters |
+| Notebooks | None |
+| Images | None |
+| PDF | None |
+| Audio and video | None |
+| Encoding | UTF-8 only; no BOM handling |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | None. Whole file | |
+| Ceiling | None on lines or bytes returned | |
+| Long line | None | |
+| Whole-file size | 50 MiB, checked with `stat` before the read | `Error: File too large (max 50MB)` |
+| Streaming | None. Whole file into memory, then `split('\n')` | |
+| `start_line` past end | Error | `Error: Start line exceeds file length` |
+| `end_line` past end | Clamped to the last line, no notice | |
+
+`split('\n')` on a file with a trailing newline yields one extra empty element. A whole read of a three-line file reports `Read 4 lines`, and `start_line` equal to the line count plus one returns empty content with `Read lines 4-4` instead of an error.
+
+### Output
+
+The tool returns an object and `agent.ts` pushes `JSON.stringify(result)` as the tool message. The model sees a JSON string.
+
+```json
+{"success":true,"content":"import { x } from \"./x\"\nexport const y = x\n","message":"Read 3 lines from src/x.ts"}
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | None inside `content`. The `message` field carries `Read <n> lines from <file_path>` or `Read lines <a>-<b> from <file_path>` |
+| Line prefix | None. Lines are bare |
+| End marker | None |
+| Truncation notice | None. Nothing is truncated below 50 MiB |
+| Error transport | `success: false` and `error: "<text>"` in the same JSON object; no error flag at the API level |
+
+The example is reconstructed from the format code. A ranged read joins the selected lines with `\n`.
+
+### Notable
+
+- Every successful read, whole or ranged, adds the resolved path to a session `Set` that gates `edit_file`. The set is not cleared by `/clear`.
+- Empty file: `success: true`, `content: ""`, `message: "Read 1 lines from <file_path>"`.
+- No repeat-read guard, no content injection after the read, no redaction.
+- Cancellation: `Agent.interrupt()` aborts the HTTP request and sets a flag checked between tool calls. A running tool is not interrupted.
+- `/init` writes `.groq/context.md`; the agent loads it as a second system message at startup, capped at 20000 characters by `GROQ_CONTEXT_LIMIT`.
+
+## Edit
+
+### Signature
+
+```ts
+create_file({ file_path: string, content: string, file_type?: "file" | "directory", overwrite?: boolean })
+edit_file({ file_path: string, old_text: string, new_text: string, replace_all?: boolean })
+delete_file({ file_path: string, recursive?: boolean })
+```
+
+`file_type` defaults to `file`, `overwrite`, `replace_all`, and `recursive` to `false`. One replacement per `edit_file` call. There is no array of edits and no patch grammar.
+
+### Description
+
+`create_file`: 376 characters, 376 bytes, 1 line, approximately 83 tokens.
+`edit_file`: 299 characters, 299 bytes, 1 line, approximately 73 tokens.
+`delete_file`: 138 characters, 138 bytes, 1 line, approximately 36 tokens.
+
+`create_file` tells the model to check existence with `list_files` or `read_file` first, to use `edit_file` for existing files, and to set `overwrite=true` only when it wants to replace content. `edit_file` calls the replacement exact including whitespace and repeats the read-first rule. `delete_file` says "use with caution" and shows the `recursive` flag. None of the three describes the result text or the `replace_all` flag.
+
+**`create_file` (376 characters)**
+
+```text
+Create NEW files or directories that DO NOT EXIST. CRITICAL: Always check if file exists first using list_files or read_file before creating. If file exists, use edit_file instead. Set overwrite=true only if you explicitly need to replace existing content. Example: {"file_path": "src/utils/new-helper.js", "content": "function helper() { return true; }", "file_type": "file"}
+```
+
+**`edit_file` (299 characters)**
+
+```text
+Modify EXISTING files by exact text replacement. Use this for files that already exist. MANDATORY: Always read_file first to see current content before editing. Text must match exactly including whitespace. Example: {"file_path": "src/app.js", "old_text": "const x = 1;", "new_text": "const x = 2;"}
+```
+
+**`delete_file` (138 characters)**
+
+```text
+Remove files or directories. Use with caution. Example: {"file_path": "temp/old_file.txt"} or {"file_path": "temp_dir", "recursive": true}
+```
+
+### Whole-file write
+
+`create_file` with `file_type: "file"` checks existence first and refuses with `Error: File already exists, use overwrite=true` unless `overwrite` is set. `writeFile()` in `src/utils/file-ops.ts` creates parent directories recursively and calls `fs.promises.writeFile` with UTF-8. The destination is overwritten in place: no temporary file, no rename, no backup (a `backup` argument exists and is unused), no BOM or line-ending handling, no post-write verification. Mode preservation: None; a replaced file gets the default mode of a fresh write. `file_type: "directory"` calls `mkdir` recursive. `create_file` with `overwrite: true` is not gated by the read-before-edit check.
+
+### Matching
+
+`editFile()` reads the file and applies `String.prototype.replace(old_text, new_text)`, or `split(old_text).join(new_text)` with `replace_all`. Exact string match only. There is no whitespace or unicode normalisation, no fuzzy fallback, and no uniqueness rule: the first occurrence is replaced when several exist. A comment in `tools.ts` says a validation system has already confirmed `old_text` exists and is unambiguous; no such check exists in `agent.ts` or `validators.ts`. An absent `old_text` writes the file unchanged and reports success. Because the single-replacement path uses `replace` with a string pattern, `$&`, `$1`, and similar sequences in `new_text` are interpreted as replacement patterns.
+
+### Multi-file patch
+
+None. Each call touches one path.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | `edit_file` only. `validateReadBeforeEdit()` looks up `path.resolve(file_path)` in the session read set before the approval prompt. Failure returns `File must be read before editing. Use read_file tool first: <file_path>`. `create_file` with `overwrite` and `delete_file` are not gated |
+| Stale-file check | None. No mtime, hash, or content comparison against the earlier read |
+| Lock | None |
+| Post-write checks | None |
+| Rollback | None |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `create_file` | `File created: <file_path>`; for a directory `Directory created: <file_path>` plus a `content` object with the absolute path and `type: "directory"` |
+| `edit_file` | `Replaced <n> occurrence(s) in <file_path>`. Without `replace_all`, `n` is always `1`; with it, `n` is the split count |
+| `delete_file` | `Deleted file: <file_path>` or `Deleted directory: <file_path>` |
+
+The approval overlay renders a diff preview and the history view renders a synthetic diff. Neither reaches the model.
+
+### Notable
+
+- No notebook editor, undo, or checkpoint.
+- `delete_file` refuses the working directory itself and any resolved path that does not start with the working directory string. The other mutation tools have no containment check.
+- The default system prompt tells the model to use `create_file` with `overwrite=true` to replace a file completely, which bypasses the read gate.
+
+## Shell
+
+### Signature
+
+```ts
+execute_command({ command: string, command_type: "bash" | "python" | "setup" | "run", working_directory?: string, timeout?: number })
+```
+
+The schema describes `timeout` as seconds in the range 1 to 300. The implementation passes the value to `child_process.exec` unchanged, where it is milliseconds, and defaults to `30000` when absent. `command_type: "python"` wraps the command as `python -c "<command>"` with double quotes escaped. The other three values pass the command through unchanged; the `setup (auto-run)` and `run (needs approval)` labels in the parameter description have no matching code path.
+
+### Description
+
+`execute_command`: 367 characters, 367 bytes, 1 line, approximately 80 tokens.
+
+The string is a safety warning: use the tool only for commands that complete and exit, never for servers or other long-running processes, and prefer short commands. It gives one JSON example. It does not state the timeout, the output shape, or the working directory.
+
+**`execute_command` (367 characters)**
+
+```text
+Run shell commands, scripts, or code. SAFETY WARNING: Only use for commands that COMPLETE and EXIT (test scripts, build commands, short-running scripts). NEVER use for commands that run indefinitely (flask server, node app starting, python -m http.server, etc.). Always prefer short-running commands that exit. Example: {"command": "npm test", "command_type": "bash"}
+```
+
+### Working directory and environment
+
+The command runs in the CLI process working directory. `working_directory` is resolved, checked with `access`, then applied with `process.chdir()` for the call and restored in a `finally`; a missing directory returns `Error: Working directory not found`. The environment is the CLI process environment. Shell selection is the Node `exec` default, `/bin/sh -c` on POSIX and `cmd.exe /d /s /c` on Windows. Login shell: None. Windows: Not surveyed.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One `exec` per call, awaited to exit |
+| Background | None |
+| stdin | None |
+| Cancellation | None from the agent loop. Timeout sends `SIGTERM`; a kill on `SIGTERM` maps to `Error: Command timed out` |
+| Grandchildren | Unverified. `exec` without `detached` kills the shell only |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | `exec` buffers stdout and stderr in memory with the Node default `maxBuffer` of 1 MiB per stream |
+| Model-visible budget | None. The whole buffer is returned as `content: "stdout: <stdout>\nstderr: <stderr>"` |
+| Truncation text | None. Exceeding `maxBuffer` rejects the promise and returns `Error: Failed to execute command` |
+| Spill file | None |
+| Empty output | `stdout: \nstderr: ` |
+
+### Sandbox
+
+None. The child runs as the CLI process account with the same filesystem and unrestricted network.
+
+### Approval
+
+`execute_command` is in `DANGEROUS_TOOLS`. Every call prompts with two options, `Yes` and `No, tell Groq what to do differently (esc)`; the session auto-approve option is not shown. Without an approval callback the agent rejects by default. A rejection returns `Tool execution canceled by user` with `userRejected: true`, and the loop appends a system message telling the model the response has been terminated. There is no allow list, deny list, or per-command rule.
+
+### Notable
+
+- A non-zero exit rejects the `exec` promise. The catch returns `Error: Failed to execute command` and drops stdout, stderr, and the exit code.
+- No PTY, no streaming to the model, no interactive input.
+- The approval prompt shows `command: "<command>"` truncated to 47 characters plus `...` when longer.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `list_files` | `directory?: string` (`.`), `pattern?: string` (`*`), `recursive?: boolean`, `show_hidden?: boolean` | None | `IGNORE_PATTERNS` from `src/utils/constants.ts`: `node_modules`, `.git`, `__pycache__`, `venv`, `.venv`, `build`, `dist`, `.idea`, `.vscode`, `.DS_Store`, `*.pyc`, `*.log`, `*.tmp`, matched as substrings of the absolute path or against the basename. Dotfiles hidden unless `show_hidden`; even then only `.env`, `.gitignore`, and `.dockerfile` pass the ignore check |
+| `search_files` | `pattern: string`, `file_pattern?` (`*`), `directory?` (`.`), `case_sensitive?` (`false`), `pattern_type?` (`substring`, `regex`, `exact`, `fuzzy`), `file_types?`, `exclude_dirs?`, `exclude_files?`, `max_results?` (100, max 1000), `context_lines?` (0, max 10), `group_by_file?` | 100 matching lines | Directories `.git`, `node_modules`, `.next`, `dist`, `build`, `.cache` plus `exclude_dirs`; files `*.log`, `*.tmp`, `*.cache`, `*.lock` plus `exclude_files`; hidden directories skipped except `.config` and `.env`; hidden files searched; files with a listed binary extension skipped |
+
+`list_files` calls `displayTree()` in `src/utils/file-ops.ts`, which accepts `pattern` and `recursive` and uses neither. It lists the direct children of one directory, directories first, then case-insensitive alphabetical, as a tree under a `<basename>/` header with `├── ` and `└── ` prefixes and a trailing `/` on directories. `shouldIgnore()` tests `pathStr.includes(pattern)` for patterns without `*`, so `.gitignore` never appears because its absolute path contains `.git`, and a project whose path contains `build` or `dist` lists as empty.
+
+`search_files` walks the tree in TypeScript, reads each file as UTF-8, and tests each line with a global regex built from `pattern_type`. `file_pattern`, `exclude_dirs`, and `exclude_files` are matched against the basename only, with `*` and `?` converted to regex and case folded; a `file_pattern` with a directory segment matches nothing. `max_results` counts matching lines across files. `content` is an array of objects with `filePath` relative to the working directory, `lineNumber`, `lineContent`, `contextLines` when requested, and `matchPositions`; with `group_by_file` it is one object per file. Zero files returns `content: []` with `No files found matching criteria`; zero matches in searched files returns `content: []` with `Found 0 match(es) in 0 file(s)`.
+
+### Description
+
+`search_files`: 196 characters, 196 bytes, 1 line, approximately 45 tokens.
+`list_files`: 218 characters, 218 bytes, 1 line, approximately 46 tokens.
+
+`search_files` names the use case and gives an example with `file_pattern` and `context_lines`. `list_files` tells the model to use it to check whether files exist before choosing between `create_file` and `edit_file`, and its example passes `pattern` and `recursive`, both of which the implementation ignores. Neither string states a cap or an ignore rule.
+
+**`search_files` (196 characters)**
+
+```text
+Find text patterns in files across the codebase. Perfect for locating functions, classes, or specific code. Example: {"pattern": "function handleClick", "file_pattern": "*.js", "context_lines": 3}
+```
+
+**`list_files` (218 characters)**
+
+```text
+Browse directory contents and file structure. Use to explore project layout and CHECK IF FILES EXIST before deciding between create_file vs edit_file. Example: {"directory": "src", "pattern": "*.js", "recursive": true}
+```
+
+## Errors
+
+Every failure is `success: false` with an `error` string in the JSON tool message. One row per distinct string in `src/tools/tools.ts`, `src/tools/validators.ts`, and `src/core/agent.ts`.
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `Error: File not found` | JSON `error` field |
+| Directory or special file on read | `Error: Path is not a file` | JSON `error` field |
+| File too large | `Error: File too large (max 50MB)` | JSON `error` field |
+| `start_line` past end | `Error: Start line exceeds file length` | JSON `error` field |
+| Other read failure | `Error: Failed to read file` | JSON `error` field |
+| Create target exists | `Error: File already exists, use overwrite=true` | JSON `error` field |
+| Create failed | `Error: Failed to create file`; `Error: Failed to create directory`; `Error: Failed to create file or directory` | JSON `error` field |
+| Create bad `file_type` | `Error: Invalid file_type, must be 'file' or 'directory'` | JSON `error` field |
+| Edit before read | `File must be read before editing. Use read_file tool first: <file_path>` | JSON `error` field |
+| Edit match failed | None. The file is rewritten unchanged and `Replaced 1 occurrence(s) in <file_path>` is returned | Successful result |
+| Edit not unique | None. The first occurrence is replaced | Successful result |
+| Edit write failed | `Error: Failed to write changes to file`; `Error: Failed to edit file - <error>` | JSON `error` field |
+| Stale file | None. Not detected | |
+| Delete refused | `Error: Cannot delete the root project directory`; `Error: Cannot delete files outside the project directory`; `Error: Directory not empty, use recursive=true` | JSON `error` field |
+| Delete missing or failed | `Error: Path not found`; `Error: Failed to delete` | JSON `error` field |
+| List or search directory missing | `Error: Directory not found` | JSON `error` field |
+| List or search path not a directory | `Error: Path is not a directory` | JSON `error` field |
+| List or search failed | `Error: Failed to list files`; `Error: Failed to search files` | JSON `error` field |
+| Search bad regex | `Error: Invalid regex pattern` | JSON `error` field |
+| Command bad `command_type` | `Error: Invalid command_type` | JSON `error` field |
+| Command missing `working_directory` | `Error: Working directory not found` | JSON `error` field |
+| Command timeout | `Error: Command timed out` | JSON `error` field |
+| Command non-zero exit, buffer overflow, or other failure | `Error: Failed to execute command` | JSON `error` field |
+| Command denied | `Tool execution canceled by user` with `userRejected: true`; then a system message `The user rejected the <tool> tool execution. The response has been terminated. Please wait for the user's next instruction.` | JSON `error` field, then a system message |
+| Interrupted during approval | `Tool execution interrupted by user` with `userRejected: true` | JSON `error` field |
+| Arguments not valid JSON | `Tool arguments truncated: <error>. Please break this into smaller pieces or use shorter content.` | JSON `error` field |
+| Dispatch failures | `Error: Unknown tool`; `Error: Tool not implemented`; `Error: Invalid tool arguments`; `Error: Unexpected tool error`; `Tool execution error: <error>` | JSON `error` field |
+
+Twenty-seven rows, above the outline's fifteen. Each row is a distinct string or a distinct absence.
+
+## Evidence
+
+### What was verified and how
+
+| Section | Label | Pin | Note |
+|---|---|---|---|
+| Tool inventory | Source | `a303eb4` | `tool-schemas.ts` exports and the three approval classes; `agent.ts` request body |
+| Read | Source | `a303eb4` | `readFile()` in `tools.ts`; output example is Reconstructed |
+| Descriptions | Source | `a303eb4` | `descriptions/*.txt` extracted from `tool-schemas.ts` by importing `ALL_TOOL_SCHEMAS`, spliced into this page byte for byte |
+| Edit | Source | `a303eb4` | `createFile()`, `editFile()`, `deleteFile()`; `writeFile()` in `file-ops.ts`; `validators.ts`; the read gate in `agent.ts` |
+| Shell | Source | `a303eb4` | `executeCommand()`; `exec` defaults from the Node documentation |
+| Search and listing | Source | `a303eb4` | `listFiles()`, `searchFiles()`, `collectFiles()`, `matchesPattern()`, `isBinaryFile()`; `displayTree()` and `shouldIgnore()` in `file-ops.ts`; `constants.ts` |
+| Errors | Source | `a303eb4` | Strings read from `tools.ts`, `validators.ts`, and `agent.ts`; transport from `chat()` in `agent.ts` |
+
+The tool functions were also called directly from a Bun script against a fixture directory (`checks.ts` in the scratch folder) to confirm the result shapes, the read gate, the silent no-match edit, the ignored `list_files` arguments, and the millisecond timeout. That is not a live model session, so the examples stay Reconstructed.
+
+### Gaps
+
+- Shell, Working directory and environment: Windows shell path is Not surveyed.
+- Shell, Process lifecycle: grandchild cleanup on timeout is Unverified.
+- No live `groq` session was run. Model behaviour with the Kimi default, including how often it sends absolute paths against the parameter text, was not observed.
+
+### Refresh notes
+
+Diff the `sourceFiles` list between `a303eb4be01a53aaf3fbf319636e2b608e80aeca` and the target commit. The description strings are literals in `src/tools/tool-schemas.ts`; a change there changes the counts. `src/tools/tools.ts` holds every result and error string. Re-extract with `extract.ts`, recount with `count.ts`, rerun `checks.ts`, and rebuild with `build.ts` in `/home/gareth/Documents/Personal/scratch/2026-09-19-groq-code-cli-source/`. The repository had no push after 2025-12-19 at survey time; check `pushed_at` before spending time on a refresh.
