@@ -1,0 +1,527 @@
+---
+title: Mastra
+description: Read, edit, shell, and search workspace tools in the Mastra coding agent at @mastra/core 1.68.0-alpha.2, with every model-facing description in full
+harness: mastra
+kind: framework
+repo: mastra-ai/mastra
+commit: 6517d9bb714d2587d4c4aaed9470112cd57e1b20
+version: 1.68.0-alpha.2
+license: Apache-2.0
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - packages/core/src/coding-agent/index.ts
+  - packages/core/src/workspace/constants/index.ts
+  - packages/core/src/workspace/workspace.ts
+  - packages/core/src/workspace/line-utils.ts
+  - packages/core/src/workspace/errors.ts
+  - packages/core/src/workspace/gitignore.ts
+  - packages/core/src/workspace/tools/tools.ts
+  - packages/core/src/workspace/tools/types.ts
+  - packages/core/src/workspace/tools/helpers.ts
+  - packages/core/src/workspace/tools/output-helpers.ts
+  - packages/core/src/workspace/tools/media.ts
+  - packages/core/src/workspace/tools/tree-formatter.ts
+  - packages/core/src/workspace/tools/read-file.ts
+  - packages/core/src/workspace/tools/write-file.ts
+  - packages/core/src/workspace/tools/edit-file.ts
+  - packages/core/src/workspace/tools/delete-file.ts
+  - packages/core/src/workspace/tools/ast-edit.ts
+  - packages/core/src/workspace/tools/list-files.ts
+  - packages/core/src/workspace/tools/grep.ts
+  - packages/core/src/workspace/tools/file-stat.ts
+  - packages/core/src/workspace/tools/mkdir.ts
+  - packages/core/src/workspace/tools/execute-command.ts
+  - packages/core/src/workspace/tools/get-process-output.ts
+  - packages/core/src/workspace/tools/kill-process.ts
+  - packages/core/src/workspace/filesystem/local-filesystem.ts
+  - packages/core/src/workspace/filesystem/fs-utils.ts
+  - packages/core/src/workspace/filesystem/file-read-tracker.ts
+  - packages/core/src/workspace/filesystem/file-write-lock.ts
+  - packages/core/src/workspace/sandbox/local-sandbox.ts
+  - packages/core/src/workspace/sandbox/local-process-manager.ts
+  - packages/core/src/workspace/sandbox/mastra-sandbox.ts
+  - packages/core/src/workspace/sandbox/process-manager/process-manager.ts
+  - packages/core/src/workspace/sandbox/process-manager/process-handle.ts
+  - packages/core/src/loop/workflows/agentic-execution/llm-mapping-step.ts
+---
+
+Mastra is an open-source TypeScript agent framework published by mastra-ai. `createCodingAgent()` in `@mastra/core` returns an ordinary agent with a workspace attached, and every agent with a workspace receives the same dedicated tool family from `createWorkspaceTools()`: read, write, edit, list, delete, stat, mkdir, and grep over a `WorkspaceFilesystem` interface, plus execute, process output, and kill over a `WorkspaceSandbox`. Tool ids carry the `mastra_workspace_` prefix, the read window is a token estimate rather than a line count, and every cap on this page is a per-tool host setting. This page describes the default `createCodingAgent()` workspace: a `LocalFilesystem` rooted at `process.cwd()` with `contained: true`, and a `LocalSandbox` with the same working directory, isolation `none`, and a local process manager.
+
+## Source
+
+| Item | Value |
+|---|---|
+| Repository | [mastra-ai/mastra](https://github.com/mastra-ai/mastra) |
+| Commit | `6517d9bb714d2587d4c4aaed9470112cd57e1b20` on `main`, committed 2026-09-16 |
+| Last updated | 2026-09-16 |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `mastra_workspace_read_file` | Read a text file, a media file, or raw bytes | Yes | Records the file mtime for the write-side check |
+| `mastra_workspace_write_file` | Create or replace a whole file | Yes | Absent when the filesystem is read-only |
+| `mastra_workspace_edit_file` | Replace one unique string or all occurrences | Yes | Absent when the filesystem is read-only |
+| `mastra_workspace_list_files` | Tree-style listing with depth, glob, and exclude filters | Yes | |
+| `mastra_workspace_delete` | Delete a file or directory | Yes | Absent when the filesystem is read-only |
+| `mastra_workspace_file_stat` | Type, size, and modification time | Yes | |
+| `mastra_workspace_mkdir` | Create a directory | Yes | Absent when the filesystem is read-only |
+| `mastra_workspace_grep` | Regex search over text files | Yes | Walks the filesystem in TypeScript |
+| `mastra_workspace_ast_edit` | AST transforms through ast-grep | No | Opt-in. Registered only when `@ast-grep/napi` resolves at runtime; it is a development dependency of `@mastra/core` at this pin |
+| `mastra_workspace_execute_command` | Run a shell command in the foreground or background | Yes | Background variant, because `LocalSandbox` has a process manager |
+| `mastra_workspace_get_process_output` | Poll or wait on a background process | Yes | |
+| `mastra_workspace_kill_process` | Kill a background process | Yes | Returns the last 50 lines |
+
+The description strings use short names such as `read file` and `execute_command`; the model sees the prefixed ids above. Not on this page: `mastra_workspace_search` and `mastra_workspace_index` need a BM25 or vector store; the eleven `mastra_workspace_computer_*` tools need a sandbox with the computer capability; `mastra_workspace_lsp_inspect` needs an LSP manager; the `task_*` tools come from the task signal provider when memory is configured. A host can remove any tool with `enabled`, and can rename one with `name`, which also changes its id so the old name stops resolving.
+
+## Read
+
+### Signature
+
+```ts
+mastra_workspace_read_file({
+  path: string,
+  offset?: number,
+  limit?: number,
+  showLineNumbers?: boolean,
+  encoding?: "utf-8" | "utf8" | "base64" | "hex" | "binary",
+})
+```
+
+`path` is relative to the base path or absolute. `offset` is one-based and `limit` is a line count; both are integers with a minimum of 1, and both are ignored for media and binary files. `showLineNumbers` defaults to `true`. `encoding` returns the raw bytes encoded as text. The parameter text gives `data/config.json` as the path example. No default is applied to `limit`.
+
+### Description
+
+`read_file`: 325 characters, 327 bytes, 1 line, approximately 68 tokens.
+
+**`mastra_workspace_read_file` (325 characters)**
+
+```text
+Read a file from the workspace filesystem. Text files come back as text — use offset/limit to read a line range from large files. Supported media files come back as a native file part you can view directly. Other binary files return only their metadata (path, size, mime type) since their raw contents are not useful to read.
+```
+
+### Path handling
+
+`resolveToBasePath` expands a leading `~`, normalises an absolute path as is, and resolves a relative path, including `..`, against the filesystem `basePath`. With the default `contained: true` the resolved path must sit under `basePath` or one of `allowedPaths`. The check runs twice: once lexically, with a `realpathSync` walk up to the nearest existing ancestor when the lexical check fails, and once more after `fs.realpath` of the target so a symlink inside the workspace cannot point outside it. The header in the output uses the workspace-relative path from `stat`, so a model that passes an absolute path under the base path sees the relative form.
+
+There is no sibling or unicode recovery. The one hint targets a model that treats `/` as the workspace root. When an absolute path fails containment and its first segment exists under `basePath`, the error is:
+
+```text
+Permission denied: access (path is outside the workspace; use a relative path like "src/app.ts") on /src/app.ts
+```
+
+Otherwise it is `Permission denied: access (path is outside the workspace; use a path relative to the workspace root, without a leading "/") on <path>`. A missing file is `File not found: <path>` with the path as the model typed it.
+
+Symlinks: the real path is checked after the lexical check, and a target outside the roots fails with `Permission denied: access on <absolute path>`. The read then follows the link. The workspace appends the filesystem and sandbox instruction strings to the system prompt, which for this configuration read:
+
+```text
+Local command execution. Working directory: "<basePath>".
+
+Local filesystem at "<basePath>". Relative paths resolve from this directory. File access is restricted to this directory.
+```
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Containment | Anything outside `basePath` and `allowedPaths` when `contained` is true, checked lexically and after `realpath`. `contained: false` removes the check |
+| Per-tool `enabled` | Resolved when the tool list is built. A dynamic function that throws resolves to `false` |
+| Per-tool `requireApproval` | Default `false`. A boolean, or a function of the arguments, request context, and workspace. A dynamic function that throws resolves to `true`. The approval prompt and denial text live in the agent loop: Not surveyed |
+| Hooks | `beforeToolCall` can return `proceed: false` with an output that becomes the tool result; `afterToolCall` runs on success and on error |
+| Device and special files | None. There is no FIFO, socket, or device check. A FIFO under `basePath` passes `stat` as a file and `fs.readFile` blocks on it |
+| Read-only filesystem | Reads are allowed; the write tools are not registered |
+
+Containment covers `/proc` and `/dev` as a side effect, because they sit outside the base path. The coding agent defaults to `basePath: process.cwd()`, so a host that runs the agent from `/` has no containment at all.
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | Extension only, through a 106-entry MIME map in `fs-utils.ts`. An unmapped extension becomes `application/octet-stream`, which the text check accepts. Text is `text/*`, ten `application/*` types, any `+json` or `+xml` suffix, and `application/octet-stream` |
+| Refusal | A binary MIME type outside `mediaTypes` returns the metadata line below as ordinary text. A `.bin` or `.exe` returns metadata; a compiled file with no extension is decoded as UTF-8 with replacement characters |
+| Notebooks | None. `.ipynb` is not in the map and reads as JSON text |
+| Office and PDF text | None. PDF goes to the model as a media part; Office types return metadata only |
+| Images | PNG, JPEG, WebP by extension. A `content` output with a text header `<path> (<size> bytes, <mime>)` and a media part with base64; only the header is stored and displayed. GIF, BMP, HEIC, and the rest return metadata unless `mediaTypes` includes them. SVG reads as text because `image/svg+xml` passes the `+xml` check |
+| PDF | `application/pdf` media part by default |
+| Audio and video | Metadata only unless `mediaTypes` includes them |
+| Media size guard | 10 MiB `maxMediaBytes`. Above it the tool returns the metadata line below, unless `encoding` was given, in which case the raw read runs |
+| Encoding | UTF-8 with replacement characters. `base64`, `hex`, and `binary` return the bytes encoded as text under the header `<path> (<size> bytes, <encoding>)`. No BOM or line-ending handling |
+
+```text
+<path> (<size> bytes, <mime>) — binary file not readable as text. Pass an explicit `encoding` (e.g. `base64`) to read the raw bytes, or configure `mediaTypes` on the read_file tool to surface it as a media part.
+```
+
+```text
+<path> (<size> bytes, <mime>) — exceeds maxMediaBytes (10485760). Returning metadata only; configure `maxMediaBytes` on the read_file tool to raise this cap.
+```
+
+The default media list is the intersection of the image formats the Anthropic, OpenAI, and Gemini providers accept plus PDF, and the source comment says so. `mediaTypes` accepts `*`, `type/*`, exact types, a predicate function, or `false`.
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | None. Without `offset` and `limit` the whole file is read | |
+| Ceiling | The model's `limit` | |
+| Long line | None. The token cut can land inside a line | `[output truncated: showing first ~<limit> of ~<total> tokens]` |
+| Output budget | 2000 estimated tokens, counted over the header and the numbered content; `maxOutputTokens` per tool. The head is kept | The same notice, after the kept text |
+| Whole-file size | None for text. The whole file is read into memory, split, and numbered before the cap. 10 MiB for media | |
+| Offset past end | Not an error | Header `<path> (lines 0-0 of <total>, <size> bytes)` with no content |
+
+The estimate comes from the `tokenx` package, a dependency of `@mastra/core`, not from a provider tokenizer. The six-column gutter counts toward the budget, so a numbered file of a few hundred lines can already overflow it. The notice gives no `offset` to continue from; the model has to read the last visible line number and call again from there, and the last numbered row can be incomplete.
+
+### Output
+
+```text
+src/app.ts (42 bytes)
+     1→import { x } from "./x"
+     2→export const y = x
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | One header line: `<path> (<size> bytes)`, or `<path> (lines <a>-<b> of <total>, <size> bytes)` when `offset` or `limit` was passed |
+| Line prefix | Line number right-aligned to six columns, or one more than the widest number when the file is over 99 999 lines, then U+2192, then the text. Off with `showLineNumbers: false` |
+| End marker | None |
+| Truncation notice | After the kept text: `[output truncated: showing first ~2000 of ~<total> tokens]` |
+| Error transport | Thrown. The agent loop records a `tool-error` chunk and an `output-error` invocation whose `errorText` is the message |
+
+The example is reconstructed from the format code. Line count comes from `split('\n')`, so a file that ends with a newline reports one extra empty line and shows it as a numbered blank row. The source comment says the format matches Claude Code, which used the arrow in an earlier release.
+
+### Notable
+
+- Repeat-read guard: None. Every read records the file mtime in a read tracker, per run by default and thread-scoped storage when the agent has memory. The mutation tools compare it before writing; see Verification and mutation state.
+- Content injection after the read: None. A `data-workspace-metadata` chunk goes to the UI stream, not to the model.
+- Redaction: None.
+- Empty file: header `<path> (0 bytes)` and one numbered blank row `     1→`.
+- Cancellation: the read tool has no abort path. A tracing span opens per read.
+- Host knobs on this family: `maxOutputTokens`, `mediaTypes`, `maxMediaBytes`, `requireApproval`, `enabled`, `name`, and `hooks` under `workspace.tools`; `contained`, `allowedPaths`, and `readOnly` on `LocalFilesystem`. Each tool setting can be a function of the request context. A different filesystem provider replaces the path and error behaviour on this page.
+
+## Edit
+
+### Signature
+
+```ts
+mastra_workspace_write_file({ path: string, content: string, overwrite?: boolean })
+mastra_workspace_edit_file({ path: string, old_string: string, new_string: string, replace_all?: boolean })
+mastra_workspace_delete({ path: string, recursive?: boolean })
+mastra_workspace_ast_edit({
+  path: string,
+  pattern?: string,
+  replacement?: string,
+  transform?: "add-import" | "remove-import" | "rename",
+  targetName?: string,
+  newName?: string,
+  importSpec?: { module: string, names: string[], isDefault?: boolean },
+})
+```
+
+`overwrite` defaults to `true`; `false` opens the file with the `wx` flag and fails when it exists. `replace_all` defaults to `false`. `recursive` on `delete` defaults to `false` and is required for a non-empty directory. `ast_edit` is opt-in and takes either a `transform` or a `pattern` and `replacement` pair. There is no multi-file patch tool and no patch grammar.
+
+### Description
+
+`write_file`: 90 characters, 90 bytes, 1 line, approximately 16 tokens.
+`edit_file`: 591 characters, 593 bytes, 7 lines, approximately 122 tokens.
+`delete`: 56 characters, 56 bytes, 1 line, approximately 9 tokens.
+`ast_edit` (opt-in): 1028 characters, 1030 bytes, 16 lines, approximately 254 tokens.
+
+**`mastra_workspace_write_file` (90 characters)**
+
+```text
+Write content to a file in the workspace filesystem. Creates parent directories if needed.
+```
+
+**`mastra_workspace_edit_file` (591 characters)**
+
+```text
+Edit a file by replacing specific text. The old_string must match exactly and be unique in the file.
+
+Usage:
+- Read the file first to get the exact text to replace.
+- By default, read file output includes line number prefixes (e.g., "     1→"). Ensure you preserve the exact indentation as it appears AFTER the arrow. Never include any part of the line number prefix in old_string or new_string.
+- Include enough surrounding context (multiple lines) to make old_string unique. If it still isn't unique, include more lines.
+- Use replace_all only when intentionally replacing all occurrences.
+```
+
+**`mastra_workspace_delete` (56 characters)**
+
+```text
+Delete a file or directory from the workspace filesystem
+```
+
+**`mastra_workspace_ast_edit` (1028 characters, opt-in)**
+
+```text
+Edit code using AST-based analysis for intelligent transformations.
+
+Use `transform` for structured operations (imports, renames). Use `pattern`/`replacement` only for general find-and-replace.
+
+Transforms:
+- add-import: Add or merge imports. Skips duplicates. For default imports, put the default name first in `names`.
+  { transform: "add-import", importSpec: { module: "react", names: ["useState", "useEffect"] } }
+  { transform: "add-import", importSpec: { module: "express", names: ["express"], isDefault: true } }
+  { transform: "add-import", importSpec: { module: "express", names: ["express", "Router"], isDefault: true } } → import express, { Router } from 'express'
+- remove-import: Remove an import by module name.
+  { transform: "remove-import", targetName: "lodash" }
+- rename: Rename all occurrences of an identifier (not scope-aware).
+  { transform: "rename", targetName: "oldName", newName: "newName" }
+
+Pattern replace (for everything else):
+  { pattern: "console.log($ARG)", replacement: "logger.debug($ARG)" }
+```
+
+### Whole-file write
+
+`write_file` checks `filesystem.readOnly`, then calls `LocalFilesystem.writeFile`. That method resolves and contains the path, creates the parent directory recursively, runs the mtime check described below when a read record exists, and calls `fs.writeFile` with the `w` flag, or `wx` when `overwrite` is `false`. The write is direct; there is no temporary file and rename, no backup, and no read-back after the write. Content is written as UTF-8 as supplied, with no BOM or line-ending handling. Mode preservation: Not surveyed. The success text reports the UTF-8 byte length. When the workspace has an LSP manager, diagnostics for the file are appended; the default coding agent has none.
+
+### Matching
+
+Exact only. `edit_file` reads the file inside its own execute, counts occurrences of `old_string` with `indexOf`, and stops with a message when the count is zero, or above one without `replace_all`. Both messages are returned as ordinary text, not as errors. There is no fallback cascade, no whitespace or unicode normalisation, no BOM strip, and no CRLF handling; the model has to reproduce the bytes. An empty `old_string` counts as zero occurrences. `$` in `new_string` is escaped so the replacement is literal. The `Cannot edit binary files. Use the write file tool instead.` branch fires when a provider returns a buffer for a UTF-8 read; `LocalFilesystem` always returns a string.
+
+### Multi-file patch
+
+None. `edit_file` and `ast_edit` cover one file per call.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Opt-in through `requireReadBeforeWrite` per tool. When set, an unread file fails with `File "<path>" has not been read. You must read a file before writing to it.`, a changed file with the re-read message under Errors, and a file read on another filesystem with a third variant. Not on by default; only the `edit_file` string tells the model to read first |
+| Stale-file check | Always on when a read record exists. The mtime recorded at read time is attached as `expectedMtime`, and `LocalFilesystem.writeFile` compares it with `stat.mtime` before writing. A mismatch throws `File was modified externally: <path> (expected mtime <a>, actual <b>)`. A file the model never read has no record and no check |
+| Record lifetime | The record is cleared after a successful write. A second edit without a fresh read runs with no mtime check, and fails the opt-in gate when it is on. The read inside `edit_file` does not record |
+| Lock | An in-process per-path promise queue wraps the whole execute pipeline of `write_file`, `edit_file`, `delete`, and `ast_edit`, including the tracker check. The key is the normalised path string, not the real path. The default hold limit is 30 s (`writeLockTimeoutMs`), after which the call fails with `write-lock timeout on "<path>" after <ms>ms`. `read_file`, `mkdir`, and `execute_command` take no lock |
+| Cross-process coordination | None |
+| Post-write checks | LSP diagnostics appended as an `LSP Diagnostics:` block cut at 2000 characters, when the workspace has an LSP manager. None in the default coding agent |
+| Change tracking | A tracing span per operation. No per-write snapshot |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write_file` | `Wrote <n> bytes to <path>` |
+| `edit_file` | `Replaced 1 occurrence in <path> (lines <a>-<b>)`, with `(lines <a>)` for a one-line span, or `Replaced <n> occurrences in <path> (lines <a>, <c>-<d>)` with `replace_all`. Ranges are computed on the old content with the end adjusted for the new line count. The miss and duplicate messages come back as the same kind of text |
+| `delete` | `Deleted <path>` |
+| `ast_edit` | `<path>: <change>; <change>`, or `No changes made to <path> (<changes>)`. Its input and file-type failures are returned as text that starts with `Error:` or names the tool to use instead |
+
+No diff or snippet is returned by any of the four.
+
+### Notable
+
+- No notebook editor, no undo tool, and no checkpoint tool for the model. `LocalSandbox` has host-side snapshot and restore of the working directory; the model cannot call them.
+- `delete` on a directory without `recursive: true` fails with `Directory not empty: <path>` when it has entries.
+- `maxOutputTokens` is accepted in the config for every tool, but the mutation tools do not apply it to their results.
+- Host knobs on this family: `requireApproval`, `requireReadBeforeWrite`, `enabled`, `name`, and `hooks` per tool; `writeLockTimeoutMs` at the top level of `workspace.tools`; `readOnly` on the filesystem; an LSP manager on the workspace for diagnostics.
+
+## Shell
+
+### Signature
+
+```ts
+mastra_workspace_execute_command({
+  command: string,
+  timeout?: number | null,
+  cwd?: string | null,
+  tail?: number | null,
+  background?: boolean,
+})
+mastra_workspace_get_process_output({ pid: string, tail?: number, wait?: boolean })
+mastra_workspace_kill_process({ pid: string })
+```
+
+`timeout` is in seconds and has no default. `tail` is a line count with a default of 200; `0` means no limit. Numeric strings for `timeout` and `tail` are coerced to numbers before validation. `background` is in the schema because `LocalSandbox` has a process manager; a sandbox without one gets the foreground-only variant. `pid` is a string.
+
+### Description
+
+`execute_command`: 752 characters, 752 bytes, 15 lines, approximately 170 tokens. This is the background-capable variant. The foreground-only variant is the same string without the final paragraph.
+`get_process_output`: 234 characters, 234 bytes, 3 lines, approximately 47 tokens.
+`kill_process`: 184 characters, 184 bytes, 3 lines, approximately 37 tokens, rendered with the shipped `KILL_TAIL_LINES` of 50.
+
+**`mastra_workspace_execute_command` (752 characters)**
+
+```text
+Execute a shell command in the workspace sandbox.
+
+Examples:
+  "npm install && npm run build"
+  "ls -la src/"
+  "cat config.json | jq '.database'"
+  "cd /app && python main.py"
+
+Usage:
+- Commands run in a shell, so pipes, redirects, and chaining (&&, ||, ;) all work.
+- Always quote file paths that contain spaces (e.g., cd "/path/with spaces").
+- Use the timeout parameter (in seconds) to limit execution time. Behavior when omitted depends on the sandbox provider.
+- Optionally use cwd to override the working directory. Commands run from the sandbox's configured workingDirectory (or the provider default) if omitted.
+
+Set background: true to run long-running commands (dev servers, watchers) without blocking. You'll get a PID to track the process.
+```
+
+**`mastra_workspace_get_process_output` (234 characters)**
+
+```text
+Get the current output (stdout, stderr) and status of a background process by its PID.
+
+Use this after starting a background command with execute_command (background: true) to check if the process is still running and read its output.
+```
+
+**`mastra_workspace_kill_process` (184 characters)**
+
+```text
+Kill a background process by its PID.
+
+Use this to stop a long-running background process that was started with execute_command (background: true). Returns the last 50 lines of output.
+```
+
+### Working directory and environment
+
+The working directory is the sandbox `workingDirectory`, which the coding agent sets to `basePath`. An absolute `cwd` is used as is; a relative `cwd` resolves against the working directory unless it already sits under it. There is no containment check on `cwd`, so the shell can start anywhere on the host. The environment is not inherited: the child receives `PATH` from the host, the sandbox `env` option, which is empty by default, and any runtime overlay set through `setEnv()`. `HOME` and the rest of the host environment are absent unless the host passes them.
+
+Shell: the process manager spawns through `execa` with `shell: true` and `extendEnv: false`, so the command string is interpreted by `/bin/sh` on Unix and `cmd.exe` on Windows. Login shell: None. With a native isolation backend the wrapper carries its own `sh -c`.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One child process per foreground call, spawned `detached: true` in its own process group on Unix. The handle is released when the command returns |
+| Background | `background: true` returns `Started background process (PID: <pid>)`. The handle stays in an in-memory map. `get_process_output` polls it, or blocks with `wait: true`. An exited process is pruned when its output is read once; a second read gives `No background process found with PID <pid>.` |
+| stdin | Handles support `sendStdin` and `closeStdin`; no model-facing tool exposes them |
+| Cancellation | The run abort signal kills the process tree with `SIGKILL`, for foreground commands and, by default, for background processes. `backgroundProcesses.abortSignal` can detach the latter |
+| Timeout | `SIGTERM` to the process group at the deadline. On close the handle appends `Process timed out after <ms>ms` to stderr and sets exit code 124 |
+| Grandchildren | Killed with the process group on Unix through `process.kill(-pid)`; `taskkill /T /F` on Windows |
+| Exit code | A signal without a code becomes 128. A spawn failure becomes 1 with the error message on stderr |
+
+The `timeout` option on `LocalSandboxOptions` is documented with a 30000 ms default, but the constructor does not read it at this pin, so a call without `timeout` has no deadline.
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | stdout and stderr are collected as separate strings on the handle and streamed to the UI as `data-sandbox-stdout` and `data-sandbox-stderr` chunks. Background handles retain 1 MiB per stream by default and drop older bytes; foreground calls set the retention to unlimited |
+| Model-visible budget | Per stream: the last `tail` lines, then a token sandwich of 2000 estimated tokens with ten percent for the head and ninety for the tail; `maxOutputTokens` per tool |
+| Truncation text | `[showing last <n> of <total> lines]` above the tail; `[...output truncated — showing first ~<head> + last ~<tail> of ~<total> tokens...]` between the kept head and tail |
+| Spill file | None |
+| Empty output | `(no output)`; `(no output yet)` from `get_process_output` |
+| ANSI | Escape codes are stripped in `toModelOutput`; the UI stream keeps them |
+
+A trailing `| tail -N` or `| tail -n N` on the command is removed before spawn and applied as the `tail` value afterwards, so output streams to the UI while the model still receives the tail. When both streams have content the result is `stdout:`, the stdout text, a blank line, `stderr:`, and the stderr text; stdout alone is returned bare.
+
+### Sandbox
+
+None by default. `isolation` is `'none'`, so commands run on the host as the Node process account, the network is unrestricted, and the filesystem containment on the read and write tools does not apply to the shell. Opt-in `seatbelt` on macOS and `bwrap` on Linux take a `nativeSandbox` config with `allowNetwork`, `readWritePaths`, and `readOnlyPaths`; the constructor throws `IsolationUnavailableError` when the requested backend is not installed. The profile contents: Not surveyed.
+
+### Approval
+
+None by default. `requireApproval` on the tool, or at the top level of `workspace.tools`, marks the tool for the agent loop's approval flow, and a `beforeToolCall` hook can refuse a call with its own output. There is no command parser, allowlist, or pattern table. The prompt and denial text: Not surveyed.
+
+### Notable
+
+- A non-zero exit is a successful tool result. The output is followed by a blank line and `Exit code: <n>`.
+- A timeout is also a successful tool result: the stderr line above and `Exit code: 124`. A spawn failure returns `Error: <message>` after any collected output.
+- No PTY, no interactive input, no streaming to the model. A workspace browser, when configured, injects a CDP URL into commands that name a known browser CLI.
+- Host knobs on this family: `maxOutputTokens`, `requireApproval`, `enabled`, `name`, `hooks`, and `backgroundProcesses` with `onStdout`, `onStderr`, `onExit`, and `abortSignal` per tool; `workingDirectory`, `env`, `isolation`, and `nativeSandbox` on `LocalSandbox`; `setEnv()` at runtime. A different sandbox provider replaces the lifecycle and limits on this page.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `list_files` | `path` (default `.`), `maxDepth` (default 2), `showHidden`, `dirsOnly`, `exclude`, `extension`, `pattern` (string or array), `respectGitignore` (default `true`) | 1000 estimated tokens through `maxOutputTokens`, head kept; depth 2 with `(truncated at depth <n>)` in the summary | Root `.gitignore`; hidden entries off; `.git` never descended; symlinked directories listed, not entered |
+| `grep` | `pattern`, `path` (default `.`, file, directory, or glob), `contextLines`, `maxCount`, `caseSensitive` (default `true`), `includeHidden` | 1000 matches in total with `(truncated at 1000)`; 500 characters per matched line with `...`; 1000-character pattern; 2000 estimated tokens | Root `.gitignore`, skipped when the target itself is ignored; hidden off; `.git` never; a 52-entry text extension allowlist; symlinked directories not entered |
+| `file_stat` | `path` | None | None |
+| `mkdir` | `path`, `recursive` (default `true`) | None | None |
+
+`list_files` returns a tab-indented tree, directories first and then alphabetical, with a symlink shown as `name -> target`, then a blank line and `<d> directories, <f> files`. A read error on the root is thrown; errors below it are skipped. An empty or blank `pattern` is treated as absent. The token default for this tool is 1000, half the read default.
+
+`grep` compiles the pattern as a JavaScript `RegExp` with the `g` flag, or `gi` when case-insensitive, and tests each line once. The summary comes first: `<n> matches across <f> files`, then `---`, then `<path>:<line>:<column>: <text>` rows. With `contextLines` the context rows are `<path>:<line>- <text>` and hunks are separated by `--`. Read failures are counted in the summary as `(<n> paths skipped: read error)` rather than thrown; a `strict` construction option makes them throw. A missing target adds `(target path not found: nothing searched)`. `LocalFilesystem` has no native grep, so the tool walks directories with a concurrency of eight and reads every candidate file.
+
+`file_stat` returns `<path> Type: <type> Size: <n> bytes Modified: <iso>` on one line, and `<path>: not found` as text for a missing path. `mkdir` returns `Created directory <path>`.
+
+### Description
+
+`list_files`: 654 characters, 656 bytes, 14 lines, approximately 164 tokens.
+`grep`: 705 characters, 705 bytes, 13 lines, approximately 199 tokens.
+`file_stat`: 104 characters, 104 bytes, 1 line, approximately 20 tokens.
+`mkdir`: 46 characters, 46 bytes, 1 line, approximately 7 tokens.
+
+**`mastra_workspace_list_files` (654 characters)**
+
+```text
+List files and directories in the workspace filesystem.
+Returns a compact tab-indented listing for efficient token usage.
+Options mirror common tree command flags for familiarity.
+
+Examples:
+- List workspace root: { path: "." }
+- Deep listing: { path: "src", maxDepth: 5 }
+- Directories only: { path: ".", dirsOnly: true }
+- Exclude node_modules: { path: ".", exclude: "node_modules" }
+- Find TypeScript files: { path: "src", pattern: "**/*.ts" }
+- Find config files: { path: ".", pattern: "*.config.{js,ts}" }
+- Multiple patterns: { path: ".", pattern: ["**/*.ts", "**/*.tsx"] }
+
+To list ALL files, omit the pattern parameter — do NOT pass pattern: "*".
+```
+
+**`mastra_workspace_grep` (705 characters)**
+
+```text
+Search file contents using a regex pattern. Walks the filesystem and returns matching lines with file paths and line numbers.
+
+Usage:
+- Basic search: { pattern: "TODO" }
+- Regex: { pattern: "function\s+\w+\(" }
+- Multiple terms: { pattern: "TODO|FIXME|HACK" }
+- Case-insensitive: { pattern: "error", caseSensitive: false }
+- Search in directory: { pattern: "import", path: "./src" }
+- Filter by glob: { pattern: "import", path: "**/*.ts" }
+- Combined path + glob: { pattern: "import", path: "src/**/*.ts" }
+- Multiple file types: { pattern: "import", path: "**/*.{ts,tsx,js}" }
+- Multiple directories: { pattern: "TODO", path: "{src,lib}/**/*.ts" }
+- With context: { pattern: "function", contextLines: 2 }
+```
+
+**`mastra_workspace_file_stat` (104 characters)**
+
+```text
+Get file or directory metadata from the workspace. Returns existence, type, size, and modification time.
+```
+
+**`mastra_workspace_mkdir` (46 characters)**
+
+```text
+Create a directory in the workspace filesystem
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `File not found: <path>` | Thrown; `output-error` invocation with `errorText` |
+| Directory on read | `Path is a directory: <path>` | Thrown |
+| Path outside the workspace | `Permission denied: access (path is outside the workspace; use a relative path like "<relative>") on <path>`; `Permission denied: access (path is outside the workspace; use a path relative to the workspace root, without a leading "/") on <path>` | Thrown |
+| Symlink escape | `Permission denied: access on <absolute path>` | Thrown |
+| OS permission denied | The raw Node `EACCES` error message | Thrown |
+| Binary file | The metadata line under Binary and conversion | Successful text result |
+| Media over `maxMediaBytes` | The metadata line under Binary and conversion | Successful text result |
+| Offset past end | `<path> (lines 0-0 of <total>, <size> bytes)` | Successful text result |
+| Read-only workspace | `Workspace is in read-only mode. Cannot perform: <operation>` | Thrown; the write tools are not registered in that case |
+| Edit match failed | `The specified text was not found. Make sure you use the exact text from the file.` | Successful text result |
+| Edit not unique | `The specified text appears <n> times. Provide more surrounding context to make the match unique, or use replace_all to replace all occurrences.` | Successful text result |
+| Stale file | `File was modified externally: <path> (expected mtime <a>, actual <b>)` | Thrown |
+| Read required, opt-in | `File "<path>" has not been read. You must read a file before writing to it.`; `File "<path>" was modified since last read (read at: <a>, current: <b>). Please re-read the file to get the latest contents.`; `File "<path>" was read in a different filesystem. You must read a file before writing to it.` | Thrown |
+| Write with `overwrite: false` | `File already exists: <path>` | Thrown |
+| Write lock timeout | `write-lock timeout on "<path>" after <ms>ms` | Thrown |
+| Delete a non-empty directory | `Directory not empty: <path>` | Thrown |
+| Command exit non-zero | Output, blank line, `Exit code: <n>` | Successful text result |
+| Command timeout | `Process timed out after <ms>ms` on stderr, then `Exit code: 124` | Successful text result |
+| Command spawn failure | Output, then `Error: <message>` | Successful text result |
+| Unknown PID | `No background process found with PID <pid>.`; `Process <pid> was not found or had already exited.` | Successful text result |
+| Grep bad pattern | `Error: Invalid regex pattern: <message>`; `Error: Pattern too long (<n> chars, max 1000). Use a shorter pattern.` | Successful text result |
+| Grep target missing | `(target path not found: nothing searched)` in the summary line | Successful text result |
+| List root missing | `Directory not found: <path>`; `Path is not a directory: <path>` | Thrown |
+| Stat missing | `<path>: not found` | Successful text result |
+| No filesystem or not initialised | `Workspace does not have a filesystem configured`; `Filesystem "<id>" is not ready. Call init() first or use ensureReady().` | Thrown |
+
+A thrown error becomes a `tool-error` chunk, and the message list records an `output-error` invocation whose `errorText` is the error message, in `llm-mapping-step.ts`. Twelve of the rows above are plain text results with no error flag, so the model has to read the text to learn that the call did not do what it asked. The filesystem errors carry POSIX-style codes (`ENOENT`, `EISDIR`, `EACCES`, `ESTALE`, `EEXIST`, `ENOTEMPTY`) on the error object; the code is not in the text the model sees.

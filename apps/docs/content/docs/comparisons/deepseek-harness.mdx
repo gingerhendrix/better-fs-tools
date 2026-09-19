@@ -1,0 +1,478 @@
+---
+title: DeepSeek Harness
+description: Read, edit, shell, and search tools in the DeepSeek Harness dsh CLI at 0.1.6-alpha.2, with every model-facing description in full
+harness: deepseek-harness
+kind: cli
+repo: deepseek-ai/deepseek-harness
+commit: ddefc45fbc7f8e46dd73185e68295696d1297887
+version: 0.1.6-alpha.2
+license: MIT
+surveyed: 2026-09-19
+verified: 2026-09-19
+sourceFiles:
+  - apps/cli/package.json
+  - packages/bundle/base/cordis.patch.yml
+  - packages/bundle/web-app/cordis.patch.yml
+  - packages/preset/agent-presets/presets/standard/agent.cordis.yml
+  - packages/preset/agent-presets/presets/minimal/agent.cordis.yml
+  - packages/fs/tool-fs/src/index.ts
+  - packages/fs/tool-fs/src/read.ts
+  - packages/fs/tool-fs/src/read-render.ts
+  - packages/fs/tool-fs/src/read-target.ts
+  - packages/fs/tool-fs/src/read-image.ts
+  - packages/fs/tool-fs/src/write.ts
+  - packages/fs/tool-fs/src/edit.ts
+  - packages/fs/tool-fs/src/error.ts
+  - packages/fs/tool-fs/src/sandbox.ts
+  - packages/fs/tool-fs/src/session-cwd.ts
+  - packages/fs/tool-str-replace-editor/src/index.ts
+  - packages/fs/tool-fs-search/src/index.ts
+  - packages/fs/tool-fs-search/src/glob.ts
+  - packages/fs/tool-fs-search/src/grep.ts
+  - packages/fs/tool-fs-search/src/search-core.ts
+  - packages/fs/fs-local/src/index.ts
+  - packages/fs/fs-local/src/fsio.ts
+  - packages/fs/fs-sandbox/src/index.ts
+  - packages/fs/fs-observation-policy/src/index.ts
+  - packages/shell/tool-bash/src/index.ts
+  - packages/shell/tool-bash/src/render.ts
+  - packages/shell/tool-bash/src/background.ts
+  - packages/shell/tool-pwsh/src/index.ts
+  - packages/shell/tool-bash-persistent/src/index.ts
+  - packages/shell/tool-pwsh-persistent/src/index.ts
+  - packages/shell/bash-local/src/index.ts
+  - packages/shell/bash-sandbox/src/index.ts
+  - packages/shell/shell-env/src/index.ts
+  - packages/subprocess/subprocess/src/index.ts
+  - packages/subprocess/subprocess-local/src/output.ts
+  - packages/sandbox/sandbox/src/escalation.ts
+  - packages/sandbox/sandbox/src/roots.ts
+  - packages/sandbox/sandbox-local/src/profiles.ts
+  - packages/jobs/tool-jobs/src/index.ts
+  - packages/spill/spill-policy/src/index.ts
+  - packages/spill/spill-policy/src/notice.ts
+  - packages/spill/spill-local/src/index.ts
+  - packages/attachment/attachment-local/src/index.ts
+  - packages/core/tools/src/index.ts
+  - docs/tool-catalog.md
+---
+
+DeepSeek Harness is an open-source coding agent published by DeepSeek as the `@deepseek-ai/dsh` npm package. It is a developer preview. Every part of it is a Cordis plugin, including each tool, so the model-facing tool set is a composition choice. The default composition offers ten filesystem and shell tools: `read`, `read_image`, `write`, `edit`, `glob`, `grep`, `bash`, and the three `job_*` tools that collect background commands. Descriptions are one or two sentences each, and cross-call guidance lives in system prompt sections. Four things mark this harness: a read-before-mutate policy with stale-version checks, a literal unique-match edit, an OS-level file sandbox around `bash`, and a same-turn escalation flow for sandbox denials. This page describes the `dsh` CLI with the shipped `dsh-base` bundle rows and the `standard` agent preset on a POSIX host; the web and desktop hosts run the same core through the same rows.
+
+## Source
+
+| Item | Value |
+|---|---|
+| Repository | [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) |
+| Commit | `ddefc45fbc7f8e46dd73185e68295696d1297887` on `master`, committed 2026-09-17 |
+| Last updated | 2026-09-19 |
+
+Two other compositions exist in the repository and are not this page: the `minimal` agent preset and the `sdk-minimal` bundle mount one persistent `bash` PTY tool and the `str_replace_editor` tool instead of the set above. Their strings are on this page for completeness and are marked opt-in.
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read` | Read a UTF-8 text file window with line numbers | Yes | `tool-fs`; no directory listing |
+| `read_image` | Return a PNG, JPEG, WebP, or GIF as an image block | Yes | `tool-fs`; registered only while `attachment-local` is mounted; refuses on a route without image input |
+| `write` | Create or replace a whole text file | Yes | `tool-fs`; read-before-overwrite enforced by `fs-observation-policy` |
+| `edit` | Replace one literal string, or all occurrences | Yes | `tool-fs`; read-before-edit enforced |
+| `glob` | Find file paths through the bundled ripgrep | Yes | `tool-fs-search`; files only, hidden and ignored included |
+| `grep` | Search file contents through the bundled ripgrep | Yes | `tool-fs-search` |
+| `bash` | Run one `bash -c` command | Yes on POSIX | `tool-bash`; sandboxed through `bash-sandbox`; `run_in_background` |
+| `job_output` | Read a background job | Yes | `tool-jobs`; shared by bash, terminal, and subagent jobs |
+| `job_list` | List background jobs | Yes | `tool-jobs` |
+| `job_kill` | Cancel a background job | Yes | `tool-jobs` |
+| `pwsh` | Run one `pwsh -Command` command | Windows only | `tool-pwsh`; replaces `bash` when `process.platform` is `win32`; not surveyed |
+| `str_replace_editor` | View, create, replace, insert in one tool | No | `tool-str-replace-editor`; mounted by the `minimal` preset and `sdk-minimal` bundle |
+| `bash` (persistent) | Run commands in one PTY shell per agent | No | `tool-bash-persistent`; `minimal` and `sdk-minimal` on POSIX |
+| `pwsh` (persistent) | Windows counterpart of the persistent shell | No | `tool-pwsh-persistent`; `minimal` and `sdk-minimal` on Windows; not surveyed |
+
+The default composition has no list, stat, delete, mkdir, patch, or notebook tool. Directory listing goes through `bash`. Other default tools outside this page's scope are `todo_write`, `skill`, `subagent`, `subagent_fork`, `send_message`, `interrupt_agent`, `list_agents`, `workflow`, `web_search`, `web_fetch`, `ask_user_question`, `exit_plan_mode`, `present`, `create_goal`, `get_goal`, `update_goal`, and the MCP resource tools. Descriptions are static literals or small templates; the registry's `schemas()` sends the `description` field unchanged, and the `native` presentation mode sends every visible schema. A profile patch can insert, disable, or reconfigure any row.
+
+## Read
+
+### Signature
+
+```ts
+read({ file_path: string, offset?: number, limit?: number })
+read_image({ file_path: string })
+```
+
+`file_path` is relative or absolute. `offset` is one-based and defaults to `1`. `limit` defaults to 2000 and is also the ceiling: a larger value is an error. Both must be positive integers. The schema types them as `number`.
+
+### Description
+
+`read`: 56 characters, 56 bytes, 1 line, approximately 14 tokens.
+`read_image`: 545 characters, 545 bytes, 1 line, approximately 101 tokens.
+
+**`read` (56 characters)**
+
+```text
+Read a UTF-8 text file and return line-numbered content.
+```
+
+**`read_image` (545 characters)**
+
+```text
+Read a PNG/JPEG/WebP/GIF file and return the image itself. A path without a file extension is accepted; the format is detected from the file content, so normalized attachment paths can be passed directly without copying or renaming. Harness validates and downscales large supported images before the next model request, so use this tool directly instead of installing image libraries or creating thumbnails merely to inspect an image. Independent files may be read concurrently in small batches. Requires the current model to accept image input.
+```
+
+### Path handling
+
+Relative paths resolve against the calling session's workspace (`session.header.cwd`), which the web host sets per session and the `fs-sandbox` row defaults to `process.cwd()`. There is no `~` expansion and no URL handling. A path containing `..` keeps its physical spelling on POSIX. The backend resolves the file's `realpath` as its identity key, so two spellings of one file share stale-version guards and observation state; the display path keeps the spelling the model gave. For a missing file the nearest existing ancestor is resolved and the missing suffix appended.
+
+Near-miss recovery: None. A miss is:
+
+```text
+cannot read "<path>": not found
+```
+
+Symlinks: followed. Reads are not confined; the sandbox fence applies to mutations only.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Path rules | None. Every sandbox mode permits reading any path the process can open |
+| Approval | None for reads |
+| Device and special files | A `stat` type other than `file` is refused with `cannot read "<path>": not a regular file`. Directories, FIFOs, and device nodes fall under this |
+| Observation | A successful read, and a miss, are recorded per session and target so a later `write` or `edit` can prove it followed a read |
+| Denial text | Not applicable |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | A NUL byte in the first 8192 bytes, or invalid UTF-8 anywhere |
+| Refusal | `cannot read "<path>": binary file`; `cannot read "<path>": invalid UTF-8 text` |
+| Notebooks | None. `.ipynb` reads as JSON text |
+| Office and PDF text | None |
+| Images | Through `read_image` only. Extension `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, or no extension with a magic-byte sniff. The bytes are saved to the attachment store, downscaled to a 2048 by 2048 pixel budget when larger, and returned as an image block beside a text envelope |
+| Image limits | 20 MiB per file; 8192 pixels per side; 64 million pixels decoded; a 16-bit PNG that fails conversion is refused |
+| Audio and video | None |
+| Encoding | UTF-8 only, fatal decoder. No BOM handling: a BOM stays in line one. A trailing `\r` is stripped from each line |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 2000 lines | |
+| Ceiling | 2000 lines | `limit must be less than or equal to 2000` |
+| Long line | Cut at 2000 characters | `... (line truncated to 2000 chars)` appended to the line |
+| Output budget | 50 KiB of selected lines; the scan stops there | `(Output capped. Showing lines <a>-<b>. Use offset=<n> to continue.)` |
+| Whole-file size | None. Files of 10 MiB and above stream; smaller files load whole | |
+| Offset past end | Error, except offset 1 on an empty file | `offset <n> is out of range for "<path>" (<total> lines)` |
+
+The total line count is exact even when the window is capped, because the scan continues past the cap to count lines.
+
+### Output
+
+```text
+<path>/repo/src/app.ts</path>
+<type>file</type>
+<content>
+1: import { x } from "./x"
+2: export const y = x
+
+(End of file - total 2 lines)
+</content>
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | `path`, `type`, and `content` tags; content starts on the line after the opening `content` tag |
+| Line prefix | `N: text`, unpadded |
+| End marker | `(End of file - total <n> lines)` after a blank line, then the closing `content` tag |
+| Truncation notice | Replaces the end marker: `(Showing lines <a>-<b> of <total>. Use offset=<n> to continue.)` at the line limit; `(Output capped. Showing lines <a>-<b>. Use offset=<n> to continue.)` at the byte cap |
+| Error transport | Thrown; the registry returns one text block `Error: <message>` with `isError: true` and a structured `error` field carrying the `FS_*` code |
+
+The example is reconstructed from `formatReadOutput` in `read-render.ts`. An empty file returns the envelope with only `(End of file - total 0 lines)` inside.
+
+### Notable
+
+- `read` is exempt from the `spill-policy` result cap so a large read does not spill to a file that the model then reads again.
+- No repeat-read guard, no content injection after the read, no redaction.
+- Reads are marked concurrency-safe, so a batch of `read` calls runs in parallel; mutations run exclusively.
+- `read_image` refuses before any I/O when the routed model does not declare `image` input: `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images`.
+- The `read_image` envelope reports `<mediaType> image, <w>x<h> px, <bytes> bytes` and, after a downscale, the original size and a coordinate multiplier.
+- A compaction-time pruner (`tool-result-pruner`, threshold 8192 characters, head 4096, tail 1024) can later shorten old tool results in history; it does not change the live result.
+
+## Edit
+
+### Signature
+
+```ts
+write({ file_path: string, content: string, sandbox_permissions?: string, justification?: string })
+edit({ file_path: string, old_string: string, new_string: string, replace_all?: boolean, sandbox_permissions?: string, justification?: string })
+```
+
+`replace_all` defaults to `false`. `old_string` must be non-empty and must differ from `new_string`. The two escalation fields are advertised only when a confining filesystem is mounted, which the surveyed composition does; `sandbox_permissions` is an enum of `workspace-write` and `danger-full-access`. There is no patch tool and no delete tool in the default set. `str_replace_editor` is a separate opt-in tool with `command`, `path`, `file_text`, `insert_line`, `new_str`, `old_str`, and `view_range`.
+
+### Description
+
+`write`: 42 characters, 42 bytes, 1 line, approximately 11 tokens.
+`edit`: 59 characters, 59 bytes, 1 line, approximately 13 tokens.
+`str_replace_editor`: 1119 characters, 1119 bytes, 11 lines, approximately 249 tokens. Opt-in; the default `description` config of `tool-str-replace-editor`, which a row can replace.
+
+**`write` (42 characters)**
+
+```text
+Create or fully replace a UTF-8 text file.
+```
+
+**`edit` (59 characters)**
+
+```text
+Edit an existing UTF-8 text file by replacing literal text.
+```
+
+**`str_replace_editor` (1119 characters, opt-in)**
+
+```text
+Custom editing tool for viewing, creating and editing files
+* State is persistent across command calls and discussions with the user
+* If `path` is a file, `view` displays the result of applying `cat -n`. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep
+* The `create` command cannot be used if the specified `path` already exists as a file
+* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`
+* A null placeholder for a parameter unused by the selected command is treated as omitted. Required parameters still need values; omit `str_replace.new_str` rather than setting it to null when deleting a match
+
+Notes for using the `str_replace` command:
+* The `old_str` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!
+* If the `old_str` parameter is not unique in the file, the replacement will not be performed. Make sure to include enough context in `old_str` to make it unique
+* The `new_str` parameter should contain the edited lines that should replace the `old_str`
+```
+
+### Whole-file write
+
+`write` resolves the path, asks the single-slot `fs/write-intent` waterfall for an intent, and calls the backend without a prior stat. With `fs-observation-policy` mounted the intent is `createIfAbsent` for an unseen or confirmed-absent target and `replaceIfVersion` at the observed version for a seen one. The backend then takes a per-target lock, stats the target, checks the intent, creates missing parent directories, and writes through a private staging directory (`0o700`) and temp file (`0o600`) in the destination directory, syncs, and renames over the target. A `createIfAbsent` publish uses a hard link so a concurrent creator wins and this write fails. The existing POSIX mode is preserved. Content is written as supplied: no line-ending conversion, no BOM handling. The file's `before` text is read for the UI diff when both sides are under 10 MiB; the model does not see it.
+
+### Matching
+
+Exact literal match only. The backend reads the file inside the lock, rejects a NUL byte as binary, decodes as UTF-8, normalises CRLF to LF for matching, and normalises `old_string` and `new_string` the same way. The occurrence count decides: zero is an error, more than one without `replace_all` is an error. Replacement is `split` and `join`. The detected line-ending style (majority in the first 4096 characters) is restored on write-back. No fallback cascade, no whitespace-flexible retry, nothing reported about matching beyond success or the two errors.
+
+### Multi-file patch
+
+None. There is no patch grammar and no multi-file tool in the repository's shipped tool packages.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Enforced. `write` onto an existing file the session has not read fails; `edit` on an unread file fails. Both messages tell the model to read and retry |
+| Stale-file check | Enforced. The version is `dev:ino:size:mtimeNs:ctimeNs` from the read; the backend re-stats inside the lock and rejects a changed file with `file changed since it was read` |
+| Lock | Per-target FIFO promise chain keyed by `realpath`, held from stat through publish. Different keys run in parallel |
+| Cross-process coordination | None. A `bash` command or another process is outside the observation map |
+| Post-write checks | None. No formatter, no LSP, no syntax check |
+| Change tracking | `fs/observed` is emitted after a successful mutation with the new version, so a follow-up edit needs no re-read |
+
+The observation map is keyed by session object and lives in process memory; a session resumed in a new process starts with no observations, so the first mutation of any existing file needs a read.
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write` | The read envelope shape with `Created file` or `Updated file` as the content |
+| `edit` | `The file <path> has been updated successfully.` or, with `replace_all`, `The file <path> has been updated. All occurrences were successfully replaced.` |
+
+Diffs go to presentation metadata for the UI, not to the model.
+
+### Notable
+
+- Under `workspace-write` a mutation outside the workspace root, `/tmp`, or the OS temp directory fails with the sandbox marker and an escalation hint. The model may retry once with `sandbox_permissions` and a `justification`; that retry raises the approval prompt.
+- The sandbox fence is a path containment check in process, canonicalised immediately before the write; it is not a kernel boundary. The `bash` sandbox is the kernel boundary.
+- `str_replace_editor` requires absolute paths, refuses `create` on an existing file, and clips long output with the `<response clipped>` note. It was not surveyed beyond its description and argument errors.
+- No notebook editor, no undo, no checkpoint tool in this family.
+
+## Shell
+
+### Signature
+
+```ts
+bash({ command: string, description: string, timeoutMs?: number, workdir?: string, run_in_background?: boolean, sandbox_permissions?: string, justification?: string })
+```
+
+`description` is required and is display text for the UI. `timeoutMs` defaults to the executor's configured default and is capped at its maximum. `workdir` defaults to the session workspace; a relative value resolves against it. `run_in_background` is present because `enableRunInBackground` defaults to `true`. The two escalation fields appear because `bash-sandbox` is the mounted executor.
+
+### Description
+
+`bash`: 1836 characters, 1852 bytes, 1 line, approximately 390 tokens. Rendered with `enableRunInBackground: true` and a confining executor mounted, which is the surveyed composition; the escalation paragraph after the `run_in_background` sentence is added only in that case.
+`bash` (unconfined variant): 825 characters, 829 bytes, 1 line, approximately 188 tokens. The string without the escalation paragraph, produced when `ctx.shell` is `bash-local` with no sandbox; this is the variant in the repository's generated tool catalog.
+`pwsh`: 1075 characters, 1081 bytes, 1 line, approximately 247 tokens. Windows only; the unconfined variant. A longer variant adds ConstrainedLanguage and named-pipe guidance under the Windows sandbox; not surveyed.
+`bash` (persistent, opt-in): 153 characters, 153 bytes, 1 line, approximately 26 tokens. The default `description` config of `tool-bash-persistent`; the `minimal` preset replaces it with a seven-line text.
+`pwsh` (persistent, opt-in): 159 characters, 159 bytes, 1 line, approximately 27 tokens.
+`job_output`: 258 characters, 258 bytes, 1 line, approximately 53 tokens.
+`job_list`: 85 characters, 85 bytes, 1 line, approximately 18 tokens.
+`job_kill`: 136 characters, 136 bytes, 1 line, approximately 25 tokens.
+
+**`bash` (1836 characters)**
+
+```text
+Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs in a fresh shell: no state (cwd, variables, functions) persists between calls — pass `workdir` instead of using `cd`. Non-zero exits are reported as `[exit code: N]`. Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` for long-running commands: the call returns a job id immediately; read its output with `job_output` and stop it with `job_kill`. Attempting a command the sandbox may deny is safe and expected: run it and read the marker rather than assuming the denial. When a command is denied and a wider mode would let it succeed, escalate immediately in the same turn — the one sanctioned exception to a denial: retry the exact same command once with `sandbox_permissions` (the narrowest wider mode that suffices) plus a one-sentence `justification`. Do not detour through chat to ask permission first — the approval prompt raised by that retry is how the user consents. If the session states approval prompts are disabled, there is no exception: a denial is final — do not set `sandbox_permissions`. Never escalate speculatively: ground the request in a real denial — normally the one this command just hit; escalating up front is fine only when this session already denied the same access. A rejected escalation is final for that command — stop and explain, never work around it — but it does not forbid attempting or escalating other commands later.
+```
+
+**`bash` (825 characters, unconfined variant)**
+
+```text
+Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs in a fresh shell: no state (cwd, variables, functions) persists between calls — pass `workdir` instead of using `cd`. Non-zero exits are reported as `[exit code: N]`. Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` for long-running commands: the call returns a job id immediately; read its output with `job_output` and stop it with `job_kill`.
+```
+
+**`pwsh` (1075 characters, Windows only)**
+
+```text
+Execute a PowerShell command (`pwsh -Command`) and return its stdout/stderr. Each call runs in a fresh pwsh process: no state (cwd, variables, functions) persists between calls — pass `workdir` instead of using `cd`. Paths use native Windows form (`C:\...`); read environment variables with `$env:NAME`. Non-zero exits are reported as `[exit code: N]`. Current harness environment facts are exposed through managed `$env:DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. On Windows a force-killed command settles as `[exit code: 1]` without a signal marker — treat it as an interruption, not a command failure. Set `run_in_background: true` for long-running commands: the call returns a job id immediately; read its output with `job_output` and stop it with `job_kill`.
+```
+
+**`bash` (153 characters, persistent, opt-in)**
+
+```text
+Run commands in a persistent bash shell. State, including the current directory and exported environment variables, persists across calls for this agent.
+```
+
+**`pwsh` (159 characters, persistent, opt-in)**
+
+```text
+Run commands in a persistent PowerShell shell. State, including the current directory and exported environment variables, persists across calls for this agent.
+```
+
+**`job_output` (258 characters)**
+
+```text
+Read a background job. Stream jobs return only output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. Reads are non-blocking unless `wait: true`, which waits up to the configured cap.
+```
+
+**`job_list` (85 characters)**
+
+```text
+List your background jobs (running and finished) with their ids, kinds, and statuses.
+```
+
+**`job_kill` (136 characters)**
+
+```text
+Request cancellation of a running background job by job id. Returns immediately; the job settles as killed once its work actually stops.
+```
+
+### Working directory and environment
+
+The working directory is the session workspace, or the resolved sandbox policy's workspace root when one applies, unless `workdir` is given. The child environment starts from the parent environment with two groups removed: every variable whose name matches `KEY`, `PASSWORD`, `SECRET`, or `TOKEN`, and every inherited `DSH_*` name. Over that the executor sets `NO_COLOR=1`, `TERM=dumb`, `PAGER=cat`, and `GIT_PAGER=cat`, then the managed set from `shell-env`: `DSH_HOME`, `DSH_SHELL=1`, `DSH_SESSION_ID`, and whatever registered contributors add, such as `DSH_WEB_URL` under the web host. The command runs as `bash -c <command>` through the sandbox runner. Login shell: None. Shell selection: `bash` on POSIX, `pwsh` on Windows, fixed by platform.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One child process per call. No persistent shell in the default set |
+| Background | `run_in_background: true` returns `started background job <id>` at once; the job registers with `ctx.jobs` and is read with `job_output`, listed with `job_list`, stopped with `job_kill`. No timeout applies |
+| stdin | Ignored |
+| Timeout | 60000 ms default from the `bash-sandbox` row; `timeoutMs` up to 600000 ms; a larger request is clamped |
+| Cancellation | The tool abort signal and the timeout share one deadline; `SIGTERM` then `SIGKILL` after a 3000 ms grace across the managed process range |
+| Grandchildren | The subprocess service manages the spawned range and terminates it at kill and at composition teardown |
+| Completion notice | A finished background job injects a user message into the owning agent by default (`completionDelivery: wakeup`) |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | stdout and stderr are collected separately. Each keeps a 64000-byte in-memory tail; on first overflow the whole stream is appended to a spill file, up to 64 MiB per stream |
+| Model-visible text | stdout, then `[stderr]` and the stderr text when present, then markers. Empty output is `(no output)` |
+| Truncation text | `[output truncated; full output: <path>]` after the affected stream's tail, or `(unavailable)` when no spill file exists |
+| Spill file | `dsh-subprocess-<pid>-<n>-<hex>-<label>.log` in a private `0700` directory under the OS temp directory; retained after the process |
+| Result cap | `spill-policy` then caps the whole text result at 50000 bytes: the full text is saved under the session's spill directory and the model gets a head and tail preview followed by `(Omitted <n> bytes. Full formatted result stored at: <path>. Use read with offset/limit, or grep this path to search within it.)` |
+| UI progress | Not surveyed |
+
+### Sandbox
+
+The `sandbox-local` provider wraps the `bash -c` argv. On Linux it probes `bwrap` first, then the Landlock launcher; on macOS `sandbox-exec` with an SBPL profile; on Windows an ACL restricted-token runner. When no runner works the command is refused with a `sandbox mode "<mode>" is requested but no sandbox backend is usable on this host` error; it never runs unconfined. The mode comes from `sandbox-policy`: `DSH_PERMISSION_MODE` or `workspace-write` by default, with `workspaceRoot` at `process.cwd()`; the web host can set a per-session mode from its permission presets `read-only`, `workspace-write`, and `danger-full-access`.
+
+Under `workspace-write` the bwrap profile binds `/` read-only, mounts a fresh tmpfs at `/tmp`, binds the workspace root read-write, unshares the PID namespace, and dies with the parent. Landlock grants read on `/` and write on `/tmp`, `/dev/null`, and the workspace root. Seatbelt denies `file-write*` except the workspace root, `/tmp`, and the OS temp directory. Network: no namespace or rule restricts it in any profile. `danger-full-access` runs the plain local executor.
+
+A denied write inside the sandbox is classified from the child's exit status and stderr against the runner's denial signatures, then reported as `[sandbox: file access denied under <mode> mode]` followed by the escalation hint marker.
+
+### Approval
+
+No per-command prompt exists in the default composition. No `tools/pre-execute` gate in the shipped rows returns `ask`. Approval is asked in two cases: a `sandbox_permissions` escalation on `bash`, `write`, or `edit`, and plugin management. The `approval` row's policy is `ask` unless `DSH_PERMISSION_MODE` is `danger-full-access`, in which case it is `never` and every ask resolves to rejected. An escalation must name a mode strictly wider than the call's current mode, and the grant applies to that one call. Outcomes: `allowed-once`, `rejected` (`the user rejected escalating this command to "<mode>"`), `cancelled`, or `unavailable` when no answerer is composed. Every outcome except `allowed-once` fails the call before the command runs.
+
+### Notable
+
+- A non-zero exit is a successful tool result with `[exit code: N]` as the last line. A signal death is `[killed by signal: <signal>]`. A timeout adds `[timed out after <n>ms]` before the exit marker.
+- Abort is an error result: `Error: tool call aborted`.
+- The `job_output` result ends with `[status: <status>]` or `[status: <status>, <detail>]`; an empty delta reads `(no new output)`. `wait: true` blocks up to 30000 ms by default, capped at 600000 ms.
+- The `[sandbox: ...]` marker on `bash` is the same text the `write` and `edit` denials use, so the model learns one vocabulary.
+- No PTY, no streaming to the model, no interactive input in the default set. The `minimal` preset's persistent `bash` runs a PTY through `terminal-bash` with a 300000 ms timeout; not surveyed beyond its description.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `glob` | `pattern: string`, `path?: string` | 100 paths inline in modification-time order; over the cap the first 100 plus `(Showing 100 of <n> paths. Full sorted result stored at: <path>. Use read with offset/limit, or grep this path to search within it.)` | `rg --files --glob=<pattern> --sort=modified --no-ignore --hidden`, with `.git`, `.svn`, `.hg`, `.bzr`, `.jj`, `.sl` excluded by negated globs; files only |
+| `grep` | `pattern: string`, `path?: string`, `include?: string` | 250 matches inline; 2000 bytes per line then ` (line truncated)`; header `Found <k> of <n> matches` and a footer naming the spill file | `rg --json --regexp=<pattern> [--glob=<include>] [-- path]`; ripgrep defaults, so ignore files apply and hidden files are skipped |
+| List | None. `bash` with `ls` | | |
+| Stat, find, mkdir, delete | None | | |
+
+Both tools spawn the bundled `@vscode/ripgrep` binary through the subprocess service with a 30 s cooperative timeout, a 20 MB raw stdout cap, and paths displayed relative to the session workspace. `glob` returns `No files found` and `grep` returns `No matches found` on exit code 1. `grep` groups matches by file as `<path>` then `Line <n>: <text>` rows. With `sampleOverCapGlobResults: true` the over-cap page is sampled across top-level entries instead; the surveyed rows set `false`.
+
+### Description
+
+`glob`: 407 characters, 411 bytes, 1 line, approximately 77 tokens. Rendered with `sampleOverCapGlobResults: false` and `globMaxResults: 100`, the values in the `dsh-base` bundle and the `standard` preset.
+`glob` (sampled variant): 411 characters, 415 bytes, 1 line, approximately 77 tokens. Rendered with `sampleOverCapGlobResults: true`; this is the variant in the repository's generated tool catalog.
+`grep`: 269 characters, 269 bytes, 1 line, approximately 51 tokens. Rendered with `grepMaxMatches: 250`.
+
+**`glob` (407 characters)**
+
+```text
+Find files whose paths match a glob pattern. Returns matching file paths — never directories — including hidden and ignored files (VCS metadata directories are excluded). Up to 100 paths come back in modification-time order; a larger result returns the first 100 paths in modification-time order, says so, and reports where the complete sorted list was saved. This tool does not enumerate directory entries.
+```
+
+**`glob` (411 characters, sampled variant)**
+
+```text
+Find files whose paths match a glob pattern. Returns matching file paths — never directories — including hidden and ignored files (VCS metadata directories are excluded). Up to 100 paths come back in modification-time order; a larger result instead returns 100 paths sampled across top-level entries, says so, and reports where the complete sorted list was saved. This tool does not enumerate directory entries.
+```
+
+**`grep` (269 characters)**
+
+```text
+Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns the first 250 matches inline; a capped result reports where the complete match list was saved. Use read on a matched file for surrounding context.
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `cannot read "<path>": not found` | `Error: <message>` text, `isError`, code `FS_NOT_FOUND` |
+| Directory or special file on read | `cannot read "<path>": not a regular file` | `FS_NOT_REGULAR_FILE` |
+| Parent segment is a file | `cannot resolve "<path>": a parent path segment is not a directory` | `FS_NOT_FOUND` |
+| Binary file | `cannot read "<path>": binary file` | `FS_NOT_TEXT` |
+| Invalid UTF-8 | `cannot read "<path>": invalid UTF-8 text` | `FS_NOT_TEXT` |
+| Offset past end | `offset <n> is out of range for "<path>" (<total> lines)` | `FS_NOT_FOUND` |
+| Limit above ceiling | `limit must be less than or equal to 2000` | Plain error |
+| Invalid offset or limit | `offset must be a positive integer`; `limit must be a positive integer` | Plain error |
+| Image on a text route | `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images` | Plain error |
+| Image extension not supported | `cannot read "<path>": the <ext> extension does not declare a supported image format; read_image accepts PNG/JPEG/WebP/GIF files, including extension-less files in those formats` | Plain error |
+| Image bytes not an image | `cannot read "<path>": the file content is not a supported image format; read_image accepts PNG/JPEG/WebP/GIF` | Plain error |
+| Image too large | `cannot read "<path>": <size> bytes exceeds the <max>-byte limit`; `cannot read "<path>": at least one image side exceeds the 8192px limit; downscale the image and read the smaller copy`; `cannot read "<path>": the image exceeds the 64000000-pixel decoded-size limit; downscale the image and read the smaller copy` | `FS_TOO_LARGE`; plain error |
+| Write or edit before read | `cannot modify "<path>": file has not been read — read the file, then retry` | `FS_NOT_OBSERVED` |
+| Edit on a confirmed-absent file | `cannot edit "<path>": not found` | `FS_NOT_FOUND` |
+| Stale file | `cannot write "<path>": file changed since it was read — re-read the file, then retry`; `cannot edit "<path>": file changed since it was read — re-read the file, then retry`; `cannot write "<path>": file no longer exists — re-read the file, then retry` | `FS_STALE_VERSION` |
+| Edit match failed | `old_string was not found in "<path>"` | `FS_EDIT_NOT_FOUND` |
+| Edit not unique | `old_string matched <n> times in "<path>"; provide a more specific old_string or set replace_all to true` | `FS_AMBIGUOUS_EDIT` |
+| Edit argument errors | `old_string must be a non-empty string`; `old_string and new_string must differ`; `file_path must be a non-empty string` | Plain error |
+| Edit binary target | `cannot edit "<path>": binary file` | `FS_NOT_TEXT` |
+| Mutation denied by sandbox | `[sandbox: file access denied under <mode> mode]` then `[sandbox: escalation available — retry this exact operation once with sandbox_permissions (the narrowest wider mode that suffices) + justification; the approval prompt asks the user]` | `FS_SANDBOX_DENIED` |
+| Escalation not wider | `sandbox escalation to "<mode>" is not strictly wider than this call's current "<mode>" mode` | Plain error |
+| Escalation rejected | `the user rejected escalating this command to "<mode>"`; `... this operation ...` for files | Plain error |
+| Escalation with no answerer | `sandbox escalation to "<mode>" requires approval, but no approval channel is available` | Plain error |
+| Command exit non-zero | Output then `[exit code: <n>]` | Successful tool result |
+| Command timeout | Output then `[timed out after <n>ms]` and the exit or signal marker | Successful tool result |
+| Command denied by sandbox | Output then `[sandbox: file access denied under <mode> mode]` and the escalation hint for `command` | Successful tool result |
+| Sandbox runner missing | `sandbox mode "<mode>" is requested but no sandbox backend is usable on this host; refusing to run the command unconfined. ...` | Error result, code `SANDBOX_UNAVAILABLE` |
+| Command aborted | `Error: tool call aborted` | Error result, code `TOOL_ABORTED` |
+| Invalid bash arguments | `invalid command: expected a non-empty string`; `invalid description: expected a non-empty string`; `invalid timeoutMs: expected a positive number, got <value>` | Plain error |
+| Background disabled | `run_in_background is disabled for this deployment (enableRunInBackground: false)`; `background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs` | Plain error |
+| Search pattern rejected | `<tool> pattern rejected by ripgrep: <stderr>` | `SEARCH_INVALID_PATTERN` |
+| Search timeout or abort | `<tool> was aborted before completion (tool timeout or caller cancellation)` | `SEARCH_ABORTED` |
+| Search raw output overflow | `<tool> produced <n> bytes of raw output, over the 20000000-byte cap; narrow pattern, path, or include and retry` | `SEARCH_RAW_OUTPUT_OVERFLOW` |
+
+Every tool error becomes one text block `Error: <message>` with `isError: true`. `FsError`, `SearchError`, and `HarnessError` instances also populate a structured `error.info.code`; plain `Error` throws carry the message only. The table has more than fifteen rows because each row is a distinct string family in source.

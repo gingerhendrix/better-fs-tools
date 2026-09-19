@@ -1,0 +1,426 @@
+---
+title: Deep Agents
+description: Read, edit, shell, and search tools in the LangChain Deep Agents framework at 0.7.14, surveyed on the local filesystem backend in virtual mode, with every model-facing description in full
+harness: deep-agents
+kind: framework
+repo: langchain-ai/deepagents
+commit: 7f9e8ed3a555933902045792da9bb184950ee7b2
+version: 0.7.14
+license: MIT
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - libs/deepagents/pyproject.toml
+  - libs/deepagents/deepagents/graph.py
+  - libs/deepagents/deepagents/middleware/filesystem.py
+  - libs/deepagents/deepagents/middleware/_message_eviction.py
+  - libs/deepagents/deepagents/middleware/_fs_interrupt.py
+  - libs/deepagents/deepagents/backends/protocol.py
+  - libs/deepagents/deepagents/backends/utils.py
+  - libs/deepagents/deepagents/backends/filesystem.py
+  - libs/deepagents/deepagents/backends/local_shell.py
+  - libs/deepagents/deepagents/backends/state.py
+  - libs/deepagents/deepagents/backends/composite.py
+  - libs/deepagents/deepagents/backends/sandbox.py
+  - libs/deepagents/deepagents/profiles/harness/harness_profiles.py
+  - libs/deepagents/deepagents/profiles/harness/_nvidia_nemotron_3_ultra.py
+---
+
+Deep Agents is an open-source Python agent framework published by LangChain on top of LangChain agents and LangGraph. `create_deep_agent()` installs a `FilesystemMiddleware` that gives the model seven dedicated file tools, `ls`, `read_file`, `write_file`, `edit_file`, `delete`, `glob`, and `grep`, plus `execute` when the backend can run commands. One tool schema sits over pluggable storage: LangGraph state by default, a store, a local directory, a composite of routed prefixes, or a remote sandbox. The read tool takes a zero-based `offset`, defaults to 100 lines, and carries the line range in a status header instead of a gutter. This page describes `FilesystemBackend` with `virtual_mode=True` rooted at the process working directory for the file tools, and its subclass `LocalShellBackend` for `execute`.
+
+## Source
+
+| Item | Value |
+|---|---|
+| Repository | [langchain-ai/deepagents](https://github.com/langchain-ai/deepagents) |
+| Commit | `7f9e8ed3a555933902045792da9bb184950ee7b2`, committed 2026-09-15 |
+| Last updated | 2026-09-16 |
+
+Deep Agents is a library. Every behaviour on this page depends on the backend the host passes to `create_deep_agent()` and on the middleware settings. The Notable list under each family names the knobs that change that family.
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `ls` | List the direct children of one directory | Yes | Returns a Python list literal of paths; directories carry a trailing `/` |
+| `read_file` | Read a text file window or return a media block | Yes | Required in any `tools=` allowlist |
+| `write_file` | Create or replace a whole file | Yes | Creates parent directories |
+| `edit_file` | Replace one unique string or all occurrences | Yes | Exact match only |
+| `delete` | Remove a file or a directory tree | Backend dependent | Hidden at request time when the backend does not override `delete`. `FilesystemBackend` and `StateBackend` do |
+| `glob` | Find regular files by glob pattern | Yes | Basename match without `/`; dot names need an explicit `.` |
+| `grep` | Literal text search | Yes | Not a regex search; `execute` with `rg` is the regex path |
+| `execute` | Run one shell command | Backend dependent | Present only for a `SandboxBackendProtocol` backend such as `LocalShellBackend`. Absent on the default `StateBackend` |
+
+A `task` tool for sub-agent delegation comes from a separate middleware and is outside this family. `FilesystemMiddleware(tools=[...])` restricts the set; a list must include `read_file`. `execute` and `delete` are filtered out of each model request when the resolved backend lacks the capability, so the model never sees a tool that cannot run. No persistent process, stat, or mkdir tool exists.
+
+## Read
+
+### Signature
+
+```ts
+read_file({ file_path: string, offset?: number, limit?: number })
+```
+
+`file_path` is an absolute virtual path. `offset` is zero-based and defaults to `0`. `limit` is a line count and defaults to `100`. The header the model receives numbers lines from one, so `next offset` in the header equals the last line number shown. Both numbers are Pydantic `int` fields with no minimum or maximum. A negative `offset` is clamped to the first line with a notice; a `limit` below one reads nothing and returns a reminder. When the optional `[video]` extra is installed, a `ReadVideoFileSchema` variant documents `offset` and `limit` as seconds for video files.
+
+### Description
+
+`read_file`: 1124 characters, 1124 bytes, 11 lines, approximately 260 tokens.
+
+**`read_file` (1124 characters)**
+
+```text
+Reads a file from the filesystem. Assume any path the user provides is valid; reading a missing file returns an error.
+
+Usage:
+- By default, it reads up to 100 lines starting from the beginning of the file. Use `offset`/`limit` to page through large files instead of reading them whole.
+- A status header, `@@ field | field | ... @@`, sits above the file content, and every line after it is verbatim file content. When content is truncated, there may be an explanation before the header. Never include the header when editing.
+- Speculatively batch multiple `read_file` calls in one response when several files may be useful.
+- An empty file returns a system-reminder warning in place of contents.
+- Large tool results may be offloaded to a file; the tool message gives the path. Read that path here, paging with `offset`/`limit`.
+- Images (`.png`, `.jpg`, etc.), audio, video, and PDFs return multimodal content blocks (https://docs.langchain.com/oss/python/langchain/messages#multimodal).
+- For images and PDFs, pagination via `offset`/`limit` is text-only - supply `file_path` only
+- Always read a file before editing it.
+```
+
+Variant: when the video dependencies resolve, the first bullet opens with `For text files, by default it reads up to 100 lines` and one bullet is added after the image and PDF bullet. Re-read from `middleware/filesystem.py` at the pin:
+
+```text
+- For videos, `offset`/`limit` are interpreted as seconds (default window 100 s; sampled at a fixed rate). Use smaller windows when you need more temporal detail.
+```
+
+### Path handling
+
+`validate_path` runs in the middleware before the backend sees the path. It converts backslashes to slashes, adds a leading `/` to a relative path, runs `os.path.normpath`, and rejects three shapes: any `..` component, a leading `~`, and a Windows drive prefix. The backend then joins the virtual path under its root, resolves it, and refuses a result outside the root. There is no tilde expansion and no URL handling.
+
+Near-miss recovery: None. A miss returns `Error: File '<path>' not found`, with the path as the model typed it.
+
+```text
+Error: File '/src/app.tx' not found
+```
+
+Symlinks: `Path.resolve()` follows a symlink before the root check, so a link inside the root that targets a file inside the root reads the target. A link whose target lands outside the root raises `ValueError` with `Path:<host path> outside root directory: <root>`. The read leaf catches `OSError` and `RuntimeError` only, so that error leaves the backend as an exception rather than a tool message. The file is then opened with `O_NOFOLLOW`, which guards the resolved path against a swap between the check and the open. With `virtual_mode=False` an absolute symlink path is opened as-is, and `O_NOFOLLOW` fails it with an `ELOOP` error.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| `FilesystemPermission` rules | Each rule names operations, path globs, and a mode: `allow`, `deny`, or `interrupt`. `read` covers `ls`, `read_file`, `glob`, and `grep`. First matching rule wins; no match allows. Checked in the middleware before the backend call |
+| Deny text | `Error: permission denied for read on <path>` |
+| Interrupt | The rule becomes an `interrupt_on` entry for LangGraph `HumanInTheLoopMiddleware`; a checkpointer is required to resume |
+| Outside the root | Refused by the backend root check in virtual mode; see Path handling |
+| Device and special files | None. There is no device or `/proc` list. A FIFO, socket, or device fails the `is_file()` check and reads as `Error: File '<path>' not found`. A regular file under the root is readable |
+| Bulk results | `ls`, `glob`, and `grep` drop entries that a deny rule matches |
+
+The surveyed configuration passes no rules, so every path under the root is allowed. Rules do not apply to direct backend calls, custom tools, or the contents of shell commands.
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | Extension map only: `_EXTENSION_TO_FILE_TYPE` in `backends/utils.py`. An unmapped extension is text. `.mkv` is forced to binary at the backend so its bytes are never decoded |
+| Refusal | None. A mapped extension returns the whole file as base64 in one content block; the block type comes from the map and the MIME type from `mimetypes.guess_type` |
+| Undecodable text | An unmapped extension with non-UTF-8 bytes fails with `Error: Error reading file '<path>': 'utf-8' codec can't decode byte ...`, because the text read uses strict decoding. The prefix is doubled: the backend string starts with `Error reading` and the middleware adds `Error: ` |
+| Notebooks | None. `.ipynb` reads as JSON text |
+| Office and PDF text | None. `.pdf`, `.ppt`, and `.pptx` travel as a `file` block |
+| Images | `.png`, `.jpeg`, `.jpg`, `.webp`, `.gif`, `.heic`, `.heif` as an `image` block |
+| Audio | `.wav`, `.mp3`, `.aiff`, `.aac`, `.ogg`, `.flac` as an `audio` block |
+| Video | `.mp4`, `.mpeg`, `.mov`, `.avi`, `.flv`, `.mpg`, `.webm`, `.wmv`, `.3gpp` as a `video` block; with the `[video]` extra, frames are sampled at 0.5 second intervals over the `offset` and `limit` window instead |
+| Size guard | None for images, audio, and documents. Video is capped at 1 GiB: `Video file exceeds maximum input size of 1073741824 bytes` |
+| Unsupported model | Before the next model call, a block the provider profile cannot accept is replaced by `[read_file: <path> was not attached because this model does not support <type> content (<mime>).]` |
+| Encoding | UTF-8, strict. Universal newlines on read, so CRLF and CR become LF before slicing |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 100 lines from the middleware default. Direct backend callers get 2000 | |
+| Ceiling | The model's `limit`; no cap | |
+| Long line | None per line. When no complete line fits the character budget, one line is cut and the header says so | Header `@@ lines <a>-<a> of <total> \| truncated mid-line \| <shown> of <chars> chars @@` |
+| Output budget | 80 000 characters, from `tool_token_limit_before_evict` (20 000) times four. The body is cut back to the last complete line that fits and the header is rebuilt so `next offset` points at that line | `[Output was truncated due to size limits. The file content is very large. Consider reformatting the file to make it easier to navigate. For example, if this is JSON, use execute(command='jq . <path>') to pretty-print it with line breaks. For other formats, you can use appropriate formatting tools to split long lines.]` above the header, plus the header field `truncated due to size` |
+| Whole-file size | None. A text file is read whole into memory, then split with `splitlines` and sliced. A binary file is read whole and base64 encoded | |
+| Offset past end | Error | `Error: Line offset <n> exceeds file length (<total> lines)` |
+| Negative offset | Clamped to the first line | `[Requested offset <n> is before the start of the file; read from line 1 instead.]` above the header |
+| Zero or negative limit | Nothing read | ``System reminder: no lines were read because `limit` was <n>. The file was not inspected and may have contents; retry with `limit` >= 1 to read it.`` |
+
+`read_file` is on the list of tools excluded from tool-result eviction, so the 80 000-character budget is applied inside the tool and the result is never offloaded to a file.
+
+### Output
+
+```text
+@@ lines 1-2 of 2 @@
+import { x } from "./x"
+export const y = x
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | One status header: `@@ lines <a>-<b> of <total> \| next offset <n> @@`. The `next offset` field is omitted when the window reaches the end of the file. Notices go above the header, each in square brackets |
+| Line prefix | None. Every line after the header is verbatim file content |
+| End marker | None. A trailing newline in the file is not rendered as a blank line |
+| Truncation notice | Above the header, as shown under Limits; the header gains `truncated due to size` or `truncated mid-line` |
+| Error transport | A `ToolMessage` with `status="error"` whose text starts with `Error: ` |
+
+The example is Observed at the tool level: the pinned `read_file` tool was invoked directly against a temporary root on 2026-09-18, with no model session. A paged read of a 250-line file with the defaults carries the header `@@ lines 1-100 of 250 | next offset 100 @@`, and a read at `offset=100, limit=5` carries `@@ lines 101-105 of 250 | next offset 105 @@`.
+
+### Notable
+
+- Empty file: the reminder `System reminder: File exists but has empty contents` is returned with success status. On `FilesystemBackend` the backend puts that sentence into the content field, so the middleware renders it below the header `@@ lines 1-1 @@` as if it were one line of file text. A backend that returns empty content, such as `StateBackend`, gets the bare reminder with no header. A file of only whitespace counts as empty. A `limit` of zero returns the separate reminder under Limits so a never-inspected window is not mistaken for an empty file.
+- No repeat-read guard, no redaction, and no content injected after the read. A `read_file` result is not offloaded to a file, but the description tells the model that other tools' large results are.
+- No cancellation path. The read is synchronous and takes no abort signal.
+- A media result is a content block, not text. The middleware moves such results after the other tool results in the message list and scrubs blocks the provider cannot accept.
+- Host knobs for this family: the backend (`StateBackend` by default keeps files in graph state; `FilesystemBackend(virtual_mode=False)` uses host paths as-is; `CompositeBackend` routes prefixes; `BaseSandbox` reads through a remote shell), `custom_tool_descriptions` or a harness profile's `tool_description_overrides`, `tool_token_limit_before_evict` for the character budget (`None` disables it), `tools=` to hide tools, and `permissions` on `create_deep_agent()`.
+
+## Edit
+
+### Signature
+
+```ts
+write_file({ file_path: string, content: string })
+edit_file({ file_path: string, old_string: string, new_string: string, replace_all?: boolean })
+delete({ file_path: string })
+```
+
+`replace_all` defaults to `false`. `delete` takes only a path; a directory is always removed with its contents, and there is no `recursive` flag. There is no patch tool. The `new_string` parameter text says it must differ from `old_string`; the runtime does not check that.
+
+### Description
+
+`write_file`: 322 characters, 322 bytes, 6 lines, approximately 72 tokens.
+`edit_file`: 366 characters, 366 bytes, 7 lines, approximately 72 tokens.
+`delete`: 363 characters, 363 bytes, 8 lines, approximately 72 tokens.
+
+**`write_file` (322 characters)**
+
+```text
+Writes content to a file. Creates the file if it does not exist; replaces it entirely if it does.
+
+Usage:
+- Use this tool when you intend to create a new file or replace the whole file. You do not need to read the file first.
+- Prefer to edit existing files (with the edit_file tool) over creating new ones when possible.
+```
+
+**`edit_file` (366 characters)**
+
+```text
+Performs exact string replacements in files.
+
+Usage:
+- You must read the file before editing; this tool errors otherwise.
+- Preserve the exact source indentation from the read output, and never include the read status header in old_string or new_string.
+- Prefer editing an existing file over creating a new one.
+- Only use emojis if the user explicitly requests it.
+```
+
+**`delete` (363 characters)**
+
+```text
+Deletes a file or directory from the filesystem.
+
+Usage:
+- Permanently removes the file or directory at the given absolute path.
+- Deleting a directory removes it and everything inside it, recursively. Prefer
+  deleting a directory in one call over deleting each file individually.
+- This cannot be undone, so only delete paths you are sure are no longer needed.
+```
+
+### Whole-file write
+
+`FilesystemBackend.write` creates missing parent directories with `mkdir(parents=True)`, then opens the destination with `O_WRONLY`, `O_CREAT`, `O_TRUNC`, and `O_NOFOLLOW` where the platform has it. A new file gets mode `0o644`; an existing file keeps its mode because the open truncates in place. Content is written as UTF-8 with `newline=""`, so LF stays LF and CRLF stays CRLF. There is no temporary file and rename, no post-write verification, and no BOM handling: a BOM in the old file goes away with the rest of it, and a BOM in `content` is written as given. A lone surrogate in `content` fails the UTF-8 encode and returns `Error writing file '<path>': <message>`. The result reports the path only.
+
+### Matching
+
+`perform_string_replacement` in `backends/utils.py` counts exact occurrences with `str.count`. An empty `old_string` is an error. Zero occurrences is an error, with one special case: when `old_string` ends with a newline, the file does not, and the string without that newline matches the end of the file, the error names the trailing newline as the cause. More than one occurrence without `replace_all` is an error that gives the count. With `replace_all`, `str.replace` changes every occurrence. There is no fuzzy stage, no whitespace normalisation, and no reporting of a fallback, because there is none. Before matching, the backend converts CRLF and CR in `old_string` and `new_string` to LF, to match the text-mode read of the file. Equal `old_string` and `new_string` succeeds and reports the occurrence count.
+
+### Multi-file patch
+
+None. `edit_file` covers one file and one string per call. There is no patch grammar. A host can add a custom tool or use `execute` for one.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Described to the model for `edit_file`; not enforced. There is no read ledger |
+| Stale-file check | None. No mtime, hash, or revision token in `ReadResult`, `WriteResult`, or `EditResult` |
+| Lock | None. `edit` reads the whole file, replaces in memory, and rewrites it with `O_TRUNC`. Another writer can change the file between those two opens |
+| Cross-process coordination | None |
+| Post-write checks | None. No syntax or LSP check |
+| Change tracking | None for the local backend. The default `StateBackend` keeps files in LangGraph state, which a checkpointer persists per thread |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write_file` | `Updated file <path>` |
+| `edit_file` | `Successfully replaced <n> instance(s) of the string in '<path>'` |
+| `delete` | `Deleted <path>` |
+
+No diff, snippet, or byte count is returned.
+
+### Notable
+
+- No notebook editor, no undo tool, and no checkpoint of host files. LangGraph checkpoints cover graph state, which holds files only on `StateBackend`.
+- `delete` unlinks a symlink as a link and never follows it. A directory goes through `shutil.rmtree`, which can remove part of the tree before a failure.
+- With permission rules, a delete is refused when any deny pattern could match the target or a descendant: `Error: permission denied for write on <path> (matches deny rule(s): <patterns>)`. The middleware lists the parent directory to decide whether descendants can exist.
+- `interrupt_on={"edit_file": True}` or a permission rule with `mode="interrupt"` pauses the call for a human decision.
+- Host knobs for this family: the backend (a `BaseSandbox` writes through a preflight command and an upload, and `StateBackend` writes a state channel), `custom_tool_descriptions`, `permissions`, and `tools=`.
+
+## Shell
+
+### Signature
+
+```ts
+execute({ command: string, timeout?: number })
+```
+
+`timeout` is in seconds and overrides the backend default of 120. The middleware rejects a negative value and a value above `max_execute_timeout`, which defaults to 3600. `LocalShellBackend` rejects zero. There is no `cwd`, `env`, `background`, or permission parameter.
+
+### Description
+
+`execute`: 839 characters, 839 bytes, 11 lines, approximately 190 tokens.
+
+**`execute` (839 characters)**
+
+```text
+Executes a shell command in an isolated sandbox and returns combined stdout/stderr with the exit code (truncated if very large).
+
+Usage:
+- Quote paths containing spaces (e.g. cd "/path/with spaces").
+- Chain commands with ';' or '&&' (use '&&' when a command depends on the previous); do not use newlines except inside quoted strings.
+- Use absolute paths and avoid `cd` so the working directory stays stable; use the optional timeout to override the default.
+- You MUST avoid using search commands like find and grep. Instead use the grep, glob tools to search. Use read_file rather than cat/head/tail.
+    - execute(command="find . -name '*.py'")  # Use glob tool instead
+    - execute(command="grep -r 'pattern' .")  # Use grep tool instead
+
+Only available on backends implementing SandboxBackendProtocol; otherwise it returns an error.
+```
+
+### Working directory and environment
+
+The working directory is the backend `root_dir`, which is the process working directory by default. The command string goes to `subprocess.run` with `shell=True`, so the system shell runs it: `/bin/sh` on POSIX. The environment is empty by default. A host passes `env=` for explicit variables or `inherit_env=True` to start from `os.environ`. Login shell: None.
+
+Virtual mode does not apply to commands. Paths inside a command are host paths, and a command can reach any path the process account can. With a `CompositeBackend` whose default is `LocalShellBackend`, the middleware appends a prompt section that maps each local route prefix to its host directory so the model can address the same files from both tool families.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One `subprocess.run` per call. No session, process ID, or resume |
+| Background | None |
+| stdin | `DEVNULL`, so a command that waits for input gets end of file |
+| Detach | POSIX children start in a new session |
+| Cancellation | The backend timeout only. `subprocess.run` kills the shell process and returns exit code `124`. The tool call carries no abort signal |
+| Grandchildren | Unverified. The library kills the shell it started; the source does not show a kill of the new session as a group |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | `capture_output=True`; the whole output is held in memory. stdout comes first, then each stderr line prefixed with `[stderr] ` |
+| Empty output | `<no output>` |
+| Backend cap | 100 000 characters from `max_output_bytes`; the comparison is on the decoded string length, not bytes. The head is kept and `... Output truncated at 100000 bytes.` is appended |
+| Status lines | The backend appends `Exit code: <n>` when non-zero. The middleware then appends `[Command succeeded with exit code 0]` or `[Command failed with exit code <n>]`, and `[Output was truncated due to size limits]` when the backend flagged truncation |
+| Eviction | `execute` is not excluded from tool-result eviction. A result over 80 000 characters is written to `/large_tool_results/<sanitised call id>` through the backend and replaced by a notice with a head and tail preview of five numbered lines each |
+| Spill file | The evicted result lives under the backend root with no cleanup |
+
+Capture-at-source, where the sandbox writes its own output to the offload path and returns a preview, is gated on `BaseSandbox` and does not apply to `LocalShellBackend`.
+
+### Sandbox
+
+None. `LocalShellBackend` has no OS sandbox, container, seccomp profile, or credential restriction. The network is unrestricted. The command runs as the process account. The source and the backend guide say the backend is for local development with human approval and not for untrusted workloads. Remote sandbox backends implement the same protocol and supply their own isolation.
+
+### Approval
+
+`interrupt_on={"execute": True}` on `create_deep_agent()` routes each call through `HumanInTheLoopMiddleware`, which supports approve, edit, reject, and respond decisions and needs a checkpointer. `FilesystemPermission` rules do not cover `execute`: the middleware raises `NotImplementedError` at construction when rules are combined with an execution-capable backend, unless every rule path is scoped to a composite route. There is no command parser, allowlist, or pattern rule.
+
+### Notable
+
+- A non-zero exit is a success tool message. The exit code is in `ToolMessage.artifact` as `exit_code` and in the text.
+- A timeout is also a success tool message. The text is `Error: Command timed out after <n> seconds. For long-running commands, re-run using the timeout parameter.` followed by `[Command failed with exit code 124]`. With a per-call `timeout` the text ends `(custom timeout). The command may be stuck or require more time.` instead.
+- No PTY, no streaming to the model, and no interactive input.
+- On the default `StateBackend` the tool is removed from the model request. If it is called anyway, the text is `Error: Execution not available. This agent's backend does not support command execution (SandboxBackendProtocol). To use the execute tool, provide a backend that implements SandboxBackendProtocol.`
+- Host knobs for this family: the backend and its constructor (`root_dir`, `timeout`, `max_output_bytes`, `env`, `inherit_env`), `max_execute_timeout`, `tool_token_limit_before_evict`, `interrupt_on`, `custom_tool_descriptions`, and `tools=`.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `ls` | `path: string` | No entry cap. The list literal is cut at 80 000 characters with `... [results truncated, try being more specific with your parameters]` as the last item | None. Dot entries included; entries that are neither file nor directory are skipped; sorted by path |
+| `glob` | `pattern: string`, `path?: string` | 5 second walk budget in the backend, 10 second deadline in the middleware, four concurrent synchronous globs; same 80 000-character cut | No `.gitignore`. A dot name matches only when the pattern segment starts with `.`; `**` does not enter dot directories; regular files only |
+| `grep` | `pattern: string`, `path?: string`, `glob?: string`, `output_mode?: "files_with_matches" \| "content" \| "count"`, `max_count?: number` | 1000 matches from `grep_max_count`; `max_count` overrides per call; same 80 000-character cut | ripgrep `-F --json` when `rg` is on the path, with ripgrep's own `.gitignore` and hidden-file defaults; otherwise a Python walk over every file, skipping files over 10 MiB and files that are not UTF-8 |
+| Stat, mkdir | None | | |
+
+`ls` returns `No files found` for an empty directory and otherwise a Python list literal, for example `['/README.md', '/src/']`. A symlink entry is listed under its resolved target path, so a link to `/src/app.ts` in the root appears as `/src/app.ts`; a link that resolves outside the root is dropped, and a FIFO or socket is skipped. `glob` returns the same literal of absolute virtual paths, sorted, and appends a note when the walk stopped early: `Note: the search stopped early because it hit its time or size limit. ...` for the budget, or `Note: some directories could not be read, ...` when a subtree was unreadable. `grep` returns sorted paths one per line in `files_with_matches` mode, `<path>:` headers with `  <line>: <text>` rows in `content` mode, and `<path>: <count>` rows in `count` mode; zero matches return `No matches found`, and when the pattern looks like a regex a note explains that matching is literal. A match cap adds `Note: the search stopped early (it hit its time limit or the maximum match count). ...`. Backend context lines exist but are not in the model-facing schema.
+
+### Description
+
+`ls`: 206 characters, 206 bytes, 4 lines, approximately 41 tokens.
+`glob`: 809 characters, 809 bytes, 7 lines, approximately 207 tokens.
+`grep`: 638 characters, 638 bytes, 6 lines, approximately 142 tokens.
+
+**`ls` (206 characters)**
+
+```text
+Lists all files in a directory.
+
+This is useful for exploring the filesystem and finding the right file to read or edit.
+You should almost ALWAYS use this tool before using the read_file or edit_file tools.
+```
+
+**`glob` (809 characters)**
+
+```text
+Find files matching a glob pattern, returning absolute paths.
+
+Supports `*` (any characters within a path segment), `**` (any directories), `?` (single character), `[abc]` (one character from a set), and `{a,b}` (alternatives), e.g. `*.py`, `src/**/*.py`, `*.{yml,yaml}`.
+
+A pattern without `/` matches the file name at any depth under the search root (`*.py` matches `src/app/main.py`). A pattern containing `/` matches the search-root-relative path (`src/**/*.py`). A leading `/` anchors to the search root (`/*.py` matches only top-level Python files).
+
+Leading-dot names are only matched when the pattern segment itself starts with `.` (use `.env`, or `.github/**/*.yml`). Because `**` will not descend into dot-directories, the bare form `*.yml` is *broader* than `**/*.yml` and is usually what you want.
+```
+
+**`grep` (638 characters)**
+
+```text
+Search for a LITERAL text pattern across files (NOT regex).
+
+The pattern is matched verbatim: regex metacharacters are ordinary characters, not operators. To match any of several strings, run a separate grep for each; `grep(pattern="foo|bar")` searches for the literal text "foo|bar", and `.*` or `\.` match those characters literally.
+- If you genuinely need regex, use the execute tool with `rg '<regex>'` instead.
+
+Returns matching files or content per `output_mode`. Offloaded large tool results live under the artifacts root (`/large_tool_results/` by default); grep that directory to search them when you do not know the exact path.
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `Error: File '<path>' not found` | `ToolMessage`, `status="error"` |
+| Directory on read | `Error: File '<path>' not found`, because `is_file()` is false | Same |
+| Path traversal or tilde | `Error: Path traversal not allowed: <path>` | Same |
+| Windows drive path | `Error: Windows absolute paths are not supported: <path>. Please use virtual paths starting with / (e.g., /workspace/file.txt)` | Same |
+| Resolved path outside the root | `Path:<host path> outside root directory: <root>` | `ValueError` raised out of the backend; the read, list, write, edit, and delete leaves do not catch it. How the tool node renders it: Unverified |
+| Permission rule denied | `Error: permission denied for read on <path>`; `Error: permission denied for write on <path>` | `status="error"` |
+| OS permission denied | `Error: Error reading file '<path>': [Errno 13] Permission denied: '<host path>'` | Same; the errno text carries the host path |
+| Empty file | Header `@@ lines 1-1 @@` then `System reminder: File exists but has empty contents` | `status="success"` |
+| Undecodable text | `Error: Error reading file '<path>': 'utf-8' codec can't decode byte ...` | Same |
+| Offset past end | `Error: Line offset <n> exceeds file length (<total> lines)` | Same |
+| Zero limit | ``System reminder: no lines were read because `limit` was <n>. ...`` | `status="success"` |
+| Edit target missing | `Error: File '<path>' not found` | `status="error"` |
+| Edit empty `old_string` | `Error: old_string cannot be empty. Provide the exact text to replace.` | Same |
+| Edit match failed | `Error: String not found in file: '<old_string>'` | Same |
+| Edit trailing newline | `Error: old_string ends with a newline, but the file does not end with a newline. Retry with the trailing newline removed from old_string (and from new_string if it also ends with a newline).` | Same |
+| Edit not unique | `Error: String '<old_string>' appears <n> times in file. Use replace_all=True to replace all instances, or provide a more specific string with surrounding context.` | Same |
+| Write or edit OS failure | `Error writing file '<path>': <message>`; `Error editing file '<path>': <message>` | Same |
+| Delete missing or failed | `Error: '<path>' not found`; `Error deleting '<path>': <message>` | Same |
+| Stale file | None. Not detected | |
+| Execute unavailable | `Error: Execution not available. This agent's backend does not support command execution (SandboxBackendProtocol). To use the execute tool, provide a backend that implements SandboxBackendProtocol.` | `status="error"` |
+| Invalid timeout | `Error: timeout must be non-negative, got <n>.`; `Error: timeout <n>s exceeds maximum allowed (3600s).`; `Error: Invalid parameter. timeout must be positive, got 0` | Same |
+| Empty command | `Error: Command must be a non-empty string.` then `[Command failed with exit code 1]` | `status="success"`, `artifact` exit code 1 |
+| Command timeout | `Error: Command timed out after <n> seconds. ...` then `[Command failed with exit code 124]` | `status="success"`, `artifact` exit code 124 |
+| Command exit non-zero | Output, `Exit code: <n>`, `[Command failed with exit code <n>]` | `status="success"`, `artifact` exit code |
+| `ls` path errors | `Error: Path '<path>': path_not_found`; `Error: Path '<path>': not_a_directory` | `status="error"` |
+| `glob` timeout or overload | `Error: glob timed out after 10.0s. Try a more specific pattern or a narrower path.`; `Error: too many glob calls are already running. Try again later with a more specific pattern or a narrower path.`; `Error: glob failed: <message>` | Same |
+| `grep` partial failure | The backend error text, then `Partial matches:` and the matches found | Same |
+
+Backend results carry human-readable strings in an `error` field, and the middleware prefixes most of them with `Error: ` and sets the message status. The protocol defines four standard error literals (`file_not_found`, `permission_denied`, `is_directory`, `invalid_path`) for upload and download only. `ls` is the one built-in whose backend error strings use that vocabulary in the model-facing text.

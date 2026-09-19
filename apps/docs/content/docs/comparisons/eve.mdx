@@ -1,0 +1,409 @@
+---
+title: Eve
+description: Read, write, shell, and search tools in the Eve agent framework at eve@0.57.0, with every model-facing description in full
+harness: eve
+kind: framework
+repo: vercel/eve
+commit: 31bed12d6961e348903457dbc43f3e19f5c09425
+version: eve@0.57.0
+license: Apache-2.0
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - packages/eve/src/tools/provided/read-file.ts
+  - packages/eve/src/tools/provided/write-file.ts
+  - packages/eve/src/tools/provided/bash.ts
+  - packages/eve/src/tools/provided/glob.ts
+  - packages/eve/src/tools/provided/grep.ts
+  - packages/eve/src/execution/sandbox/read-file.ts
+  - packages/eve/src/execution/sandbox/write-file.ts
+  - packages/eve/src/execution/sandbox/bash.ts
+  - packages/eve/src/execution/sandbox/glob-tool.ts
+  - packages/eve/src/execution/sandbox/grep-tool.ts
+  - packages/eve/src/execution/sandbox/ripgrep-probe.ts
+  - packages/eve/src/execution/sandbox/truncate-output.ts
+  - packages/eve/src/execution/sandbox/require-sandbox.ts
+  - packages/eve/src/execution/sandbox/session.ts
+  - packages/eve/src/execution/sandbox/abort-bound-session.ts
+  - packages/eve/src/execution/sandbox/bindings/just-bash-runtime.ts
+  - packages/eve/src/execution/sandbox/bindings/local-backend-utils.ts
+  - packages/eve/src/execution/sandbox/bindings/docker-session.ts
+  - packages/eve/src/execution/sandbox/bindings/docker-network.ts
+  - packages/eve/src/execution/sandbox/bindings/vercel.ts
+  - packages/eve/src/execution/tools/file-state.ts
+  - packages/eve/src/execution/compaction.ts
+  - packages/eve/src/shared/skill-paths.ts
+  - packages/eve/src/shared/sandbox-session.ts
+  - packages/eve/src/shared/sandbox-network-policy.ts
+  - packages/eve/src/sandbox/backends/default.ts
+  - packages/eve/src/framework/sources/registry.ts
+  - packages/eve/src/compiler/default-tool-policy.ts
+  - packages/eve/src/context/build-base-tool-context.ts
+  - packages/eve/src/context/build-callback-context.ts
+  - packages/eve/src/harness/tools.ts
+  - packages/eve/src/harness/action-result-helpers.ts
+  - docs/concepts/built-in-tools.md
+---
+
+Eve is an open-source framework from Vercel for durable backend agents; an agent is a directory, and each framework tool occupies an `agent/tools/<name>.ts` slot that the host can replace, wrap, or disable. Eve is not a coding agent: its file family is three default tools, `bash`, `read_file`, and `write_file`, plus opt-in `glob` and `grep`, with no edit tool. Every tool runs in the app runtime and proxies into a per-session sandbox through a `SandboxSession`, so path, error, and shell behaviour depend on the backend. This page describes the default tool set over the `just-bash` backend, the dependency-free fallback at the end of the `defaultSandbox()` chain, and names the Docker and Vercel Sandbox backends where their read, write, or shell paths differ.
+
+## Source
+
+| Item | Value |
+|---|---|
+| Repository | [vercel/eve](https://github.com/vercel/eve) |
+| Commit | `31bed12d6961e348903457dbc43f3e19f5c09425` on `main`, committed 2026-09-16 |
+| Last updated | 2026-09-16 |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `bash` | Run one shell command in the session sandbox | Yes | One `command` string; no timeout or cwd parameter |
+| `read_file` | Read a text file with line numbers | Yes | Records a content stamp for `write_file` |
+| `write_file` | Create or replace a whole file | Yes | Read-before-write and stale-read checks on existing files |
+| `glob` | Find files by glob pattern | No | Opt-in through `agent/tools/glob.ts`; shells out to `rg --files` or `find` |
+| `grep` | Search file contents by regex | No | Opt-in through `agent/tools/grep.ts`; shells out to `rg` or `grep -rnE` |
+| `todo` | Keep a task list | Yes | Outside this page |
+| `web_fetch` | Fetch a URL | Yes | Outside this page |
+| `web_search` | Search the web | Yes | Outside this page |
+| `load_skill` | Load a skill playbook from the sandbox | Yes | Outside this page |
+| `connection_search` | Find tools on connected services | Yes | Cannot be disabled; outside this page |
+| `ask_question` | Ask the user a question | Yes | Outside this page |
+| `task_cancel` | Cancel a running task | Yes | Outside this page |
+| `agent` | Delegate to a subagent | Root session only | Outside this page |
+| `sleep` | Pause and resume the turn durably | No | Opt-in; outside this page |
+
+Each default occupies an `agent/tools/<name>.ts` slot. A file at that path replaces the default; `export default disableTool()` removes it; spreading the exported definition into `defineTool()` wraps it. `defaultTools: false` in `agent/agent.ts` drops every optional default except `connection_search`, and files under `agent/tools/` stay available. `glob` and `grep` are published at `eve/tools/glob` and `eve/tools/grep` and are never registered by default. Not on this page: the `self-modification` extension's `edit_file`, which edits the agent's own source through the app runtime rather than the sandbox, and any MCP or connection tools.
+
+## Read
+
+### Signature
+
+```ts
+read_file({ filePath: string, offset?: number, limit?: number })
+```
+
+`filePath` must be absolute or begin with `$HOME/`. `offset` is one-based; the schema requires an integer of at least 1 and the executor defaults it to 1. `limit` is a line count, integer, at least 1, default 2000, with no maximum. The input schema is `z.strictObject`, so an unknown key fails validation. The output schema is `content`, `path`, `totalLines`, `truncated`, and an optional `nextOffset`.
+
+### Description
+
+`read_file`: 784 characters, 784 bytes, 11 lines, approximately 182 tokens.
+
+**`read_file` (784 characters)**
+
+```text
+Read a file from the local filesystem. If the path does not exist, an error is returned.
+
+Usage:
+- The filePath parameter should be an absolute path or begin with $HOME/.
+- By default, this tool returns up to 2000 lines from the start of the file.
+- The offset parameter is the line number to start from (1-indexed).
+- To read later sections, call this tool again with a larger offset.
+- Contents are returned with each line prefixed by its line number as `<line>: <content>`. For example, if a file has contents "foo\n", you will receive "1: foo\n".
+- Any line longer than 2000 characters is truncated.
+- Call this tool in parallel when you know there are multiple files you want to read.
+- Avoid tiny repeated slices (30 line chunks). If you need more context, read a larger window.
+```
+
+### Path handling
+
+`resolveSandboxModelPath` in `shared/skill-paths.ts` handles one prefix. A path equal to `$HOME` or starting with `$HOME/` has that prefix replaced by the sandbox home, found by running `printf '%s\n' "$HOME"` through `sandbox.run`. The answer is cached in a `WeakMap` keyed by the session object, and the tool context hands each call a fresh abort-bound wrapper, so the probe runs again for every tool call that uses a `$HOME` path. When the probe fails or returns a value that is empty, relative, or contains a control character, only `$HOME/.agents/skills` paths are rewritten, to `/workspace/skills`; other `$HOME` paths pass through unchanged and then fail the absolute check. No other shell syntax is evaluated. The result must start with `/`:
+
+```text
+filePath must be an absolute path. Received: "<path>". Use an absolute path such as /workspace/foo.ts or a path beginning with $HOME/.
+```
+
+The read goes to the backend with the resolved path. `posix.normalize` then collapses dot segments for the stamp key and for the `path` field in the result. There is no `~` expansion, no `file://` handling, no `@` stripping, no `realpath`, no sibling or unicode recovery, and no fallback to the working directory. A relative path is rejected even though the session's own `resolvePath` would anchor it at `/workspace`.
+
+Symlinks: on `just-bash` the `ReadWriteFs` is built with `allowSymlinks: true`, so links are followed. On Docker `cat` follows them. On Vercel Sandbox: Unverified.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Path rules | None at the tool layer. Any absolute path the backend exposes can be read. The docs tell hosts to wrap `write_file` for a `/workspace` restriction, and no such restriction exists for `read_file` |
+| Approval | None on the provided tools. `defineTool` accepts an `approval` field, with `always`, `never`, and `once` helpers in `eve/tools/approval`, that a wrapping host can set |
+| Hooks | A wrapped `execute` in `agent/tools/read_file.ts` runs before or instead of the framework executor |
+| Device and special files | None. The tool calls `readTextFile` with no type check. On Docker a FIFO makes `cat` block with no timeout. On `just-bash` the virtual filesystem is a host directory under the app sandbox cache; special files there: Not surveyed |
+| Denial text | Not applicable |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | After decoding, the full text is scanned for a NUL character |
+| Refusal | `File "<path>" contains NUL bytes and appears to be a binary file. read_file only supports text files.` |
+| Encoding | `TextDecoder("utf-8", { fatal: true })` in `session.ts`. Invalid UTF-8 throws the decoder's own `TypeError` before the NUL check runs. No BOM handling |
+| Notebooks | None. `.ipynb` reads as JSON text |
+| Office and PDF text | None |
+| Images | None. The tool returns text only. Eve's content-part output type exists for authored tools, so a host can write an image-returning tool; the built-in one does not |
+| PDF | None |
+| Audio and video | None |
+| Line endings | The text is split on `\n` only. A CRLF file returns each numbered line with a trailing `\r` |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 2000 lines (`DEFAULT_LIMIT`) | |
+| Ceiling | The model's `limit`; no schema maximum | |
+| Long line | 2000 UTF-16 code units (`MAX_LINE_LENGTH`), then ` [truncated]` is appended | Suffix on the line |
+| Output budget | 50 KiB (`MAX_OUTPUT_BYTES`), counted in UTF-8 bytes over the numbered lines plus one byte per newline; whole lines only; the first selected line is always kept | `truncated: true` and `nextOffset` in the result |
+| Whole-file size | None at the tool layer. The whole file is read into the app runtime, split, and hashed before windowing. `just-bash` sets `maxFileReadSize: Number.MAX_SAFE_INTEGER`; Docker pipes `cat` with no cap; Vercel Sandbox: Unverified | |
+| Offset past end | Error, not an empty result | `offset <n> is past the end of the file (<total> lines).` |
+| Offset past end of an empty file | Error | `offset <n> is past the end of the file (0 lines). Use the default offset to read an empty file.` |
+| Offset below 1 | The schema `.min(1)` rejects it first. The executor's own `offset must be >= 1. Received: <n>.` is reachable only through a wrapper that bypasses the schema | |
+
+`totalLines` counts a trailing newline as the end of the last line, not as an extra line. A file with `limit` lines left after `offset` is not truncated; one fewer is.
+
+### Output
+
+```json
+{
+  "content": "1: import { x } from \"./x\"\n2: export const y = x",
+  "path": "/workspace/src/y.ts",
+  "totalLines": 2,
+  "truncated": false
+}
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | None. The result is one JSON object; the harness passes it to the AI SDK as a `json` tool output because the provided tools declare no `toModelOutput` |
+| Line prefix | `<n>: ` with one space and no padding |
+| End marker | None |
+| Truncation notice | No text. `truncated` becomes `true` and `nextOffset` holds the next one-based line to request. `nextOffset` is absent otherwise |
+| Error transport | Thrown. The AI SDK records a `tool-error` part; the harness repairs history with a `tool-result` part whose output is `error-text` with the message. The model sees the message text |
+
+The example is reconstructed from the format code. The JSON spacing the provider receives was not observed. An empty file returns `content: ""`, `totalLines: 0`, `truncated: false`.
+
+### Notable
+
+- Read stamp: every read that passes validation stores a SHA-256 of the full content and its UTF-8 byte length in durable session state under `eve.readFile`, keyed by the normalised path. A read that throws stores nothing.
+- Repeat-read guard: None. Content injection after the read: None. Redaction: None.
+- Cancellation: the tool context binds the AI SDK abort signal to every sandbox call through `bindSandboxAbortSignal`. The Docker read passes it to `docker exec`; the `just-bash` and Vercel read primitives ignore it.
+- Tool results, including the numbered content, persist in durable workflow state as JSON, so reads replay after a restart.
+- Host knobs on this family: `agent/tools/read_file.ts` override or wrapper, `disableTool()`, `defaultTools: false`, `approval` on a wrapped definition; the sandbox backend factory (`defaultSandbox()`, `justbash()`, `docker()`, `vercel()`, `microsandbox()`); and on `justbash()` the `filesystem` factory option, which receives `defaultFilesystem` and the `justBash` module and can return any `IFileSystem`, plus `customCommands` that run in the host process.
+
+## Edit
+
+### Signature
+
+Not applicable. Eve has no targeted edit or patch tool; the only mutation tool is `write_file`, which replaces the whole file, and the model deletes or renames through `bash`.
+
+```ts
+write_file({ filePath: string, content: string })
+```
+
+### Description
+
+`write_file`: 627 characters, 627 bytes, 8 lines, approximately 125 tokens.
+
+**`write_file` (627 characters)**
+
+```text
+Writes a file to the local filesystem.
+
+Usage:
+- This tool will overwrite the existing file if there is one at the provided path.
+- If this is an existing file, you MUST use the read_file tool first to read the file's contents. This tool will fail if you did not read the file first.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
+```
+
+### Whole-file write
+
+`executeWriteFileOnSandbox` resolves the path as `read_file` does, then reads the current file in full through `readTextFile`, because the stale check hashes content and the session has no `exists()` primitive; the source comment records this as a known cost. A missing file is written at once with no prior read required. An existing file goes through the checks below and is then written with `writeTextFile`, which encodes UTF-8 and streams the bytes to the backend.
+
+Backend write paths: `just-bash` calls `filesystem.mkdir(dirname, { recursive: true })` and then `filesystem.writeFile`; Docker runs `mkdir -p <dir> && cat > <path>` through `docker exec -i` with the bytes on stdin; Vercel Sandbox calls `sandbox.writeFiles` after `resolveVercelWritePath`, and parent creation there is Unverified. The write is direct on every surveyed backend: no temporary file and rename, no backup, and no read-back. BOM and line endings are written as supplied. Mode preservation: Not surveyed. Because `readTextFile` decodes in fatal mode, `write_file` over an existing file with invalid UTF-8 throws the decoder error before any check.
+
+### Matching
+
+Not applicable. There is no string-replace tool and no fallback cascade.
+
+### Multi-file patch
+
+Not applicable. There is no patch grammar and no multi-file tool.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Enforced for existing files. No stamp for the normalised path: `You must read file <path> before overwriting it. Use the read_file tool first.` |
+| Stale-file check | The stored stamp's SHA-256 and byte length are compared with the current content. A difference: `File <path> has been modified since it was last read. Please read the file again before modifying it.` Detection is by content, not metadata; a rewrite with identical bytes passes |
+| Stamp scope | The stamp covers the whole file even when the read returned a 50 KiB window, so a partial read licenses a full overwrite |
+| Stamp lifetime | Refreshed after every successful write. Durable across workflow checkpoints. Cleared on context compaction by `preserveFrameworkStateOnCompaction`, so a write after compaction needs a fresh read |
+| Lock | None. No compare-and-swap at the backend; a change between the hash check and the write is not detected |
+| Cross-process coordination | None |
+| Post-write checks | None. No syntax or LSP check |
+| Change tracking | None beyond the stamp |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write_file` | JSON object `existed` (boolean) and `path` (normalised). No diff, snippet, or byte count |
+
+```json
+{ "existed": true, "path": "/workspace/notes.md" }
+```
+
+The example is reconstructed from the output schema.
+
+### Notable
+
+- No notebook editor, no undo, no checkpoint tool for the model. The session has `removePath` for authored code; the model has no delete tool.
+- The docs suggest wrapping `write_file` to reject paths outside `/workspace/`, which confirms that the framework applies no path restriction of its own.
+- Host knobs on this family: `agent/tools/write_file.ts` override or wrapper with its own `execute` and `approval`, `disableTool()`, `defaultTools: false`, and the sandbox backend factory. The stamp logic lives in the executor, so a wrapper that calls `writeFile.execute` keeps it and one that writes through `ctx.getSandbox()` directly bypasses it.
+
+## Shell
+
+### Signature
+
+```ts
+bash({ command: string })
+```
+
+One `command` string. There is no `timeout`, `cwd`, `env`, `background`, or permission parameter. The output schema is `exitCode`, `stderr`, `stdout`, and `truncated`.
+
+### Description
+
+`bash`: 60 characters, 60 bytes, 1 line, approximately 10 tokens.
+
+**`bash` (60 characters)**
+
+```text
+Execute a shell command in the shared workspace environment.
+```
+
+### Working directory and environment
+
+`executeBashOnSandbox` calls `sandbox.run({ command })` with no other option, although `SandboxSpawnOptions` accepts `workingDirectory` and `env`. `run` in `buildSandboxSession` is a wrapper over the backend `spawn`: it collects stdout and stderr to strings with a non-fatal `TextDecoder`, awaits `wait()`, and returns `exitCode`, `stderr`, and `stdout`.
+
+The working directory is `/workspace` (`WORKSPACE_ROOT`) on every backend: `just-bash` creates its `Sandbox` with `cwd: "/workspace"`; Docker passes `-w /workspace` to `docker exec`; Vercel Sandbox passes `cwd: "/workspace"` to `runCommand`.
+
+Shell and environment by backend:
+
+| Backend | Command wrapper | Environment |
+|---|---|---|
+| `just-bash` | `runCommand({ cmd: "eval", args: [<command>], detached: true })` in the in-process interpreter. No real binaries such as `git` or `node` | The `env` recorded in the session's `metadata.json` at the last `captureState`; the app's `process.env` is not inherited |
+| Docker | `bash -c` wrapper that writes `$$` to a pid file, then `bash -lc '<command>'`. Login shell | The container environment |
+| Vercel Sandbox | `bash -lc '<command>'` through `sandbox.runCommand` with `detached: true`. Login shell | The sandbox environment |
+
+Tool `execute` functions run in the app runtime with `process.env` and secrets; the model's commands run in the sandbox with no path back, which is the framework's stated security split.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One command per call. `run` waits for exit before returning. Whether shell variables persist between calls inside one `just-bash` interpreter: Not surveyed |
+| Background | None for the model. `spawn` on the session returns a process handle for authored code |
+| stdin | None |
+| Timeout | None at the tool, session, or backend layer |
+| Cancellation | The AI SDK abort signal is bound to the session. `just-bash` passes it to `runCommand` and throws `The operation was aborted.` when it is already aborted at spawn; Docker runs a `/proc` walk that kills the recorded process tree with `kill -9` and then kills the CLI client; Vercel Sandbox passes it to `runCommand` |
+| Exit code | Returned in `exitCode`. A non-zero exit is a successful tool result |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | stdout and stderr are collected to two separate strings after the process exits |
+| Model-visible budget | Per stream, `truncateTail`: the last 2000 lines (`MAX_OUTPUT_LINES`) or 50 KiB (`MAX_OUTPUT_BYTES`), whichever is hit first, with each kept line cut at 2000 UTF-16 code units plus ` [truncated]` |
+| Truncation text | Prepended to the stream: `[stdout truncated: showing last <kept> of <total> lines]` and `[stderr truncated: showing last <kept> of <total> lines]`, each followed by a newline. `truncated` is `true` when either stream was cut |
+| Spill file | None |
+| Empty output | Empty strings |
+| Streaming | None to the model. In `eve dev` a progress line is logged to the console every five seconds |
+
+### Sandbox
+
+| Backend | Isolation | Network |
+|---|---|---|
+| `just-bash` (surveyed) | In-process bash interpreter over a `ReadWriteFs` rooted at a host directory under the app's sandbox cache, cloned from a prewarmed template by an atomic directory copy. `allowSymlinks: true`, `maxFileReadSize` unbounded. `customCommands` run in the host process outside the virtual filesystem boundary | `Sandbox.create` sets `network: { dangerouslyAllowFullInternetAccess: true }`. `setNetworkPolicy` throws because the policy is fixed at creation |
+| Docker | Linux container; every file operation and command is a `docker exec` | Initial policy `allow-all`. `setNetworkPolicy` accepts only `allow-all` and `deny-all`, implemented by connecting or disconnecting the container's networks; other policies throw |
+| Vercel Sandbox | `@vercel/sandbox` session | `setNetworkPolicy` maps to `sandbox.update({ networkPolicy })`, with per-domain `transform` header injection at the firewall. Traced to the SDK call only |
+| microsandbox | Not surveyed | Not surveyed |
+
+`setNetworkPolicy` is a hook for authored code such as `onSession` and tool wrappers; the model has no tool that calls it. The `SandboxNetworkPolicy` type is the `@vercel/sandbox` `NetworkPolicy`.
+
+### Approval
+
+None on the provided tools. `defineTool` accepts `approval` and `approvalKey`; the `always`, `never`, and `once` helpers in `eve/tools/approval` cover the common cases, and a wrapper in `agent/tools/bash.ts` can set them. No command parser, allowlist, or pattern table exists. The approval prompt and denial text: Not surveyed.
+
+### Notable
+
+- A non-zero exit is a plain result with `exitCode` set. The model has to read the field.
+- No PTY, no interactive input, no streaming to the model.
+- `just-bash` has no separate `bash` executable; `eval` re-parses the single string argument because the object form of `runCommand` is the only form that supports `detached`.
+- Host knobs on this family: `agent/tools/bash.ts` override or wrapper with `approval`, `disableTool()`, `defaultTools: false`; the backend factory and its options (`justbash({ filesystem, customCommands, autoInstall })`, `docker()`, `vercel()`, `microsandbox()`); and `setNetworkPolicy` from authored code.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `glob` (opt-in) | `pattern: string`, `path?: string` (default `/workspace`), `limit?: number` (1 to 1000, default 100) | 100 results; 1000 schema maximum; 50 KiB over the returned paths | With `rg`: `rg --files --hidden --glob '!.git/*' --glob '<pattern>' <path>`, so ignore files apply and hidden files are included. Fallback: `find <path> -type f -not -path '*/.git/*'` with `-name` or `-path`; `**` collapses to `*`, braces unsupported, no ignore files |
+| `grep` (opt-in) | `pattern: string`, `path?: string` (default `/workspace`), `glob?: string`, `ignoreCase?: boolean`, `literal?: boolean`, `context?: number`, `limit?: number` (per file, 1 to 1000, default 100) | 100 matches per file through `--max-count` or `-m`; 2000-unit line cut; 50 KiB | With `rg`: `rg --line-number --color=never --hidden --glob '!.git/*'` plus `--ignore-case`, `--fixed-strings`, `--glob`, `--context`. Fallback: `grep -r -n --exclude-dir=.git -E` or `-F`, `--include`, `-C`, `-e` |
+| List, find, stat, mkdir | Not applicable | | |
+
+A probe runs `command -v rg` and one `rg` search once and caches the answer by `session.id`, which survives the per-call wrapper; a probe that throws is retried on the next call. Exit codes 0 and 1 are success; exit 1 with non-empty stderr, or any other code, throws. Truncation runs in JavaScript rather than through `| head`, so a missing binary is not masked by a pipeline exit code. `glob` returns newline-joined normalised paths, or `No files found`, and appends a blank line and `(Results truncated: showing first <n> results out of more. Use a more specific path or pattern to narrow results.)` when cut. `grep` returns the raw `<path>:<line>:<text>` rows, counts rows that match `^.+:\d+:` as matches, returns `No matches found` on empty output, and appends a bracketed notice when cut: `[Match limit reached (<limit>). Use a larger limit or more specific pattern.]`, `[Output truncated due to size. Use a more specific path or pattern.]`, or both joined by a space. Because `limit` is per file, total `grep` output is bounded only by the byte cap. On `just-bash` there is no `rg`, and `find` and `grep` are the interpreter's built-in implementations. Listing goes through `bash` with `ls`.
+
+### Description
+
+`glob` (opt-in): 249 characters, 249 bytes, 6 lines, approximately 53 tokens.
+`grep` (opt-in): 452 characters, 452 bytes, 9 lines, approximately 102 tokens.
+
+**`glob` (249 characters, opt-in)**
+
+```text
+Fast file pattern matching tool that works with any codebase size.
+
+Usage:
+- Supports glob patterns like "**/*.js" or "src/**/*.ts".
+- Returns matching file paths.
+- Call this tool in parallel when you know there are multiple patterns to search for.
+```
+
+**`grep` (452 characters, opt-in)**
+
+```text
+Fast content search tool that works with any codebase size.
+
+Usage:
+- Searches file contents using regular expressions.
+- Supports full regex syntax (e.g. "log.*Error", "function\s+\w+").
+- Filter files by pattern with the glob parameter (e.g. "*.js", "*.{ts,tsx}").
+- Returns matching lines with file paths and line numbers.
+- Call this tool in parallel when you have multiple independent searches.
+- Any line longer than 2000 characters is truncated.
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Relative or unresolved path | `filePath must be an absolute path. Received: "<path>". Use an absolute path such as /workspace/foo.ts or a path beginning with $HOME/.` | Thrown; `tool-error` part, repaired to an `error-text` tool result |
+| Missing file on read | `File not found: <path>. Verify the path exists and is accessible in the sandbox.` On `just-bash`, `readFileBytes` wraps `readFileBuffer` in a bare `catch` and returns `null` for any error, so `EISDIR`, `EACCES`, and `ENOENT` all take this row. On Docker only a failed `[ -e ]` test does | Thrown |
+| Directory or unreadable file on Docker | `Failed to read "<path>" from sandbox container: <stderr>` | Thrown |
+| Binary file | `File "<path>" contains NUL bytes and appears to be a binary file. read_file only supports text files.` | Thrown |
+| Invalid UTF-8 | The `TextDecoder` fatal-mode `TypeError` text | Thrown |
+| Offset past end | `offset <n> is past the end of the file (<total> lines).` | Thrown |
+| Offset past end, empty file | `offset <n> is past the end of the file (0 lines). Use the default offset to read an empty file.` | Thrown |
+| Offset below 1 | `offset must be >= 1. Received: <n>.` Unreachable through the schema, which rejects the call first | Thrown |
+| Schema validation failure | AI SDK invalid-input error; text: Not surveyed | `tool-error` part synthesised by the AI SDK |
+| Write without a prior read | `You must read file <path> before overwriting it. Use the read_file tool first.` | Thrown |
+| Stale file | `File <path> has been modified since it was last read. Please read the file again before modifying it.` | Thrown |
+| Write failure on Docker | `Failed to write "<path>" into sandbox container: <stderr>` | Thrown |
+| Edit match failed, edit not unique | Not applicable | |
+| Command exit non-zero | None. `exitCode` in the result | Successful JSON result |
+| Command timeout | None. No timeout exists | |
+| Command aborted before spawn on `just-bash` | `The operation was aborted.` (`AbortError`) | Thrown |
+| Sandbox unavailable | `eve sandbox runtime access is unavailable in the current async context. Call ctx.getSandbox() only from authored runtime functions such as tools, hooks, and channel events.`; `The sandbox is not available in the current authored runtime context.` | Thrown |
+| `glob` command failure | `glob failed (exit <n>): <stderr>` then a second line `Command: <cmd>`; `no stderr output` stands in for empty stderr | Thrown |
+| `grep` command failure | `grep failed (exit <n>): <stderr>` then `Command: <cmd>` | Thrown |
+| `glob` zero results | `No files found` in `content` with `count: 0` | Successful JSON result |
+| `grep` zero results | `No matches found` in `content` with `matchCount: 0` | Successful JSON result |
+
+The provided executors throw plain `Error` objects with no code. The harness does not catch them; the AI SDK records a `tool-error` part, and `createToolResultMessagePartFromToolError` in `harness/action-result-helpers.ts` places the message in a `tool-result` part with output type `error-text` so the model sees the text. A `semantic-errors` classifier reads the same errors for telemetry without changing the text. The exact bytes the AI SDK sends for the part were not observed.

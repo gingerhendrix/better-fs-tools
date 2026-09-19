@@ -1,0 +1,343 @@
+---
+title: Flue
+description: Read, edit, shell, and search tools in the Flue agent framework at @flue/runtime 2.0.8, with every model-facing description in full
+harness: flue
+kind: framework
+repo: withastro/flue
+commit: 4b4a8e0c879fe2c3b4b30e34c2541cf4d715ff04
+version: 2.0.8
+license: Apache-2.0
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - packages/runtime/src/agent.ts
+  - packages/runtime/src/sandbox.ts
+  - packages/runtime/src/shell.ts
+  - packages/runtime/src/abort.ts
+  - packages/runtime/src/errors.ts
+  - packages/runtime/src/types.ts
+  - packages/runtime/src/context.ts
+  - packages/runtime/src/session.ts
+  - packages/runtime/src/hooks/use-sandbox.ts
+  - packages/runtime/src/node/local.ts
+  - packages/runtime/src/node/local-env.ts
+  - packages/runtime/src/cloudflare/cf-sandbox.ts
+  - apps/docs/src/content/docs/guide/sandboxes.md
+---
+
+Flue is an open-source TypeScript agent framework from the Astro team, published as `@flue/runtime`. An agent has no filesystem or shell until it calls `useSandbox()`; with a sandbox attached the model sees six dedicated tools, `read`, `write`, `edit`, `bash`, `grep`, and `glob`, all built in one file, `packages/runtime/src/agent.ts`, over a `Sandbox` interface that the adapter implements. The agent loop is Pi's `@earendil-works/pi-agent-core`, and each of the six descriptions is one sentence group of at most 136 characters. This page describes the `local()` Node adapter from `@flue/runtime/node` with `process.cwd()` as the working directory and the default environment allowlist, and names the `just-bash` virtual sandbox and the `cloudflareSandbox` container adapter where their behaviour differs.
+
+## Source
+
+| Item | Value |
+|---|---|
+| Repository | [withastro/flue](https://github.com/withastro/flue) |
+| Commit | `4b4a8e0c879fe2c3b4b30e34c2541cf4d715ff04`, the `Version Packages (#712)` release commit |
+| Last updated | 2026-09-16 |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read` | Read a text file with line paging | Yes, with a sandbox | Whole file read as one UTF-8 string, then sliced |
+| `write` | Create or replace a whole file | Yes, with a sandbox | Parent directories created by the adapter |
+| `edit` | Replace one unique string or all occurrences | Yes, with a sandbox | One `oldText` and `newText` pair per call |
+| `bash` | Run one command through the sandbox `exec` | Yes, with a sandbox | Timeout in seconds; exit 124 on timeout |
+| `grep` | Search file contents through `rg` or `grep` in the sandbox | Yes, with a sandbox | 100 matches, 500 characters per line |
+| `glob` | Find files through `find -name` in the sandbox | Yes, with a sandbox | Basename match, 1000 results |
+| `task` | Delegate to a child agent | Yes, always | Framework tool, not filesystem or shell. Present with or without a sandbox |
+| `activate_skill` | Load one declared skill's instructions | When a skill is declared | Framework tool. Absent when no skill is declared |
+| `read_skill_resource` | Read a supporting file of a packaged skill | When a packaged skill has files beside `SKILL.md` | Framework tool. Shares the `read` schema and formatter, reads from an in-memory catalog |
+
+`createBuiltinToolGroups` in `session.ts` builds the list. Without `useSandbox()` none of the six filesystem and shell tools exists and the framework tools stand alone. A `SandboxFactory` may carry a `tools(sandbox, options)` function; when present it replaces the six with whatever it returns, and `task` is appended after it. The runtime exports `createReadTool`, `createWriteTool`, `createEditTool`, `createBashTool`, `createGrepTool`, and `createGlobTool` so a factory can keep a subset. The three framework tools are listed here for completeness and are not covered under the Description sub-headings below. There is no list, stat, delete, or process tool for the model; the `Sandbox` interface has `stat`, `readdir`, `exists`, `mkdir`, and `rm`, and the runtime uses them for system-prompt discovery only.
+
+## Read
+
+### Signature
+
+```ts
+read({ path: string, offset?: number, limit?: number })
+```
+
+`path` is relative or absolute and is resolved by the adapter. `offset` is one-based; zero or a missing offset starts at line one. `limit` is a line count with no default of its own; the 2000-line and 50 KB caps apply when it is absent. The TypeBox schema types `offset` and `limit` as `Number` with no integer, minimum, or maximum constraint. `read_skill_resource` uses the same schema and the same `formatReadContent` function over the packaged skill catalog.
+
+### Description
+
+`read`: 90 characters, 92 bytes, 1 line, approximately 25 tokens.
+
+**`read` (90 characters)**
+
+```text
+Read a file. Output is truncated to 2000 lines or 50KB — use offset/limit for large files.
+```
+
+### Path handling
+
+The tool passes `params.path` to `env.readFile` without change, so the adapter decides. On `local()`, `resolvePath` is `path.isAbsolute(p) ? p : path.resolve(cwd, p)`: relative paths join `cwd`, absolute paths pass through, and `..` can leave `cwd`. There is no `~`, `@`, or `file://` handling and no containment check. The `bash()` factory resolves relative paths through `bash.fs.resolvePath(cwd, p)` and passes absolute paths through. `sandboxFromDriver`, which `cloudflareSandbox` builds on, collapses `.`, `..`, and empty segments and clamps `..` at `/`. A `cwd` option on `useSandbox()` or a `task` call wraps any adapter in `createCwdSandbox`, which uses that same POSIX normaliser before the adapter sees the path.
+
+Near-miss recovery: None. The adapter error is thrown as-is. On `local()` a missing file gives the Node text:
+
+```text
+ENOENT: no such file or directory, open '<path>'
+```
+
+The `just-bash` adapter throws its own `ENOENT` prefixed message; its exact text is Unverified at the `^3.0.1` range Flue declares. The `cloudflareSandbox` `readFile` error text is Not surveyed.
+
+Symlinks: followed with no check on every adapter. `read` never calls `stat`, `readFileBuffer`, or `exists`.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Path rules | None. No allow or deny list and no workspace root on `local()`. The virtual sandbox has nothing outside its own tree |
+| Approval | None built in. The sandbox guide says `local()` has no isolation by design and is not for untrusted requests |
+| Packaged skills overlay | `overlayPackagedSkills` routes `/.flue/packaged-skills/` paths on `readFile` to an in-memory catalog. An unknown path under that root gives `[flue] Packaged skill file not found: <path>` instead of reaching the adapter |
+| Device and special files | None. `local()` calls `fs.readFile` with no `lstat` or regular-file guard |
+| Denial text | Not applicable |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | None |
+| Refusal | None. `local()` decodes bytes as UTF-8 with replacement characters; `just-bash` does its own decode |
+| Notebooks | None. `.ipynb` reads as JSON text |
+| Office and PDF text | None |
+| Images | None from `read`. Images reach the model as conversation attachments and can be forwarded to a child agent through `task.attachments` |
+| PDF | None |
+| Audio and video | None |
+| Packaged binary skill files | Served as base64 wrapped at 76 columns by `read_skill_resource` and the overlay |
+| Encoding | UTF-8 on `local()` |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 2000 lines | |
+| Ceiling | The model's `limit`, then the 2000-line and 50 KB caps | |
+| Long line | None per line. A first line over 50 KB is cut to 50 KB with a notice; the loop stops before any later line that would exceed the budget | `[Line <n> exceeds the 51200-byte read limit; showing the first 51200 bytes of it. The remainder of this line is not accessible via offset/limit.]` |
+| Output budget | 50 KB of selected text; whole lines only after the first | `[Showing lines <a>-<b> of <total>. Use offset=<n> to continue.]` |
+| Whole-file size | None. The whole file is read into memory as a string before slicing | |
+| Offset past end | Error | `Offset <n> is beyond end of file (<total> lines total)` |
+
+The byte budget is `String.length`, so 50 KB counts UTF-16 code units, and the newline before each line counts toward it. `limit` is honoured first, then `truncateHead` applies the line and byte caps to the slice; whichever is hit first wins.
+
+### Output
+
+```text
+import { x } from "./x"
+export const y = x
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | None |
+| Line prefix | None. Lines are bare |
+| End marker | None |
+| Truncation notice | After a blank line: `[Showing lines <a>-<b> of <total>. Use offset=<n> to continue.]` when the 2000-line or 50 KB budget cuts the slice; the first-line variant above when the first requested line alone exceeds the budget. A model `limit` that stops short of the end produces no notice |
+| Error transport | Thrown; Pi's agent loop returns the message as one text part with `isError: true` |
+
+The example is Reconstructed from `formatReadContent`. The result `details` carry `path` and the total line count.
+
+### Notable
+
+- No repeat-read guard, no content injection after the read, no redaction.
+- An empty file returns an empty text part: `''.split('\n')` gives one line, so the offset check passes and nothing is emitted.
+- The abort signal is checked before the read only. The adapter read is not cancellable. The session wraps every tool in `abandonToolOnAbort`, so an abort during the read rejects one macrotask later with the message `The operation was aborted. The tool execution could not be confirmed cancelled and may still be running.`, and the orphaned read is consumed silently.
+- `read` does not take the mutation lock, so a parallel `read` and `write` on one path can race.
+- Host knobs on this family: the sandbox factory (`local()`, `bash()`, `cloudflareSandbox()`, or `sandboxFromDriver()`), which owns path resolution, decoding, and every error text; `local({ cwd })`; the `cwd` option on `useSandbox()`; the factory's `tools(sandbox, options)` function, which replaces the whole tool list; and the exported `createReadTool(env)` for composing a subset.
+
+## Edit
+
+### Signature
+
+```ts
+write({ path: string, content: string })
+edit({ path: string, oldText: string, newText: string, replaceAll?: boolean })
+```
+
+`edit` takes one pair per call. Pi's coding agent, whose field names Flue kept, takes an `edits[]` array; Flue dropped the batch. An empty `oldText` fails with `oldText must be a non-empty string.` before the lock is taken. There is no patch tool and no model-facing delete tool.
+
+### Description
+
+`write`: 86 characters, 86 bytes, 1 line, approximately 18 tokens.
+`edit`: 136 characters, 136 bytes, 1 line, approximately 28 tokens.
+
+**`write` (86 characters)**
+
+```text
+Write content to a file. Creates the file and parent directories if they do not exist.
+```
+
+**`edit` (136 characters)**
+
+```text
+Edit a file using exact text replacement. The oldText must match a unique region of the file. Use replaceAll to replace all occurrences.
+```
+
+### Whole-file write
+
+`write` takes the per-file mutation lock, then calls `env.writeFile(path, content)`. Every adapter routes the write through `writeFileCreatingParents`: the write is tried first, and on any failure the parent is created with `mkdir -p` semantics and the write is retried once. Errors from the `mkdir` are ignored so the retry reproduces the original failure. On `local()` the write is `fs.writeFile(resolved, content)` with a UTF-8 string, in place, with no temporary file and rename, no backup, and no post-write verification. BOM and line endings: the content is written as supplied. Mode preservation: Not surveyed. The success text reports `content.length`, a JavaScript string length, so the number is not a UTF-8 byte count for non-ASCII text.
+
+### Matching
+
+Exact only. `countOccurrences` walks the file with `indexOf`, advancing past each match so overlapping occurrences count once. Zero matches and more than one match are errors; the file is unchanged. With `replaceAll` the tool calls `String.replaceAll` and errors when the result equals the original. Both paths use a function replacer so `$&` and `$$` patterns in the model's `newText` are literal. There is no fuzzy matching, no whitespace normalisation, no BOM stripping, and no CRLF handling. The model is never told about a fallback because there is none.
+
+### Multi-file patch
+
+None. `edit` covers one file per call. There is no patch grammar and no multi-file tool.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | None. `write` accepts any destination; `edit` proves only that `oldText` matches the snapshot read inside the lock |
+| Stale-file check | None. No mtime, hash, or read ledger. An external change between the in-call read and the write is not detected |
+| Lock | `withFileMutationLock` chains `write` and `edit` per resolved path, keyed on `env.resolvePath(path)` with the raw path as fallback when resolution throws. Keys live in a `WeakMap` per `Sandbox` instance, so one tool batch shares one lock table. Work on different keys stays parallel. The signal is checked between awaits, never during a write, so the lock cannot release mid-write |
+| Cross-process coordination | None. A `bash` command mutating the same file is not synchronised; the source comment says a shell cannot take this lock |
+| Post-write checks | None. No syntax or LSP check |
+| Change tracking | None |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write` | `Successfully wrote <n> bytes to <path>` |
+| `edit` | `Successfully edited <path>`; with `replaceAll`, `Replaced <n> occurrences in <path>` |
+
+No diff and no snippet is returned. `details` carry `path` and `size` for `write`, and `path` with `replacements` on the `replaceAll` path.
+
+### Notable
+
+- No notebook editor, no undo tool, no checkpoint tool.
+- `write` and `edit` reject with `Operation aborted` when the signal is already set at entry or after the lock wait.
+- A conflict between two mutations of one file in the same parallel batch surfaces as a `Could not find` error on the second, because the second reads the first's result.
+- Host knobs on this family: the sandbox factory, which owns `writeFile`, `resolvePath` (and so the lock key), and every error text; the factory's `tools(sandbox, options)` function; and the exported `createWriteTool(env)` and `createEditTool(env)`.
+
+## Shell
+
+### Signature
+
+```ts
+bash({ command: string, timeout?: number })
+```
+
+`timeout` is in seconds and has no default. The tool converts it to milliseconds and passes it to `env.exec` as `timeoutMs` and as an `AbortSignal.timeout` merged with the host signal. There is no `cwd`, `background`, or permission parameter. The programmatic `harness.shell()` and `session.shell()` paths accept `cwd`, `env`, and `timeoutMs` and format their result with the same `formatBashResult`.
+
+### Description
+
+`bash`: 102 characters, 102 bytes, 1 line, approximately 25 tokens.
+
+**`bash` (102 characters)**
+
+```text
+Execute a bash command. Returns stdout and stderr. Output is truncated to the last 2000 lines or 50KB.
+```
+
+### Working directory and environment
+
+On `local()` the working directory is `path.resolve(options.cwd ?? process.cwd())`, fixed at sandbox creation. The shell is probed once per process with `bash -c 'command -v bash'`; an absolute result is used, otherwise Node's platform default shell (`/bin/sh`, or `cmd.exe` on Windows). The environment is an allowlist snapshot taken once at construction: `PATH`, `HOME`, `USER`, `LOGNAME`, `HOSTNAME`, `SHELL`, `LANG`, `LC_ALL`, `LC_CTYPE`, `TZ`, `TERM`, `TMPDIR`, `TMP`, and `TEMP`. `local({ env })` layers keys on top, and a key set to `undefined` drops a default; `process.env` is never read at exec time. Login shell: None.
+
+The `bash()` factory takes `cwd` from `bash.getCwd()` and runs inside the emulated shell. `cloudflareSandbox` defaults `cwd` to `/workspace` inside the container.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One child process per call on `local()`, through `child_process.spawn` with the probed shell. No persistent session, no resume |
+| Background | None. No process handle and no later polling |
+| stdin | `ignore`. No input after launch |
+| Process group | POSIX children are spawned `detached` so the whole group can be signalled; Windows children are not |
+| Model timeout | The merged signal fires, `local()` sends `SIGTERM` to the group and `SIGKILL` after 2000 ms, waits for the child to close, then rejects because the merged signal is aborted. The tool sees only the timeout signal set and returns a recoverable result with stderr `[flue] Command timed out after <n> seconds.` and exit code 124 |
+| Host abort | `local()` kills the group the same way and rejects with an `AbortError` once the child closes; the message is the signal reason or `The operation was aborted.`. The tool rethrows so the turn cancels. The session's `abandonToolOnAbort` race fires one macrotask after the abort, so it can reject first with the abandoned-tool suffix while the kill is still waiting on the child |
+| Abort on `bash()` and driver adapters | `raceExecAbort` rejects at once with the reason plus ` The sandbox command could not be confirmed cancelled and may still be running.`. The provider call becomes an orphan; both its fulfilment and rejection are consumed and only an `onOrphanSettled` callback on `sandboxFromDriver` sees them |
+| Cloudflare liveness | `cloudflareSandbox` does not forward the signal; it forwards `timeoutMs` as the SDK `timeout`. A death detector polls `getState()` every 5 seconds while a call is pending and rejects with `SandboxDiedError` on `stopped`, `stopped_with_code`, or 10 seconds of probe silence |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | `local()` accumulates stdout and stderr as UTF-8 strings. Past 64 MiB combined it sends `SIGTERM` to the group and settles with exit code 1 and `[flue] local exec output exceeded 67108864 bytes; process tree killed` appended to stderr |
+| Model-visible budget | stdout, then a newline and stderr when stderr is non-empty, trimmed, then the last 2000 lines or the last 50 KB of `String.length`, whichever cap applies |
+| Truncation text | None. `truncateTail` drops the head silently; the byte cut can start mid-line |
+| Spill file | None |
+| Empty output | `(no output)` |
+| Exit line | A non-zero exit appends a blank line and `Command exited with code <n>` to the same text part |
+
+### Sandbox
+
+None on `local()`. No OS sandbox, container, seccomp, or Seatbelt policy; the network is unrestricted and the child runs as the Flue process account. The sandbox guide names this as the intended shape and says the host or a surrounding container provides isolation. The `bash()` factory over `just-bash` is an in-process emulated bash with `InMemoryFs`; no real process is spawned and network access is whatever the emulated `curl` allows. `cloudflareSandbox` runs commands in a `@cloudflare/sandbox` container.
+
+### Approval
+
+None. The runtime ships no approval policy and no per-tool permission hook. A host that wants one supplies its own tools through the factory's `tools(sandbox, options)` function.
+
+### Notable
+
+- A non-zero exit is a successful text result, not an error result. The model sees the output tail and the exit line.
+- A model timeout is also a successful text result: `[flue] Command timed out after <n> seconds.`, a blank line, then `Command exited with code 124`.
+- A spawn failure on `local()` settles with exit code 1 and the spawn error message on stderr.
+- No PTY, no streaming to the model, no interactive input.
+- `session.shell()` and `harness.shell()` emit `tool_start` and `tool` events under the `bash` tool name, with an error result of `exitCode: -1` on a thrown error.
+- Host knobs on this family: the sandbox factory, which owns the shell, environment, cancellation, and exit-code semantics; `local({ cwd, env })`; `onOrphanSettled` on `sandboxFromDriver`; the factory's `tools(sandbox, options)` function; and the exported `createBashTool(env)`.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `grep` | `pattern: string`, `path?: string`, `include?: string`, `literal?: boolean` | 100 matches; 500 characters per line with `...`; `[Showing 100 of <n> matches. Narrow your search.]` | Whatever the backend applies. `rg --line-number --with-filename --color never` uses ripgrep defaults; `grep -rnH -E` has none |
+| `glob` | `pattern: string`, `path?: string` | 1000 paths through `head -1000`, no notice | None. `find <path> -type f -name <pattern> 2>/dev/null` on basenames; hidden files included |
+| List, stat, mkdir | None | | |
+
+Both tools run through `env.exec`. `grep` probes `rg --version` once per underlying `exec` function with a 10 second `timeoutMs` and a 15 second host-side race; a probe that answers nothing memoises `grep`. `include` becomes `--glob` on ripgrep and `--include=` on grep; `literal` becomes `--fixed-strings` or `-F`. Arguments are single-quoted. Exit code 1 with empty stdout gives `No matches found.`; a higher code throws `grep failed: <stderr>`. `glob` returns newline-joined paths as `find` prints them, or `No files found matching pattern.` when stdout is empty; because `find` errors go to `/dev/null` and the pipeline exit code is `head`'s, a missing directory reads as no matches. Neither tool is available on a sandbox without `exec`.
+
+### Description
+
+`grep`: 98 characters, 98 bytes, 1 line, approximately 18 tokens.
+`glob`: 93 characters, 93 bytes, 1 line, approximately 17 tokens.
+
+**`grep` (98 characters)**
+
+```text
+Search file contents for a regex pattern. Returns matching lines with file paths and line numbers.
+```
+
+**`glob` (93 characters)**
+
+```text
+Find files by filename pattern using shell find -name semantics. Returns matching file paths.
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read, `local()` | `ENOENT: no such file or directory, open '<path>'` | Thrown by the adapter; text part with `isError: true` |
+| Directory on read, `local()` | `EISDIR: illegal operation on a directory, read` | Thrown |
+| OS permission denied, `local()` | `EACCES: permission denied, open '<path>'` | Thrown |
+| Binary file | None. Bytes decode as UTF-8 text | |
+| Offset past end | `Offset <n> is beyond end of file (<total> lines total)` | Thrown |
+| First line too large | `[Line <n> exceeds the 51200-byte read limit; showing the first 51200 bytes of it. The remainder of this line is not accessible via offset/limit.]` | Successful text result |
+| Packaged skill file missing | `[flue] Packaged skill file not found: <path>` | Thrown |
+| Tool cancelled before start | `Operation aborted` | Thrown |
+| Tool abandoned on abort | `<reason> The tool execution could not be confirmed cancelled and may still be running.`, where `<reason>` defaults to `The operation was aborted.` | Thrown `AbortError` |
+| Edit empty `oldText` | `oldText must be a non-empty string.` | Thrown |
+| Edit match failed | `Could not find the exact text in <path>. Make sure your oldText matches exactly, including whitespace and indentation.` | Thrown |
+| Edit `replaceAll` no match | `Could not find the text in <path>. No changes made.` | Thrown |
+| Edit not unique | `Found <n> occurrences of the text in <path>. Provide more surrounding context to make the match unique, or use replaceAll.` | Thrown |
+| Stale file | None. Not detected | |
+| Command exit non-zero | Output tail, blank line, `Command exited with code <n>` | Successful text result |
+| Command timeout, model `timeout` | `[flue] Command timed out after <n> seconds.`, blank line, `Command exited with code 124` | Successful text result |
+| Command aborted by the host, `local()` | `The operation was aborted.` or the signal reason once the child closes; or the abandoned-tool form above when the session race fires first | Thrown `AbortError` |
+| Command aborted by the host, `bash()` and driver adapters | `<reason> The sandbox command could not be confirmed cancelled and may still be running.` | Thrown `AbortError` |
+| Command output over 64 MiB, `local()` | stderr ends `[flue] local exec output exceeded 67108864 bytes; process tree killed`, then `Command exited with code 1` | Successful text result |
+| Spawn failure, `local()` | The spawn error message on stderr, then `Command exited with code 1` | Successful text result |
+| Sandbox died, `cloudflareSandbox` | `Sandbox <operation> failed: the sandbox stopped while the call was in flight.`; `Sandbox <operation> failed: the sandbox state probe went unanswered while the call was in flight, so the sandbox is presumed dead.` | Thrown `SandboxDiedError` |
+| `grep` backend failure | `grep failed: <stderr>` | Thrown |
+| `grep` no matches | `No matches found.` | Successful text result |
+| `glob` no matches | `No files found matching pattern.` | Successful text result |
+| Command denied | Not applicable. No approval layer | |
+
+The tools throw. Pi's agent loop catches the exception, places the message in one text part, and sets `isError` on the tool result. The model sees text, not a code; Node error text and absolute paths pass through on `local()`. Shell exit codes, timeouts, and output overflow are all delivered as ordinary results with the exit line, so the model can recover from them without an error turn.

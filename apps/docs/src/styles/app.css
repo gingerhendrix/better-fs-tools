@@ -10,3 +10,10 @@ html {
     font-weight: bolder
   }
 }
+
+/* Code blocks wrap long lines so verbatim tool descriptions read without sideways scrolling. */
+figure.shiki pre {
+  width: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

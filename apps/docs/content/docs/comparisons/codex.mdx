@@ -1,0 +1,374 @@
+---
+title: Codex CLI
+description: Shell, patch, and process tools in the OpenAI Codex CLI at commit c9b19de, with every model-facing description in full
+harness: codex
+kind: cli
+repo: openai/codex
+commit: c9b19deb09c1841ce7acc33ddb96276030936a29
+version: 0.0.0-dev
+license: Apache-2.0
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - codex-rs/core/src/tools/spec_plan.rs
+  - codex-rs/core/src/tools/handlers/shell_spec.rs
+  - codex-rs/core/src/tools/handlers/apply_patch_spec.rs
+  - codex-rs/core/src/tools/handlers/apply_patch.lark
+  - codex-rs/core/src/tools/handlers/apply_patch.rs
+  - codex-rs/core/src/tools/handlers/unified_exec.rs
+  - codex-rs/core/src/tools/handlers/unified_exec/exec_command.rs
+  - codex-rs/core/src/tools/handlers/unified_exec/write_stdin.rs
+  - codex-rs/core/src/tools/context.rs
+  - codex-rs/core/src/tools/registry.rs
+  - codex-rs/core/src/tools/parallel.rs
+  - codex-rs/core/src/tools/orchestrator.rs
+  - codex-rs/core/src/tools/events.rs
+  - codex-rs/core/src/tools/runtimes/apply_patch.rs
+  - codex-rs/core/src/unified_exec/mod.rs
+  - codex-rs/core/src/unified_exec/errors.rs
+  - codex-rs/core/src/unified_exec/head_tail_buffer.rs
+  - codex-rs/core/src/unified_exec/process_manager.rs
+  - codex-rs/core/src/unified_exec/async_watcher.rs
+  - codex-rs/core/src/safety.rs
+  - codex-rs/core/src/exec.rs
+  - codex-rs/core/gpt-5.2-codex_prompt.md
+  - codex-rs/apply-patch/src/lib.rs
+  - codex-rs/apply-patch/src/invocation.rs
+  - codex-rs/apply-patch/src/file_update.rs
+  - codex-rs/apply-patch/src/seek_sequence.rs
+  - codex-rs/apply-patch/src/parser.rs
+  - codex-rs/protocol/src/protocol.rs
+  - codex-rs/protocol/src/openai_models.rs
+  - codex-rs/protocol/src/permissions.rs
+  - codex-rs/features/src/lib.rs
+  - codex-rs/utils/output-truncation/src/lib.rs
+  - codex-rs/utils/string/src/truncate.rs
+---
+
+Codex CLI is the open-source terminal coding agent published by OpenAI. Its built-in local file family is three tools: `exec_command`, `write_stdin`, and `apply_patch`. There is no read, write, list, or search tool; the model reads, lists, and searches through shell commands, and `apply_patch` is the structured mutation path. Shell commands can outlive the call that started them and are resumed by session ID, and every command runs under a host sandbox and approval policy.
+
+## Source
+
+| Item | Value |
+|---|---|
+| Repository | [openai/codex](https://github.com/openai/codex) |
+| Commit | `c9b19deb09c1841ce7acc33ddb96276030936a29`, committed 2026-08-23 |
+| Last updated | 2026-09-16 |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `exec_command` | Run one shell command, with pipes or a PTY, and return output or a session ID | Yes | Registered with `write_stdin` when an environment exists, the `shell_tool` and `unified_exec` features are on, and the model's shell type is not disabled. All three conditions hold by default |
+| `write_stdin` | Write to a running session or poll its output | Yes | Same registration as `exec_command` |
+| `apply_patch` | Add, update, move, or delete text files from a freeform patch | Yes | A freeform tool with a Lark grammar. Registered when the model's `apply_patch_tool_type` is set; the protocol has one variant, `Freeform` |
+
+Two other built-in tools sit outside the families on this page. `request_permissions` asks the user for filesystem or network grants; it is behind the `request_permissions_tool` feature, which is off by default. `view_image` attaches an image file to the conversation; it is behind the `view_image` feature, which is on by default. Neither was surveyed. MCP resource tools and dynamic extension tools can add file operations, but they belong to the installed server, not to Codex.
+
+## Read
+
+### Signature
+
+Not applicable. Codex has no read tool; a read is a shell command such as `cat`, `sed -n`, or `nl` sent through `exec_command`.
+
+### Description
+
+Not applicable. The `exec_command` and `write_stdin` strings, with their counts, are under Shell, Description below.
+
+### Path handling
+
+The shell resolves paths. A relative path in the command resolves against the command's working directory, which is the environment cwd unless `workdir` is given. A relative `workdir` joins the environment cwd; the Codex process cwd is never used. There is no tilde handling, URL handling, normalisation, or near-miss recovery in Codex itself; the shell and the command decide the result. A missing file returns the command's own text, for example `cat: <path>: No such file or directory`, in the output with a non-zero exit code in the header.
+
+Symlinks: the command follows links as the OS allows. The sandbox policy decides whether the target is readable.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Path rules | The sandbox policy. `read-only` denies writes everywhere; `workspace-write` allows writes under cwd, configured roots, and selected temporary directories, with read-only subpaths and protected `.git`, `.agents`, and `.codex` metadata names; `danger-full-access` removes the sandbox; `external-sandbox` leaves enforcement to another host |
+| Approval | Under the default `on-request` policy a command inside the sandbox runs without a prompt unless an exec policy rule asks for one. Under `untrusted` every command prompts unless an exec policy rule allows it. A command that asks for `require_escalated` goes through the flow described under Shell |
+| Device and special files | None. No device list, FIFO check, or file-type guard. The shell has native behaviour for every such path |
+| Hooks | A `PreToolUse` hook with identity `Bash` can allow, block, or rewrite `cmd` before the command runs |
+| Denial text | A sandbox denial is returned as a normal tool output whose text is the denied process's own output, not as a tool error. See Errors |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | None. Codex does not inspect the bytes a command prints |
+| Refusal | None. Raw bytes reach the collection buffer and are converted to text with lossy UTF-8; invalid sequences become U+FFFD |
+| Notebooks | None |
+| Office and PDF text | None |
+| Images | None through the shell. The separate `view_image` tool is Not surveyed |
+| PDF | None |
+| Audio and video | None |
+| Media size guard | Not applicable |
+| Encoding | Lossy UTF-8. The environment sets `LANG`, `LC_CTYPE`, and `LC_ALL` to `C.UTF-8` |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | None. The command decides what it prints | |
+| Ceiling | None per line or per file | |
+| Long line | None | |
+| Session buffer | 1 MiB per command output stream. Half is kept from the start and half from the end; the middle is dropped | `... <n> bytes omitted ...` inserted at the cut |
+| Model output budget | 10 000 tokens by default from `max_output_tokens`, capped by the model's truncation policy when that is smaller. Head and tail are kept. Tokens are estimated at four bytes per token | `Warning: truncated output (original token count: <n>)` above the text; `…<n> tokens truncated…` at the cut |
+| Whole-file size | None | |
+| Offset past end | Not applicable. There is no offset; `sed -n` past the end prints nothing and exits 0 | |
+
+### Output
+
+```text
+Chunk ID: 3f9a1c
+Wall time: 0.0421 seconds
+Process exited with code 0
+Original token count: 11
+Output:
+import { x } from "./x"
+export const y = x
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | A header of one line each: `Chunk ID: <id>`, `Wall time: <seconds> seconds`, then `Process exited with code <n>` or `Process running with session ID <n>`, then `Original token count: <n>`, then `Output:`. The process manager sets the token count on every result, so the line is present whether or not truncation happened; it is the byte count divided by four, rounded up |
+| Line prefix | None unless the command adds one, for example `cat -n` or `nl` |
+| End marker | None |
+| Truncation notice | Between `Output:` and the text: `Warning: truncated output (original token count: <n>)`, then `Total output lines: <n>` and a blank line when no session bytes were omitted, or the `... <n> bytes omitted ...` marker when they were. The cut point inside the text reads `…<n> tokens truncated…` |
+| Error transport | The shell's stderr is in the output text and the exit code is in the header. Handler failures are model-visible errors with plain text |
+
+The example is reconstructed from the format code. `Chunk ID` is six random hexadecimal characters generated per result; an `apply_patch` call intercepted from a shell command has none, and the line is omitted. Codex code mode receives the same fields as a JSON object instead of this text.
+
+### Notable
+
+- No repeat-read guard, no content injection after a read, no redaction, no empty-file notice.
+- The command environment sets `NO_COLOR=1`, `TERM=dumb`, `COLORTERM=` empty, `PAGER=cat`, `GIT_PAGER=cat`, `GH_PAGER=cat`, and `CODEX_CI=1` so pagers and colour do not stall or decorate a read.
+- Codex parses recognised shell scripts into `read`, `list_files`, `search`, `mixed`, or `unknown` for telemetry tags. The category does not change sandbox or approval handling.
+- Because there is no tool-level read, a host cannot classify a call as read-only from the tool name.
+
+## Edit
+
+### Signature
+
+`apply_patch` is a freeform tool. The model sends raw patch text, not a JSON object. The input grammar, in Lark, is:
+
+```text
+start: begin_patch hunk+ end_patch
+begin_patch: "*** Begin Patch" LF
+end_patch: "*** End Patch" LF?
+
+hunk: add_hunk | delete_hunk | update_hunk
+add_hunk: "*** Add File: " filename LF add_line+
+delete_hunk: "*** Delete File: " filename LF
+update_hunk: "*** Update File: " filename LF change_move? change?
+
+filename: /(.+)/
+add_line: "+" /(.*)/ LF -> line
+
+change_move: "*** Move to: " filename LF
+change: (change_context | change_line)+ eof_line?
+change_context: ("@@" | "@@ " /(.+)/) LF
+change_line: ("+" | "-" | " ") /(.*)/ LF
+eof_line: "*** End of File" LF
+
+%import common.LF
+```
+
+The Add, Delete, and Update hunk headers are the three operations. `*** Move to:` renames an updated file. `@@` lines select context; `*** End of File` anchors a change at the end. A multi-environment turn adds an optional `*** Environment ID: <id>` line after `*** Begin Patch`. There is no `replace_all` and no array of edits; every change is a hunk in one patch.
+
+### Description
+
+`apply_patch`: 108 characters, 108 bytes, 1 line, approximately 29 tokens.
+
+**`apply_patch` (108 characters)**
+
+```text
+The `apply_patch` tool can be used to edit files. This is a FREEFORM tool, so do not wrap the patch in JSON.
+```
+
+### Whole-file write
+
+An `*** Add File:` hunk writes the `+` lines as the file content through the environment's filesystem. Missing parent directories are created and the write is retried once. The write is direct; there is no temporary file and rename, and the source treats a failed write as possibly having truncated the target. Line endings: the `apply_patch_preserve_line_endings` feature preserves them; it is off by default, and the fallback normalises updated files to LF and ensures a trailing newline. BOM and mode preservation: Not surveyed. Post-write verification: None.
+
+A shell command through `exec_command` can also write a whole file with redirection or a generator, subject to the sandbox policy.
+
+### Matching
+
+Verification reads the update target as text and searches for each hunk's old lines from the position after the previous match. An `@@` context line is located first, then the old-line block. `seek_sequence` runs four stages in order: exact, trailing-whitespace trimmed, both-ends trimmed, then a normalised comparison that folds Unicode dashes to `-`, curly quotes to `'` and `"`, and non-breaking and typographic spaces to a plain space. The first stage that finds the block wins. The model is not told which stage matched. There is no uniqueness rule: the first occurrence from the current position is used. An `*** End of File` hunk searches from the end of the file. A miss fails verification with `Failed to find expected lines in <path>:` followed by the old lines, or `Failed to find context '<line>' in <path>`.
+
+### Multi-file patch
+
+Present; this is the only shape. Every hunk is parsed and resolved against the environment cwd before any write. Two hunks on one path fail verification with `multiple operations target <path>`. Update and Delete targets are read during verification, so a missing file fails before any write. Hunks are then applied in input order through the filesystem abstraction: add, update, move, delete. The operation is not transactional. A later hunk can fail after earlier writes committed; the failure carries an `AppliedPatchDelta` of the committed prefix, marked inexact when a write failed part way. There is no rollback.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | None. No read tool exists to require |
+| Stale-file check | None by version, mtime, hash, or ledger. The old lines in the patch are the check: the runtime re-derives the change from the current file at apply time, so a file that changed between verification and apply usually fails the context match |
+| Lock | None across the verify and apply phases, and no per-path queue. Direct `apply_patch` takes the exclusive side of a global read-write admission gate, so it does not overlap another tool call in the same turn |
+| Cross-process coordination | None. A shell writer, an external editor, or a remote actor is outside the gate |
+| Post-write checks | None. No syntax or LSP check |
+| Change tracking | Each patch emits a file-change item before mutation and a completion item after it; turn-diff tracking consumes exact committed deltas |
+
+An `apply_patch` invoked as a shell command inside `exec_command` is intercepted and runs the same verification, approval, and sandbox path, but on the shared side of the gate, so it can overlap other shell calls.
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `apply_patch` | `Success. Updated the following files:` then one line per file: `A <path>`, `M <path>`, or `D <path>` |
+
+### Notable
+
+- A raw patch body sent as a shell command without the `apply_patch` word fails with `patch detected without explicit call to apply_patch. Rerun as ["apply_patch", "<patch>"]`.
+- The `apply_patch_streaming_events` feature, off by default, parses hunks while the arguments stream and emits preview events at most once per 500 ms. These are previews, not mutation acknowledgements.
+- Link handling depends on the sandbox attempt: leaf and ancestor symlink traversal is rejected only when a required sandbox was bypassed. Hard links are named in `safety.rs` as a reason to keep in-workspace writes inside the platform sandbox.
+- Directories are rejected with `path is a directory`. No contract covers FIFOs, devices, or sockets.
+- No notebook editor, no undo tool, no checkpoint tool in this family.
+
+## Shell
+
+### Signature
+
+```ts
+exec_command({
+  cmd: string,
+  workdir?: string,
+  tty?: boolean,
+  yield_time_ms?: number,
+  max_output_tokens?: number,
+  shell?: string,
+  login?: boolean,
+  environment_id?: string,
+  sandbox_permissions?: "use_default" | "with_additional_permissions" | "require_escalated",
+  additional_permissions?: { network?: { enabled?: boolean }, file_system?: { read?: string[], write?: string[] } },
+  justification?: string,
+  prefix_rule?: string[],
+})
+write_stdin({ session_id: number, chars?: string, yield_time_ms?: number, max_output_tokens?: number })
+```
+
+Both are non-strict JSON function tools with a declared output schema. `tty` defaults to `false`; `true` allocates a PTY with writable stdin. `yield_time_ms` defaults to 10 000 ms and is clamped to 250 to 30 000 ms; Windows raises the floor to 10 000 ms. `max_output_tokens` defaults to 10 000. Four parameters are conditional: `shell` is hidden in local zsh-fork mode; `login` appears only when an environment allows login shells and then defaults to `true`; `environment_id` appears only when a turn has more than one environment; `with_additional_permissions` and `additional_permissions` appear only when the `exec_permission_approvals` feature is on, which it is not by default. For `write_stdin`, an empty `chars` polls without writing; a non-empty write yields after 250 ms by default, and an empty poll waits 5 000 ms up to the manager's 300 000 ms default.
+
+### Description
+
+`exec_command`: 82 characters, 82 bytes, 1 line, approximately 18 tokens.
+`write_stdin`: 80 characters, 80 bytes, 1 line, approximately 13 tokens.
+
+**`exec_command` (82 characters)**
+
+```text
+Runs a command in a PTY, returning output or a session ID for ongoing interaction.
+```
+
+**`write_stdin` (80 characters)**
+
+```text
+Writes characters to an existing unified exec session and returns recent output.
+```
+
+On Windows the `exec_command` description is the same sentence, a blank line, and this block. It is copied from `windows_shell_guidance()` in `shell_spec.rs` and is not part of the count above.
+
+**`exec_command` Windows addition (not counted)**
+
+```text
+Windows safety rules:
+- Do not compose destructive filesystem commands across shells. Do not enumerate paths in PowerShell and then pass them to `cmd /c`, batch builtins, or another shell for deletion or moving. Use one shell end-to-end, prefer native PowerShell cmdlets such as `Remove-Item` / `Move-Item` with `-LiteralPath`, and avoid string-built shell commands for file operations.
+- Before any recursive delete or move on Windows, verify the resolved absolute target paths stay within the intended workspace or explicitly named target directory. Never issue a recursive delete or move against a computed path if the final target has not been checked.
+- When using `Start-Process` to launch a background helper or service, pass `-WindowStyle Hidden` unless the user explicitly asked for a visible interactive window. Use visible windows only for interactive tools the user needs to see or control.
+```
+
+### Working directory and environment
+
+The working directory is the selected environment's cwd; `workdir` joins it when relative. A local sandbox needs the host's native path convention; a URI-native path for a remote executor is kept as is. The environment starts from the configured shell environment policy, which controls inherited, excluded, included, and overridden variables, and then sets `NO_COLOR=1`, `TERM=dumb`, `LANG`, `LC_CTYPE`, and `LC_ALL` to `C.UTF-8`, `COLORTERM` to empty, `PAGER`, `GIT_PAGER`, and `GH_PAGER` to `cat`, and `CODEX_CI=1`.
+
+Shell selection has two modes. Direct mode asks the user's default shell, or the model's `shell` when given, to derive the execution arguments for `cmd`. Local zsh-fork mode, behind the `shell_zsh_fork` feature and off by default, runs the configured zsh with `-lc` or `-c` and refuses a model-selected shell. Remote environments always use direct mode and restrict `shell` to the remote environment's reported shell type. Login shell: on when the environment allows it and `login` is not `false`; a `login: true` request in an environment that forbids it fails.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One process per `exec_command`. A process that has not exited by the yield deadline is stored and its session ID is returned; the store is a soft cap of 64 sessions |
+| Background | Yes. `write_stdin` polls or writes to a stored session. Different sessions can be driven in parallel; interactions with one session are serialised by a per-process lock |
+| stdin | Writable only with `tty: true`. For a pipe process stdin is closed and the only accepted non-empty input is ``, which interrupts the process |
+| Detach | The process ID is reserved before approval and spawn, and the process is stored before the initial wait, so it survives cancellation of the tool call that started it |
+| Cancellation | Turn cancellation aborts a handler task that has not reached a terminal outcome. A stored process is not killed by that; the user or host sends Ctrl-C, terminates one background terminal, or ends all of them. A network approval denial has its own token and terminates the affected process |
+| Pruning | At the cap, the eight most recently used sessions are protected; an exited least-recently-used process is removed first, then an older unprotected live one. A process whose lock is held by an interaction is not pruned |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | Process bytes stream as `ExecCommandOutputDelta` events of at most 8 192 bytes, split on UTF-8 boundaries, up to 10 000 deltas per command. The recent-output buffer for the model is a 1 MiB head-and-tail buffer; the full transcript for lifecycle events uses another bounded head-and-tail buffer |
+| Model-visible budget | The smaller of `max_output_tokens` (default 10 000) and the model's truncation policy, applied head and tail. The final text is shrunk again when header, warning, and marker would push it past 1.2 times the policy's byte budget |
+| Truncation text | `Warning: truncated output (original token count: <n>)`, then `Total output lines: <n>` or the `... <n> bytes omitted ...` marker, then the text with `…<n> tokens truncated…` at the cut |
+| Spill file | None. Bytes dropped from the middle of the session buffer are gone |
+| Empty output | The header followed by nothing after `Output:` |
+| UI progress | Live delta events render in the TUI; the background watcher emits one completed item when the process exits |
+
+Each `exec_command` and `write_stdin` call drains its own recent-output buffer, so a poll returns only what arrived since the last call.
+
+### Sandbox
+
+Yes, by policy. The public protocol has four sandbox policies: `danger-full-access`, `read-only` with optional network access, `external-sandbox` where another host enforces disk controls, and `workspace-write`, which adds cwd, configured roots, and selected temporary directories as writable roots. Workspace-write roots can carry read-only subpaths and protected metadata names. Platform backends are macOS Seatbelt, Linux bubblewrap with an opt-in legacy Landlock path, and Windows restricted-token or elevated sandbox paths. Remote executors enforce URI-native policies themselves. Network access is a policy field; a denial by the sandbox network proxy reads `Network access was denied by the Codex sandbox network proxy.`
+
+### Approval
+
+The approval policy is `untrusted`, `on-request` (the default), granular per approval flow, or `never`. An exec-policy assessment of the command can skip, forbid, or require approval. The model can set `sandbox_permissions` to `require_escalated` with a `justification` and an optional `prefix_rule` such as `["git", "pull"]` that the user can accept as a reusable rule; with `exec_permission_approvals` on it can instead request specific read roots, write roots, or network access. A `require_escalated` request under a policy that forbids prompts fails with `approval policy is <policy>; reject command — you cannot ask for escalated permissions if the approval policy is <policy>`.
+
+`ToolOrchestrator` runs approval, sandbox choice, a first attempt, sandbox-denial classification, and a policy-controlled unsandboxed retry. The approval is cached so the retry does not prompt twice. For patches, `assess_patch_safety` auto-approves an in-policy patch when an enforceable sandbox exists, asks when targets are outside writable roots and approvals are available, and rejects when policy disables that path; the request carries the paths, the patch text, and the computed changes, plus the smallest additional write-root request derived from the targets' parents.
+
+### Notable
+
+- The description says PTY; the default is pipes.
+- A sandbox-denied command is a successful tool result with the denial output and exit code, so the model can read the failure text.
+- `exec_command` and `write_stdin` advertise parallel calls and take the shared side of the admission gate. Two shell commands can write the same path at the same time.
+- `PreToolUse` hooks can rewrite `cmd` or block the call; `PostToolUse` hooks can add context, replace the result with feedback, or hide it, but run after the side effects. `write_stdin` skips the pre-hook and emits the original command's post-hook only when a poll observes completion.
+- Started, output-delta, terminal-interaction, and completed command items carry the call ID, process ID, argv, cwd, and parsed command classification for hosts that render their own view.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| Not applicable: shell | | | |
+
+The system prompt tells the model to prefer `rg` for text search and `rg --files` for file listing, and to fall back to other commands when `rg` is not found. Listing and search output is ordinary command output under the exec header, subject to the same buffer and token budget. Ripgrep's own `.gitignore` handling applies when it is the command.
+
+### Description
+
+Not applicable. No search or listing tool exists, so there is no description string.
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `cat: <path>: No such file or directory` or the command's own text | Command output; `Process exited with code 1` in the header |
+| Directory on read | `cat: <path>: Is a directory` or the command's own text | Command output; exit code 1 |
+| OS permission denied | `cat: <path>: Permission denied` or the command's own text | Command output; exit code 1 |
+| Binary file | None. Raw bytes are converted with lossy UTF-8 | |
+| Sandbox denied command | The denied process's own output | Successful tool result with the exit code in the header |
+| Network denied | `Network access was denied by the Codex sandbox network proxy.` | Process terminated; text in the output |
+| Escalation refused by policy | `approval policy is <policy>; reject command — you cannot ask for escalated permissions if the approval policy is <policy>` | Model-visible error |
+| Login shell refused | ``login shell is disabled by config; omit `login` or set it to false.`` | Model-visible error |
+| Shell refused in zsh-fork mode | `` `shell` is not supported for local zsh-fork exec; omit `shell` to use zsh-fork, or target a remote environment where `shell` is supported. `` | Model-visible error |
+| Remote shell mismatch | ``environment `<id>` only supports `<shell>` ``; ``environment `<id>` does not report a shell`` | Model-visible error |
+| Foreign path convention | ``path URI `<cwd>` does not use the host's native <os> path convention`` | Model-visible error |
+| No environment | `unified exec is unavailable in this session`; `apply_patch is unavailable in this session` | Model-visible error |
+| Process failure | ``exec_command failed for `<command>`: <error>``; `Failed to create unified exec process: <message>`; `Unified exec process failed: <message>` | Model-visible error |
+| Unknown session | `write_stdin failed: Unknown process id <n>` | Model-visible error |
+| Closed stdin | `write_stdin failed: stdin is closed for this session; rerun exec_command with tty=true to keep stdin open` | Model-visible error |
+| Patch parse | `apply_patch verification failed: invalid patch: <message>`; `apply_patch verification failed: invalid hunk at line <n>, <message>` | Model-visible error |
+| Patch context miss | `apply_patch verification failed: Failed to find expected lines in <path>:` then the old lines; `... Failed to find context '<line>' in <path>` | Model-visible error |
+| Patch target unreadable | `apply_patch verification failed: Failed to read file to update <path>: <io error>`; `... Failed to read <path>: <io error>` for a delete | Model-visible error |
+| Patch duplicate target | `apply_patch verification failed: invalid patch: multiple operations target <path>` | Model-visible error |
+| Patch target is a directory | `path is a directory` inside the failure text | Model-visible error |
+| Patch write failure | `Failed to write file <path>`, `Failed to delete file <path>`, `Failed to remove original <path>`, or `Failed to create parent directories for <path>`, with the I/O error | Model-visible error; committed prefix reported in lifecycle events |
+| Implicit patch in shell | `patch detected without explicit call to apply_patch. Rerun as ["apply_patch", "<patch>"]` | Model-visible error |
+| Stale file | None. Not detected beyond the context match | |
+| Command timeout | None. A running command returns `Process running with session ID <n>` and is polled | Successful tool result |
+| Command exit non-zero | `Process exited with code <n>` | Successful tool result; code in the header |
+
+Shell handler failures use `FunctionCallError::RespondToModel`, which delivers the text as the tool result marked as an error. Patch failures after verification go through `ToolEmitter::finish`, which reports the committed delta on the lifecycle event and the error text to the model.

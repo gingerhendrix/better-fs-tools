@@ -1,0 +1,358 @@
+---
+title: Pi
+description: Read, edit, shell, and search tools in the Pi coding agent at v0.84.2, with every model-facing description in full
+harness: pi
+kind: cli
+repo: earendil-works/pi
+commit: 914cf1472e715297caa30db4b9535d534a9eb718
+version: v0.84.2
+license: MIT
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - packages/coding-agent/src/core/tools/index.ts
+  - packages/coding-agent/src/core/tools/read.ts
+  - packages/coding-agent/src/core/tools/write.ts
+  - packages/coding-agent/src/core/tools/edit.ts
+  - packages/coding-agent/src/core/tools/edit-diff.ts
+  - packages/coding-agent/src/core/tools/bash.ts
+  - packages/coding-agent/src/core/tools/ls.ts
+  - packages/coding-agent/src/core/tools/find.ts
+  - packages/coding-agent/src/core/tools/grep.ts
+  - packages/coding-agent/src/core/tools/truncate.ts
+  - packages/coding-agent/src/core/tools/output-accumulator.ts
+  - packages/coding-agent/src/core/tools/file-mutation-queue.ts
+  - packages/coding-agent/src/core/tools/path-utils.ts
+  - packages/coding-agent/src/core/sdk.ts
+  - packages/coding-agent/src/core/agent-session.ts
+  - packages/coding-agent/src/utils/paths.ts
+  - packages/coding-agent/src/utils/shell.ts
+  - packages/coding-agent/src/utils/mime.ts
+  - packages/coding-agent/src/utils/tool-result-images.ts
+  - packages/agent/src/types.ts
+  - packages/agent/src/agent-loop.ts
+  - packages/agent/src/harness/types.ts
+  - packages/agent/src/harness/tools/index.ts
+  - packages/agent/src/harness/env/nodejs.ts
+---
+
+Pi is an open-source terminal coding agent and SDK published by Earendil Works. The coding agent ships seven dedicated built-in tools, `read`, `write`, `edit`, `bash`, `ls`, `find`, and `grep`, and enables four of them by default: `read`, `write`, `edit`, and `bash`. Every description is one sentence group under 330 characters; the limits are stated in the text and the rest is left to the model. The same repository carries a second surface, AgentHarness in `@earendil-works/pi-agent-core`, which bundles `read`, `write`, `edit`, and `bash` behind an injectable `ExecutionEnv`. This page describes the coding-agent built-ins with their default local operations, and names the harness where it differs.
+
+## Source
+
+| Item | Value |
+|---|---|
+| Repository | [earendil-works/pi](https://github.com/earendil-works/pi) |
+| Commit | `914cf1472e715297caa30db4b9535d534a9eb718`, tag `v0.84.2` |
+| Last updated | 2026-09-16 |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read` | Read a text file or image | Yes | Relative or absolute path; no directory listing |
+| `write` | Create or replace a whole file | Yes | Creates parent directories |
+| `edit` | Apply one or more exact replacements to one file | Yes | Array of `oldText` and `newText` pairs |
+| `bash` | Run one command in bash | Yes | No default timeout |
+| `ls` | List one directory | No | Enabled through `defaultTools`, an allowlist, or the `/tools` selector |
+| `find` | Find files by glob through `fd` | No | Same selection as `ls` |
+| `grep` | Search file contents through `rg` | No | Same selection as `ls` |
+
+The default set is `read`, `bash`, `edit`, `write` from `core/sdk.ts`. A `defaultTools` setting, a `tools` allowlist, an `excludeTools` denylist, or `noTools` changes it. The `bash` prompt snippet tells the model to use `ls`, `grep`, and `find` as shell commands, so a default session reaches listing and search through the shell. An extension can register a tool under a built-in name and replace it. AgentHarness bundles `read`, `write`, `edit`, and `bash` only; it has no model-facing `ls`, `find`, or `grep`.
+
+## Read
+
+### Signature
+
+```ts
+read({ path: string, offset?: number, limit?: number })
+```
+
+`path` is relative or absolute. `offset` is one-based; a zero or missing offset starts at line one. `limit` is a line count with no default of its own; the 2000-line and 50 KiB caps apply when it is absent. The TypeBox schema types `offset` and `limit` as `Number` without integer, minimum, or maximum constraints.
+
+### Description
+
+`read`: 303 characters, 303 bytes, 1 line, approximately 74 tokens.
+
+**`read` (303 characters)**
+
+```text
+Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.
+```
+
+### Path handling
+
+`resolveToCwd` normalises unicode space variants to a plain space, strips a leading `@`, expands `~`, converts `file://` URLs, and resolves relative paths against the session cwd. Absolute paths stay absolute. There is no containment check: `..`, absolute paths, and symlinks can reach outside cwd.
+
+When the resolved path does not exist, `resolveReadPathAsync` probes variants in order: a narrow no-break space before `AM` or `PM` (the macOS screenshot name), the NFD form of the whole path, straight apostrophes replaced by U+2019, and NFD with curly quotes together. The first variant that exists is read. The model is not told that a variant was used. Without a match the original path goes to `fs.access` and the raw Node error is returned:
+
+```text
+ENOENT: no such file or directory, access '<path>'
+```
+
+There is no sibling suggestion. Only `read` runs the variant probe; `write`, `edit`, `ls`, `find`, and `grep` resolve directly.
+
+Symlinks: followed with no check. AgentHarness `fileInfo()` uses `lstat`, and `readFile()` follows the link.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Path rules | None. There is no allow or deny list and no workspace root |
+| Approval | None built in. The README says Pi has no permission popups and recommends a container or an extension-built confirmation flow |
+| Hooks | Agent core runs `beforeToolCall` after schema validation; an extension `tool_call` handler can block or mutate the call. Mutations are not revalidated |
+| Device and special files | None. The tool calls `access()` and `readFile()` with no `lstat` or regular-file guard. Observed at `0.84.1`: a read of a FIFO with no writer blocked indefinitely |
+| Denial text | Not applicable |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | Image magic bytes over the first 4100 bytes. No binary detection otherwise |
+| Refusal | None. Non-image bytes decode as UTF-8 with replacement characters |
+| Notebooks | None. `.ipynb` reads as JSON text |
+| Office and PDF text | None |
+| Images | JPEG, PNG (not animated), GIF, WebP, BMP. Resized, then returned as a text note `Read image file [<mime>]` plus hints and an image content part. A non-vision model gets the note `[Current model does not support images. The image will be omitted from this request.]` |
+| PDF | None |
+| Audio and video | None |
+| Media size guard | Resize failure: `[Image omitted: could not be resized below the inline image size limit.]` |
+| Encoding | UTF-8 with replacement characters |
+
+After extension `tool_result` hooks, the session normalises every image result again and can resize or convert. A setting replaces images with `Image reading is disabled.` before provider submission.
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 2000 lines | |
+| Ceiling | The model's `limit`, then the 2000-line and 50 KiB caps | |
+| Long line | None. A first line over 50 KiB refuses the read | `[Line <n> is <size>, exceeds 50.0KB limit. Use bash: sed -n '<n>p' <path> \| head -c 51200]` |
+| Output budget | 50 KiB of selected text; whole lines only | `[Showing lines <a>-<b> of <total> (50.0KB limit). Use offset=<n> to continue.]` |
+| Whole-file size | None. The whole file is read into memory, then split and sliced | |
+| Offset past end | Error | `Offset <n> is beyond end of file (<total> lines total)` |
+
+`limit` is honoured first, then `truncateHead` applies the line and byte caps to the slice. Line and byte limits are independent; whichever is hit first wins.
+
+### Output
+
+```text
+import { x } from "./x"
+export const y = x
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | None |
+| Line prefix | None. Lines are bare |
+| End marker | None |
+| Truncation notice | After a blank line: `[Showing lines <a>-<b> of <total>. Use offset=<n> to continue.]` at the line cap; the 50 KiB variant above at the byte cap; `[<remaining> more lines in file. Use offset=<n> to continue.]` when the model's `limit` stopped short of the end |
+| Error transport | Thrown; agent core returns the message as one text part with `isError: true` |
+
+The example is reconstructed from the format code.
+
+### Notable
+
+- No repeat-read guard, no content injection after the read, no redaction, no explicit empty-file notice.
+- The tool rejects promptly on abort with `Operation aborted`, but its operation interface carries no signal, so the underlying `fs.readFile` keeps running. Observed at `0.84.1`: a 48 MiB read completed after the abort response.
+- `read` does not join the mutation queue, so a parallel `read` and `write` on one path can race.
+- Tool batches run in parallel by default. Result messages are emitted in the assistant's source order.
+- AgentHarness `read` identifies images from bytes and returns PNG, JPEG, GIF, and WebP directly; BMP is omitted with a note because provider protocols do not accept it. Other bytes decode with `TextDecoder`.
+
+## Edit
+
+### Signature
+
+```ts
+write({ path: string, content: string })
+edit({ path: string, edits: Array<{ oldText: string, newText: string }> })
+```
+
+`edit` takes an array. `prepareArguments` parses an `edits` JSON string and translates the legacy single `oldText` and `newText` shape into a one-element array before validation. An empty array fails with `Edit tool input is invalid. edits must contain at least one replacement.` There is no `replaceAll`, no patch tool, and no delete tool.
+
+### Description
+
+`write`: 127 characters, 127 bytes, 1 line, approximately 25 tokens.
+`edit`: 326 characters, 326 bytes, 1 line, approximately 62 tokens.
+
+**`write` (127 characters)**
+
+```text
+Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.
+```
+
+**`edit` (326 characters)**
+
+```text
+Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.
+```
+
+### Whole-file write
+
+`write` resolves the path, creates parent directories recursively, and calls `fs.writeFile` with UTF-8. The destination is overwritten in place. There is no temporary file and rename, no backup, and no post-write verification. BOM and line endings: the content is written as supplied. Mode preservation: Not surveyed. The success text reports `content.length`, which is a JavaScript string length, so the number is not a UTF-8 byte count for non-ASCII text. AgentHarness `write` delegates to `env.writeFile()`, and `NodeExecutionEnv` creates parents and writes directly.
+
+### Matching
+
+Every `oldText` is matched against one snapshot of the file, read once inside the mutation queue. A UTF-8 BOM is stripped before matching and restored after; CRLF is normalised to LF for matching and the detected ending is restored on write. Exact match runs first. When any edit misses, `fuzzyFindText` retries in a normalised space that folds trailing whitespace, NFKC forms, smart quotes, dashes, and special spaces. When fuzzy matching was needed, the replacements are overlaid onto the original so untouched lines keep their original bytes. The model is not told that a fuzzy match was used.
+
+Each `oldText` must occur exactly once. Duplicates are an error, not a first-match choice. Matched ranges are sorted and any overlap is an error. Replacements apply from the end of the file so offsets stay stable. If the result equals the original, the tool errors. Validation happens before the write, so a missing, duplicate, or overlapping target leaves the file unchanged.
+
+### Multi-file patch
+
+None. `edit` covers one file per call. There is no patch grammar and no multi-file tool.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | None. `write` accepts any destination; `edit` proves only that `oldText` matches the snapshot read during the call |
+| Stale-file check | None. No mtime, hash, or read ledger. An external change between the in-call read and the write is not detected |
+| Lock | `write` and `edit` serialise by path key: `realpath` for an existing path, the resolved spelling for a missing one. Work on different keys stays parallel. The lock is held until the mutation promise settles, including through an abort, so a cancelled writer cannot finish after the next queued mutation starts |
+| Cross-process coordination | None. Another process, another Pi instance, or a shell command is outside the queue |
+| Post-write checks | None. No syntax or LSP check |
+| Change tracking | Pi keeps file-operation summaries for compaction only |
+
+Alias handling has a gap: `realpath` fails for a missing path below a symlinked directory, so the queue falls back to the unresolved spelling and two spellings of one target can proceed in parallel.
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write` | `Successfully wrote <n> bytes to <path>` |
+| `edit` | `Successfully replaced <n> block(s) in <path>.` The display diff, a unified patch, and the first changed line go to `details` for the TUI, not to the model |
+
+### Notable
+
+- No notebook editor, no undo tool, no checkpoint tool.
+- The `edit` description promises exact matching; the runtime falls back to the normalised fuzzy match above.
+- `write` and `edit` poll `signal.aborted` between filesystem calls and throw `Operation aborted`; their operation interfaces take no signal.
+- The TUI can preview an edit diff before execution and renders the structured diff after it. Rendering does not change the model-facing text.
+- Host knobs: `operations` on each tool replace the filesystem calls; `spawnHook`, `commandPrefix`, and `shellPath` on `bash`; extension `tool_call` and `tool_result` handlers can block, mutate, or replace any call or result.
+
+## Shell
+
+### Signature
+
+```ts
+bash({ command: string, timeout?: number })
+```
+
+`timeout` is in seconds and has no default. It must be finite and positive, and at most `2147483.647` seconds. There is no `cwd`, `background`, or permission parameter.
+
+### Description
+
+`bash`: 248 characters, 248 bytes, 1 line, approximately 55 tokens.
+
+**`bash` (248 characters)**
+
+```text
+Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.
+```
+
+### Working directory and environment
+
+The working directory is the session cwd; a missing cwd fails with `Working directory does not exist: <cwd>` and `Cannot execute bash commands.` on the next line. The environment is `process.env` with Pi's own bin directory prepended to `PATH`. With the default `exposeSessionEnvironment: true`, `PI_SESSION_ID`, `PI_SESSION_FILE`, `PI_PROVIDER`, `PI_MODEL`, and `PI_REASONING_LEVEL` are set. A `spawnHook` can change command, cwd, and environment before spawn, and `commandPrefix` prepends shell setup to every command.
+
+Shell selection: a configured shell path, Git Bash on Windows, `/bin/bash`, a bash found on `PATH`, then `sh -c` as the Unix fallback. Login shell: None. The command is passed as an argument, or through stdin on shells whose transport is stdin.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One child process per call. No persistent session, session ID, or resume |
+| Background | None. No process handle, no later polling, no stdin continuation |
+| stdin | Ignored after launch, except where the command itself travels through stdin |
+| Detach | POSIX children are spawned detached and tracked; Windows children are not detached |
+| Cancellation | Abort and timeout kill the process tree: `SIGKILL` to the process group on Unix with a fallback to the child PID, `taskkill /F /T` on Windows. Pi waits for the child to settle before returning |
+| Grandchildren | Killed with the process group on Unix |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | stdout and stderr feed one `onData` callback and become one interleaved stream. `OutputAccumulator` keeps a rolling tail in memory |
+| Model-visible budget | The last 2000 lines or 50 KiB, whichever is hit first |
+| Truncation text | After a blank line: `[Showing lines <a>-<b> of <total>. Full output: <path>]` at the line cap; `[Showing lines <a>-<b> of <total> (50.0KB limit). Full output: <path>]` at the byte cap; `[Showing last <size> of line <n> (line is <size>). Full output: <path>]` when the last line alone exceeds the cap |
+| Spill file | A random `pi-bash-*.log` under the OS temp directory, written only when truncation occurs. No cleanup |
+| Empty output | `(no output)` |
+| UI progress | Partial updates every 100 ms |
+
+### Sandbox
+
+None. No OS sandbox, container, seccomp, or Seatbelt policy. The network is unrestricted. The child runs as the Pi process account and can reach any path that account can. Project trust controls project-local settings, resources, package installation, and extension execution; it does not confine tools.
+
+### Approval
+
+None built in. Agent core provides `beforeToolCall` and coding-agent extensions provide `tool_call` handlers as the insertion points for an approval policy. No default policy is shipped.
+
+### Notable
+
+- A non-zero exit throws. The tail is followed by a blank line and `Command exited with code <n>`, and the result is flagged `isError`.
+- Timeout throws the tail plus `Command timed out after <n> seconds`. Abort throws the tail plus `Command aborted`.
+- No PTY, no streaming to the model, no interactive input.
+- The `bash` tool supports injected `operations`, which is how a host delegates execution to a remote system such as SSH.
+- AgentHarness `bash` delegates to `ExecutionEnv.exec()`, captures stdout and stderr separately before combining them, and has a `prepare` hook for command, cwd, environment, and inheritance. `NodeExecutionEnv.exec()` is also one-shot and unrestricted.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `ls` | `path?: string`, `limit?: number` | 500 entries, then 50 KiB; `[500 entries limit reached. Use limit=1000 for more]`; `[50.0KB limit reached]` | None. Dotfiles included; entries that fail `stat` are skipped |
+| `find` | `pattern: string`, `path?: string`, `limit?: number` | 1000 results, then 50 KiB; `[1000 results limit reached. Use limit=2000 for more, or refine pattern]` | `fd --glob --hidden`; `.gitignore` respected; `.git` and `node_modules` excluded |
+| `grep` | `pattern: string`, `path?: string`, `glob?: string`, `ignoreCase?: boolean`, `literal?: boolean`, `context?: number`, `limit?: number` | 100 matches, then 50 KiB; 500 characters per line; `[100 matches limit reached. Use limit=200 for more, or refine pattern]`; `[Some lines truncated to 500 chars. Use read tool to see full lines]` | `rg --json --line-number --hidden`; ignore files respected |
+| Stat, mkdir | None | | |
+
+None of the three is in the default set. `ls` sorts case-insensitively with `localeCompare`, appends `/` to directories, and returns `(empty directory)` for an empty one. `find` downloads or locates `fd`, returns paths relative to the search root with POSIX separators, and returns `No files found matching pattern` on zero results. `grep` returns `<path>:<line>: <text>` rows, `<path>-<line>- <text>` rows for context lines, and `No matches found` on zero matches. `find` and `grep` kill the child once the limit is reached. Multiple notices join with `. ` inside one bracket.
+
+### Description
+
+`ls`: 184 characters, 184 bytes, 1 line, approximately 38 tokens.
+`find`: 186 characters, 186 bytes, 1 line, approximately 42 tokens.
+`grep`: 221 characters, 221 bytes, 1 line, approximately 50 tokens.
+
+**`ls` (184 characters)**
+
+```text
+List directory contents. Returns entries sorted alphabetically, with '/' suffix for directories. Includes dotfiles. Output is truncated to 500 entries or 50KB (whichever is hit first).
+```
+
+**`find` (186 characters)**
+
+```text
+Search for files by glob pattern. Returns matching file paths relative to the search directory. Respects .gitignore. Output is truncated to 1000 results or 50KB (whichever is hit first).
+```
+
+**`grep` (221 characters)**
+
+```text
+Search file contents for a pattern. Returns matching lines with file paths and line numbers. Respects .gitignore. Output is truncated to 100 matches or 50KB (whichever is hit first). Long lines are truncated to 500 chars.
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `ENOENT: no such file or directory, access '<path>'` | Thrown; text part with `isError: true` |
+| Directory on read | `EISDIR: illegal operation on a directory, read` | Thrown |
+| OS permission denied | `EACCES: permission denied, access '<path>'` | Thrown |
+| Binary file | None. Bytes decode as UTF-8 text | |
+| Offset past end | `Offset <n> is beyond end of file (<total> lines total)` | Thrown |
+| First line too large | `[Line <n> is <size>, exceeds 50.0KB limit. Use bash: sed -n '<n>p' <path> \| head -c 51200]` | Successful text result |
+| Read cancelled | `Operation aborted` | Thrown |
+| Edit target missing | `Could not edit file: <path>. Error code: ENOENT.` | Thrown |
+| Edit empty `oldText` | `oldText must not be empty in <path>.`; `edits[<i>].oldText must not be empty in <path>.` | Thrown |
+| Edit match failed | `Could not find the exact text in <path>. The old text must match exactly including all whitespace and newlines.`; `Could not find edits[<i>] in <path>. The oldText must match exactly including all whitespace and newlines.` | Thrown |
+| Edit not unique | `Found <n> occurrences of the text in <path>. The text must be unique. Please provide more context to make it unique.`; `Found <n> occurrences of edits[<i>] in <path>. Each oldText must be unique. Please provide more context to make it unique.` | Thrown |
+| Edit overlap | `edits[<i>] and edits[<j>] overlap in <path>. Merge them into one edit or target disjoint regions.` | Thrown |
+| Edit no change | `No changes made to <path>. The replacement produced identical content. This might indicate an issue with special characters or the text not existing as expected.`; plural form `No changes made to <path>. The replacements produced identical content.` | Thrown |
+| Stale file | None. Not detected | |
+| Command exit non-zero | Output tail, blank line, `Command exited with code <n>` | Thrown |
+| Command timeout | Output tail, blank line, `Command timed out after <n> seconds` | Thrown |
+| Command aborted | Output tail, blank line, `Command aborted` | Thrown |
+| Invalid timeout | `Invalid timeout: must be a finite number of seconds`; `Invalid timeout: maximum is 2147483.647 seconds` | Thrown |
+| Missing cwd | `Working directory does not exist: <cwd>` then `Cannot execute bash commands.` | Thrown |
+| `ls` path errors | `Path not found: <path>`; `Not a directory: <path>`; `Cannot read directory: <message>` | Thrown |
+| `find` and `grep` path or binary errors | `Path not found: <path>`; `fd is not available and could not be downloaded`; `ripgrep (rg) is not available and could not be downloaded`; `Failed to run fd: <message>`; `Failed to run ripgrep: <message>` | Thrown |
+
+The built-ins throw. Agent core catches the exception, places the message in one text part, and sets `isError` on the tool result message. The model sees text, not a code; Node error text and absolute paths pass through. AgentHarness defines `FileErrorCode` and `ExecutionErrorCode` at the backend boundary, but its tools call `getOrThrow()`, so the model boundary is the same thrown text. The read-tool first-line refusal is the one condition returned as a successful text result.

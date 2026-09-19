@@ -1,0 +1,388 @@
+---
+title: Claude Code
+description: Read, edit, shell, and search tools in the Claude Code CLI at 2.1.273 and 2.1.241, with every extracted model-facing description in full
+harness: claude-code
+kind: cli
+repo: anthropics/claude-code
+commit: none
+version: 2.1.273 (read, description and message strings); 2.1.241 (edit, shell, search structure)
+license: proprietary
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - "@anthropic-ai/claude-code@2.1.241/sdk-tools.d.ts"
+  - "@anthropic-ai/claude-code@2.1.241/package.json"
+  - "@anthropic-ai/claude-code@2.1.241/LICENSE.md"
+  - "@anthropic-ai/claude-agent-sdk@0.3.241/sdk.d.ts"
+  - "@anthropic-ai/claude-agent-sdk@0.3.241/sdk-tools.d.ts"
+---
+
+Claude Code is Anthropic's terminal coding agent, shipped as a proprietary native binary with public TypeScript declarations. Its model-facing file family is dedicated tools: `Read`, `Write`, `Edit`, `NotebookEdit`, `Glob`, `Grep`, and `Bash`, with no directory-listing tool. The read tool counts tokens with the provider tokenizer and paginates a whole-file read that passes the cap, and a conversation-local read ledger gates `Edit` and `Write`. There is no public source, so this page rests on template strings extracted from the installed binary, the package declarations, a live session, and vendor documentation.
+
+## Source
+
+| Item | Value |
+|---|---|
+| Repository | [anthropics/claude-code](https://github.com/anthropics/claude-code), the package homepage. The production CLI is a native executable and is not public source |
+| Commit | None. Read and the description strings come from the installed CLI `2.1.273`; edit, shell, and search structure comes from npm `@anthropic-ai/claude-code@2.1.241` with `@anthropic-ai/claude-agent-sdk@0.3.241` |
+| Last updated | 2026-09-16 |
+
+The two pins are not merged. Read facts, the description strings, and every quoted error or notice string come from the `2.1.273` binary. Edit, Shell, and Search and listing structure comes from the `2.1.241` declarations and the documentation fetched with them.
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `Read` | Read a text file by line range, an image, a PDF, or a notebook | Yes | Refuses directories |
+| `Write` | Create or overwrite one whole file | Yes | Gated by the read ledger for existing files |
+| `Edit` | Replace one unique string, or every occurrence | Yes | Gated by the read ledger |
+| `NotebookEdit` | Replace, insert, or delete one notebook cell | Yes | `Edit` refuses `.ipynb` and points here |
+| `Glob` | Find file paths by glob pattern | Yes | Sorted by modification time, capped at 100 |
+| `Grep` | Search file contents with ripgrep | Yes | Three output modes; `head_limit` default 250 |
+| `Bash` | Run one command in a separate process | Yes | Timeout, background, and sandbox override fields |
+| `PowerShell` | Run a PowerShell command | No | Preview; Windows only, by platform and provider |
+| `TaskOutput` | Read the output of a background task | Yes | Deprecated in favour of `Read` on the output file |
+| `TaskStop` | Stop a background task | Yes | Accepts a task ID |
+
+There is no list, stat, delete, or mkdir tool; the model uses `Bash`. A bare permission deny such as `Bash` removes the tool from model context; a scoped deny keeps it visible and blocks matching calls. The SDK `Options.tools` list and `toolAliases` can change the set or redirect a built-in name to a host MCP tool. The binary holds several description variants per tool, chosen by model and a lean-prompt flag; the strings on this page are the variants active in the observed `opus` session. MCP and user-defined tools are outside this table.
+
+## Read
+
+### Signature
+
+```ts
+Read({ file_path: string, offset?: number, limit?: number, pages?: string })
+```
+
+`file_path` is described as absolute; the binary resolves a relative path against the working directory. `offset` is one-based and defaults to `1`. `limit` is a line count. `pages` selects PDF pages as `"1-5"`, `"3"`, or `"10-20"`, at most 20 pages per call, and is required for PDFs over ten pages. The declaration is `FileReadInput` in `sdk-tools.d.ts` at `2.1.241`.
+
+### Description
+
+`Read`: 790 characters, 794 bytes, 9 lines, approximately 191 tokens.
+
+**`Read` (790 characters)**
+
+```text
+Reads a file from the local filesystem.
+
+- `file_path` must be an absolute path.
+- Reads up to 2000 lines by default.
+- When you already know which part of the file you need, only read that part. This can be important for larger files.
+- Results are returned using cat -n format, with line numbers starting at 1
+- Reads images (PNG, JPG, …) and presents them visually. Reads PDFs via the `pages` parameter (e.g. "1-5", max 20 pages/request; required for PDFs over 10 pages). Reads Jupyter notebooks (.ipynb) as cells with outputs.
+- Reading a directory, a missing file, or an empty file returns an error or system reminder rather than content.
+- Do NOT re-read a file you just edited to verify — Edit/Write would have errored if the change failed, and the harness tracks file state for you.
+```
+
+### Path handling
+
+The path is resolved against the working directory. On `ENOENT` the tool retries once with the macOS screenshot variant: a basename matching `<name> AM.png` or `<name> PM.png` has the space before `AM` or `PM` swapped between U+0020 and U+202F. If the retry also fails, two suggesters run. The first returns a sibling whose name without extension equals the requested stem, as a bare name. The second checks whether the path sits under the parent of the working directory but not under the working directory itself, joins the same relative tail onto the working directory, and suggests that absolute path when it exists. The re-anchor suggestion wins over the same-stem one. The suggestion is appended to the error. The file is never read from a suggestion.
+
+```text
+File does not exist. Note: your current working directory is <cwd>. Did you mean <suggestion>?
+```
+
+Without a suggester match the message ends after the working directory. There is no tilde expansion and no URL handling in the read path.
+
+Symlinks: permission checks evaluate the link path and the resolved target; an allow needs both to match and a deny on either blocks. The binary stashes an identity for the path at permission time and checks it again at read time on macOS.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Path rules | `Read(...)` rules use gitignore-style patterns. Order is deny, then ask, then allow. In the default mode a read inside a working directory runs without a prompt |
+| Deny text | `File is in a directory that is denied by your permission settings.` |
+| Working boundary | The launch directory plus `--add-dir`, `/add-dir`, settings, and SDK `additionalDirectories` |
+| Device and process files | Refused by a fixed list: `/dev/zero`, `/dev/random`, `/dev/urandom`, `/dev/full`, `/dev/stdin`, `/dev/tty`, `/dev/console`, `/dev/stdout`, `/dev/stderr`, `/dev/fd/0` to `2`, `/proc/*/fd/0` to `2`, and `environ`, `cmdline`, `auxv`, `maps`, `mem`, and `stat` under `/proc/<pid>/` |
+| Device text | `Cannot read '<path>': this device file would block or produce infinite output.` |
+| Hooks | `PreToolUse` receives the absolute path before permission processing and can allow, deny, ask, or replace the input. Deny and ask rules stay authoritative over a hook allow |
+
+FIFOs, sockets, and other special files outside the list: Not surveyed. No `stat` type check is established.
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | Extension list; a 16-byte magic sniff for extension-less files |
+| Refusal | `This tool cannot read binary files. The file appears to be a binary <ext> file. Please use appropriate tools for binary file analysis.` |
+| Notebooks | Cells with outputs. A notebook over 100 MB is refused and the error names a shell command for a slice |
+| Office and PDF text | None. PDF travels as a document or as page images, not text |
+| Images | PNG, JPEG, GIF, WebP by extension. Resized toward 2000 by 2000 with a 5 MiB base64 cap; 512 000 raw bytes as the input limit; an image still over 500 KB after resizing is re-encoded as JPEG. A meta message carries the displayed dimensions |
+| Image guards | `Image file is empty: <path>`; `File has an image extension but its content is not a valid PNG/JPEG/GIF/WebP. Detected: <kind>. ...` |
+| PDF | Whole document block when the model supports it and the page count is ten or fewer; otherwise `pages` extracts JPEG page images through poppler, 20 pages per request. Without `pdftoppm` the error names `poppler-utils` |
+| Audio and video | None |
+| Encoding | UTF-8 BOM stripped; CRLF normalised in the fast path. The mutation tools detect a UTF-16LE BOM when they read the file back |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 2000 lines | |
+| Ceiling | The model's `limit`, then the token cap | |
+| Token cap | 25 000 tokens, counted with the provider tokenizer when the character estimate is near the cap; `CLAUDE_CODE_FILE_READ_MAX_OUTPUT_TOKENS` overrides it | Whole-file reads paginate with the `PARTIAL view` banner under Output; ranged reads error with `File content (<n> tokens) exceeds maximum allowed tokens (<cap>). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.` |
+| Whole-file size | 256 KiB without `limit` | `File content (<size>) exceeds maximum allowed size (<max>). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.` |
+| Selected range | 3.2 MB of selected text with `limit`; the read stops before loading the rest | `The requested line range contains over <max> of text, more than a read can return. Use a smaller limit — or, if a single line is this large, no limit will fit it: search for specific content instead.` |
+| Long line | None per line. A whole-file read that cannot page by line is cut by characters with the second banner under Output | |
+| Streaming | Files of 10 MiB and above use a streaming reader | |
+| Offset past end | Reminder, not error | `<system-reminder>Warning: the file exists but is shorter than the provided offset (<n>). The file has <total> lines.</system-reminder>` |
+
+### Output
+
+```text
+1	import { x } from "./x"
+2	export const y = x
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | None |
+| Line prefix | `N` then one tab then the verbatim text, unpadded. A colon replaces the tab when the `tengu_tab_read_sep` gate is on and the page holds a tab-indented line |
+| End marker | None |
+| Truncation notice | After the content: `[Truncated: PARTIAL view — <path>: showing lines 1-<n> of <total> total (<tokens> tokens, cap <cap>). Call Read with offset=<n+1> limit=<n> for the next page, or Grep to find a specific section. Do NOT answer from this page alone if the answer may be further in the file.]`. For a file that cannot page by line: `[Truncated: PARTIAL view — <path>: showing the first <n> of <m> characters (<tokens> tokens, cap <cap>); this file has very long lines and cannot be paginated by line. Use Grep to find a specific section, or Read with offset/limit to page through it. Do NOT answer from this excerpt alone if the answer may be elsewhere in the file.]` |
+| Error transport | `is_error` tool result whose content is the message text |
+
+The line example is reconstructed from the format code. The first banner shape was observed in the 2026-09-16 session; the second is from the binary.
+
+### Notable
+
+- Repeat-read guard: the same path, `offset`, and `limit` with an unchanged mtime returns `File unchanged since last read. The content from the earlier Read tool_result in this conversation is still current — refer to that instead of re-reading.` instead of content. The binary also holds a shorter `Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead.` and a `system-reminder` variant for a file whose content was already seeded into context.
+- Empty file: `<system-reminder>Warning: the file exists but the contents are empty.</system-reminder>`.
+- The read is recorded in the conversation-local ledger with its mtime, `offset`, `limit`, a content hash, and a partial-view flag. `Edit` and `Write` consult this ledger.
+- The path is pushed into nested memory triggers so `CLAUDE.md` files in the tree can attach in a later message. A path that belongs to a registered background task is filtered through the task output formatter.
+- The read accepts an abort signal.
+- No redaction.
+
+## Edit
+
+### Signature
+
+```ts
+Write({ file_path: string, content: string })
+Edit({ file_path: string, old_string: string, new_string: string, replace_all?: boolean })
+NotebookEdit({ notebook_path: string, new_source: string, cell_id?: string, cell_type?: "code" | "markdown", edit_mode?: "replace" | "insert" | "delete" })
+```
+
+`replace_all` defaults to false. `old_string` and `new_string` must differ. `NotebookEdit` defaults `edit_mode` to `replace`; `insert` requires `cell_type` and inserts after `cell_id`, or at the start when no ID is given. There is no patch tool. The declarations are `FileWriteInput`, `FileEditInput`, and `NotebookEditInput` in `sdk-tools.d.ts` at `2.1.241`.
+
+### Description
+
+`Write`: 240 characters, 240 bytes, 3 lines, approximately 50 tokens.
+`Edit`: 360 characters, 362 bytes, 5 lines, approximately 76 tokens.
+`NotebookEdit`: Not surveyed. The string was not extracted in the 2026-09-16 session.
+
+**`Write` (240 characters)**
+
+```text
+Writes a file to the local filesystem, overwriting if one exists.
+
+When to use: creating a new file, or fully replacing one you've already Read. Overwriting an existing file you haven't Read will fail. For partial changes, use Edit instead.
+```
+
+**`Edit` (360 characters)**
+
+```text
+Performs exact string replacement in a file.
+
+- You must Read the file in this conversation before editing, or the call will fail.
+- `old_string` must match the file exactly, including indentation, and be unique — the edit fails otherwise. Strip the Read line prefix (line number + tab) before matching.
+- `replace_all: true` replaces every occurrence instead.
+```
+
+### Whole-file write
+
+`Write` creates or overwrites the whole file. It does not append or merge. The result records `create` or `update`, the original content or `null`, a line-based `structuredPatch`, an optional Git diff summary, and `userModified` when the user changed the proposed content in the permission dialog.
+
+From the `2.1.273` binary: the writer detects the file's encoding and line-ending style, restores CRLF when the file used it, writes with the detected encoding, then stats the file and compares the size on disk with the bytes written. A mismatch fails with `Write verification failed: <path> is <n> bytes on disk, expected <m>. The filesystem may have silently truncated the write (network drive / cloud sync).` The mtime after the write is stored in the read ledger.
+
+Atomic replace through a temporary file and rename: Unverified. Parent directory creation: Not surveyed. Mode, owner, and timestamp preservation: Not surveyed. `fsync`: Not surveyed.
+
+### Matching
+
+The documentation at `2.1.241` describes literal replacement with no regex and no fuzzy matching, one occurrence unless `replace_all` is true. The `2.1.273` binary shows a cascade in front of that rule. Exact `includes` runs first. When it misses, the file and `old_string` are compared with curly quotes folded to straight ones, U+2018 and U+2019 to `'` and U+201C and U+201D to `"`; on a hit the file's own substring becomes the string to replace and `new_string` receives the same quote style. When `old_string` holds `\uXXXX` escapes, the decoded form is tried. When `old_string` holds non-ASCII characters, a regex that accepts either spelling is tried. The result is not labelled with the stage that matched.
+
+Occurrences are counted over the normalised file. More than one occurrence without `replace_all` is an error. An empty `old_string` creates a new file and errors when the target already holds non-whitespace content. The file is read with a UTF-16LE check on the BOM, a UTF-8 BOM strip, and CRLF normalisation before matching.
+
+### Multi-file patch
+
+None. `Edit` covers one file per call. `NotebookEdit` covers one cell. There is no patch grammar.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Enforced by the conversation-local ledger. Older model families always need the read; newer models can edit or overwrite an unread file when `Read` is available and the read would not prompt. A partial read never counts. A single-file `cat`, `nl`, `bat`, `batcat`, `head`, `tail`, `sed -n 'X,Yp'`, `grep`, `egrep`, `fgrep`, or `rg` through `Bash` counts; pipes and redirects do not |
+| Not-read text | `File has not been read yet. Read it first before writing to it.` |
+| Stale-file check | The ledger holds the mtime and a content hash. When the mtime moved and the content differs, `Write` and `NotebookEdit` return `File has been modified since read, either by the user or by a linter. Read it again before attempting to write it.`; `Edit` returns `File content has changed since it was last read. This commonly happens when a linter or formatter run via Bash rewrites the file. Call Read on this file to refresh, then retry the edit.`. `Edit` can proceed when `old_string` still matches exactly and unambiguously and a fresh read would not prompt; the result then notes the other changes |
+| Bash writes | A `Bash` command matching write markers bumps the ledger and adds `staleReadFileStateHint` to the result |
+| Lock | None published. No same-path serialisation, compare-and-swap, or atomic check-and-write is promised. Parallel tool batches are supported |
+| Size and mode guards | `Edit` refuses a file over 1 GiB: `File is too large to edit (<size>). Maximum editable file size is <max>.` With `CLAUDE_CODE_PERFORCE_MODE` a file without the write bit is refused with a message naming `p4 edit` |
+| Post-write checks | None published |
+| Change tracking | Direct editing tools snapshot files before prompts; the most recent 100 session checkpoints are kept. Rewind does not track `Bash` mutations, most subagent changes, or external edits, and skips symlinked and hard-linked files |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `Write` | Not surveyed. The structured result carries `type`, `filePath`, `content`, `originalFile`, `structuredPatch`, optional `gitDiff`, and `userModified` |
+| `Edit` | Not surveyed. The structured result carries `filePath`, `oldString`, `newString`, `originalFile`, `structuredPatch`, `userModified`, `replaceAll`, and optional `gitDiff` |
+| `NotebookEdit` | Not surveyed |
+
+The declarations model the structured output. The rendered transcript text was not captured. A `PostToolUse` hook can replace the output before the model sees it, within the tool's schema.
+
+### Notable
+
+- `Edit` on a `.ipynb` path is refused with `File is a Jupyter Notebook. Use the NotebookEdit to edit this file.`
+- A `Read` deny rule also blocks `Edit` and `Write` on that path: `File is covered by a Read deny rule in your permission settings and cannot be edited.` and `... cannot be written.` `Edit` rules cover `Edit`, `Write`, and `NotebookEdit`.
+- Permission dialogs show a diff and let the user modify the proposed content; the tool result flags `userModified`.
+- No undo tool. Checkpoints are recovery state, not mutation isolation.
+- The `Edit` description promises exact matching; the binary applies the quote and escape cascade above.
+
+## Shell
+
+### Signature
+
+```ts
+Bash({ command: string, timeout?: number, description?: string, run_in_background?: boolean, dangerouslyDisableSandbox?: boolean })
+```
+
+`timeout` is in milliseconds; the description says default 120000 and maximum 600000, and `BASH_DEFAULT_TIMEOUT_MS` and `BASH_MAX_TIMEOUT_MS` move both. `description` is shown in permission prompts. `run_in_background` starts a task and returns. `dangerouslyDisableSandbox` requests a run outside the sandbox and goes through normal permission handling. The declaration is `BashInput` in `sdk-tools.d.ts` at `2.1.241`.
+
+### Description
+
+`Bash`: 1331 characters, 1333 bytes, 13 lines, approximately 309 tokens.
+`PowerShell`, `TaskOutput`, `TaskStop`: Not surveyed. The strings were not extracted in the 2026-09-16 session.
+
+**`Bash` (1331 characters)**
+
+```text
+Executes a bash command and returns its output.
+
+- Working directory persists between calls, but prefer absolute paths — `cd` in a compound command can trigger a permission prompt. Shell state (env vars, functions) does not persist; the shell is initialized from the user's profile.
+- IMPORTANT: Avoid using this tool to run `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk`, or `echo` commands, unless explicitly instructed or after you have verified that a dedicated tool cannot accomplish your task. Instead, use the appropriate dedicated tool as this will provide a much better experience for the user.
+- Command output is displayed to you, not reliably to the user.
+- `timeout` is in milliseconds: default 120000, max 600000.
+- `run_in_background` runs the command detached: it keeps running across turns and re-invokes you when it exits. No `&` needed. Foreground `sleep` is blocked; use Monitor with an until-loop to wait on a condition.
+
+# Git
+- Interactive flags (`-i`, e.g. `git rebase -i`, `git add -i`) are not supported in this environment.
+- Use the `gh` CLI for GitHub operations (PRs, issues, API).
+- Commit or push only when the user asks. If on the default branch, branch first.
+- End git commit messages and PR bodies with the attribution lines given in the conversation's system-reminder, when one is present.
+```
+
+### Working directory and environment
+
+Each call starts a separate process. A `cd` in the main session persists for later calls only inside the project or an added directory; a disallowed destination resets to the project. Subagent directory changes do not persist. Environment variable assignments do not persist; Claude Code captures shell aliases, functions, and options at session start and reapplies them, and `CLAUDE_ENV_FILE` names a script to source. The description says the shell is initialised from the user's profile. Shell binary selection and login-shell flags: Not surveyed.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One process per call. Foreground, timeout transition, background task, and interruption are distinct states in the result |
+| Timeout | A command that reaches its timeout is moved to the background: `Command did not complete within its <n>s timeout and was moved to the background (ID: <id>). Output is being written to: <path>.` A command starting with `sleep`, a command containing `git`, or a compound command that cannot be parsed is stopped instead: `Command timed out after <duration>` |
+| Background | `run_in_background: true` returns `Command running in background with ID: <id>. Output is being written to: <path>.` A foreground subagent's task ends with that subagent's final response. `/tasks` lists and stops tasks; `TaskStop` takes the ID |
+| Background `cd` | `Session cwd remains <dir>; directory changes made by the backgrounded command do not apply to subsequent commands.` |
+| stdin | Not surveyed |
+| Cancellation | The result carries `interrupted`. An SDK `AbortController` cancels the whole query. Signal choice, process-group cleanup, and orphan handling: Unverified |
+| Memory cap | `CLAUDE_CODE_TOOL_MEMORY_LIMIT` applies a memory cgroup on Linux and WSL from `2.1.233`; the kernel kills an over-limit command and the result does not name the cap |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | Output streams to a working file while the process runs. A command whose output passes 5 GB is killed: `Command killed: output file exceeded <limit>` |
+| Read-back window | 30 000 characters by default; `BASH_MAX_OUTPUT_LENGTH` raises it to at most 150 000 |
+| Valid result | Inline up to about 30 000 characters. Past that: `Output too large (<size>). Full output saved to: <path>` plus a preview from the start; the saved file is cut at 64 MiB with `Output exceeded the <limit> persist limit; only the first <limit> were saved to: <path>` |
+| Failed result | Inline up to about 10 000 characters. Past that, a head-and-tail excerpt cut from the read-back window, with no file path |
+| stdout and stderr | Separate fields in the result. Display ordering when combined: Not surveyed |
+| Exit code 1 | Valid for `grep`, `rg`, `egrep`, `fgrep`, `find`, `diff`, `test`, `[`, `git diff`, and `git grep`; the result carries an interpretation such as `No matches found`, `Files differ`, or `Condition is false`. Every other exit 1 is a failure |
+
+### Sandbox
+
+`Bash` only. macOS Seatbelt, or bubblewrap on Linux and WSL2; native Windows and WSL1 are unsupported. The default policy reads the host filesystem except denied paths, writes the working directory and the session temp directory, denies other writes, lets linked worktrees update the shared Git directory while protecting its hooks and config, and protects Claude settings, skills, hooks, MCP configuration, shell startup files, IDE settings, Git control files, and the credential directory even inside a writable root. Permission path rules and sandbox paths merge into one OS policy. Network filtering matches the requested hostname and does not inspect TLS. `Read`, `Edit`, `Write`, and `NotebookEdit` do not run inside the sandbox.
+
+A sandbox violation is returned to the model, which can retry with `dangerouslyDisableSandbox`; that retry goes through permission handling, and `allowUnsandboxedCommands: false` removes it. SDK sessions that request sandboxing default `failIfUnavailable` to true.
+
+### Approval
+
+Modes are `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, and `bypassPermissions`. In the default mode `Bash` prompts except for a built-in set of recognised read-only commands. Rules parse compound commands and require each subcommand to qualify; the parser recognises common separators and strips a documented set of wrappers. Read-only forms of `ls`, `cat`, `head`, `grep`, `find`, `diff`, `stat`, `cd`, and Git run without a prompt. Ambiguous commands and commands over 10 000 characters prompt. A recognised file command is checked against `Read` and `Edit` path rules; an arbitrary interpreter that opens files is not, which is the stated reason for the OS sandbox. `auto` mode sends candidate actions to a safety classifier. `PermissionRequest` hooks can make the final decision and return modified input, which is checked again against deny and ask rules.
+
+### Notable
+
+- `PowerShell` is a preview tool on Windows. Its exit-code table differs: `where.exe` exit 1 is no match, `fc.exe` and `diff.exe` exit 1 is files differ, and `robocopy` has its own range.
+- A recognised write command marks tracked reads stale; see Verification and mutation state.
+- A `gh` command that hits a GitHub rate limit gets a `system-reminder` appended.
+- Hook output strings are capped at 10 000 characters; larger text becomes a session file plus preview.
+- No PTY and no streaming to the model.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `Glob` | `pattern: string`, `path?: string` | 100 files, sorted by modification time; `(Results are truncated. Consider using a more specific path or pattern.)` or `(Showing <n> of <total> matching files; <k> more are not listed. Narrow the pattern or path to see the rest.)` | Gitignored files included by default; `CLAUDE_CODE_GLOB_NO_IGNORE=false` makes it honour `.gitignore` |
+| `Grep` | `pattern: string`, `path?: string`, `glob?: string`, `type?: string`, `output_mode?`, `-A?`, `-B?`, `-C?`, `context?`, `-n?`, `-i?`, `-o?`, `multiline?: boolean`, `head_limit?: number`, `offset?: number` | `head_limit` 250 entries, `0` for unlimited; `offset` 0; `files_with_matches` mode by default | Honours `.gitignore`; a gitignored file passed as `path` is searched |
+| List | Not applicable. The model runs `ls` through `Bash` | | |
+| Stat, find, mkdir, delete | None | | |
+
+`Glob` returns absolute paths one per line, or `No files found`. A null byte in `pattern` or `path` is an error. `Grep` in `files_with_matches` mode returns `Found <n> files`, singular for one, then the paths; `content` mode returns matching lines with line numbers on by default; `count` mode returns per-file counts and a total that covers every match even when `head_limit` hides rows. Zero results give `No matches found`, or `No entries at this offset` when `offset` is past the end. A rejected regex, glob, or type returns ripgrep's diagnostic.
+
+### Description
+
+`Glob`: 140 characters, 140 bytes, 1 line, approximately 28 tokens.
+`Grep`: 477 characters, 481 bytes, 6 lines, approximately 136 tokens.
+
+**`Glob` (140 characters)**
+
+```text
+Fast file pattern matching. Supports glob patterns like "**/*.js" or "src/**/*.ts". Returns matching file paths sorted by modification time.
+```
+
+**`Grep` (477 characters)**
+
+```text
+Content search built on ripgrep. Prefer this over `grep`/`rg` via Bash — results integrate with the permission UI and file links.
+
+- Full regex syntax (e.g. "log.*Error", "function\s+\w+"). Ripgrep, not grep — escape literal braces (`interface\{\}`).
+- Filter with `glob` (e.g. "**/*.tsx") or `type` (e.g. "js", "py", "rust").
+- `output_mode`: "content" (matching lines), "files_with_matches" (paths only, default), or "count".
+- `multiline: true` for patterns that span lines.
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `File does not exist. Note: your current working directory is <cwd>.` then ` Did you mean <suggestion>?` when a suggester matched | `is_error` tool result |
+| Directory on read | `EISDIR: illegal operation on a directory, read '<path>'` | `is_error` |
+| OS permission denied | The raw Node error | `is_error` |
+| Permission rule denied | `File is in a directory that is denied by your permission settings.` | `is_error` |
+| Device file | `Cannot read '<path>': this device file would block or produce infinite output.` | `is_error` |
+| Binary file | `This tool cannot read binary files. The file appears to be a binary <ext> file. Please use appropriate tools for binary file analysis.` | `is_error` |
+| Offset past end | `<system-reminder>Warning: the file exists but is shorter than the provided offset (<n>). The file has <total> lines.</system-reminder>` | Successful tool result |
+| Empty file | `<system-reminder>Warning: the file exists but the contents are empty.</system-reminder>` | Successful tool result |
+| Whole file too large | `File content (<size>) exceeds maximum allowed size (<max>). Use offset and limit parameters ...` | `is_error` |
+| Ranged read over token cap | `File content (<n> tokens) exceeds maximum allowed tokens (<cap>). Use offset and limit parameters ...` | `is_error` |
+| Range over 3.2 MB | `The requested line range contains over <max> of text, more than a read can return. ...` | `is_error` |
+| Image empty or invalid | `Image file is empty: <path>`; `File has an image extension but its content is not a valid PNG/JPEG/GIF/WebP. Detected: <kind>. ...` | `is_error` |
+| PDF guards | `PDF file is empty: <path>`; `PDF file exceeds maximum allowed size of <max>.`; `File is not a valid PDF (missing %PDF- header): <path>`; `pdftoppm is not installed. Install poppler-utils ...` | `is_error` |
+| Edit or Write on an unread file | `File has not been read yet. Read it first before writing to it.` | `is_error` |
+| Stale file | `File has been modified since read, either by the user or by a linter. Read it again before attempting to write it.` (`Write`, `NotebookEdit`); `File content has changed since it was last read. This commonly happens when a linter or formatter run via Bash rewrites the file. Call Read on this file to refresh, then retry the edit.` (`Edit`) | `is_error` |
+| Edit match failed | `String to replace not found in file.` then a new line `String: <old_string>`, with a note when `\uXXXX` swapping was also tried | `is_error` |
+| Edit not unique | `Found <n> matches of the string to replace, but replace_all is false. To replace all occurrences, set replace_all to true. To replace only one occurrence, please provide more context to uniquely identify the instance.` then `String: <old_string>` | `is_error` |
+| Edit no change | `No changes to make: old_string and new_string are exactly the same.` | `is_error` |
+| Edit create on existing file | `Cannot create new file - file already exists.` | `is_error` |
+| Edit on a notebook | `File is a Jupyter Notebook. Use the NotebookEdit to edit this file.` | `is_error` |
+| Edit or Write under a Read deny rule | `File is covered by a Read deny rule in your permission settings and cannot be edited.`; `... cannot be written.` | `is_error` |
+| Edit file too large | `File is too large to edit (<size>). Maximum editable file size is <max>.` | `is_error` |
+| Write size mismatch | `Write verification failed: <path> is <n> bytes on disk, expected <m>. The filesystem may have silently truncated the write (network drive / cloud sync).` | `is_error` |
+| Command timeout, not backgrounded | `Command timed out after <duration>` | Failed result |
+| Command timeout, backgrounded | `Command did not complete within its <n>s timeout and was moved to the background (ID: <id>). Output is being written to: <path>.` | Successful result |
+| Command output over 5 GB | `Command killed: output file exceeded <limit>` | Failed result |
+| Command exit non-zero | `Command failed with exit code <n>`, except the exit-1 allowlist under Shell | Failed result |
+| Glob null byte | An error asking the model to remove the null byte. Exact text: Not surveyed | `is_error` |
+| Grep invalid pattern | ripgrep's own diagnostic | `is_error` |
+| Sandbox violation | Returned to the model; exact text: Not surveyed | `is_error` |
+
+Messages above are template strings from the `2.1.273` binary with placeholders in angle brackets; the transport column follows the tool result shape used for the `Read` errors, which the survey observed. Hook failure inputs carry the error as a string; there is no public error-code union. Numeric `errorCode` values exist inside the binary per tool and are not shown to the model.

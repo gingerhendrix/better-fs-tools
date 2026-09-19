@@ -1,0 +1,24 @@
+{
+  "title": "Comparisons",
+  "pages": [
+    "claude-code",
+    "cline",
+    "cloudflare-computer",
+    "cloudflare-think",
+    "codex",
+    "deep-agents",
+    "deepseek-harness",
+    "eve",
+    "flue",
+    "gemini-cli",
+    "groq-code-cli",
+    "hermes",
+    "kilocode",
+    "mastra",
+    "oh-my-pi",
+    "opencode",
+    "openhands",
+    "pi",
+    "qwen-code"
+  ]
+}

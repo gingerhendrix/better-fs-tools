@@ -1,0 +1,396 @@
+---
+title: Cloudflare Computer
+description: Read, edit, shell, and search tools from the @cloudflare/computer createAITools() set at 0.2.1, with every model-facing description in full
+harness: cloudflare-computer
+kind: virtual-workspace
+repo: cloudflare/computer
+commit: de87919a4fd37242e960e13b7b3ba802d1eef0a0
+version: 0.2.1
+license: MIT
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - packages/computer/src/tools/ai.ts
+  - packages/computer/src/tools/index.ts
+  - packages/computer/src/tools/exec.ts
+  - packages/computer/src/tools/fs/read.ts
+  - packages/computer/src/tools/fs/media.ts
+  - packages/computer/src/tools/fs/store.ts
+  - packages/computer/src/tools/fs/types.ts
+  - packages/computer/src/tools/fs/write.ts
+  - packages/computer/src/tools/fs/edit.ts
+  - packages/computer/src/tools/fs/edit-diff.ts
+  - packages/computer/src/tools/fs/delete.ts
+  - packages/computer/src/tools/fs/locks.ts
+  - packages/computer/src/tools/fs/list.ts
+  - packages/computer/src/tools/fs/find.ts
+  - packages/computer/src/tools/fs/grep.ts
+  - packages/computer/src/runtime/runtime.ts
+  - packages/computer/src/workspace.ts
+  - packages/dofs/src/path.ts
+  - packages/dofs/src/errors.ts
+  - packages/dofs/src/fs/stat.ts
+  - packages/dofs/src/fs/readdir.ts
+  - packages/dofs/src/fs/find.ts
+  - packages/dofs/src/fs/grep.ts
+  - packages/dofs/src/fs/resolve.ts
+  - packages/dofs/src/fs/mount-guard.ts
+  - docs/09_tool_interface.md
+  - docs/12_worker_backend.md
+  - docs/16_code_execution.md
+  - docs/02_sync_protocol.md
+---
+
+Cloudflare Computer is a preview workspace and execution package published by Cloudflare as `@cloudflare/computer`. Its filesystem is a virtual tree rooted at `/` and stored in Durable Object SQLite; there is no host filesystem behind the tools. `createAITools()` from `@cloudflare/computer/tools` builds the model-facing set: `read`, `ls`, `find`, and `grep` always, `write`, `edit`, and `delete` unless the host sets `readonly: true`, and `exec` when the host supplies shell options. The read tool streams from a ranged source and hands back a JSON object with line and byte continuations when it truncates, and the three mutation tools share one in-isolate lock per path. This page describes `createAITools()` with its defaults, `readonly: false`, no assets, and a `shell` option that names one backend, `"shell"`. Cloudflare Think can run its own built-in tools over Computer storage through `useThink: true`; that is a different tool set and is described on [Cloudflare Think](./cloudflare-think.mdx).
+
+## Source
+
+| Item | Value |
+|---|---|
+| Repository | [cloudflare/computer](https://github.com/cloudflare/computer) |
+| Commit | `de87919a4fd37242e960e13b7b3ba802d1eef0a0`, committed 2026-08-21 |
+| Last updated | 2026-09-16 |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read` | Read a text file, image, or PDF | Yes | Streams from a byte offset; JSON result when truncated or positioned |
+| `ls` | List one directory with sizes and mtimes | Yes | The extraction and count tables call this tool `list`; the model sees the key `ls` |
+| `find` | Find paths by glob | Yes | Paged with `nextOffset` |
+| `grep` | Search file text by literal or regex | Yes | Paged with `nextOffset` |
+| `write` | Create or replace a whole file | Yes unless `readonly` | 2 MiB content cap |
+| `edit` | Apply one or more exact replacements to one file | Yes unless `readonly` | Array of `oldText` and `newText`; returns a unified patch |
+| `delete` | Remove a file or directory | Yes unless `readonly` | `recursive` takes a subtree lock |
+| `exec` | Run a command on a named backend | Only with `shell` options | Description is built from host backend text |
+
+`createAITools()` also adds `publish` when `workspace.assets` is configured. It publishes static assets and is outside the file, search, and shell scope of this page. Each tool is also exported on its own (`createReadTool`, `createEditTool`, and so on), so a host can compose a subset. `readonly: true` returns only `read`, `ls`, `find`, and `grep`.
+
+## Read
+
+### Signature
+
+```ts
+read({ path: string, offset?: number, byteOffset?: number, limit?: number })
+```
+
+`path` is described to the model as "Path to the file to read"; the workspace requires an absolute path. `offset` is a one-based integer with a minimum of 1. `byteOffset` is a non-negative integer described as the byte continuation returned by a previous read. `limit` is a positive integer line count. A schema refinement and a runtime check both require `offset` when `byteOffset` is greater than zero.
+
+### Description
+
+`read`: 170 characters, 170 bytes, 1 line, approximately 37 tokens.
+
+**`read` (170 characters)**
+
+```text
+Read a workspace file. Images and PDFs are passed to capable models. Text output is capped at 2000 lines or 256KB and includes line and byte continuations when truncated.
+```
+
+### Path handling
+
+The tool passes the path string to the workspace unchanged. The workspace `canonicalizePath` requires a leading `/`, rejects a NUL byte, collapses `.` and empty segments, and pops a segment for each `..`. A relative path fails with `Invalid path (must be absolute): <path>`, and a `..` above the root fails with `Invalid path (escapes root): <path>`; both carry code `EINVAL`. In `read` the store adapter rethrows anything that is not `ENOENT`, so these two reach the AI SDK as thrown tool errors rather than as `error-text`. There is no tilde expansion, no URL handling, and no near-miss recovery.
+
+The store adapter `WorkspaceFileStore.stat` returns `null` when the entry is not a file. A directory path and a missing path both produce the same result:
+
+```text
+File not found: <path>
+```
+
+Symlinks: the workspace follows intermediate and final links with a limit of 40 follows, after which it throws `too many symlinks resolving path` with code `ELOOP`. The read tool has no symlink policy of its own.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Path rules | None. The virtual root `/` is the only boundary; `/workspace` is a convention and container mount point, not a confinement option |
+| Approval | None. No prompt, allow list, or deny list in the tool set. The host controls exposure through `readonly` and through which tools it composes |
+| Device and special files | Not applicable. The virtual filesystem holds files, directories, and symlinks only |
+| Read-only mounts | Reads pass. Mutations under a read-only mount fail with `read-only mount at <root>: cannot modify: <path>` and code `EROFS` |
+| Denial text | Not applicable |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | Extension map first: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp` are images and `.pdf` is a file. A list of 35 text extensions and eight text file names such as `dockerfile` and `.gitignore` short-circuit to text. Anything else gets a 512-byte prefix sniff (`mediaSniffBytes`): PNG, JPEG, GIF87a and GIF89a, RIFF WEBP, and `%PDF-` magic, then an SVG root check, then a text heuristic. The heuristic rejects a NUL byte, accepts under one percent U+FFFD replacement characters, and otherwise accepts at most two replacements when a printable character exists |
+| Refusal | A JSON object with `kind: "binary"`, `mediaType: "application/octet-stream"`, `sizeBytes`, and `unsupported: true`, returned as a `json` model output with no error flag |
+| Notebooks | None. `.ipynb` is not on the text list, passes the sniff as text, and reads as JSON text |
+| Office and PDF text | None |
+| Images | PNG, JPEG, GIF, WebP. The bytes are read once during execution with a bound of `maxModelBytes + 1`, captured as base64 in the result, and rendered as a `content` output: a text part `Read <path> (<mime>, <n> bytes).` and a `file` part with the bytes and file name |
+| PDF | Same path as images with `application/pdf` |
+| Audio and video | None. They fall through the sniff to `binary` |
+| Media size guard | 3.5 MiB by default (`maxModelBytes`, 3670016 bytes). Over the cap the bytes are not read and the model output is `Read <path> (<mime>, <n> bytes), but it exceeds the <max>-byte inline model output limit.`; an empty media file gives `Cannot attach empty file: <path>`; a file that vanishes between `stat` and the read gives `Could not read file bytes: <path>` |
+| Encoding | UTF-8 with replacement characters. A byte-based `lineTruncation` trims up to three bytes so a cut never splits a multibyte character |
+
+A positive `byteOffset` skips media detection and treats the continuation as text.
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 2000 lines (`maxLines`) | |
+| Ceiling | The smaller of the model's `limit` and `maxLines` | |
+| Long line | None by default. A host `lineTruncation` of `bytes` or `chars` appends `... (truncated)` to a cut line | A first line over the byte cap is an error: `Line <n> exceeds the 262144-byte read cap. The host must increase maxBytes, reduce lineTruncation, or provide a byte-oriented tool.` |
+| Output budget | 256 KiB (`maxBytes`) of rendered lines, counting line prefixes and joining newlines; whole lines only | The result switches to JSON with `truncated: true` |
+| Whole-file size | None. The file is streamed from `byteOffset` in chunks and the stream is cancelled at the cap | |
+| Offset past end | Error | `Offset <n> is beyond end of file (<total> line(s))` |
+| Byte continuation past end | Error | `Byte continuation <n> is beyond end of file` |
+| `byteOffset` without `offset` | Error | `offset is required when byteOffset is greater than zero` |
+
+A read with `offset` and no `byteOffset` scans from byte zero and skips lines until `offset`. Passing the `nextByteOffset` from the previous page opens the stream at that byte instead.
+
+### Output
+
+A whole-file read inside the caps, with no `offset` or `byteOffset`, returns the bare content string:
+
+```text
+import { x } from "./x"
+export const y = x
+```
+
+A truncated, empty, or positioned read returns the whole result object as JSON:
+
+```json
+{"path":"/repo/big.log","content":"line one\nline two","startLine":1,"endLine":2000,"totalLines":null,"truncated":true,"nextOffset":2001,"nextByteOffset":131072}
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | None for a plain read. The JSON form wraps the content in a `content` field with escaped newlines |
+| Line prefix | None by default. `includeLineNumbers: true` renders `N\ttext`, unpadded |
+| End marker | None |
+| Truncation notice | The JSON form: `truncated: true`, `nextOffset` as the next line number, `nextByteOffset` as the byte position of that line, and `totalLines: null` because scanning stops at the cap. The JSON form is also used when `content` is empty and when the call carried `offset` or `byteOffset` |
+| Error transport | `error-text` model output built from the `error` field of the result |
+
+Both examples are reconstructed from the format code.
+
+### Notable
+
+- Media bytes are captured during execution and stored in the tool result, so later prompt rendering does not re-read the workspace.
+- An empty file returns the JSON form with `content: ""`, `startLine: 1`, `endLine: 0`, and `totalLines: 0`.
+- The read executor takes no abort signal. `readChunks` cancels the underlying stream reader when the loop stops early at a cap.
+- `read` runs outside the mutation lock, so a read can interleave with a `write` or `edit` on the same path.
+- No repeat-read guard, no content injection after the read, no redaction, no directory listing. A directory path is `File not found`; `ls` is the listing tool.
+- Host knobs on this tool: `maxLines`, `maxBytes`, `includeLineNumbers`, `lineTruncation`, `maxModelBytes`, `mediaSniffBytes`. `maxModelBytes` and `mediaSniffBytes` must be positive safe integers or the tool throws at construction.
+
+## Edit
+
+### Signature
+
+```ts
+write({ path: string, content: string })
+edit({ path: string, edits: Array<{ oldText: string, newText: string }> })
+delete({ path: string, recursive?: boolean })
+```
+
+`write` describes `path` as "Absolute path, e.g. /workspace/main.zig". `edit` takes an array; each element is a strict object. `prepareArguments` parses an `edits` JSON string and folds a legacy root-level `oldText` and `newText` pair into the array before the checks run. An empty array fails with `edits must contain at least one replacement.` There is no `replaceAll`, no patch tool, and no move tool. `delete` uses forced removal, so a missing path succeeds.
+
+### Description
+
+`write`: 66 characters, 66 bytes, 1 line, approximately 15 tokens.
+`edit`: 199 characters, 199 bytes, 1 line, approximately 42 tokens.
+`delete`: 82 characters, 82 bytes, 1 line, approximately 17 tokens.
+
+**`write` (66 characters)**
+
+```text
+Write content to a file. Overwrites any existing file at the path.
+```
+
+**`edit` (199 characters)**
+
+```text
+Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes touch the same block, merge them into one edit.
+```
+
+**`delete` (82 characters)**
+
+```text
+Delete a file or directory. Set recursive to true to remove a non-empty directory.
+```
+
+### Whole-file write
+
+`write` encodes the content as UTF-8 and rejects more than 2 MiB (`maxBytes`) before taking the lock, with the message under Errors. Inside the per-path lock it stats the existing entry, then calls the store `write`, which creates the parent directory recursively and calls `workspace.fs.writeFile`. The existing mode is passed back on an overwrite so an executable bit survives; a new file takes the store default. BOM and line endings: the content is written as supplied. Atomic replace: Not surveyed. The write is one `writeFile` call into the SQLite-backed filesystem; a temporary file and rename does not apply. There is no post-write verification. The result is `path` and `bytesWritten`.
+
+### Matching
+
+The matching module is adapted from Pi's `edit-diff.ts`, and the source says so. The file is read in full under the lock and rejected above 2 MiB. A UTF-8 BOM is stripped and restored, the line ending is detected from the first newline and restored on write, and both file and edits are normalised to LF for matching. Exact `indexOf` runs first. On a miss the tool retries in a normalised space: NFKC, trailing whitespace trimmed per line, curly quotes, Unicode dashes, and typographic spaces folded to ASCII. A fuzzy hit is mapped back to original offsets; when the boundary lands inside a folded or trimmed span the edit fails with the boundary message under Errors instead of guessing. The model is not told that a fuzzy match was used.
+
+Each `oldText` must occur exactly once, counted in the same space the match was found in. Matched ranges are sorted and an overlap is an error. Replacements are spliced into the original content from the end of the file forward. A result identical to the original is an error. Every check runs before the write, so a failing edit leaves the file unchanged.
+
+### Multi-file patch
+
+None. `edit` covers one file per call. There is no patch grammar and no multi-file tool.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | None. `write` accepts any path; `edit` proves only that `oldText` matches the bytes read inside the call |
+| Stale-file check | None. `FileStat` carries `mtime`, and no tool compares it. An external change between a model's read and its edit is not detected |
+| Lock | `withFileLock` keys a `WeakMap` by `lockIdentity`, which the store sets to the `workspace.fs` object. Same normalised path conflicts; a `delete` with `recursive` takes a subtree lock that also conflicts with every ancestor and descendant. `edit` holds the lock across stat, read, matching, and write. Separate `createAITools()` calls over one `workspace.fs` share the identity |
+| Cross-process coordination | None. The lock lives in one isolate. Other Durable Object instances, other processes, and container backends are outside it |
+| Post-write checks | None |
+| Change tracking | `edit` returns a unified patch with four context lines and a numbered display diff. The workspace keeps revisions for container sync |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write` | The result object with `path` and `bytesWritten`, serialised by the AI SDK as JSON |
+| `edit` | The result object with `path`, `editsApplied`, `diff` (numbered display diff), `patch` (unified, four context lines), and `firstChangedLine` |
+| `delete` | The result object with `deleted` set to the path |
+
+None of the three defines a model output mapper. A failure is returned as an object with one `error` string in the same channel, so the model sees JSON with an `error` key rather than an error-flagged result.
+
+### Notable
+
+- The `edit` description promises exact matching; the runtime falls back to the normalised fuzzy match above, as Pi does.
+- `edit` rejects files over 2 MiB and points the model at `write`; `write` rejects content over 2 MiB and points the model at `edit`.
+- Mutations under a read-only mount fail with the `EROFS` message; the tool returns it in `error`.
+- Container backends project the virtual filesystem through FUSE and sync revisioned change streams. The documented rule for two containers editing one path is last sync wins, with no merge and no conflict error.
+- No notebook editor, no undo tool, no checkpoint tool.
+- Host knobs: `write.maxBytes`, `edit.maxBytes`, `readonly`, and read-only mount configuration on the workspace.
+
+## Shell
+
+### Signature
+
+```ts
+exec({ command: string, cwd?: string, backend?: string, env?: Record<string, string>, input?: JsonValue })
+```
+
+`backend` is an enum of the host's backend IDs; omitted means the host `defaultBackend`. `cwd` is described as defaulting to the workspace root. `env` applies to one run. `input` is a JSON value for a callable backend, described as rejected by other backends. The tool exists only when the host passes `shell` options with at least one backend and a `defaultBackend` that is one of them; otherwise construction throws.
+
+### Description
+
+`exec`: 703 characters, 703 bytes, 9 lines, approximately 145 tokens. The string ends with a newline. It is rendered from the host's backend map: one bullet per backend with the host's description text, the default backend ID, and a callable paragraph that appears only when a backend accepts structured input. The counted text uses the one-backend example from the package tests.
+
+**`exec` (703 characters)**
+
+```text
+Run a shell command in the workspace. The workspace exposes multiple backends, each with different capabilities.
+Pick the cheapest backend that can run the command; fall back to a heavier one only when the lighter backend's command set doesn't cover what you need.
+
+Backends:
+- "shell": fast shell
+
+Default backend: "shell". Try this first for any command you're not sure about; if it fails with a "command not found" or a similar capability error, retry on a backend whose description covers the missing tool.
+Use for builds, test runs, typechecks, formatters, and git plumbing. Prefer the dedicated read, write, and edit tools for file operations. Long output is truncated to keep tool replies small.
+```
+
+### Working directory and environment
+
+`cwd` is passed to the backend as given; the parameter text says the default is the workspace root. `env` values override the backend's base environment for that run only. The shell is the backend: the documented built-ins are `container-shell` (Linux processes and native binaries), `worker-shell` (`just-bash` in a Dynamic Worker), and `worker-javascript` (an isolated ECMAScript module with structured input and result). Applications can register more backends under their own IDs. Login shell: Not applicable. Backend cwd resolution and environment inheritance: Not surveyed.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One execution per call. The tool is an async generator: running snapshots while the handle streams, then one terminal snapshot with `exitCode` |
+| Streaming | Running snapshots are coalesced to at most one per 100 ms; the terminal snapshot always fires. A handle that is not iterable is drained with `result()` |
+| Background | None from the tool. Container executions support supervised lifecycle and reattachment by ID through the runtime API, and the tool exposes no ID |
+| stdin | None. `input` is a structured value for callable backends only; other backends answer `Backend "<id>" is not callable; it does not accept structured input.` |
+| Cancellation | The AI SDK `abortSignal` calls the handle's `kill()`; the run then emits its terminal event |
+| Restart | An active Worker execution across a host restart is reconciled to failed, because a live Worker capability cannot be serialised |
+| Timeout | None in the tool. Not surveyed at the backend level |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | stdout and stderr are separate `StreamBuffer` accumulators. Each keeps the first 512 KiB (`streamMaxBytes`) and counts every byte after that without retaining it |
+| Model-visible budget | 64 KiB per stream per snapshot (`maxBytes`), cut on a whole-character boundary |
+| Truncation text | The kept head, a blank line, then `[truncated, <n> more bytes]`, where `<n>` is the total bytes not shown |
+| Spill file | None |
+| Empty output | Empty strings in the snapshot |
+| Structured result | `result` appears in the terminal snapshot when a callable backend returned a value |
+
+### Sandbox
+
+Backend-specific. Worker backends run in Dynamic Workers with ambient network blocked by default; a host can enable direct outbound access or route HTTP through a gateway. Container backends are Linux containers whose network, image, and resource limits depend on the application configuration. The filesystem seen by every backend is the virtual root; container backends mount it through FUSE and sync before and after the command. Computer has no single permission model across backends, and the docs state that backend construction fixes maximum authority.
+
+### Approval
+
+None. No prompt, allow rule, or deny rule exists in the tool. The docs say the backend argument is never itself authorization and that a gateway must validate which backend a caller may select. A host removes the tool by omitting `shell` or by setting `readonly: true`.
+
+### Notable
+
+- Snapshots carry `command`, `cwd`, `backend`, `exitCode`, `stdout`, and `stderr`; a non-zero exit is a normal terminal snapshot.
+- Startup, stream, and result failures are yielded as an object with `command`, `cwd`, `backend`, and `error` in place of the run fields.
+- `worker-shell` buffers a `just-bash` call to completion and cannot reattach by ID; `worker-javascript` keeps an execution journal in the workspace database.
+- Cross-container edits sync with the last-sync-wins rule under Edit, and the sync lock is not held for the whole command.
+- PTY and interactive input: Not surveyed.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `ls` | `path: string`, `limit?: number` (1 to 1000), `offset?: number` | 200 entries; `nextOffset` when more exist | None. Entries in name order with `name`, `size`, `mtime`, `isFile`, `isDirectory`, `isSymbolicLink` |
+| `find` | `pattern: string`, `path?: string` (default `/workspace`), `limit?: number` (1 to 1000), `offset?: number` | 200 entries; `nextOffset` when more exist | None. No ignore file or hidden-file rule in the workspace `find` |
+| `grep` | `query: string`, `path?: string` (default `/workspace`), `include?: string`, `regex?: boolean`, `ignoreCase?: boolean`, `context?: number` (0 to 10), `limit?: number` (1 to 1000), `offset?: number` | 200 matches; `nextOffset` when more exist | None. Literal and case-sensitive by default; `include` is a glob relative to `path` that limits searched files |
+| Stat, mkdir | None as model tools | | |
+
+Each tool asks the workspace for one entry more than the page size to decide whether `nextOffset` is set. `ls` returns `path`, `count`, `entries`, and `nextOffset`; `find` adds `pattern` and typed entries (`file` or `dir`); `grep` returns `path`, `query`, `count`, and `matches` with `path`, `line`, `text`, and optional numbered `context` lines flagged `isMatch`. A workspace failure is returned as an object with one `error` string, for example `no such path: <path>: <path>` for a missing directory, `not a directory: <path>: <path>` for a file given to `ls` or `find`, and `Invalid regular expression: <message>` for a `regex` query that does not compile. The doubled path comes from the workspace error constructor, which appends the path to a message that already contains it.
+
+### Description
+
+`ls`: 169 characters, 169 bytes, 1 line, approximately 31 tokens.
+`find`: 129 characters, 129 bytes, 1 line, approximately 25 tokens.
+`grep`: 140 characters, 140 bytes, 1 line, approximately 23 tokens.
+
+**`ls` (169 characters)**
+
+```text
+List entries in a workspace directory with file sizes and modification times. The result defaults to 200 entries; use limit and offset to page through large directories.
+```
+
+**`find` (129 characters)**
+
+```text
+Find files and directories matching a glob. * stays within one path segment, ** crosses directories, and ? matches one character.
+```
+
+**`grep` (140 characters)**
+
+```text
+Search workspace text with a literal string or regular expression. Results include paths and line numbers and can include surrounding lines.
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `File not found: <path>` | `error-text` |
+| Directory on read | `File not found: <path>`, because the store `stat` returns `null` for a non-file | `error-text` |
+| Relative path or root escape | `Invalid path (must be absolute): <path>`; `Invalid path (escapes root): <path>` | Thrown from `read`; `error` field from the other tools |
+| Binary file | JSON object with `kind: "binary"` and `unsupported: true` | `json`, no error flag |
+| Offset past end | `Offset <n> is beyond end of file (<total> line(s))` | `error-text` |
+| Byte continuation past end | `Byte continuation <n> is beyond end of file` | `error-text` |
+| `byteOffset` without `offset` | `offset is required when byteOffset is greater than zero` | Schema validation, and `error-text` when it reaches the executor |
+| First line too long | `Line <n> exceeds the <max>-byte read cap. The host must increase maxBytes, reduce lineTruncation, or provide a byte-oriented tool.` | `error-text` |
+| Media too large | `Read <path> (<mime>, <n> bytes), but it exceeds the <max>-byte inline model output limit.` | `error-text` |
+| Media empty or unreadable | `Cannot attach empty file: <path>`; `Could not read file bytes: <path>`; `Could not read captured file bytes: <path>` | `error-text` |
+| Symlink loop | `too many symlinks resolving path` | Thrown from `read`; `error` field from the other tools |
+| Write too large | `Content too large: <n> bytes exceeds the <max>-byte write cap. Use the edit tool for incremental changes to existing files, or split the write into smaller pieces.` | `error` field |
+| Edit target missing or a directory | `File not found: <path>` | `error` field |
+| Edit file too large | `File too large to edit: <n> bytes exceeds the <max>-byte cap. Use the write tool to rewrite the file from scratch.` | `error` field |
+| Edit empty list or empty `oldText` | `edits must contain at least one replacement.`; `oldText must not be empty in <path>.`; `edits[<i>].oldText must not be empty in <path>.` | `error` field |
+| Edit match failed | `Could not find the exact text in <path>. The old text must match exactly including all whitespace and newlines.`; `Could not find edits[<i>] in <path>. The oldText must match exactly including all whitespace and newlines.` | `error` field |
+| Edit not unique | `Found <n> occurrences of the text in <path>. The text must be unique. Please provide more context to make it unique.`; `Found <n> occurrences of edits[<i>] in <path>. Each oldText must be unique. Please provide more context to make it unique.` | `error` field |
+| Edit fuzzy boundary | `The fuzzy match in <path> crosses an ambiguous Unicode-normalization or trimmed-whitespace boundary. Copy the exact source text or use a span whose normalized boundaries map cleanly.`; plural form starts `The fuzzy match for edits[<i>] in <path>` | `error` field |
+| Edit overlap | `edits[<i>] and edits[<j>] overlap in <path>. Merge them into one edit or target disjoint regions.` | `error` field |
+| Edit no change | `No changes made to <path>. The replacement produced identical content. This might indicate an issue with special characters or the text not existing as expected.`; plural form `No changes made to <path>. The replacements produced identical content.` | `error` field |
+| Read-only mount | `read-only mount at <root>: cannot modify: <path>` | `error` field |
+| Stale file | None. Not detected | |
+| Command exit non-zero | Terminal snapshot with the code in `exitCode` | Normal output |
+| Command timeout | None in the tool | |
+| Command aborted | The backend is killed; the run emits its terminal event | Normal output |
+| `input` on a non-callable backend | `Backend "<id>" is not callable; it does not accept structured input.` | `error` field of the exec output |
+| Exec startup or stream failure | The backend message | `error` field of the exec output |
+| Search path errors | `no such path: <path>: <path>`; `not a directory: <path>: <path>`; `Invalid regular expression: <message>` | `error` field |
+
+Only `read` maps its result to an `error-text` model output. The other seven tools return an object with an `error` string as a normal result, so a provider sees JSON rather than an error-flagged tool message. Workspace errors carry a POSIX-style `code` such as `ENOENT`, `EISDIR`, `EINVAL`, `EROFS`, or `ELOOP`, and the tools pass through the message only.

@@ -1,0 +1,352 @@
+---
+title: Cloudflare Think
+description: Read, edit, shell, and search tools in Cloudflare Think at 0.16.0, with every model-facing description in full
+harness: cloudflare-think
+kind: platform
+repo: cloudflare/agents
+commit: a0e134bbc327fc8a519b5aa66cb8ce4038815d05
+version: 0.16.0
+license: MIT
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - packages/think/package.json
+  - packages/think/src/think.ts
+  - packages/think/src/tools/workspace.ts
+  - packages/think/src/tools/execute.ts
+  - packages/think/src/tests/assistant-tools.test.ts
+  - packages/shell/package.json
+  - packages/shell/src/filesystem.ts
+  - packages/shell/src/fs/path-utils.ts
+  - docs/think/tools.md
+---
+
+Cloudflare Think is an agent class in the `cloudflare/agents` repository that runs inside a Durable Object and drives an AI SDK loop. Its file family is eight dedicated tools, `read`, `write`, `edit`, `list`, `find`, `grep`, `delete`, and `bash`, composed on every turn over a virtual filesystem stored in the Durable Object's SQLite. The `bash` tool is an in-memory emulator that snapshots the workspace, runs one script, and writes changes back. This page describes the default configuration: a `@cloudflare/shell` `Workspace` created from `ctx.storage.sql` with no R2 bucket, `workspaceBash` left at `true`, and no opt-in `execute` tool. Cloudflare Computer is a separate package with its own tool set; see [Cloudflare Computer](./cloudflare-computer.mdx).
+
+## Source
+
+| Item | Value |
+|---|---|
+| Repository | [cloudflare/agents](https://github.com/cloudflare/agents) |
+| Commit | `a0e134bbc327fc8a519b5aa66cb8ce4038815d05` |
+| Last updated | 2026-09-16 |
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read` | Read a text file, image, or PDF from the workspace | Yes | Line-numbered text; media re-read at prompt time |
+| `write` | Create or replace a whole file | Yes | Creates parent directories |
+| `edit` | Replace one unique string, or create a file with an empty `old_string` | Yes | Exact match, then a whitespace-folded match |
+| `list` | List one directory page | Yes | Default 200 entries; no total |
+| `find` | Find paths by glob pattern | Yes | Capped at 200 results |
+| `grep` | Search file contents by regex or fixed string | Yes | Capped at 200 matches; skips files over 1 MiB |
+| `delete` | Remove a file or directory | Yes | Forced; missing paths succeed |
+| `bash` | Run one script in a `just-bash` emulator over a workspace snapshot | Yes | Removed with `workspaceBash = false`; options tune limits |
+
+`createWorkspaceTools(this.workspace, { bash: this.workspaceBash })` builds the set at the start of each inference attempt in `think.ts`. Later sources in the merge order (`getTools()`, actions, extensions, session and skill tools, MCP, client tools) win on a name collision, so a subclass tool named `write` replaces the built-in. Per-channel policy can narrow the set and `beforeTurn` can change it for one turn. Every executable tool, built-ins included, is wrapped so `beforeToolCall` runs first. The opt-in `execute` tool from `@cloudflare/think/tools/execute` runs model-written TypeScript through Codemode with a `state.*` filesystem API; it is not in the default set, its description is host-composed, and it is not covered on this page.
+
+## Read
+
+### Signature
+
+```ts
+read({ path: string, offset?: number, limit?: number })
+```
+
+`path` is described as an absolute path in the workspace. `offset` is one-based and `limit` is a line count; both are integers with a minimum of 1 and neither has a default. Without `limit` the slice runs to the end of the file.
+
+### Description
+
+`read`: 209 characters, 209 bytes, 1 line, approximately 43 tokens.
+
+**`read` (209 characters)**
+
+```text
+Read a workspace file. Text files return line-numbered content. Images and PDFs are passed to capable models as file content. Use offset and limit for large text files. Returns null if the file does not exist.
+```
+
+### Path handling
+
+The workspace is a virtual filesystem rooted at `/`. `Workspace.stat` normalises the path: a missing leading `/` is added, empty and `.` segments are dropped, and each `..` pops one segment. A `..` at the root is dropped, so a path cannot leave the workspace. A normalised path over 4096 characters throws `ENAMETOOLONG: path exceeds 4096 characters`. There is no tilde expansion, no URL handling, and no near-miss recovery. A miss returns:
+
+```text
+File not found: <path>
+```
+
+Symlinks: `stat`, `readFile`, and `readFileBytes` follow the final symlink target with a 40-hop guard; a deeper chain throws `ELOOP: too many levels of symbolic links: <path>`. A target can be any absolute path in the same virtual root.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| Path rules | None. The virtual root is the only boundary; there is no subroot or deny list |
+| Approval | None built in. The built-in tools carry no `needsApproval` property |
+| Hooks | `beforeToolCall` runs before every tool and can allow with replaced input, block with a reason, or substitute a result. A block returns the reason as the tool output; the default reason is `Tool "<name>" was blocked by beforeToolCall.` |
+| Device and special files | Not applicable. The store holds files, directories, and symlinks only |
+| Denial text | Not applicable |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | The row's stored MIME type when it is not `application/octet-stream` or `binary/octet-stream`; otherwise the bytes are read and sniffed for PNG, JPEG, GIF, WebP, `%PDF-`, and an `<svg` tag in the first 512 bytes; otherwise text when there is no NUL byte and under one percent of the first 4096 decoded characters are U+FFFD |
+| Text types | `text/*`, `application/json`, `application/javascript`, `application/typescript`, `application/xml`, `application/x-javascript`, and any `+json` or `+xml` suffix |
+| Refusal | A JSON object `{"kind":"binary","path":...,"name":...,"mediaType":...,"sizeBytes":...,"unsupported":true}` |
+| Notebooks | None |
+| Office and PDF text | None |
+| Images | Any `image/*` type, SVG included. Execution returns metadata; `toModelOutput` re-reads the bytes and returns a text note `Read <path> (<mime>, <size>).` plus an `image-data` part |
+| PDF | Same path with a `file-data` part carrying the file name |
+| Audio and video | None. They fall through to the binary object |
+| Media size guard | 3.5 MiB, checked on the re-read: `Read <path> (<mime>, <size>), but it exceeds the 3.5 MB inline model output limit.` |
+| Encoding | UTF-8 with replacement characters |
+
+Files created by the `write` tool are stored as `text/plain`, so they always take the text path. Files created through `bash` write-back or `writeFileBytes` are stored as `application/octet-stream` and are sniffed on read.
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | None. Without `offset` and `limit` the whole file is split and numbered | |
+| Ceiling | 2000 numbered lines of the selected slice | `... (<n> more lines truncated)` after the content |
+| Long line | Cut at 2000 characters | `... (truncated)` appended to the line |
+| Output budget | None beyond the line ceiling | |
+| Whole-file size | None. `readFile` returns the whole string before slicing | |
+| Token counting | None | |
+| Offset past end | Empty content, no error | |
+
+The slice is `offset` and `limit` first, then the 2000-line ceiling applies to the slice. A call without `limit` on a 5000-line file shows 2000 lines and the notice names 3000 more; the total is never stated.
+
+### Output
+
+```text
+1	import { x } from "./x"
+2	export const y = x
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | None |
+| Line prefix | `N\ttext`, unpadded |
+| End marker | None |
+| Truncation notice | After content: `... (<n> more lines truncated)`. No continuation hint and no total |
+| Error transport | `error-text` model output with the message from the `error` field |
+
+The example is reconstructed from the format code. The stored tool result is an object with `path`, `content`, `totalLines`, and `fromLine` and `toLine` when `offset` or `limit` was given; `toModelOutput` sends only `content`, so the model never sees the total or the range.
+
+### Notable
+
+- Media bytes are read again when the prompt is rebuilt, so a write between the read and the next turn changes what the model sees. The 3.5 MiB guard runs on that later read. If the file is gone by then the model gets `Could not read file bytes: <path>`.
+- Lines come from `split("\n")`, so a file that ends with a newline shows one extra empty numbered row and a CRLF file keeps `\r` at each line end. An empty text file renders as `1` and a tab.
+- The `execute` function takes no abort signal. No repeat-read guard, no content injection, no redaction.
+- `stat` runs before the read; a symlink to a directory is reported as a directory.
+- Host knobs: `workspace` can be any `WorkspaceLike`, and `createReadTool({ ops })` accepts custom `readFile`, `readFileBytes`, and `stat` operations.
+
+## Edit
+
+### Signature
+
+```ts
+write({ path: string, content: string })
+edit({ path: string, old_string: string, new_string: string })
+delete({ path: string, recursive?: boolean })
+```
+
+`edit` takes one replacement per call and has no `replace_all`. An empty `old_string` creates a file. `delete` calls `rm` with `force: true`. There is no patch tool.
+
+### Description
+
+`write`: 132 characters, 132 bytes, 1 line, approximately 27 tokens.
+`edit`: 268 characters, 268 bytes, 1 line, approximately 54 tokens.
+`delete`: 82 characters, 82 bytes, 1 line, approximately 16 tokens.
+
+**`write` (132 characters)**
+
+```text
+Write content to a file. Creates the file if it does not exist, overwrites if it does. Parent directories are created automatically.
+```
+
+**`edit` (268 characters)**
+
+```text
+Make a targeted edit to a file by replacing an exact string match. Provide the old_string to find and new_string to replace it with. The old_string must match exactly (including whitespace and indentation). Use an empty old_string with new_string to create a new file.
+```
+
+**`delete` (82 characters)**
+
+```text
+Delete a file or directory. Set recursive to true to remove non-empty directories.
+```
+
+### Whole-file write
+
+`write` strips the last path segment to find the parent, calls `mkdir` with `recursive: true` when the parent is not `/`, then calls `writeFile`. The `Workspace` write is one SQLite upsert of the row: content inline up to the 1,500,000-byte threshold, and R2 above it only when a bucket is configured. The default constructor supplies no bucket, so large files stay inline and log a warning. There is no temporary file and rename, no size cap at the tool layer, and no post-write verification. The content is written as supplied; BOM and line endings pass through. Mode preservation: Not applicable. The row schema has no mode column. The result is `{ path, bytesWritten, lines }` where `bytesWritten` is the UTF-8 length and `lines` is `split("\n").length`.
+
+### Matching
+
+`edit` reads the file, counts exact occurrences with `indexOf`, and replaces a single match with `String.replace`. Zero exact matches trigger one fallback: runs of spaces and tabs fold to one space and CRLF folds to LF in both strings, the folded search must occur exactly once in the folded content, and the span is mapped back onto the original text. The result carries `fuzzyMatch: true`, so the model is told. More than one exact match, or more than one folded match, is an error; there is no first-match choice. An empty `old_string` reads the file and errors when it exists, then writes `new_string` as a new file.
+
+### Multi-file patch
+
+None. `edit` covers one replacement in one file per call.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | None enforced. The not-found error text asks the model to read first |
+| Stale-file check | None. No mtime, hash, or read ledger |
+| Lock | None. `edit` is read then write with no lock between them; a concurrent mutation can land in the gap and be overwritten |
+| Cross-process coordination | None. A Durable Object gives one object identity, but several tool calls in one step run as concurrent promises, and a D1-backed `Workspace` accepts calls from other isolates |
+| Post-write checks | None |
+| Change tracking | `Workspace.onChange` and `agents:workspace` diagnostics-channel events fire after each operation. They are notifications, not guards |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write` | JSON `{"path":"<path>","bytesWritten":<n>,"lines":<n>}` |
+| `edit` | JSON `{"path":"<path>","replaced":true,"lines":<n>}`, with `"fuzzyMatch":true` after the fallback, or `{"path":"<path>","created":true,"lines":<n>}` for a new file |
+| `delete` | JSON `{"deleted":"<path>"}` |
+
+None of the three has a `toModelOutput`, so the AI SDK sends the returned object as JSON. An `edit` failure is an ordinary JSON result with an `error` key, not an error-flagged result.
+
+### Notable
+
+- The exact path uses `String.replace` with a string pattern, so `$&`, `$$`, and similar sequences in `new_string` are interpreted as replacement patterns. The fallback path splices with `slice` and does not.
+- `edit` creation does not call `mkdir`; the `Workspace` write creates missing parents itself.
+- `delete` on a non-empty directory without `recursive` throws `ENOTEMPTY`; on `/` it throws `EPERM`.
+- No notebook editor, no undo, no checkpoint. Session snapshots and Codemode replay logs belong to the `execute` path, not to these tools.
+- Host knobs: `workspace` replacement, a same-named tool from `getTools()`, `beforeToolCall` block or substitute, per-channel `activeTools`.
+
+## Shell
+
+### Signature
+
+```ts
+bash({ script: string, cwd?: string })
+```
+
+`cwd` defaults to `/` and is normalised the same way as workspace paths. The host, not the model, sets the other limits through `workspaceBash`: `timeout` 30000 ms, `network` false, `maxWorkspaceFiles` 1000, `maxWorkspaceFileBytes` 1,000,000, `maxOutputBytes` 64,000. Setting `workspaceBash = false` removes the tool.
+
+### Description
+
+`bash`: 356 characters, 358 bytes, 1 line, approximately 70 tokens. The byte count exceeds the character count because the string holds one U+2014.
+
+**`bash` (356 characters)**
+
+```text
+Run a Bash script against the workspace. Use for shell-style workflows that combine multiple file operations. The script runs in a sandboxed virtual filesystem with the workspace mounted at `/` (also the default working directory) — there is no `/workspace` or `/home`; use absolute paths like `/notes.txt`. Changed files are written back to the workspace.
+```
+
+### Working directory and environment
+
+The working directory is `/` unless `cwd` is given. The emulator is `just-bash` constructed with `defenseInDepth: true` and the snapshot as its initial files; every workspace directory is created inside it before the script runs. There is no host process, no host environment, and no shell selection. Login shell: Not applicable.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One fresh emulator per call: walk the workspace from `/`, snapshot files and directories, run the script with `rawScript: true`, diff the emulator filesystem against the snapshot, write changes back |
+| Background | None. No process handle, session ID, or reattachment |
+| stdin | None |
+| Cancellation | The tool creates its own `AbortController` and aborts it at the timeout. The AI SDK call's abort signal is not consumed, so cancelling the turn does not stop a running script |
+| Timeout | An exception after the abort gives exit code 124 with the error message in `stderr`; any other exception gives exit code 1 |
+| Write-back after failure | Runs after a timeout or error. Each failed sync step is one string in `errors`; sibling changes stay applied |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | `stdout` and `stderr` are buffered in full by the emulator |
+| Model-visible budget | 64,000 bytes each, head kept |
+| Truncation text | `\n... (<size> truncated)` after the kept head, with the omitted size formatted as B, KB, or MB |
+| Spill file | None |
+| Empty output | An empty string |
+| Streaming | None |
+
+The result also carries `changedFiles` with `created`, `updated`, `deleted`, `directoriesCreated`, and `directoriesDeleted` arrays, `skippedFiles` when the mount skipped anything, and `errors` when write-back failed anywhere.
+
+### Sandbox
+
+Emulated. The script never touches a host filesystem or process. The mount stops at 1000 files and skips any file over 1,000,000 bytes or whose bytes cannot be read; skipped paths are listed in `skippedFiles` and protected from write-back. New content under `/tmp`, `/bin`, `/usr`, `/dev`, `/proc`, and `/sys` is not written back; a workspace file that already lived under one of those roots keeps syncing. Network is off unless the host passes `network: true`; the model cannot enable it.
+
+### Approval
+
+None built in. `beforeToolCall` is the insertion point: it can block with a reason or substitute a result before the emulator starts. Think's action approvals do not cover the built-in tools.
+
+### Notable
+
+- The snapshot, run, and write-back sequence holds no lock. A workspace change made after the snapshot can be overwritten or removed when the emulator's older view is synced. Protected paths cover only files omitted from the mount.
+- Binary results need `writeFileBytes` on the workspace; without it a non-text file fails with `Could not persist binary file <path>: workspace does not support writeFileBytes.` The default `Workspace` has it.
+- Deletions inside the emulator become forced `rm` calls; directories are created and removed to match.
+- The emulator's command coverage belongs to `just-bash`: Not surveyed.
+- The opt-in `execute` tool is the other command surface. It runs TypeScript in a Dynamic Worker with outbound network blocked by default and a 30-second executor timeout, and it is the path that carries Codemode approvals and durable replay.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `list` | `path?: string` (default `/`), `limit?: number` (1 to 1000), `offset?: number` | 200 entries; no total and no next-page marker | None. Every row under the parent, directories first, then by name |
+| `find` | `pattern: string` | 200 paths; `truncated: true` and `showing: 200` with the full `count` | None. Hidden names included |
+| `grep` | `query: string`, `include?: string` (default `**/*`), `fixedString?: boolean`, `caseSensitive?: boolean` (default false), `contextLines?: number` (0 to 10) | 200 matches, then `truncated: true`; files over 1 MiB skipped with `note`: `<n> file(s) skipped (larger than 1 MB)` | None |
+| Stat, mkdir | None | | |
+
+`list` returns `{ path, count, entries }` where each entry is `<name>/` for a directory or `<name> (<size>)` for a file; a symlink shows its bare name. It asks `readDir` for one page, so a result of exactly `limit` entries does not say whether more exist. `find` normalises the pattern, range-scans the SQL path index by the pattern's literal prefix, filters with a regex built from the glob, and returns `{ pattern, count, files }` with a trailing `/` on directories. `grep` globs `include` through the same `Workspace.glob`, keeps files, compiles the query with the `g` flag and `i` unless `caseSensitive`, and reads matching files one at a time until 200 matches. A match is the string `<file>:<line>: <text>`; with `contextLines` it is an object with `file`, `line`, and a `context` block whose rows read `> 12` and a tab for the hit and two spaces, the number, and a tab for neighbours. The result carries `filesSearched`, `filesWithMatches`, and `totalMatches`. An invalid regex returns `{ error: "Invalid regex: <query>" }`.
+
+### Description
+
+`list`: 91 characters, 91 bytes, 1 line, approximately 20 tokens.
+`find`: 202 characters, 202 bytes, 1 line, approximately 37 tokens.
+`grep`: 198 characters, 198 bytes, 1 line, approximately 36 tokens.
+
+**`list` (91 characters)**
+
+```text
+List files and directories in a given path. Returns names, types, and sizes for each entry.
+```
+
+**`find` (202 characters)**
+
+```text
+Find files matching a glob pattern. Supports standard glob syntax: * matches any file, ** matches directories recursively, ? matches a single character. Returns matching file paths with types and sizes.
+```
+
+**`grep` (198 characters)**
+
+```text
+Search file contents using a regular expression or fixed string. Returns matching lines with file paths and line numbers. Searches all files matching the include glob, or all files if not specified.
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `File not found: <path>` | `error-text` model output |
+| Directory on read | `<path> is a directory, not a file` | `error-text` |
+| Row vanished between `stat` and read | `Could not read file: <path>` | `error-text` |
+| Binary file | `{"kind":"binary","path":"<path>","name":"<name>","mediaType":"<mime>","sizeBytes":<n>,"unsupported":true}` | JSON model output |
+| Media missing at prompt time | `Could not read file bytes: <path>` | `error-text` |
+| Media over 3.5 MiB | `Read <path> (<mime>, <size>), but it exceeds the 3.5 MB inline model output limit.` | `error-text` |
+| Offset past end | None. Empty content | Text |
+| Path over 4096 characters | `ENAMETOOLONG: path exceeds 4096 characters` | Thrown; AI SDK tool error |
+| Symlink loop | `ELOOP: too many levels of symbolic links: <path>` | Thrown |
+| Write to `/` | `EISDIR: cannot write to root directory` | Thrown |
+| Write below a file | `EEXIST: path exists as a file: <parent>` from the recursive `mkdir` | Thrown |
+| Edit target missing | `File not found: <path>` | JSON `error` field |
+| Edit create on existing file | `File already exists. Provide old_string to edit, or use the write tool to overwrite.` | JSON `error` field |
+| Edit match failed | `old_string not found in file. Make sure it matches exactly, including whitespace and indentation. Read the file first to verify.` | JSON `error` field |
+| Edit not unique | `old_string appears <n> times in the file. Include more surrounding context to make the match unique.` | JSON `error` field |
+| Edit fallback ambiguous | `old_string matches multiple locations after whitespace normalization. Include more surrounding context to make the match unique.` | JSON `error` field |
+| Delete non-empty directory | `ENOTEMPTY: directory not empty: <path>` | Thrown |
+| Delete `/` | `EPERM: cannot remove root directory` | Thrown |
+| Stale file | None. Not detected | |
+| Command timeout | `exitCode: 124` with the abort error message in `stderr` | JSON result |
+| Command failure | The script's exit code; an emulator exception gives `exitCode: 1` with its message in `stderr` | JSON result |
+| Write-back failure | `errors` strings: `Skipped writing protected workspace file: <path>`, `Failed to write <path>: <message>`, `Failed to delete <path>: <message>`, `Skipped creating directory <path>: contains protected paths.` | JSON result |
+| Invalid grep regex | `Invalid regex: <query>` | JSON `error` field |
+| Blocked by hook | `Tool "<name>" was blocked by beforeToolCall.` or the hook's reason | Substituted output |
+
+The built-ins mix three shapes: `read` maps its `error` field to `error-text`; `edit` and `grep` return `{ error }` as a normal JSON result; `Workspace` errors such as `EISDIR`, `ENOTDIR`, `ENOTEMPTY`, and `ELOOP` are thrown as plain `Error` objects with POSIX-style text and no `code` property, and the AI SDK records them as tool errors.

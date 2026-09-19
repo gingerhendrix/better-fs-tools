@@ -1,0 +1,511 @@
+---
+title: OpenCode
+description: Read, edit, shell, and search tools in the OpenCode CLI at v1.18.21, with every model-facing description in full
+harness: opencode
+kind: cli
+repo: anomalyco/opencode
+commit: 3a31c4ea801915c0b050df4b3842997ea62b6e93
+version: v1.18.21
+license: MIT
+surveyed: 2026-09-16
+verified: 2026-09-16
+sourceFiles:
+  - packages/opencode/src/tool/registry.ts
+  - packages/opencode/src/tool/tool.ts
+  - packages/opencode/src/tool/truncate.ts
+  - packages/opencode/src/tool/external-directory.ts
+  - packages/opencode/src/tool/read.ts
+  - packages/opencode/src/tool/read.txt
+  - packages/opencode/src/tool/write.ts
+  - packages/opencode/src/tool/write.txt
+  - packages/opencode/src/tool/edit.ts
+  - packages/opencode/src/tool/edit.txt
+  - packages/opencode/src/tool/apply_patch.ts
+  - packages/opencode/src/tool/apply_patch.txt
+  - packages/opencode/src/tool/glob.ts
+  - packages/opencode/src/tool/glob.txt
+  - packages/opencode/src/tool/grep.ts
+  - packages/opencode/src/tool/grep.txt
+  - packages/opencode/src/tool/shell.ts
+  - packages/opencode/src/tool/shell/prompt.ts
+  - packages/opencode/src/tool/shell/shell.txt
+  - packages/opencode/src/tool/shell/id.ts
+  - packages/opencode/src/permission/index.ts
+  - packages/opencode/src/permission/arity.ts
+  - packages/opencode/src/agent/agent.ts
+  - packages/opencode/src/format/index.ts
+  - packages/opencode/src/project/instance-context.ts
+  - packages/opencode/src/util/media.ts
+  - packages/core/src/ripgrep.ts
+  - packages/core/src/fs-util.ts
+---
+
+OpenCode is an open-source terminal coding agent published by anomalyco. Its model-facing file family is seven dedicated tools: `read`, `glob`, `grep`, `write`, `edit`, `apply_patch`, and `bash`. The mutation set changes with the model: `apply_patch` replaces `write` and `edit` for GPT model IDs. The read tool wraps its output in `path`, `type`, and `content` tags, lists directories itself, and appends project instruction files to the result as a system reminder.
+
+## Source
+
+| Item | Value |
+|---|---|
+| Repository | [anomalyco/opencode](https://github.com/anomalyco/opencode) |
+| Commit | `3a31c4ea801915c0b050df4b3842997ea62b6e93` on `dev`, committed 2026-08-22 |
+| Last updated | 2026-09-16 |
+
+The repository also carries a newer tool architecture under `packages/core/src/tool/*`. At this pin the application registry in `packages/opencode/src/tool/registry.ts` still constructs the tools described here. This page covers that active path.
+
+## Tool inventory
+
+| Tool | Purpose | Default | Notes |
+|---|---|---|---|
+| `read` | Read a text file, image, PDF, or directory page | Yes | Present unless the `read` permission is wholly denied |
+| `glob` | Find file paths by glob pattern | Yes | Bundled ripgrep file enumeration |
+| `grep` | Search file contents by regex | Yes | Bundled ripgrep JSON matches |
+| `write` | Create or replace a whole file | Model dependent | Hidden for model IDs containing `gpt-`, except `oss` and `gpt-4` |
+| `edit` | Replace one unique string or all occurrences | Model dependent | Same selection as `write` |
+| `apply_patch` | Add, update, move, or delete files with a patch envelope | Model dependent | Shown in place of `write` and `edit` for those GPT model IDs |
+| `bash` | Run one command in the configured shell | Yes | ID and permission key stay `bash` on PowerShell and `cmd.exe` |
+
+There is no separate list tool: `read` on a directory lists it. There is no persistent shell, PTY, or process-handle tool. Plugins can change any description or parameter schema through the `tool.definition` hook, and provider transforms can rewrite the JSON Schema before the model sees it. The contracts below are the pre-transform ones.
+
+## Read
+
+### Signature
+
+```ts
+read({ filePath: string, offset?: number, limit?: number })
+```
+
+`filePath` is described as absolute. Relative paths are accepted and resolve against the instance directory. `offset` is one-based; a missing or zero offset becomes `1`. `limit` defaults to 2000 lines. The schema types both as non-negative integers.
+
+### Description
+
+`read`: 1158 characters, 1158 bytes, 15 lines, approximately 259 tokens.
+
+**`read` (1158 characters)**
+
+```text
+Read a file or directory from the local filesystem. If the path does not exist, an error is returned.
+
+Usage:
+- The filePath parameter should be an absolute path.
+- By default, this tool returns up to 2000 lines from the start of the file.
+- The offset parameter is the line number to start from (1-indexed).
+- To read later sections, call this tool again with a larger offset.
+- Use the grep tool to find specific content in large files or files with long lines.
+- If you are unsure of the correct file path, use the glob tool to look up filenames by glob pattern.
+- Contents are returned with each line prefixed by its line number as `<line>: <content>`. For example, if a file has contents "foo\n", you will receive "1: foo\n". For directories, entries are returned one per line (without line numbers) with a trailing `/` for subdirectories.
+- Any line longer than 2000 characters is truncated.
+- Call this tool in parallel when you know there are multiple files you want to read.
+- Avoid tiny repeated slices (30 line chunks). If you need more context, read a larger window.
+- This tool can read image files and PDFs and return them as file attachments.
+```
+
+### Path handling
+
+Relative paths resolve against the instance directory. On Windows the path passes through `FSUtil.normalizePath`, which resolves to a real path when one exists. There is no tilde expansion and no URL handling. A path outside the instance directory or Git worktree triggers an `external_directory` permission ask on its parent directory glob before any read.
+
+When `stat` reports not found, the tool lists the parent directory and keeps entries whose lower-cased name contains the requested basename or is contained by it. The first three become suggestions. The candidate list is never used to resolve the read.
+
+```text
+File not found: <path>
+
+Did you mean one of these?
+<dir>/<candidate>
+```
+
+Without candidates the message is `File not found: <path>`.
+
+Symlinks: the containment check is lexical and runs before any canonicalisation, so an in-worktree symlink whose target sits outside the project passes without the external-directory prompt. For directory listings, each entry's symlink target is stat-ed only to decide whether to append `/`.
+
+### Permissions
+
+| Check | Behaviour |
+|---|---|
+| `read` permission | Asked per path before the read. Rules are `allow`, `ask`, or `deny` with wildcard patterns; the last matching rule wins; no match means `ask` |
+| Default agent | The built-in `build` agent allows everything, asks for `.env` reads, and allows `.env.example`. Plan mode denies `edit`; explore mode allows read and search |
+| Outside the project | `external_directory` ask on the parent directory glob |
+| Device and special files | None. Nothing is refused by identity or file type; the binary check runs after the target is opened |
+| Denial text | The host's permission denial message. Exact text: Not surveyed |
+
+### Binary and conversion
+
+| Aspect | Behaviour |
+|---|---|
+| Detection | Known binary extension list, then a 4 KiB sample: a NUL byte or more than 30 percent non-printable bytes |
+| Refusal | `Cannot read binary file: <path>` |
+| Notebooks | None. `.ipynb` reads as JSON text |
+| Office and PDF text | None. `.docx` and similar are on the binary list |
+| Images | JPEG, PNG, GIF, WebP by magic bytes over the sample. The whole file is read into memory and returned as a `data:` URL attachment; the text says `Image read successfully` |
+| PDF | Whole file as a `data:` attachment; the text says `PDF read successfully` |
+| Audio and video | None |
+| Media size guard | None before the full read |
+| Encoding | UTF-8 with replacement characters |
+
+### Limits
+
+| Limit | Value | Message |
+|---|---|---|
+| Default window | 2000 lines | |
+| Ceiling | The model's `limit` | |
+| Long line | Cut at 2000 characters | `... (line truncated to 2000 chars)` appended to the line |
+| Output budget | 50 KiB of rendered lines; the stream stops there | `(Output capped at 50 KB. Showing lines <a>-<b>. Use offset=<n> to continue.)` |
+| Whole-file size | None. The file is streamed, so size does not matter | |
+| Offset past end | Error | `Offset <n> is out of range for this file (<total> lines)` |
+| Directory page | 2000 entries by default, with `offset` and `limit` | The listing reports the page and total entry count |
+
+### Output
+
+```text
+<path>/repo/src/app.ts</path>
+<type>file</type>
+<content>
+1: import { x } from "./x"
+2: export const y = x
+
+(End of file - total 2 lines)
+</content>
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Prefix before content | `path`, `type`, and `content` tags; content starts on the line after the opening `content` tag |
+| Line prefix | `N: text`, unpadded |
+| End marker | `(End of file - total <n> lines)` then the closing `content` tag |
+| Truncation notice | Replaces the end marker: `(Showing lines <a>-<b> of <total>. Use offset=<n> to continue.)` when the line limit stops the read, or the byte-cap message above |
+| Error transport | Thrown error, delivered as an AI SDK `output-error` part whose text is the message |
+
+The example is reconstructed from the format code.
+
+### Notable
+
+- After the closing `content` tag, a `system-reminder` block can follow with the content of instruction files that apply to the path. These files are resolved from the session and the target path, so the result can carry text that is not in the requested file.
+- A successful text read starts an LSP warm-up in the background.
+- Directory reads use `readdir`, stat every entry with unbounded concurrency, sort by locale, then apply `offset` and `limit`. Entries have no line numbers.
+- The byte cap stops the stream with a tagged `ReadStop` error. The tool-call abort signal is not used.
+- No repeat-read guard, no redaction, no explicit empty-file notice.
+- The description tells the model it can read images and PDFs. Other media attachments are not produced; a non-text file outside the four image formats and PDF is refused as binary.
+
+## Edit
+
+### Signature
+
+```ts
+write({ filePath: string, content: string })
+edit({ filePath: string, oldString: string, newString: string, replaceAll?: boolean })
+apply_patch({ patchText: string })
+```
+
+`replaceAll` is a boolean. `patchText` is raw text in the OpenCode patch envelope: `*** Begin Patch`, file sections headed `*** Add File:`, `*** Update File:` with optional `*** Move to:`, or `*** Delete File:`, then `*** End Patch`. The registry shows `apply_patch` in place of `write` and `edit` for model IDs containing `gpt-`, except those containing `oss` or `gpt-4`. All three ask under the shared `edit` permission, and `Permission.disabled` maps all three to that key.
+
+### Description
+
+`write`: 623 characters, 623 bytes, 9 lines, approximately 124 tokens.
+`edit`: 1369 characters, 1369 bytes, 11 lines, approximately 289 tokens.
+`apply_patch`: 1092 characters, 1098 bytes, 34 lines, approximately 263 tokens.
+
+**`write` (623 characters)**
+
+```text
+Writes a file to the local filesystem.
+
+Usage:
+- This tool will overwrite the existing file if there is one at the provided path.
+- If this is an existing file, you MUST use the Read tool first to read the file's contents. This tool will fail if you did not read the file first.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
+```
+
+**`edit` (1369 characters)**
+
+```text
+Performs exact string replacements in files. 
+
+Usage:
+- You must use your `Read` tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file. 
+- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: line number + colon + space (e.g., `1: `). Everything after that space is the actual file content to match. Never include any part of the line number prefix in the oldString or newString.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
+- The edit will FAIL if `oldString` is not found in the file with an error "oldString not found in content".
+- The edit will FAIL if `oldString` is found multiple times in the file with an error "Found multiple matches for oldString. Provide more surrounding lines in oldString to identify the correct match." Either provide a larger string with more surrounding context to make it unique or use `replaceAll` to change every instance of `oldString`. 
+- Use `replaceAll` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.
+```
+
+**`apply_patch` (1092 characters)**
+
+````text
+Use the `apply_patch` tool to edit files. Your patch language is a stripped‑down, file‑oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high‑level envelope:
+
+*** Begin Patch
+[ one or more file sections ]
+*** End Patch
+
+Within that envelope, you get a sequence of file operations.
+You MUST include a header to specify the action you are taking.
+Each operation starts with one of three headers:
+
+*** Add File: <path> - create a new file. Every following line is a + line (the initial contents).
+*** Delete File: <path> - remove an existing file. Nothing follows.
+*** Update File: <path> - patch an existing file in place (optionally with a rename).
+
+Example patch:
+
+```
+*** Begin Patch
+*** Add File: hello.txt
++Hello world
+*** Update File: src/app.py
+*** Move to: src/main.py
+@@ def greet():
+-print("Hi")
++print("Hello, world!")
+*** Delete File: obsolete.txt
+*** End Patch
+```
+
+It is important to remember:
+
+- You must include a header with your intended action (Add/Delete/Update)
+- You must prefix new lines with `+` even when creating a new file
+````
+
+### Whole-file write
+
+`write` reads the current content to build a permission preview diff, asks once, then writes with `FSUtil.writeWithDirs`. That helper retries a missing-parent failure after creating the parent directory recursively. The write is a direct platform write; there is no temporary file and rename. An existing UTF-8 BOM is preserved. Line endings: `edit` preserves CRLF; for `write` the content is written as supplied. Mode preservation: Not surveyed.
+
+After the write, configured formatters run in the instance directory with the path substituted for `$FILE`. A formatter failure is logged and the write stands. The tool then touches the LSP document, collects diagnostics, and publishes file and watcher events.
+
+### Matching
+
+`edit` runs a cascade of nine replacers in order: exact, line-trimmed, block-anchor, whitespace-normalised, indentation-flexible, escape-normalised, trimmed-boundary, context-aware, and multi-occurrence. The first candidate found in the file wins. The model is not told which stage matched. Without `replaceAll`, a candidate that occurs more than once is skipped and the next stage runs; when every stage is exhausted the tool reports multiple matches. A guard refuses a fuzzy match whose span is much larger than `oldString`. An empty `oldString` creates a new file and errors when the path already exists. Equal `oldString` and `newString` is an error.
+
+### Multi-file patch
+
+Present as `apply_patch`. The tool parses every hunk first and derives all changes in memory. It verifies that each Update and Delete target reads and matches before it asks for one shared `edit` approval. After approval it applies file by file in order: a move writes the destination then removes the source; a delete calls `remove`. Formatting and event publication run per file. There is no staging area, transaction, or rollback, so a later I/O failure leaves the earlier files changed. An Add on an existing path overwrites it; a source test covers this. A verification failure on a later file happens before any write, and a source test confirms that a preceding Add is not on disk at that point.
+
+### Verification and mutation state
+
+| Concern | Behaviour |
+|---|---|
+| Read-before-write | Described to the model for `write` and `edit`; not enforced |
+| Stale-file check | None. No mtime, hash, or read ledger |
+| Lock | `edit` holds an in-process semaphore keyed by `realpath` (or the normalised path for a new file) from the read through the approval wait to the write. `write`, `apply_patch`, `bash`, and other processes take no lock |
+| Cross-process coordination | None |
+| Post-write checks | LSP diagnostics for the file are appended to the model text. Formatters can change more than the requested span; `edit` and `apply_patch` re-read after formatting for the final diff |
+| Change tracking | Mutation tools publish file and watcher events; the session takes Git-backed snapshots around steps |
+
+### Output
+
+| Tool | Model text |
+|---|---|
+| `write` | `Wrote file successfully.` then, when present, `LSP errors detected in this file, please fix:` with a diagnostics block, and `LSP errors detected in other files:` for at most five other files |
+| `edit` | `Edit applied successfully.` then the same file-level diagnostics block when present. The unified diff and addition and deletion counts go to metadata, not to the model |
+| `apply_patch` | `Success. Updated the following files:` followed by one summary line per file |
+
+### Notable
+
+- The permission request for all three tools carries a preview diff.
+- No notebook editor, no undo tool, no checkpoint tool in this family.
+- The `edit` description promises exact matching; the runtime accepts the fuzzy cascade above. The description's quoted failure strings (`oldString not found in content`, `Found multiple matches for oldString. Provide more surrounding lines ...`) are not the strings the runtime throws.
+
+## Shell
+
+### Signature
+
+```ts
+bash({ command: string, timeout?: number, workdir?: string })
+```
+
+`timeout` is a positive integer in milliseconds; the default is 120000 unless a runtime flag overrides it. A negative value is rejected. `workdir` sets the working directory. The tool ID and permission key are `bash` on every supported shell.
+
+### Description
+
+`bash`: 4628 characters, 4628 bytes, 61 lines, approximately 1056 tokens. Rendered for `os=linux`, `shell=bash`, the default 2000-line and 51200-byte output limits, the 120000 ms timeout, and `/tmp/opencode` as the temporary directory. PowerShell and `cmd.exe` profiles render different, longer text.
+
+**`bash` (4628 characters)**
+
+```text
+Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
+
+Be aware: OS: linux, Shell: bash
+
+All commands run in the current working directory by default. Use the `workdir` parameter if you need to run a command in a different directory. AVOID using `cd <directory> && <command>` patterns - use `workdir` instead.
+
+Use `/tmp/opencode` for temporary work outside the workspace. This directory has already been created, already exists, and is pre-approved for external directory access.
+
+IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO NOT use it for file operations (reading, writing, editing, searching, finding files) - use the specialized tools for this instead.
+
+Before executing the command, please follow these steps:
+
+1. Directory Verification:
+   - If the command will create new directories or files, first use `ls` to verify the parent directory exists and is the correct location
+   - For example, before running "mkdir foo/bar", first use `ls foo` to check that "foo" exists and is the intended parent directory
+
+2. Command Execution:
+   - Always quote file paths that contain spaces with double quotes (e.g., rm "path with spaces/file.txt")
+   - Examples of proper quoting:
+     - mkdir "/Users/name/My Documents" (correct)
+     - mkdir /Users/name/My Documents (incorrect - will fail)
+     - python "/path/with spaces/script.py" (correct)
+     - python /path/with spaces/script.py (incorrect - will fail)
+   - After ensuring proper quoting, execute the command.
+   - Capture the output of the command.
+
+Usage notes:
+  - The command argument is required.
+  - You can specify an optional timeout in milliseconds. If not specified, commands will time out after 120000ms.
+  - If the output exceeds 2000 lines or 51200 bytes, it will be truncated and the full output will be written to a file. You can use Read with offset/limit to read specific sections or Grep to search the full content. Do NOT use `head`, `tail`, or other truncation commands to limit output; the full output will already be captured to a file for more precise searching.
+
+  - Avoid using Bash with the `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk`, or `echo` commands, unless explicitly instructed or when these commands are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
+    - File search: Use Glob (NOT find or ls)
+    - Content search: Use Grep (NOT grep or rg)
+    - Read files: Use Read (NOT cat/head/tail)
+    - Edit files: Use Edit (NOT sed/awk)
+    - Write files: Use Write (NOT echo >/cat <<EOF)
+    - Communication: Output text directly (NOT echo/printf)
+  - When issuing multiple commands:
+    - If the commands are independent and can run in parallel, make multiple bash tool calls in a single message. For example, if you need to run "git status" and "git diff", send a single message with two bash tool calls in parallel.
+    - If the commands depend on each other and must run sequentially, use a single Bash call with '&&' to chain them together (e.g., `git add . && git commit -m "message" && git push`). For instance, if one operation must complete before another starts (like mkdir before cp, Write before Bash for git operations, or git add before git commit), run these operations sequentially instead.
+    - Use ';' only when you need to run commands sequentially but don't care if earlier commands fail
+    - DO NOT use newlines to separate commands (newlines are ok in quoted strings)
+  - AVOID using `cd <directory> && <command>`. Use the `workdir` parameter to change directories instead.
+    <good-example>
+    Use workdir="/foo/bar" with command: pytest tests
+    </good-example>
+    <bad-example>
+    cd /foo/bar && pytest tests
+    </bad-example>
+
+# Git and GitHub
+- Only commit, amend, push, or create PRs when explicitly requested.
+- Before committing, inspect `git status`, `git diff`, and `git log --oneline -10`; stage only intended files and never commit secrets.
+- Write a concise commit message that matches the repo style.
+- Do not update git config, skip hooks, use interactive `-i`, force-push, or create empty commits unless explicitly requested.
+- If a commit fails or hooks reject it, fix the issue and create a new commit; do not amend the failed commit.
+- Before creating a PR, inspect status, diff, remote tracking, recent commits, and the diff from the base branch.
+- Review all commits included in the PR, not just the latest commit.
+- Use `gh` for GitHub tasks, including PRs, issues, checks, and releases; return the PR URL when done.
+```
+
+### Working directory and environment
+
+The working directory is the instance directory unless `workdir` is given. The environment starts as the full `process.env`; the plugin `shell.env` hook can add or replace variables. OpenCode selects an acceptable configured shell and adapts the prompt and invocation for POSIX shells, PowerShell 7, Windows PowerShell 5.1, and `cmd.exe`. PowerShell launches with `-NoLogo -NoProfile -NonInteractive -Command`; other shells receive the command through the selected shell. Login shell: Not surveyed.
+
+### Process lifecycle
+
+| Aspect | Behaviour |
+|---|---|
+| Model | One child process per call. No session, resume token, or persistent cwd |
+| Background | None. No process handle is returned |
+| stdin | Ignored after launch |
+| Detach | POSIX children are detached; Windows children are not |
+| Cancellation | The child exit, the tool abort signal, and the timeout race. Abort or timeout calls `kill` with a three-second force-kill deadline |
+| Grandchildren | Cleanup of deliberately backgrounded grandchildren after the shell exits: Unverified. The source does not establish it |
+
+### Output limits
+
+| Aspect | Behaviour |
+|---|---|
+| Collection | stdout and stderr are one combined stream. The full stream is kept in memory as a rolling tail and spilled to a truncation file once it passes the byte threshold |
+| Model-visible budget | 2000 lines and 50 KiB by default; `tool_output.max_lines` and `tool_output.max_bytes` override. The preview is the tail |
+| Truncation text | `...output truncated...` then `Full output saved to: <file>` then the tail |
+| Spill file | Under the truncation directory; files named `tool_*` are removed after seven days by an hourly task |
+| Empty output | `(no output)` |
+| UI progress | Call metadata is updated during execution with the last 30000 characters |
+
+`bash` always sets `metadata.truncated`, which makes the generic tool-output wrapper skip its own second pass. The generic wrapper, used by other tools, returns a head preview plus a hint naming `Grep` and `Read` with `offset` and `limit`.
+
+### Sandbox
+
+None. No OS sandbox, seccomp profile, container, macOS Seatbelt policy, or restricted credential is in this path. The network is unrestricted. The child inherits the OpenCode process account. The repository uses the word "sandbox" for project worktrees, which is a naming choice separate from process isolation.
+
+### Approval
+
+Before execution the command is parsed with Tree-sitter Bash or PowerShell. Each parsed command except a directory change becomes a `bash` permission pattern. The "always" suggestion comes from a command-prefix arity table, giving patterns such as `git checkout *`, `npm run dev *`, or `rm *`. A second static pass recognises filesystem commands (`rm`, `cp`, `mv`, `mkdir`, `cat`, the PowerShell content and item commands, and `cmd.exe` file commands), resolves literal paths, selected environment variables, home paths, and wildcard prefixes, and raises an `external_directory` request for paths outside the project before the `bash` request.
+
+The parser is an approval aid. Command substitution, most variables, and expressions are skipped during path collection, and commands outside the static set contribute no paths. With the default `build` agent every `bash` pattern is allowed, so no prompt appears unless the user changes rules. Rejecting one pending request rejects every pending request in the session. A command the parser cannot read fails with `Failed to parse command`.
+
+### Notable
+
+- A non-zero exit code is a successful tool result. The code is in `metadata.exit`, not in the model text.
+- Timeout and abort also return normal results with `exit: null` and a `shell_metadata` block appended to the text:
+
+```text
+<shell_metadata>
+shell tool terminated command after exceeding timeout <n> ms. If this command is expected to take longer and is not waiting for interactive input, retry with a larger timeout value in milliseconds.
+</shell_metadata>
+```
+
+- The abort marker is `User aborted the command` in the same block.
+- No PTY, no streaming to the model, no interactive input.
+
+## Search and listing
+
+### Tools
+
+| Tool | Arguments | Default caps | Ignore rules |
+|---|---|---|---|
+| `glob` | `pattern: string`, `path?: string` | 100 paths; `(Results are truncated: showing first 100 results. Consider using a more specific path or pattern.)` | `rg --no-config --files --glob=<pattern> --glob=!**/.git/** .`; ordinary ignore files apply; hidden files and symlink following off |
+| `grep` | `pattern: string`, `path?: string`, `include?: string` | 100 match rows; 64 KiB per ripgrep JSON record; `Found <n> matches (more matches available)` and `(Results truncated. Consider using a more specific path or pattern.)` | `rg --json --hidden --no-messages`; ordinary ignore files apply; `.git` excluded |
+| List | Not applicable. `read` on a directory returns the listing | | |
+| Stat, find | None | | |
+
+`glob` asks for the `glob` permission with the pattern, resolves `path` against the instance directory, rejects a path that is a file with `glob path must be a directory: <path>`, asks for external-directory access when needed, and returns absolute paths one per line, or `No files found`. Truncation is detected when exactly 100 entries return.
+
+`grep` accepts a file or directory target, resolves an existing target to its real path, uses the containing directory as ripgrep's cwd for a file, and groups results under absolute paths: `Found <n> matches`, then `<path>:` lines, then `  Line <n>: <text>` rows. Zero matches return `No files found`. An empty pattern fails with `pattern is required`. Neither tool passes the tool-call abort signal to ripgrep.
+
+### Description
+
+`glob`: 517 characters, 517 bytes, 7 lines, approximately 109 tokens.
+`grep`: 657 characters, 657 bytes, 9 lines, approximately 149 tokens.
+
+**`glob` (517 characters)**
+
+```text
+- Fast file pattern matching tool that works with any codebase size
+- Supports glob patterns like "**/*.js" or "src/**/*.ts"
+- Returns matching file paths
+- Use this tool when you need to find files by name patterns
+- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead
+- You have the capability to call multiple tools in a single response. It is always better to speculatively perform multiple searches as a batch that are potentially useful.
+```
+
+**`grep` (657 characters)**
+
+```text
+- Fast content search tool that works with any codebase size
+- Searches file contents using regular expressions
+- Supports full regex syntax (eg. "log.*Error", "function\s+\w+", etc.)
+- Filter files by pattern with the include parameter (eg. "*.js", "*.{ts,tsx}")
+- Returns file paths and line numbers with matching lines
+- Use this tool when you need to find files containing specific patterns
+- If you need to identify/count the number of matches within files, use the Bash tool with `rg` (ripgrep) directly. Do NOT use `grep`.
+- When you are doing an open-ended search that may require multiple rounds of globbing and grepping, use the Task tool instead
+```
+
+## Errors
+
+| Condition | Message shape | Transport |
+|---|---|---|
+| Missing file on read | `File not found: <path>`, then `Did you mean one of these?` and up to three sibling paths | Thrown; AI SDK `output-error` part |
+| Directory on read | Not an error; the listing is returned | |
+| Offset past end | `Offset <n> is out of range for this file (<total> lines)` | Thrown |
+| Binary file | `Cannot read binary file: <path>` | Thrown |
+| OS permission denied | The platform `stat` or read error message | Thrown |
+| Permission rule denied or user rejected | Host permission denial text. Exact shape: Not surveyed | Thrown |
+| Invalid arguments | A validation error asking the model to rewrite its input. Exact shape: Not surveyed | Error result |
+| Edit, no change | `No changes to apply: oldString and newString are identical.` | Thrown |
+| Edit, empty `oldString` on an existing file | `oldString cannot be empty when editing an existing file. Provide the exact text to replace, or use write for an intentional full-file replacement.` | Thrown |
+| Edit match failed | `Could not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.` | Thrown |
+| Edit not unique | `Found multiple matches for oldString. Provide more surrounding context to make the match unique.` | Thrown |
+| Edit span guard | `Refusing replacement because the matched span is much larger than oldString. Re-read the file and provide the full exact oldString for the intended replacement.` | Thrown |
+| Edit target missing or a directory | `File <path> not found`; `Path is a directory, not a file: <path>` | Thrown |
+| Patch verification | `apply_patch verification failed: <reason>`; `patch rejected: empty patch` | Thrown |
+| Stale file | None. Not detected | |
+| Command timeout | Normal result with `exit: null` and the `shell_metadata` block shown under Shell | Successful tool result |
+| Command aborted | Normal result with `User aborted the command` in `shell_metadata` | Successful tool result |
+| Command exit non-zero | Normal result; code in `metadata.exit` | Successful tool result |
+| Command parse failure | `Failed to parse command` | Thrown |
+| Invalid timeout | `Invalid timeout value: <n>. Timeout must be a positive number.` | Thrown |
+| Glob path is a file | `glob path must be a directory: <path>` | Thrown |
+
+Most leaves run through `Effect.orDie`, so operational errors surface as defects at the integration boundary and the session processor records them as tool errors with the leaf's message text. There is no stable public error union.
