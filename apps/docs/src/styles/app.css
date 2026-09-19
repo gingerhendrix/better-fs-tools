@@ -5,3 +5,8 @@
 html {
   scrollbar-gutter: stable;
 }
+.prose {
+  :where(strong):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+    font-weight: bolder
+  }
+}
