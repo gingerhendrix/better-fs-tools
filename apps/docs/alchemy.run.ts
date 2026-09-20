@@ -13,6 +13,9 @@ export const Website = Cloudflare.Website.Vite("Website", {
   domain: {
     name: "better-fs-tools.gandrew.com",
   },
+  dev: {
+    host: "0.0.0.0",
+  }
 });
 
 export default Alchemy.Stack(
