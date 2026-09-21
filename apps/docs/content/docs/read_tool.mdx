@@ -9,9 +9,13 @@ The read tool has a simple job, read from the filesystem and return the contents
 
 ### Signature
 
-There is consensus on the rough shape - a single tool that takes the path to a file along with optional offset and limit parameters.  The name of the tool is usually `read`, `Read` (Claude) or `read_file`, with either a `path`, `filePath` or `file_path` first argument and there is strong agreement on one-based `limit` and `offset` as the remaining parameters (the outliers are Gemini CLI with one-based `start_line`/`end_line` and Deep Agents with a zero-based `limit` and `offset`).
+Do you even need a read tool? Codex says no, just use the shell, but it stands alone in the harnesses surveyed and though it's an attractive idea to me, it would make dfor a crap article.  How about two read tools?  Back in the day, a read multiple files tool was common, but that has fallen out of favour since parallel tool calls are now widespread, Gemini CLI and (FACT CHECK) are the only harnesses that sill ship one.
 
-*Better fs tools* allows you to choose your own signature, but defaults to `read(path: string, offset?: number, limit?: number)`
+Other than that, there is general consensus of the shape - a single tool that takes the path to a file along with optional offset and limit parameters.  The name of the tool is usually `read`, `Read` (Claude) or `read_file`, with either a `path`, `filePath` or `file_path` first argument and there is strong agreement on `limit` and `offset` as the remaining parameters. FACT CHECK is the odd one out with `start_line` and `end_line` replacing `offset` and `limit`.
+
+Command Code retains read multi-file read capabilities with an optional `paths` (array of absolute paths or glob patterns) and additional `target_directory`, `exclude` (FACT CHECK)
+
+(summarised/compact comparison table)
 
 #### Docs
 
@@ -40,6 +44,7 @@ Usage:
 - This tool can read image files and PDFs and return them as file attachments.
 </blockquote>
 
+(description length chart)
 
 ### Output
 
@@ -59,6 +64,7 @@ OpenCode wraps its output with tags and numbers the lines (with colon-space as t
 
 DeepAgents has recently switched to a new new format instead of their previous line numbered output which the claim reduces edit errors by 15% and token usage by 10%.  The new format simply delimits the content
 
+
 ```
 @@ lines 1-100 of 250 | next offset 100 @@
 import { x } from "./x"
@@ -67,7 +73,7 @@ export const y = x
 ```
 
 https://x.com/sydneyrunkle/status/2099618743580299305
-
+(Replace with screenshot)
 
 [Hashline](https://stencil.so/blog/the-harness-problem) is an approach to improving file edits by giving the LLM a stable identifier for each line in a file.  This approach was pioneered by Oh-My-Pi and is available in other harnesses through extensions.
 
@@ -77,20 +83,30 @@ https://x.com/sydneyrunkle/status/2099618743580299305
 3:0e|}
 ```
 
-Interestingly, the format in oh-my-pi seems to have evolved into a simpler hashed header with line numbers.
+Interestingly, oh-my-pi has evolved the format into a simpler hashed header with line numbers, so now the stable identifier only applies to the file as a whole.
 
+(Insert Example)
 
+Hermes is unique in returning a JSON envelope with the file content and additional metadata, and occasionally hints outside the json
+
+(insert example)
+
+Line numbering is enabled on some harnesses, with a variety of delimiters.
+
+(summary table)
 
 
 ### Implementation
 
 Implementation details dont matter as much to the LLM, but there are still a number of ways they affect the agent experience.
 
-- **Path Handling**:  Path handling is a rabbit hole of edge cases, some harnesses support relative paths with a specified cwd, some are absolute only, all need to deal with expansion of `~`, `.` and `..`, some normalise for diacritics etc. My favourite edge case I discovered when researching this is that macOS uses a narrow no-break space (U+202F) in the filename for screenshots (Claude, Pi and others account for this, but its not universal).
-- **Path Suggestions**: If the requested path was not found (after normalisation), some harnesses (which?)
+(return to headings, add small summary tables where possible)
+
+- **Path Handling**:  Path handling is a rabbit hole of edge cases, my favourite edge case I discovered when researching this is that macOS uses a narrow no-break space (U+202F) in the filename for screenshots (Claude, Pi and others account for this, but its not universal).  Most harnesses support some kind of path repair, either silently fixing the path, fixing it with a note to the LLM, or returning a not found error with suggestions.
 - **Permissions**:  Most harnesses have some form of permission handling that must run after the path is resolved, either to deny certain directories or to prompt the user for permission. Hermes has the most interesting set of forbidden directories, including variations of `.env` and `/proc/*/environ` to try to prevent accidental disclosure of secrets.
 - **Binary detection**: Dumping binary files to the LLM is an expensive mistake so all the harnesses attempt binary detection.  The robustness of this varies with Deep Agents and Mastra relying on just a file extension check, while others use some form of byte sampling.
-- **File Conversion**:
-- **Limits**:
+- **Images**: Since most models can handle image input natively, most harnesses will return the image to the LLM. (Fact check: most dont process the image but ...)
+- **File Conversion**: For other formats, some harnesses will attempt to convert the file to text, either by using a library or by calling an external tool.  Claude supports PDF, Hermes, Command Code, and oh-my-pi have a variety of formats they can convert - (fact check: list formats).
+- **Limits**:  Limits are weirdly consistent at 2000 lines of content (fact check count of survey), it's key here to also account for a line length limit and a total byte limit which most harnesses do well.  The LLM also needs to know that the output has been truncated and fairly similar messages are used across the harnesses.
 
 
