@@ -1,0 +1,13 @@
+{
+  "name": "@better-fs-tools/read",
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@better-fs-tools/fs": "workspace:^"
+  }
+}

@@ -1,4 +1,8 @@
 {
   "files": [],
-  "references": [{ "path": "./apps/docs" }]
+  "references": [
+    { "path": "./apps/docs" },
+    { "path": "./packages/fs" },
+    { "path": "./packages/read" }
+  ]
 }

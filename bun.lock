@@ -38,9 +38,24 @@
         "vite": "8.2.2",
       },
     },
+    "packages/fs": {
+      "name": "@better-fs-tools/fs",
+      "version": "0.0.0",
+    },
+    "packages/read": {
+      "name": "@better-fs-tools/read",
+      "version": "0.0.0",
+      "dependencies": {
+        "@better-fs-tools/fs": "workspace:^",
+      },
+    },
   },
   "catalog": {
+    "@earendil-works/pi-coding-agent": "^0.84.2",
     "@types/bun": "^1.3.10",
+    "ai": "^7.0.77",
+    "just-bash": "3.4.2",
+    "typebox": "^1.3.16",
     "typescript": "^7.0.2",
   },
   "packages": {
@@ -123,6 +138,10 @@
     "@babel/types": ["@babel/types@7.29.8", "", { "dependencies": { "@babel/helper-string-parser": "^7.29.7", "@babel/helper-validator-identifier": "^7.29.7" } }, "sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg=="],
 
     "@better-fs-tools/docs": ["@better-fs-tools/docs@workspace:apps/docs"],
+
+    "@better-fs-tools/fs": ["@better-fs-tools/fs@workspace:packages/fs"],
+
+    "@better-fs-tools/read": ["@better-fs-tools/read@workspace:packages/read"],
 
     "@chevrotain/cst-dts-gen": ["@chevrotain/cst-dts-gen@10.5.0", "", { "dependencies": { "@chevrotain/gast": "10.5.0", "@chevrotain/types": "10.5.0", "lodash": "4.17.21" } }, "sha512-lhmC/FyqQ2o7pGK4Om+hzuDrm9rhFYIJ/AXoQBeongmn870Xeb0L6oGEiuR8nohFNL5sMaQEJWCxr1oIVIVXrw=="],
 
