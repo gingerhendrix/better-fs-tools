@@ -2,6 +2,7 @@ import type { FileSystem } from "@better-fs-tools/fs";
 
 import { defaultClassifiers } from "../classifiers/index.ts";
 import type { Dependencies, ReadToolDeps } from "../contract/deps.ts";
+import type { ReadStateStore } from "../contract/state.ts";
 import { lineNumberFormatter } from "../formatters/index.ts";
 import { isRecord } from "./input.ts";
 import { resolveLimits } from "./limits.ts";
@@ -12,6 +13,7 @@ const KNOWN: ReadonlySet<string> = new Set([
   "limits",
   "messages",
   "classifiers",
+  "state",
   "digest",
   "clock",
   "formatter",
@@ -42,12 +44,17 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
   }
   const clock = deps.clock ?? (() => new Date());
   if (typeof clock !== "function") throw new TypeError("clock must be a function");
+  const state = deps.state ?? null;
+  if (state !== null && typeof state !== "function" && !isStateStore(state)) {
+    throw new TypeError("state must be a store, a function that returns one, or null");
+  }
 
   return Object.freeze({
     fs,
     limits: resolveLimits(deps.limits),
     messages: resolveMessages(deps.messages),
     classifiers: Object.freeze([...classifiers]),
+    state,
     digest: deps.digest ?? null,
     clock,
     formatter,
@@ -56,4 +63,13 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
 
 export function isFileSystem(value: unknown): value is FileSystem {
   return isRecord(value) && typeof value.open === "function";
+}
+
+export function isStateStore(value: unknown): value is ReadStateStore {
+  return (
+    isRecord(value) &&
+    typeof value.get === "function" &&
+    typeof value.put === "function" &&
+    typeof value.delete === "function"
+  );
 }

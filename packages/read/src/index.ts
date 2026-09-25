@@ -37,6 +37,7 @@ export type {
   TextPart,
   TruncationReason,
 } from "./contract/result.ts";
+export type { ReadRecord, ReadStateStore } from "./contract/state.ts";
 
 export { createReadTool } from "./core/create-read-tool.ts";
 export { parseReadInput } from "./core/input.ts";

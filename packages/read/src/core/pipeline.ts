@@ -18,6 +18,7 @@ import {
   unsupportedBackend,
   unsupportedOutcome,
 } from "./outcomes.ts";
+import { recordOutcome } from "./record.ts";
 import { takeSample } from "./sample.ts";
 import { scanText } from "./scan.ts";
 import { textOutcome } from "./text-outcome.ts";
@@ -50,12 +51,15 @@ async function readOutcome<THost>(
     scope.enter("open");
     const fs = scope.fileSystem();
     const handle = await openFile(fs, request, scope, deps.messages);
+    let outcome: ReadOutcome;
     try {
-      return await readOpenFile(deps, fs, request, handle, scope);
+      outcome = await readOpenFile(deps, fs, request, handle, scope);
     } finally {
       // Cleanup is unconditional: EOF, scan limit, abort, refusal, or adapter defect.
       await handle.close().catch(() => {});
     }
+    await recordOutcome(scope, outcome);
+    return outcome;
   } catch (error) {
     if (error instanceof ReadStop) return error.outcome;
     if (error instanceof AbortReadError) return aborted(deps.messages, request, scope.phase);
