@@ -3,6 +3,7 @@
   "references": [
     { "path": "./apps/docs" },
     { "path": "./packages/fs" },
+    { "path": "./packages/node" },
     { "path": "./packages/read" }
   ]
 }

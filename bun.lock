@@ -42,6 +42,14 @@
       "name": "@better-fs-tools/fs",
       "version": "0.0.0",
     },
+    "packages/node": {
+      "name": "@better-fs-tools/node",
+      "version": "0.0.0",
+      "dependencies": {
+        "@better-fs-tools/fs": "workspace:^",
+        "@better-fs-tools/read": "workspace:^",
+      },
+    },
     "packages/read": {
       "name": "@better-fs-tools/read",
       "version": "0.0.0",
@@ -140,6 +148,8 @@
     "@better-fs-tools/docs": ["@better-fs-tools/docs@workspace:apps/docs"],
 
     "@better-fs-tools/fs": ["@better-fs-tools/fs@workspace:packages/fs"],
+
+    "@better-fs-tools/node": ["@better-fs-tools/node@workspace:packages/node"],
 
     "@better-fs-tools/read": ["@better-fs-tools/read@workspace:packages/read"],
 
