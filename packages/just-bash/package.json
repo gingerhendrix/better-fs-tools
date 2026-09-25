@@ -1,0 +1,20 @@
+{
+  "name": "@better-fs-tools/just-bash",
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@better-fs-tools/fs": "workspace:^"
+  },
+  "devDependencies": {
+    "@better-fs-tools/read": "workspace:^",
+    "just-bash": "catalog:"
+  },
+  "peerDependencies": {
+    "just-bash": "3.4.2"
+  }
+}

@@ -2,7 +2,10 @@
   "files": [],
   "references": [
     { "path": "./apps/docs" },
+    { "path": "./packages/cloudflare-computer" },
+    { "path": "./packages/cloudflare-shell" },
     { "path": "./packages/fs" },
+    { "path": "./packages/just-bash" },
     { "path": "./packages/read" }
   ]
 }
