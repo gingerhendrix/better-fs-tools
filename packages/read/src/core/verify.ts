@@ -1,0 +1,35 @@
+import type { OpenFile } from "@better-fs-tools/fs";
+
+import type { ReadRequest } from "../contract/input.ts";
+import type { MessageCatalog } from "../contract/messages.ts";
+import type { FileInfo } from "../contract/result.ts";
+import type { CallScope } from "./call-scope.ts";
+import { ReadStop, changedDuringRead, fromFileSystemError } from "./outcomes.ts";
+
+/** At EOF the byte count must match the size open() reported. */
+export function checkSize(
+  messages: Readonly<MessageCatalog>,
+  request: ReadRequest,
+  file: FileInfo,
+  consumed: number,
+): void {
+  if (file.size !== null && consumed !== file.size) {
+    throw new ReadStop(changedDuringRead(messages, request, file));
+  }
+}
+
+/** Change detection after the scan: the object behind the handle must be the one that was opened. */
+export async function verifyHandle<THost>(
+  handle: OpenFile,
+  messages: Readonly<MessageCatalog>,
+  request: ReadRequest,
+  file: FileInfo,
+  scope: CallScope<THost>,
+): Promise<void> {
+  const verified = await handle.verify();
+  if (!verified.ok) {
+    throw new ReadStop(fromFileSystemError(messages, request, verified.error, scope.phase, file));
+  }
+  if (verified.changed) throw new ReadStop(changedDuringRead(messages, request, file));
+  scope.checkAbort();
+}
