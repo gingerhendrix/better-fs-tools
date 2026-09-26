@@ -66,6 +66,7 @@ export {
   utf8Classifier,
 } from "./classifiers/index.ts";
 export type { ExtensionClassifierOptions } from "./classifiers/index.ts";
+export { askUser, authorizers, denyPaths, sizeCeiling } from "./authorize/index.ts";
 export {
   expandHome,
   pathResolvers,
