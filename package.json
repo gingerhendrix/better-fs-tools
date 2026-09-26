@@ -24,6 +24,7 @@
     "build": "bun run --filter @better-fs-tools/docs build",
     "build:packages": "rm -rf packages/*/dist packages/*/tsconfig.build.tsbuildinfo && tsc -b tsconfig.build.json",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test",
+    "check:packages": "bun run scripts/check-packages.ts",
     "content": "bun run --filter @better-fs-tools/docs content",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@types/bun": "catalog:",
+    "@types/node": "^26.4.1",
     "oxfmt": "^0.66.0",
     "oxlint": "^1.81.0",
     "typescript": "catalog:"

@@ -10,6 +10,7 @@
     { "path": "./packages/just-bash" },
     { "path": "./packages/node" },
     { "path": "./packages/pi" },
-    { "path": "./packages/read" }
+    { "path": "./packages/read" },
+    { "path": "./scripts" }
   ]
 }
