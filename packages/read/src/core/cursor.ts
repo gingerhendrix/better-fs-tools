@@ -64,19 +64,31 @@ export class ByteCursor {
   private async pull(signal: AbortSignal | undefined): Promise<IteratorResult<Uint8Array>> {
     const iterator = this.iterator;
     if (iterator === null) return { done: true, value: undefined };
-    if (!signal) return iterator.next();
-    if (signal.aborted) throw new AbortReadError("aborted");
-    let removeListener: (() => void) | undefined;
-    const aborted = new Promise<never>((_resolve, reject) => {
-      const onAbort = () => reject(new AbortReadError("aborted"));
-      signal.addEventListener("abort", onAbort, { once: true });
-      removeListener = () => signal.removeEventListener("abort", onAbort);
-    });
-    try {
-      return await Promise.race([iterator.next(), aborted]);
-    } finally {
-      removeListener?.();
-    }
+    return raceAbort(() => iterator.next(), signal);
+  }
+}
+
+/**
+ * Runs `start` and settles with it, or rejects with AbortReadError as soon as
+ * the signal aborts. An aborted signal rejects before `start` runs, so host
+ * code that ignores the signal cannot hold the read open.
+ */
+export async function raceAbort<T>(
+  start: () => T | Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T> {
+  if (!signal) return start();
+  if (signal.aborted) throw new AbortReadError("aborted");
+  let removeListener: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    const onAbort = () => reject(new AbortReadError("aborted"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    removeListener = () => signal.removeEventListener("abort", onAbort);
+  });
+  try {
+    return await Promise.race([(async () => start())(), aborted]);
+  } finally {
+    removeListener?.();
   }
 }
 

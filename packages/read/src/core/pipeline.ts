@@ -4,6 +4,7 @@ import type { ReadContext } from "../contract/context.ts";
 import type { Dependencies } from "../contract/deps.ts";
 import type { ReadRequest } from "../contract/input.ts";
 import type { FileInfo, ReadNote, ReadOutcome, ReadResult } from "../contract/result.ts";
+import { authorizeRead } from "./authorize.ts";
 import { CallScope } from "./call-scope.ts";
 import { classifySample, encodingRefusal } from "./classify.ts";
 import { AbortReadError, ByteCursor } from "./cursor.ts";
@@ -48,8 +49,14 @@ async function readOutcome<THost>(
   }
 
   const scope = new CallScope(deps, request, call);
-  // A resolver note travels with every outcome after the resolve stage.
+  // A resolver note travels with every outcome after the resolve stage, and
+  // stays last. Allow notes from the authorizer come just before it.
   let resolveNote: ReadNote | null = null;
+  const finish = (outcome: ReadOutcome): ReadOutcome =>
+    withNotes(
+      outcome,
+      resolveNote === null ? scope.allowNotes : [...scope.allowNotes, resolveNote],
+    );
   try {
     scope.checkAbort();
     scope.enter("open");
@@ -59,7 +66,7 @@ async function readOutcome<THost>(
     const resolved = await resolvePath(deps.resolve, request, fs, scope);
     resolveNote = resolved.note;
     if (resolved.kind === "not-found") {
-      return withNote(await missOutcome(deps, request, fs, scope, request.path, null), resolveNote);
+      return finish(await missOutcome(deps, request, fs, scope, request.path, null));
     }
 
     scope.enter("open");
@@ -67,24 +74,24 @@ async function readOutcome<THost>(
     let outcome: ReadOutcome;
     try {
       const file = fileInfo(fs, request, handle.info, resolved.resolvedFrom);
-      outcome = withNote(await readOpenFile(deps, fs, request, file, handle, scope), resolveNote);
+      await authorizeRead(deps.authorize, request, file, scope);
+      outcome = finish(await readOpenFile(deps, fs, request, file, handle, scope));
     } finally {
-      // Cleanup is unconditional: EOF, scan limit, abort, refusal, or adapter defect.
+      // Cleanup is unconditional: EOF, scan limit, abort, denial, refusal, or adapter defect.
       await handle.close().catch(() => {});
     }
     await recordOutcome(scope, outcome);
     return outcome;
   } catch (error) {
-    if (error instanceof ReadStop) return withNote(error.outcome, resolveNote);
-    if (error instanceof AbortReadError) {
-      return withNote(aborted(deps.messages, request, scope.phase), resolveNote);
-    }
-    return withNote(ioError(deps.messages, request, error), resolveNote);
+    if (error instanceof ReadStop) return finish(error.outcome);
+    if (error instanceof AbortReadError)
+      return finish(aborted(deps.messages, request, scope.phase));
+    return finish(ioError(deps.messages, request, error));
   }
 }
 
-function withNote(outcome: ReadOutcome, note: ReadNote | null): ReadOutcome {
-  return note === null ? outcome : { ...outcome, notes: [...outcome.notes, note] };
+function withNotes(outcome: ReadOutcome, notes: readonly ReadNote[]): ReadOutcome {
+  return notes.length === 0 ? outcome : { ...outcome, notes: [...outcome.notes, ...notes] };
 }
 
 async function readOpenFile<THost>(

@@ -35,7 +35,7 @@ const catalog: MessageCatalog = {
   outsideAllowedRoots: ({ request }) => `${request.path} is outside every configured allowed root.`,
   permissionDenied: ({ request }) => `Permission was denied for ${request.path}.`,
   denied: ({ request, detail }) =>
-    `${request.path} was refused by filesystem policy${detail === null ? "" : ` (${detail})`}.`,
+    `${request.path} was refused by policy${detail === null ? "" : ` (${detail})`}.`,
   changedDuringRead: ({ request, retry }) =>
     `${request.path} changed while it was being read. Read it again with ${retry} before relying on this result.`,
   aborted: ({ phase }) =>

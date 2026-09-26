@@ -16,6 +16,7 @@ const KNOWN: ReadonlySet<string> = new Set([
   "classifiers",
   "resolve",
   "suggest",
+  "authorize",
   "state",
   "digest",
   "clock",
@@ -53,6 +54,10 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
   if (suggest !== null && typeof suggest !== "function") {
     throw new TypeError("suggest must be a function or null");
   }
+  const authorize = deps.authorize ?? null;
+  if (authorize !== null && (!isRecord(authorize) || typeof authorize.authorize !== "function")) {
+    throw new TypeError("authorize must be an authorizer or null");
+  }
   const clock = deps.clock ?? (() => new Date());
   if (typeof clock !== "function") throw new TypeError("clock must be a function");
   const state = deps.state ?? null;
@@ -67,6 +72,7 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
     classifiers: Object.freeze([...classifiers]),
     resolve,
     suggest,
+    authorize,
     state,
     digest: deps.digest ?? null,
     clock,

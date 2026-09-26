@@ -5,7 +5,9 @@ import type { Dependencies } from "../contract/deps.ts";
 import type { HookContext } from "../contract/extensions.ts";
 import type { ReadRequest } from "../contract/input.ts";
 import type { ReadPhase } from "../contract/messages.ts";
+import type { ReadNote } from "../contract/result.ts";
 import type { ReadStateStore } from "../contract/state.ts";
+import { authorizeList } from "./authorize.ts";
 import { AbortReadError } from "./cursor.ts";
 import { isFileSystem, isStateStore } from "./deps.ts";
 import { ReadStop, extensionFailed, messageOf } from "./outcomes.ts";
@@ -18,11 +20,15 @@ export type ListingSlot = "resolver" | "open";
 
 /**
  * Per-read state: the call object, the current phase, the filesystem, the
- * state store, and the listing budget.
+ * state store, the listing budget, and the authorizer's allow notes.
  * The core passes `call` on by reference and never reads `call.host`.
  */
 export class CallScope<THost> {
   phase: ReadPhase = "input";
+  /** Notes from every allow decision in this read, in order. */
+  readonly allowNotes: ReadNote[] = [];
+  /** A failure a listing could not throw. See hold(). */
+  private held: ReadStop | null = null;
   private resolvedFs: FileSystem | null = null;
   /** undefined until the core first needs the store. */
   private resolvedState: ReadStateStore | null | undefined = undefined;
@@ -30,7 +36,7 @@ export class CallScope<THost> {
   private readonly listed = new Set<ListingSlot>();
 
   constructor(
-    private readonly deps: Dependencies<THost>,
+    readonly deps: Dependencies<THost>,
     private readonly request: ReadRequest,
     readonly call: ReadContext<THost>,
   ) {}
@@ -97,9 +103,10 @@ export class CallScope<THost> {
 
   /**
    * Every fs.list in a read goes through here. One bounded listing for each
-   * slot; a second request in the same slot gets an error outcome. Never
-   * throws: a missing list(), a spent slot, or a throwing backend becomes an
-   * error outcome.
+   * slot; a second request in the same slot gets an error outcome. authorize
+   * with action "list" runs before the fs.list. Never throws: a missing
+   * list(), a spent slot, a denial, an abort, or a throwing backend becomes an
+   * error outcome. A throwing authorizer is held; see hold().
    */
   async list(slot: ListingSlot, dir: string): Promise<ListOutcome> {
     if (this.listed.has(slot)) {
@@ -110,6 +117,8 @@ export class CallScope<THost> {
     if (typeof fs.list !== "function") {
       return { ok: false, error: { reason: "unsupported", detail: "the backend cannot list" } };
     }
+    const refused = await authorizeList(this.deps.authorize, this.request, dir, this);
+    if (refused !== null) return refused;
     const signal = this.signal;
     const limit = this.deps.limits.maxDirectoryEntries;
     try {
@@ -119,8 +128,25 @@ export class CallScope<THost> {
     }
   }
 
-  /** A ReadStop with EXTENSION_FAILED for the named dependency in the current phase. */
-  extensionFailure(extension: string): ReadStop {
-    return new ReadStop(extensionFailed(this.deps.messages, this.request, extension, this.phase));
+  /**
+   * Keeps the first failure from a stage that must not throw (a listing), so
+   * host code cannot swallow it. The stage that asked raises it with throwHeld().
+   */
+  hold(stop: ReadStop): void {
+    this.held ??= stop;
+  }
+
+  throwHeld(): void {
+    if (this.held !== null) throw this.held;
+  }
+
+  /**
+   * A ReadStop with EXTENSION_FAILED for the named dependency in the current
+   * phase. `id` is the extension object's id, when it has one.
+   */
+  extensionFailure(extension: string, id: string | null = null): ReadStop {
+    return new ReadStop(
+      extensionFailed(this.deps.messages, this.request, extension, this.phase, id),
+    );
   }
 }

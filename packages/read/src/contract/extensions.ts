@@ -27,7 +27,7 @@ export interface PathResolver<THost = undefined> {
 
 export interface ResolveContext<THost = undefined> extends HookContext<THost> {
   readonly paths: PathOps;
-  /** One bounded fs.list. A second call in the same read returns an error outcome. */
+  /** authorize(list) + one bounded fs.list. A second call in the same read returns an error outcome. */
   list(dir: string): Promise<ListOutcome>;
 }
 
@@ -49,3 +49,27 @@ export interface SuggestContext<THost = undefined> {
   readonly max: number;
   readonly call: ReadContext<THost>;
 }
+
+/* Authorize */
+
+export interface Authorizer<THost = undefined> {
+  readonly id: string;
+  authorize(
+    target: AuthorizeTarget,
+    ctx: HookContext<THost>,
+  ): AuthorizeDecision | Promise<AuthorizeDecision>;
+}
+
+export interface AuthorizeTarget {
+  readonly action: "read" | "list";
+  readonly requestedPath: string;
+  /** Realpath for "read". Lexical directory path for "list". */
+  readonly resolvedPath: string;
+  readonly displayPath: string;
+  readonly size: number | null;
+  readonly mtimeMs: number | null;
+}
+
+export type AuthorizeDecision =
+  | { readonly allow: true; readonly notes?: readonly ReadNote[] }
+  | { readonly allow: false; readonly note?: ReadNote };

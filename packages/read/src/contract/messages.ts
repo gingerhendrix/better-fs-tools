@@ -3,8 +3,15 @@ import type { NodeKind } from "@better-fs-tools/fs";
 import type { ReadInput, ReadRequest } from "./input.ts";
 import type { TruncationReason } from "./result.ts";
 
-/** The stage that was running. Later batches add authorize, conversion, and hooks. */
-export type ReadPhase = "input" | "resolve" | "open" | "sampling" | "scan" | "verification";
+/** The stage that was running. Later batches add conversion and hooks. */
+export type ReadPhase =
+  | "input"
+  | "resolve"
+  | "open"
+  | "authorize"
+  | "sampling"
+  | "scan"
+  | "verification";
 
 /**
  * Wording for every note the core owns. Classifiers own their own refusals.

@@ -28,11 +28,14 @@ describe("createReadTool", () => {
     expect(() => createReadTool({ fs, suggest: [] as never })).toThrow(
       "suggest must be a function or null",
     );
+    expect(() => createReadTool({ fs, authorize: (() => true) as never })).toThrow(
+      "authorize must be an authorizer or null",
+    );
     expect(() => createReadTool(null as never)).toThrow(TypeError);
   });
 
   test("an unknown dependency key throws TypeError", () => {
-    for (const key of ["input", "recovery", "authorize", "hooks"]) {
+    for (const key of ["input", "recovery", "converters", "hooks"]) {
       expect(() => createReadTool({ fs, [key]: null } as never)).toThrow(
         `Unknown read tool dependency: ${key}`,
       );

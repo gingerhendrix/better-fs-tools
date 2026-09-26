@@ -4,7 +4,9 @@ import type { PathResolver, ResolveContext } from "../contract/extensions.ts";
 import type { ReadRequest } from "../contract/input.ts";
 import type { ReadNote } from "../contract/result.ts";
 import type { CallScope } from "./call-scope.ts";
+import { extensionId } from "./extension-error.ts";
 import { isRecord } from "./input.ts";
+import { isNote } from "./outcomes.ts";
 
 export type ResolvedPath =
   | {
@@ -20,7 +22,8 @@ export type ResolvedPath =
 /**
  * Runs the resolver on the requested path. The resolver only changes the path
  * string: it cannot open, and it gets one listing through `ctx.list`. A throw
- * or a malformed outcome gives EXTENSION_FAILED.
+ * or a malformed outcome gives EXTENSION_FAILED. A failure held by the listing
+ * (an authorizer throw) wins over what the resolver did with it.
  */
 export async function resolvePath<THost>(
   resolver: PathResolver<THost> | null,
@@ -38,17 +41,20 @@ export async function resolvePath<THost>(
   let outcome: unknown;
   try {
     outcome = await resolver.resolve(request.path, ctx);
-  } catch {
+  } catch (error) {
     scope.checkAbort();
-    throw scope.extensionFailure("resolve");
+    scope.throwHeld();
+    throw scope.extensionFailure("resolve", extensionId(resolver, error));
   }
   scope.checkAbort();
-  if (!isRecord(outcome)) throw scope.extensionFailure("resolve");
+  scope.throwHeld();
+  const malformed = () => scope.extensionFailure("resolve", extensionId(resolver));
+  if (!isRecord(outcome)) throw malformed();
   const { note } = outcome;
-  if (note !== undefined && !isNote(note)) throw scope.extensionFailure("resolve");
+  if (note !== undefined && !isNote(note)) throw malformed();
   if (outcome.kind === "not-found") return { kind: "not-found", note: note ?? null };
   const { path } = outcome;
-  if (outcome.kind !== "path" || !isPath(path)) throw scope.extensionFailure("resolve");
+  if (outcome.kind !== "path" || !isPath(path)) throw malformed();
   return {
     kind: "path",
     path,
@@ -60,13 +66,4 @@ export async function resolvePath<THost>(
 /** The same rule parseReadInput applies to the requested path. */
 function isPath(value: unknown): value is string {
   return typeof value === "string" && value.trim() !== "" && !value.includes("\0");
-}
-
-function isNote(value: unknown): value is ReadNote {
-  return (
-    isRecord(value) &&
-    typeof value.code === "string" &&
-    typeof value.message === "string" &&
-    (value.severity === "info" || value.severity === "warning")
-  );
 }

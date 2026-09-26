@@ -51,18 +51,41 @@ export function aborted(messages: Messages, request: ReadRequest, phase: ReadPha
   });
 }
 
+/** `extension` is the dependency name. `id` is the extension object's id, when it has one. */
 export function extensionFailed(
   messages: Messages,
   request: ReadRequest,
   extension: string,
   phase: ReadPhase,
+  id: string | null = null,
 ): ReadFailure {
   return failure("EXTENSION_FAILED", request, null, {
     code: "extension-failed",
     severity: "warning",
     message: messages.extensionFailed({ request, extension, phase }),
-    data: { extension, phase },
+    data: id === null ? { extension, phase } : { extension, phase, id },
   });
+}
+
+/**
+ * DENIED from the authorizer. The authorizer's note when it gave one, else the
+ * default. No file info: a denial does not disclose the open target.
+ */
+export function denied(
+  messages: Messages,
+  request: ReadRequest,
+  note: ReadNote | null,
+): ReadFailure {
+  return failure(
+    "DENIED",
+    request,
+    null,
+    note ?? {
+      code: "denied",
+      severity: "warning",
+      message: messages.denied({ request, detail: null }),
+    },
+  );
 }
 
 export function ioError(messages: Messages, request: ReadRequest, error: unknown): ReadFailure {
@@ -204,6 +227,15 @@ function messageForError(
     default:
       return messages.ioError({ request });
   }
+}
+
+export function isNote(value: unknown): value is ReadNote {
+  return (
+    isRecord(value) &&
+    typeof value.code === "string" &&
+    typeof value.message === "string" &&
+    (value.severity === "info" || value.severity === "warning")
+  );
 }
 
 export function messageOf(error: unknown): string {

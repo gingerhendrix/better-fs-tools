@@ -147,7 +147,11 @@ describe("resolve stage", () => {
       }),
     });
     const result = expectFailure(await read({ path: "/src/a.ts" }), "EXTENSION_FAILED");
-    expect(result.notes[0]?.data).toEqual({ extension: "resolve", phase: "resolve" });
+    expect(result.notes[0]?.data).toEqual({
+      extension: "resolve",
+      phase: "resolve",
+      id: "test",
+    });
     expect(textOf(result)).not.toContain("secret detail");
     expect(opens).toEqual([]);
   });

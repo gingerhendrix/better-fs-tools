@@ -1,9 +1,11 @@
 import type { PathResolver } from "../contract/extensions.ts";
 import type { ReadNote } from "../contract/result.ts";
+import { stepFailure } from "../core/extension-error.ts";
 
 /**
  * Left to right. Each step gets the previous path. The first not-found stops.
- * All steps share one ctx.list budget. The last note wins.
+ * All steps share one ctx.list budget. The last note wins. A step that throws
+ * is named by its id in EXTENSION_FAILED.
  */
 export function pathResolvers<THost = unknown>(
   ...steps: readonly PathResolver<THost>[]
@@ -20,8 +22,13 @@ export function pathResolvers<THost = unknown>(
       let current = path;
       let note: ReadNote | undefined;
       for (const step of chain) {
-        const outcome = await step.resolve(current, ctx);
-        note = outcome.note ?? note;
+        let outcome;
+        try {
+          outcome = await step.resolve(current, ctx);
+          note = outcome.note ?? note;
+        } catch (error) {
+          throw stepFailure(step, error);
+        }
         if (outcome.kind === "not-found") {
           return note === undefined ? { kind: "not-found" } : { kind: "not-found", note };
         }

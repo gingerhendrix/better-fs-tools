@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { expandHome, pathResolvers, stripPrefixes } from "../../src/index.ts";
+import { memoryFileSystem } from "@better-fs-tools/fs";
+
+import { createReadTool, expandHome, pathResolvers, stripPrefixes } from "../../src/index.ts";
 import type { PathResolver, ReadNote } from "../../src/index.ts";
+import { expectFailure } from "../helpers.ts";
 import { resolveContext } from "./context.ts";
 
 const note = (code: string): ReadNote => ({ code, severity: "info", message: code });
@@ -63,5 +66,28 @@ describe("pathResolvers", () => {
       path: "a",
     });
     expect(() => pathResolvers({} as never)).toThrow(TypeError);
+  });
+
+  test("EXTENSION_FAILED names the step that threw, also inside a nested chain", async () => {
+    const fs = memoryFileSystem({ files: { "/a.txt": "a\n" } });
+    const boom: PathResolver<unknown> = {
+      id: "boom",
+      resolve() {
+        throw new Error("secret detail");
+      },
+    };
+    const broken: PathResolver<unknown> = { id: "broken", resolve: () => null as never };
+    for (const [resolve, id] of [
+      [pathResolvers(stripPrefixes(), boom), "boom"],
+      [pathResolvers(stripPrefixes(), pathResolvers(expandHome({ home: "/" }), boom)), "boom"],
+      [pathResolvers(broken, stripPrefixes()), "broken"],
+    ] as const) {
+      const result = await createReadTool({ fs, resolve })({ path: "/a.txt" });
+      expect(expectFailure(result, "EXTENSION_FAILED").notes[0]?.data).toEqual({
+        extension: "resolve",
+        phase: "resolve",
+        id,
+      });
+    }
   });
 });
