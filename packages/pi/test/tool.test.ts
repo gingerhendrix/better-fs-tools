@@ -9,6 +9,7 @@ import {
   jsonFormatter,
   lineNumberFormatter,
   textOf as coreText,
+  unicodeRepair,
 } from "@better-fs-tools/read";
 import type { ContentPart, FormatContext, Formatter, ReadContext } from "@better-fs-tools/read";
 import { defaultSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
@@ -150,6 +151,24 @@ describe("pi model-facing output", () => {
   });
 });
 
+describe("pi resolve and suggest", () => {
+  test("a miss suggests real neighbours under ctx.cwd", async () => {
+    const root = await fixture({ "src/index.ts": "x\n" });
+    const result = await execute(createPiReadTool(), { path: "src/index.tsx" }, root);
+    expect(textOf(result)).toBe(
+      '[read:not-found] src/index.tsx was not found. Nearby names: "index.ts".',
+    );
+  });
+
+  test("a host-free unicodeRepair opens the real name and discloses it", async () => {
+    const root = await fixture({ "report\u202f2026.txt": "q1\n" });
+    const tool = createPiReadTool({ resolve: unicodeRepair() });
+    const text = textOf(await execute(tool, { path: "report 2026.txt" }, root));
+    expect(text).toStartWith("1|q1");
+    expect(text).toContain("[read:path-repaired]");
+  });
+});
+
 describe("pi host context", () => {
   test("the formatter gets the same call object in model and view mode, with ctx as host", async () => {
     const root = await fixture({ "a.txt": "one\ntwo\nthree\n" });
@@ -187,6 +206,29 @@ describe("pi host context", () => {
     await tool.execute("call-1", { path: "a.txt" }, undefined, undefined, ctx);
     expect(hosts).toEqual([ctx]);
     expect(hosts[0]).toBe(ctx);
+  });
+
+  test("the resolver and suggest get the same call object, with ctx as host", async () => {
+    const root = await fixture({ "a.txt": "one\n" });
+    const calls: ReadContext<ExtensionContext>[] = [];
+    const tool = createPiReadTool({
+      resolve: {
+        id: "spy",
+        resolve(path, ctx) {
+          calls.push(ctx.call);
+          return { kind: "path", path };
+        },
+      },
+      suggest: (ctx) => {
+        calls.push(ctx.call);
+        return [];
+      },
+    });
+    const ctx = piContext(root);
+    await tool.execute("call-2", { path: "b.txt" }, undefined, undefined, ctx);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toBe(calls[1]);
+    expect(calls[0]?.host).toBe(ctx);
   });
 
   test("rejects an execution without a usable ctx.cwd", async () => {

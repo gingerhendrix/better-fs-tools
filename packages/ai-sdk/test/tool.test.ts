@@ -127,6 +127,18 @@ describe("ai sdk execute", () => {
     expectFailure(await read.execute({ path: "/missing.txt" }, executeOptions()), "NOT_FOUND");
   });
 
+  test("a missing file carries nearby names in data and in the model text", async () => {
+    const { read } = tool({ "/src/config.json": "{}\n" });
+    const result = expectFailure(
+      await read.execute({ path: "/src/config.jsan" }, executeOptions()),
+      "NOT_FOUND",
+    );
+    expect(result.notes[0]?.data?.suggestions).toEqual(["config.json"]);
+    expect(textOf(result)).toBe(
+      '[read:not-found] /src/config.jsan was not found. Nearby names: "config.json".',
+    );
+  });
+
   test("rejects with TypeError for input the validator refuses", async () => {
     const { read } = tool({ "/a.txt": "alpha\n" });
     await expect(read.execute({ file_path: "/a.txt" }, executeOptions())).rejects.toThrow(
@@ -201,6 +213,30 @@ describe("ai sdk execute", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]).toBe(calls[1]);
     expect((calls[0] as ReadContext<unknown>).host).toBe(options);
+  });
+
+  test("the resolver and suggest get the same call object, with options as host", async () => {
+    const calls: ReadContext<ToolExecutionOptions<Record<string, unknown>>>[] = [];
+    const read = createAiSdkReadTool<Record<string, unknown>>({
+      fs: memoryFileSystem({ files: { "/a.txt": "alpha\n" } }),
+      resolve: {
+        id: "spy",
+        resolve(path, ctx) {
+          calls.push(ctx.call);
+          return { kind: "path", path };
+        },
+      },
+      suggest: (ctx) => {
+        calls.push(ctx.call);
+        return [];
+      },
+    });
+    const options = executeOptions();
+
+    expectFailure(await read.execute({ path: "/b.txt" }, options), "NOT_FOUND");
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toBe(calls[1]);
+    expect(calls[0]?.host).toBe(options);
   });
 
   test("omits the signal when the host supplies none", async () => {
