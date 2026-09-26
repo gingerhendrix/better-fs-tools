@@ -1,0 +1,17 @@
+{
+  "name": "@better-fs-tools/cloudflare-shell",
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@better-fs-tools/fs": "workspace:^"
+  },
+  "devDependencies": {
+    "@better-fs-tools/read": "workspace:^",
+    "@cloudflare/shell": "catalog:"
+  }
+}

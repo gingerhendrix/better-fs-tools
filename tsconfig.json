@@ -3,7 +3,10 @@
   "references": [
     { "path": "./apps/docs" },
     { "path": "./packages/ai-sdk" },
+    { "path": "./packages/cloudflare-computer" },
+    { "path": "./packages/cloudflare-shell" },
     { "path": "./packages/fs" },
+    { "path": "./packages/just-bash" },
     { "path": "./packages/node" },
     { "path": "./packages/pi" },
     { "path": "./packages/read" }
