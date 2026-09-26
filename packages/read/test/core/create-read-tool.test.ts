@@ -60,10 +60,24 @@ describe("createReadTool", () => {
   });
 
   test("an unknown dependency key throws TypeError", () => {
-    for (const key of ["input", "recovery", "budget", "hooks"]) {
+    for (const key of ["input", "recovery", "readNested", "injectInstructions"]) {
       expect(() => createReadTool({ fs, [key]: null } as never)).toThrow(
         `Unknown read tool dependency: ${key}`,
       );
+    }
+  });
+
+  test("validates budget and hooks", () => {
+    const measure = (text: string) => text.length;
+    expect(() => createReadTool({ fs, budget: null, hooks: [] })).not.toThrow();
+    expect(() => createReadTool({ fs, budget: { id: "b", measure, max: 10 } })).not.toThrow();
+    for (const budget of [{}, { id: "b", measure, max: 0 }, { id: "b", max: 10 }, "b"]) {
+      expect(() => createReadTool({ fs, budget } as never)).toThrow(TypeError);
+    }
+    const afterRead = (outcome: never) => outcome;
+    expect(() => createReadTool({ fs, hooks: [{ id: "h", afterRead }] })).not.toThrow();
+    for (const hooks of [null, {}, [{ id: "h" }], [{ afterRead }]]) {
+      expect(() => createReadTool({ fs, hooks } as never)).toThrow(TypeError);
     }
   });
 

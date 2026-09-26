@@ -2,7 +2,7 @@ import type { FileSystem } from "@better-fs-tools/fs";
 
 import { defaultClassifiers } from "../classifiers/index.ts";
 import type { Dependencies, ReadToolDeps } from "../contract/deps.ts";
-import type { Converter } from "../contract/extensions.ts";
+import type { Converter, ReadHook, ViewBudget } from "../contract/extensions.ts";
 import type { ReadStateStore } from "../contract/state.ts";
 import { lineNumberFormatter } from "../formatters/index.ts";
 import { defaultSuggest } from "../suggest/index.ts";
@@ -19,6 +19,8 @@ const KNOWN: ReadonlySet<string> = new Set([
   "suggest",
   "authorize",
   "converters",
+  "budget",
+  "hooks",
   "state",
   "digest",
   "clock",
@@ -64,6 +66,16 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
   if (!Array.isArray(converters) || !converters.every(isConverter)) {
     throw new TypeError("converters must be an array of file and directory converters");
   }
+  const budget = deps.budget ?? null;
+  if (budget !== null && !isViewBudget(budget)) {
+    throw new TypeError(
+      "budget must be a view budget with an id, measure, and a positive max, or null",
+    );
+  }
+  const hooks = deps.hooks === undefined ? [] : deps.hooks;
+  if (!Array.isArray(hooks) || !hooks.every(isHook)) {
+    throw new TypeError("hooks must be an array of hooks with an id and afterRead");
+  }
   const clock = deps.clock ?? (() => new Date());
   if (typeof clock !== "function") throw new TypeError("clock must be a function");
   const state = deps.state ?? null;
@@ -80,6 +92,8 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
     suggest,
     authorize,
     converters: Object.freeze([...converters]),
+    budget,
+    hooks: Object.freeze([...hooks]),
     state,
     digest: deps.digest ?? null,
     clock,
@@ -97,6 +111,21 @@ function isConverter(value: unknown): value is Converter<unknown> {
   }
   if (value.target === "directory") return true;
   return value.target === "file" && typeof value.accepts === "function";
+}
+
+function isViewBudget(value: unknown): value is ViewBudget {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.measure === "function" &&
+    typeof value.max === "number" &&
+    Number.isFinite(value.max) &&
+    value.max > 0
+  );
+}
+
+function isHook(value: unknown): value is ReadHook<unknown> {
+  return isRecord(value) && typeof value.id === "string" && typeof value.afterRead === "function";
 }
 
 export function isStateStore(value: unknown): value is ReadStateStore {

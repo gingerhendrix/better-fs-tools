@@ -132,7 +132,7 @@ export interface ReadLine {
   readonly sourceChars: number | null;
 }
 
-export type TruncationReason = "lines" | "bytes" | "line-length" | "scan-limit";
+export type TruncationReason = "lines" | "bytes" | "budget" | "line-length" | "scan-limit";
 
 export interface ReadTruncation {
   readonly truncated: boolean;
@@ -168,9 +168,9 @@ export interface ReadObservation {
   readonly statId: string;
   /** Hash of the source bytes. null when the scan stopped before EOF. */
   readonly contentId: string | null;
-  /** Hash of what the model saw. */
+  /** Hash of what the model saw. Recomputed after a hook edits the view. */
   readonly viewId: string;
   readonly observedAt: string;
-  /** True when offset is 1 and nothing was truncated or clamped. */
+  /** True when offset is 1, nothing was truncated or clamped, and no hook edited the view. */
   readonly wholeFileVisible: boolean;
 }

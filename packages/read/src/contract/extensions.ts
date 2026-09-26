@@ -7,7 +7,8 @@ import type { Clock, Digest } from "./digest.ts";
 import type { ReadRequest } from "./input.ts";
 import type { ReadLimits } from "./limits.ts";
 import type { MessageCatalog } from "./messages.ts";
-import type { ContentPart, ReadNote } from "./result.ts";
+import type { ContentPart, ReadNote, ReadOutcome } from "./result.ts";
+import type { ReadRecord } from "./state.ts";
 
 /** Given to every host function that runs during a call. */
 export interface HookContext<THost = undefined> {
@@ -129,3 +130,24 @@ export type ConvertOutcome =
       readonly notes?: readonly ReadNote[];
     }
   | { readonly kind: "refuse"; readonly code: string; readonly note: ReadNote };
+
+/* Hooks */
+
+export interface ReadHook<THost = undefined> {
+  readonly id: string;
+  afterRead(outcome: ReadOutcome, ctx: AfterReadContext<THost>): ReadOutcome | Promise<ReadOutcome>;
+}
+
+export interface AfterReadContext<THost = undefined> extends HookContext<THost> {
+  /** The stored record from before this read. null with no state or no record. */
+  readonly previous: ReadRecord | null;
+}
+
+/* Budget */
+
+export interface ViewBudget {
+  readonly id: string;
+  /** Cost of one clamped source line. Sync and cheap. */
+  measure(text: string): number;
+  readonly max: number;
+}

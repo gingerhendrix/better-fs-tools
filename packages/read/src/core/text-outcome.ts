@@ -41,6 +41,7 @@ export function textOutcome<THost>(input: TextOutcomeInput<THost>): ReadOk {
   const reasons: TruncationReason[] = [];
   if (scanner.selectionStop === "lines") reasons.push("lines");
   if (scanner.selectionStop === "bytes") reasons.push("bytes");
+  if (scanner.selectionStop === "budget") reasons.push("budget");
   if (scanCapped) reasons.push("scan-limit");
   if (scanner.clampedLines.length > 0) reasons.push("line-length");
 

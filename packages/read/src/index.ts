@@ -11,6 +11,7 @@ export type { ReadContext, ReadTool } from "./contract/context.ts";
 export type { Dependencies, ReadToolDeps } from "./contract/deps.ts";
 export type { Clock, Digest, DigestStream } from "./contract/digest.ts";
 export type {
+  AfterReadContext,
   AuthorizeDecision,
   Authorizer,
   AuthorizeTarget,
@@ -23,10 +24,12 @@ export type {
   FileConvertInput,
   HookContext,
   PathResolver,
+  ReadHook,
   ResolveContext,
   ResolveOutcome,
   Suggest,
   SuggestContext,
+  ViewBudget,
 } from "./contract/extensions.ts";
 export type { FormatContext, Formatter } from "./contract/format.ts";
 export type { ReadInput, ReadRequest } from "./contract/input.ts";

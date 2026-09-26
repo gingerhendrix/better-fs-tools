@@ -3,7 +3,7 @@ import type { NodeKind } from "@better-fs-tools/fs";
 import type { ReadInput, ReadRequest } from "./input.ts";
 import type { TruncationReason } from "./result.ts";
 
-/** The stage that was running. Batch 7 adds hooks. */
+/** The stage that was running. */
 export type ReadPhase =
   | "input"
   | "resolve"
@@ -12,7 +12,8 @@ export type ReadPhase =
   | "sampling"
   | "conversion"
   | "scan"
-  | "verification";
+  | "verification"
+  | "hooks";
 
 /**
  * Wording for every note the core owns. Classifiers own their own refusals.
@@ -42,6 +43,7 @@ export interface MessageCatalog {
   extensionFailed(c: { request: ReadRequest; extension: string; phase: ReadPhase }): string;
   ioError(c: { request: ReadRequest | null }): string;
   unsupportedBackend(c: { request: ReadRequest; detail: string | null }): string;
+  viewModified(c: { hook: string }): string;
   weakIdentity(c: { backend: string }): string;
   bufferedBackend(c: { backend: string }): string;
 }

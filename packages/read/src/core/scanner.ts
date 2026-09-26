@@ -1,10 +1,11 @@
 import type { ReadRequest } from "../contract/input.ts";
 import type { ReadLimits } from "../contract/limits.ts";
 import type { ReadLine } from "../contract/result.ts";
+import type { ScanBudget } from "./budget.ts";
 
 const ENCODER = new TextEncoder();
 
-export type SelectionStop = "lines" | "bytes" | null;
+export type SelectionStop = "lines" | "bytes" | "budget" | null;
 
 /**
  * Bounded incremental line scanner.
@@ -13,6 +14,11 @@ export type SelectionStop = "lines" | "bytes" | null;
  * few counters, so scanning a very large file stays flat in memory. It keeps
  * counting after the window closes so totals and the content identity can be
  * exact without retaining anything it is not showing.
+ *
+ * The view stops at the first of three limits, always at a line boundary:
+ * `request.limit` lines, `limits.maxViewBytes`, then the view budget. The
+ * budget measures each clamped line. It never stops the first line of the
+ * view, so a budget alone cannot give an empty view that repeats itself.
  */
 export class LineScanner {
   readonly lines: ReadLine[] = [];
@@ -21,6 +27,8 @@ export class LineScanner {
   selectionStop: SelectionStop = null;
   firstUnshown: number | null = null;
 
+  /** Sum of budget.measure over the lines in the view. */
+  private budgetUsed = 0;
   private linePrefix = "";
   private lineChars = 0;
   private lineHasContent = false;
@@ -29,6 +37,7 @@ export class LineScanner {
   constructor(
     private readonly request: ReadRequest,
     private readonly limits: Readonly<ReadLimits>,
+    private readonly budget: ScanBudget | null = null,
   ) {}
 
   push(text: string): void {
@@ -92,6 +101,15 @@ export class LineScanner {
     return this.totalLines + 1 >= this.request.offset && this.selectionStop === null;
   }
 
+  /** Measures the current clamped line and counts it, unless it would pass the budget. */
+  private admitByBudget(): boolean {
+    if (this.budget === null) return true;
+    const cost = this.budget.measure(this.linePrefix);
+    if (this.lines.length > 0 && this.budgetUsed + cost > this.budget.max) return false;
+    this.budgetUsed += cost;
+    return true;
+  }
+
   private emitLine(): void {
     this.totalLines += 1;
     const number = this.totalLines;
@@ -105,6 +123,9 @@ export class LineScanner {
         const candidateBytes = ENCODER.encode(this.linePrefix).byteLength + separatorBytes;
         if (this.viewBytes + candidateBytes > this.limits.maxViewBytes) {
           this.selectionStop = "bytes";
+          this.firstUnshown = number;
+        } else if (!this.admitByBudget()) {
+          this.selectionStop = "budget";
           this.firstUnshown = number;
         } else {
           this.lines.push({

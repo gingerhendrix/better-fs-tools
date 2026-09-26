@@ -51,6 +51,8 @@ const catalog: MessageCatalog = {
     `The backend failed while reading ${request === null ? "the requested path" : request.path}.`,
   unsupportedBackend: ({ request, detail }) =>
     `No classifier had an opinion about ${request.path}${detail === null ? "" : ` (${detail})`}; this is a configuration problem rather than a property of the file.`,
+  viewModified: ({ hook }) =>
+    `The ${hook} hook changed this view, so it is not the exact file text.`,
   weakIdentity: ({ backend }) =>
     `The ${backend} backend has no stable identity, so this observation cannot back a write precondition.`,
   bufferedBackend: ({ backend }) =>
@@ -66,6 +68,7 @@ function quoted(values: readonly string[]): string {
 function reasonLabel(reason: TruncationReason): string {
   if (reason === "lines") return "line limit";
   if (reason === "bytes") return "view-byte limit";
+  if (reason === "budget") return "view budget";
   if (reason === "scan-limit") return "scan limit";
   return "line-length limit";
 }

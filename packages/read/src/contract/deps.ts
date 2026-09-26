@@ -3,13 +3,19 @@ import type { FileSystem } from "@better-fs-tools/fs";
 import type { Classifier } from "./classify.ts";
 import type { ReadContext } from "./context.ts";
 import type { Clock, Digest } from "./digest.ts";
-import type { Authorizer, Converter, PathResolver, Suggest } from "./extensions.ts";
+import type {
+  Authorizer,
+  Converter,
+  PathResolver,
+  ReadHook,
+  Suggest,
+  ViewBudget,
+} from "./extensions.ts";
 import type { Formatter } from "./format.ts";
 import type { ReadLimits } from "./limits.ts";
 import type { MessageCatalog } from "./messages.ts";
 import type { ReadStateStore } from "./state.ts";
 
-/** Batch 6 dependencies. Batch 7 adds budget and hooks. */
 export interface Dependencies<THost = undefined> {
   /** A filesystem, or a factory called once for each read before resolve (D19). */
   readonly fs: FileSystem | ((call: ReadContext<THost>) => FileSystem);
@@ -25,6 +31,10 @@ export interface Dependencies<THost = undefined> {
   readonly authorize: Authorizer<THost> | null;
   /** File converters in order: the first that accepts runs. The first directory converter lists directories. */
   readonly converters: readonly Converter<THost>[];
+  /** Stops the view early, at a line boundary, when the next line would pass `max`. null has no budget. */
+  readonly budget: ViewBudget | null;
+  /** Run in order after verification and before record, for every outcome with a request except ABORTED. */
+  readonly hooks: readonly ReadHook<THost>[];
   /** A store, or a factory called at most once for each read, and only when the core needs it (D20). */
   readonly state: ReadStateStore | ((call: ReadContext<THost>) => ReadStateStore | null) | null;
   readonly digest: Digest | null;

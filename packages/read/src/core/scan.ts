@@ -2,6 +2,7 @@ import type { ClassificationSample } from "../contract/classify.ts";
 import type { Digest } from "../contract/digest.ts";
 import type { ReadRequest } from "../contract/input.ts";
 import type { ReadLimits } from "../contract/limits.ts";
+import { scanBudget } from "./budget.ts";
 import type { CallScope } from "./call-scope.ts";
 import type { ByteCursor } from "./cursor.ts";
 import { LineScanner } from "./scanner.ts";
@@ -36,13 +37,13 @@ export interface ScanInput<THost> {
 
 /**
  * Decodes and scans the sample, then the rest of the stream, up to
- * `limits.maxScanBytes`. The scanner keeps only the view and counters, so a
+ * `limits.maxScanBytes`. The view budget, when set, applies to every scan. The scanner keeps only the view and counters, so a
  * large file stays flat in memory. The scan keeps counting after the view
  * closes, so totals and the content hash are exact when the scan reaches EOF.
  */
 export async function scanText<THost>(input: ScanInput<THost>): Promise<ScanOutcome> {
   const { cursor, sample, request, limits, digest, scope } = input;
-  const scanner = new LineScanner(request, limits);
+  const scanner = new LineScanner(request, limits, scanBudget(scope));
   const decoder = new TextDecoder("utf-8", { fatal: true });
   const contentHash = digest === null ? null : digest.create();
   let scannedBytes = 0;
