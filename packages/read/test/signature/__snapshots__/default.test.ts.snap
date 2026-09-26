@@ -1,0 +1,33 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`defaultSignature schema snapshot 1`] = `
+{
+  "additionalProperties": false,
+  "properties": {
+    "limit": {
+      "description": "Maximum number of source lines to return, before the configured limits apply.",
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "type": "integer",
+    },
+    "offset": {
+      "description": "One-based source line to start reading at. Defaults to 1.",
+      "maximum": 9007199254740991,
+      "minimum": 1,
+      "type": "integer",
+    },
+    "path": {
+      "description": "Path to read, relative to the working directory or absolute within an allowed root.",
+      "minLength": 1,
+      "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+      "type": "string",
+    },
+  },
+  "required": [
+    "path",
+  ],
+  "type": "object",
+}
+`;
+
+exports[`defaultSignature schema snapshot 2`] = `"Read a UTF-8 text file. \`offset\` is a one-based source line and \`limit\` is a number of source lines. Output is bounded by line, byte, and line-length limits. When the result reports truncation, follow the continuation it returns instead of guessing the next \`offset\`. Paths outside the allowed roots, binary content, and special files are refused."`;
