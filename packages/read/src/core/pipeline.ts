@@ -3,7 +3,7 @@ import type { FileSystem, OpenFile } from "@better-fs-tools/fs";
 import type { ReadContext } from "../contract/context.ts";
 import type { Dependencies } from "../contract/deps.ts";
 import type { ReadRequest } from "../contract/input.ts";
-import type { ReadOutcome, ReadResult } from "../contract/result.ts";
+import type { FileInfo, ReadNote, ReadOutcome, ReadResult } from "../contract/result.ts";
 import { CallScope } from "./call-scope.ts";
 import { classifySample, encodingRefusal } from "./classify.ts";
 import { AbortReadError, ByteCursor } from "./cursor.ts";
@@ -19,8 +19,10 @@ import {
   unsupportedOutcome,
 } from "./outcomes.ts";
 import { recordOutcome } from "./record.ts";
+import { resolvePath } from "./resolve.ts";
 import { takeSample } from "./sample.ts";
 import { scanText } from "./scan.ts";
+import { missOutcome } from "./suggest.ts";
 import { textOutcome } from "./text-outcome.ts";
 import { checkSize, verifyHandle } from "./verify.ts";
 
@@ -46,14 +48,26 @@ async function readOutcome<THost>(
   }
 
   const scope = new CallScope(deps, request, call);
+  // A resolver note travels with every outcome after the resolve stage.
+  let resolveNote: ReadNote | null = null;
   try {
     scope.checkAbort();
     scope.enter("open");
     const fs = scope.fileSystem();
-    const handle = await openFile(fs, request, scope, deps.messages);
+
+    scope.enter("resolve");
+    const resolved = await resolvePath(deps.resolve, request, fs, scope);
+    resolveNote = resolved.note;
+    if (resolved.kind === "not-found") {
+      return withNote(await missOutcome(deps, request, fs, scope, request.path, null), resolveNote);
+    }
+
+    scope.enter("open");
+    const handle = await openFile(deps, fs, request, resolved.path, scope);
     let outcome: ReadOutcome;
     try {
-      outcome = await readOpenFile(deps, fs, request, handle, scope);
+      const file = fileInfo(fs, request, handle.info, resolved.resolvedFrom);
+      outcome = withNote(await readOpenFile(deps, fs, request, file, handle, scope), resolveNote);
     } finally {
       // Cleanup is unconditional: EOF, scan limit, abort, refusal, or adapter defect.
       await handle.close().catch(() => {});
@@ -61,21 +75,27 @@ async function readOutcome<THost>(
     await recordOutcome(scope, outcome);
     return outcome;
   } catch (error) {
-    if (error instanceof ReadStop) return error.outcome;
-    if (error instanceof AbortReadError) return aborted(deps.messages, request, scope.phase);
-    return ioError(deps.messages, request, error);
+    if (error instanceof ReadStop) return withNote(error.outcome, resolveNote);
+    if (error instanceof AbortReadError) {
+      return withNote(aborted(deps.messages, request, scope.phase), resolveNote);
+    }
+    return withNote(ioError(deps.messages, request, error), resolveNote);
   }
+}
+
+function withNote(outcome: ReadOutcome, note: ReadNote | null): ReadOutcome {
+  return note === null ? outcome : { ...outcome, notes: [...outcome.notes, note] };
 }
 
 async function readOpenFile<THost>(
   deps: Dependencies<THost>,
   fs: FileSystem,
   request: ReadRequest,
+  file: FileInfo,
   handle: OpenFile,
   scope: CallScope<THost>,
 ): Promise<ReadOutcome> {
   const { limits, messages, classifiers } = deps;
-  const file = fileInfo(fs, request, handle.info);
   const cursor = new ByteCursor(handle.bytes());
   try {
     scope.enter("sampling");

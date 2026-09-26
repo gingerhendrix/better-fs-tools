@@ -1020,7 +1020,7 @@ exports[`golden corpus, default formatter near miss name 1`] = `
     "not-found",
   ],
   "status": "error",
-  "text": "[read:not-found] /corpus/plain.tx was not found.",
+  "text": "[read:not-found] /corpus/plain.tx was not found. Nearby names: "plain.txt".",
 }
 `;
 
@@ -1031,7 +1031,7 @@ exports[`golden corpus, default formatter unicode-equivalent miss 1`] = `
     "not-found",
   ],
   "status": "error",
-  "text": "[read:not-found] /corpus/report 2026.txt was not found.",
+  "text": "[read:not-found] /corpus/report 2026.txt was not found. Nearby names: "report 2026.txt".",
 }
 `;
 

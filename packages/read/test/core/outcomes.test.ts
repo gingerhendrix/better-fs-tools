@@ -6,8 +6,21 @@ import { createReadTool, textOf } from "../../src/index.ts";
 import { expectFailure, expectOk, harness, note } from "../helpers.ts";
 
 describe("filesystem refusals", () => {
-  test("a missing file is a plain NOT_FOUND with no suggestions", async () => {
+  test("a missing file is NOT_FOUND with nearby names", async () => {
     const { read } = harness({ files: { "/src/config.json": "{}\n" } });
+    const result = expectFailure(await read({ path: "/src/config.jsan" }), "NOT_FOUND");
+    expect(result.notes).toEqual([
+      {
+        code: "not-found",
+        severity: "warning",
+        message: '/src/config.jsan was not found. Nearby names: "config.json".',
+        data: { suggestions: ["config.json"] },
+      },
+    ]);
+  });
+
+  test("with suggest: null a missing file is a plain NOT_FOUND", async () => {
+    const { read } = harness({ files: { "/src/config.json": "{}\n" }, deps: { suggest: null } });
     const result = expectFailure(await read({ path: "/src/config.jsan" }), "NOT_FOUND");
     expect(result.notes).toEqual([
       { code: "not-found", severity: "warning", message: "/src/config.jsan was not found." },

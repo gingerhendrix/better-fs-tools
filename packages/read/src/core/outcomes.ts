@@ -2,7 +2,7 @@ import type { FileSystemError } from "@better-fs-tools/fs";
 
 import type { UnsupportedClassification } from "../contract/classify.ts";
 import type { ReadRequest } from "../contract/input.ts";
-import type { JsonObject } from "../contract/json.ts";
+import type { JsonValue } from "../contract/json.ts";
 import type { MessageCatalog, ReadPhase } from "../contract/messages.ts";
 import type {
   FileInfo,
@@ -147,15 +147,35 @@ export function fromFileSystemError(
   const code = CODE_BY_REASON[error.reason];
   if (code === "ABORTED") return aborted(messages, request, phase);
   const detail = error.detail ?? null;
-  const data: Record<string, JsonObject[string]> = {
-    ...(error.reason === "not-a-file" ? { kind: error.kind } : {}),
-    ...(detail === null ? {} : { detail }),
-    ...(error.cause === undefined ? {} : { cause: { ...error.cause } }),
-  };
+  const data = errorData(error);
   return failure(code, request, file, {
     code: code.toLowerCase().replaceAll("_", "-"),
     severity: "warning",
     message: messageForError(messages, request, error, detail),
+    ...(Object.keys(data).length === 0 ? {} : { data }),
+  });
+}
+
+/** Note data for a filesystem refusal: kind, detail, and cause when the adapter gave them. */
+export function errorData(error: FileSystemError): Record<string, JsonValue> {
+  return {
+    ...(error.reason === "not-a-file" ? { kind: error.kind } : {}),
+    ...(error.detail === undefined ? {} : { detail: error.detail }),
+    ...(error.cause === undefined ? {} : { cause: { ...error.cause } }),
+  };
+}
+
+/** NOT_FOUND. `data` holds the adapter's detail and the suggestion fields, when any. */
+export function notFound(
+  messages: Messages,
+  request: ReadRequest,
+  suggestions: readonly string[],
+  data: Record<string, JsonValue>,
+): ReadFailure {
+  return failure("NOT_FOUND", request, null, {
+    code: "not-found",
+    severity: "warning",
+    message: messages.notFound({ request, suggestions }),
     ...(Object.keys(data).length === 0 ? {} : { data }),
   });
 }

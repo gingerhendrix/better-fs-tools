@@ -55,12 +55,15 @@ describe("node filesystem reads", () => {
     expect(result.notes).toEqual([]);
   });
 
-  test("a missing file gives NOT_FOUND with the errno in cause", async () => {
+  test("a missing file suggests real neighbours, with the errno in cause", async () => {
     const result = await toolFor()({ path: "src/index.tsx" });
 
     if (result.status !== "error") throw new Error("expected error");
     expect(result.code).toBe("NOT_FOUND");
-    expect(result.notes[0]?.data).toEqual({ cause: { code: "ENOENT", phase: "resolve" } });
+    expect(result.notes[0]?.data).toEqual({
+      cause: { code: "ENOENT", phase: "resolve" },
+      suggestions: ["index.ts"],
+    });
   });
 
   test("a directory is refused as not-a-file with kind and target", async () => {

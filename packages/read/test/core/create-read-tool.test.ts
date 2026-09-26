@@ -22,11 +22,17 @@ describe("createReadTool", () => {
     expect(() => createReadTool({ fs, messages: { nope: () => "" } as never })).toThrow(TypeError);
     expect(() => createReadTool({ fs, formatter: {} as never })).toThrow(TypeError);
     expect(() => createReadTool({ fs, clock: 1 as never })).toThrow(TypeError);
+    expect(() => createReadTool({ fs, resolve: {} as never })).toThrow(
+      "resolve must be a path resolver or null",
+    );
+    expect(() => createReadTool({ fs, suggest: [] as never })).toThrow(
+      "suggest must be a function or null",
+    );
     expect(() => createReadTool(null as never)).toThrow(TypeError);
   });
 
   test("an unknown dependency key throws TypeError", () => {
-    for (const key of ["input", "recovery", "resolve", "suggest", "authorize", "hooks"]) {
+    for (const key of ["input", "recovery", "authorize", "hooks"]) {
       expect(() => createReadTool({ fs, [key]: null } as never)).toThrow(
         `Unknown read tool dependency: ${key}`,
       );

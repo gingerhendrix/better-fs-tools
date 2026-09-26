@@ -4,6 +4,7 @@ import { defaultClassifiers } from "../classifiers/index.ts";
 import type { Dependencies, ReadToolDeps } from "../contract/deps.ts";
 import type { ReadStateStore } from "../contract/state.ts";
 import { lineNumberFormatter } from "../formatters/index.ts";
+import { defaultSuggest } from "../suggest/index.ts";
 import { isRecord } from "./input.ts";
 import { resolveLimits } from "./limits.ts";
 import { resolveMessages } from "./messages.ts";
@@ -13,6 +14,8 @@ const KNOWN: ReadonlySet<string> = new Set([
   "limits",
   "messages",
   "classifiers",
+  "resolve",
+  "suggest",
   "state",
   "digest",
   "clock",
@@ -42,6 +45,14 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
   if (!isRecord(formatter) || typeof formatter.format !== "function") {
     throw new TypeError("formatter must have a format function");
   }
+  const resolve = deps.resolve ?? null;
+  if (resolve !== null && (!isRecord(resolve) || typeof resolve.resolve !== "function")) {
+    throw new TypeError("resolve must be a path resolver or null");
+  }
+  const suggest = deps.suggest === undefined ? defaultSuggest() : deps.suggest;
+  if (suggest !== null && typeof suggest !== "function") {
+    throw new TypeError("suggest must be a function or null");
+  }
   const clock = deps.clock ?? (() => new Date());
   if (typeof clock !== "function") throw new TypeError("clock must be a function");
   const state = deps.state ?? null;
@@ -54,6 +65,8 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
     limits: resolveLimits(deps.limits),
     messages: resolveMessages(deps.messages),
     classifiers: Object.freeze([...classifiers]),
+    resolve,
+    suggest,
     state,
     digest: deps.digest ?? null,
     clock,

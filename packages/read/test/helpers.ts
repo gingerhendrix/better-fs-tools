@@ -1,5 +1,10 @@
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import type { MemoryFileSystem, MemoryFileSystemOptions } from "@better-fs-tools/fs";
+import type {
+  FileSystem,
+  ListOptions,
+  MemoryFileSystem,
+  MemoryFileSystemOptions,
+} from "@better-fs-tools/fs";
 
 import { createReadTool } from "../src/index.ts";
 import type {
@@ -96,4 +101,37 @@ export function expectFailure(result: ReadResult, code: ReadErrorCode): ReadFail
   if (result.status !== "error") throw new Error(`expected error ${code}, got ${result.status}`);
   if (result.code !== code) throw new Error(`expected error ${code}, got ${result.code}`);
   return result;
+}
+
+export interface SpiedFileSystem {
+  readonly fs: FileSystem;
+  /** Paths passed to open(), in order. */
+  readonly opens: string[];
+  /** Directories passed to list(), in order. */
+  readonly lists: string[];
+}
+
+/** Wraps a filesystem and records every open() and list() path. */
+export function spyFileSystem(inner: FileSystem): SpiedFileSystem {
+  const opens: string[] = [];
+  const lists: string[] = [];
+  const list = inner.list?.bind(inner);
+  const fs: FileSystem = {
+    id: inner.id,
+    capabilities: inner.capabilities,
+    paths: inner.paths,
+    open: (path, options) => {
+      opens.push(path);
+      return inner.open(path, options);
+    },
+    ...(list === undefined
+      ? {}
+      : {
+          list: (path: string, options: ListOptions) => {
+            lists.push(path);
+            return list(path, options);
+          },
+        }),
+  };
+  return { fs, opens, lists };
 }
