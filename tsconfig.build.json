@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/ai-sdk/tsconfig.build.json" },
+    { "path": "./packages/cloudflare-computer/tsconfig.build.json" },
+    { "path": "./packages/cloudflare-shell/tsconfig.build.json" },
+    { "path": "./packages/fs/tsconfig.build.json" },
+    { "path": "./packages/just-bash/tsconfig.build.json" },
+    { "path": "./packages/node/tsconfig.build.json" },
+    { "path": "./packages/pi/tsconfig.build.json" },
+    { "path": "./packages/read/tsconfig.build.json" }
+  ]
+}

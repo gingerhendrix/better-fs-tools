@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "noEmit": false,
+    "rewriteRelativeImportExtensions": true,
+    "rootDir": "${configDir}/src",
+    "outDir": "${configDir}/dist",
+    "tsBuildInfoFile": "${configDir}/tsconfig.build.tsbuildinfo"
+  },
+  "include": ["${configDir}/src"]
+}

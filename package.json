@@ -21,6 +21,7 @@
   "type": "module",
   "scripts": {
     "build": "bun run --filter @better-fs-tools/docs build",
+    "build:packages": "rm -rf packages/*/dist packages/*/tsconfig.build.tsbuildinfo && tsc -b tsconfig.build.json",
     "check": "bun run format:check && bun run lint && bun run typecheck && bun run test",
     "content": "bun run --filter @better-fs-tools/docs content",
     "format": "oxfmt .",
