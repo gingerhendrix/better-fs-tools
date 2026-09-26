@@ -105,8 +105,15 @@ export type { CharsPerTokenOptions } from "./budget/index.ts";
 export { canonicalizeFileName, defaultSuggest, suggestFileNames } from "./suggest/index.ts";
 export {
   defaultNoteLine,
+  eofFooter,
+  fileHashHeader,
+  hashlineGutter,
   jsonFormatter,
   lineNumberFormatter,
   plainFormatter,
 } from "./formatters/index.ts";
-export type { JsonFormatterOptions, LineNumberFormatterOptions } from "./formatters/index.ts";
+export type {
+  HashlineGutterOptions,
+  JsonFormatterOptions,
+  LineNumberFormatterOptions,
+} from "./formatters/index.ts";

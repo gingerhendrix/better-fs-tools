@@ -1,3 +1,7 @@
+export { eofFooter } from "./eof.ts";
+export { fileHashHeader } from "./file-hash.ts";
+export { hashlineGutter } from "./hashline.ts";
+export type { HashlineGutterOptions } from "./hashline.ts";
 export { jsonFormatter } from "./json.ts";
 export type { JsonFormatterOptions } from "./json.ts";
 export { defaultNoteLine } from "./layout.ts";
