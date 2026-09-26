@@ -18,6 +18,12 @@ import {
   sizeCeiling,
 } from "@better-fs-tools/read";
 import type { Formatter, ReadContext, ReadStateStore } from "@better-fs-tools/read";
+import {
+  deepAgentsFormat,
+  hashlineFormat,
+  hermesFormat,
+  opencodeFormat,
+} from "@better-fs-tools/read/formats";
 import { lineRangeSignature } from "@better-fs-tools/read/signature";
 
 import readToolExtension from "../../src/extension.ts";
@@ -70,3 +76,12 @@ export const composed = createPiReadTool({
 
 // @ts-expect-error fs is not an option: the root is ctx.cwd
 createPiReadTool({ fs: null });
+
+// Each ./formats preset fits the Pi tool, whose host is ExtensionContext.
+export const presets: PiReadTool[] = [
+  opencodeFormat(),
+  deepAgentsFormat(),
+  hashlineFormat(),
+  hermesFormat(),
+].map((formatter) => createPiReadTool({ formatter }));
+export const presetAsPiFormatter: Formatter<ExtensionContext> = hashlineFormat();
