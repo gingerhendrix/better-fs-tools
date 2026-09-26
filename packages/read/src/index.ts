@@ -63,6 +63,7 @@ export {
   utf8Classifier,
 } from "./classifiers/index.ts";
 export type { ExtensionClassifierOptions } from "./classifiers/index.ts";
+export { canonicalizeFileName, defaultSuggest, suggestFileNames } from "./suggest/index.ts";
 export {
   defaultNoteLine,
   jsonFormatter,
