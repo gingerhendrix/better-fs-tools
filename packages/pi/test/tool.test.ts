@@ -294,6 +294,28 @@ describe("pi host context", () => {
     expect(calls[1]?.host).toBe(ctx);
   });
 
+  test("hooks get the same call object, with ctx as host", async () => {
+    const root = await fixture({ "a.txt": "one\n" });
+    const calls: ReadContext<ExtensionContext>[] = [];
+    const tool = createPiReadTool({
+      hooks: [
+        {
+          id: "spy",
+          afterRead(outcome, ctx) {
+            calls.push(ctx.call);
+            return outcome;
+          },
+        },
+      ],
+    });
+    const ctx = piContext(root);
+    await tool.execute("call-4", { path: "a.txt" }, undefined, undefined, ctx);
+    await tool.execute("call-4", { path: "b.txt" }, undefined, undefined, ctx);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.host).toBe(ctx);
+    expect(calls[1]?.host).toBe(ctx);
+  });
+
   test("rejects an execution without a usable ctx.cwd", async () => {
     const tool = createPiReadTool();
     for (const ctx of [null, undefined, {}, { cwd: "" }, { cwd: 7 }]) {

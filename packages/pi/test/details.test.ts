@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
 import { nodeFileSystem } from "@better-fs-tools/node";
-import { createReadTool, lineNumberFormatter, textOf as coreText } from "@better-fs-tools/read";
+import {
+  charsPerToken,
+  createReadTool,
+  lineNumberFormatter,
+  textOf as coreText,
+} from "@better-fs-tools/read";
 import type { ReadLimits, ReadOk, ReadResult } from "@better-fs-tools/read";
 
 import { createPiReadTool, toPiReadDetails } from "../src/index.ts";
@@ -125,6 +130,23 @@ describe("pi details mapping", () => {
     expect(ok.totals.exact).toBe(false);
     expect(ok.truncation.reasons).toContain("scan-limit");
     expect(details).toEqual({});
+  });
+
+  test("omits details for a view-budget stop", async () => {
+    const root = await fixture({ "budget.txt": "aaaa\nbbbb\ncccc\n" });
+    const budget = charsPerToken({ ratio: 4, max: 4 });
+    const executed = await execute(createPiReadTool({ budget }), { path: "budget.txt" }, root);
+    const read = createReadTool({
+      fs: nodeFileSystem({ cwd: root, allowedRoots: [root] }),
+      budget,
+    });
+    const ok = expectOk(await read({ path: "budget.txt" }));
+
+    expect(ok.truncation).toEqual({ truncated: true, reasons: ["budget"], primary: "budget" });
+    expect(ok.continuation.next).toEqual({ path: "budget.txt", offset: 3, limit: 2_000 });
+    expect(textOf(executed)).toBe(coreText(ok));
+    expect(executed.details).toEqual({});
+    expect(toPiReadDetails(ok, "1|aaaa\n2|bbbb", 128 * 1_024)).toEqual({});
   });
 
   test("omits details for offset, whole-file, empty, unsupported, and error results", async () => {

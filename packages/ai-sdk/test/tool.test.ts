@@ -5,7 +5,7 @@ import type { JSONSchema7, ToolExecutionOptions } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { denyPaths, lineNumberFormatter, textOf } from "@better-fs-tools/read";
+import { denyPaths, lineNumberFormatter, redact, textOf } from "@better-fs-tools/read";
 import type { Formatter, ReadContext, ReadResult } from "@better-fs-tools/read";
 import { defaultSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
 
@@ -266,6 +266,43 @@ describe("ai sdk execute", () => {
     expect(actions).toEqual(["list", "read"]);
     expect(calls[0]).toBe(calls[1]);
     expect(calls[0]?.host).toBe(options);
+  });
+
+  test("hooks get the same call object, with options as host", async () => {
+    const calls: ReadContext<ToolExecutionOptions<Record<string, unknown>>>[] = [];
+    const read = createAiSdkReadTool<Record<string, unknown>>({
+      fs: memoryFileSystem({ files: { "/a.txt": "alpha\n" } }),
+      hooks: [
+        {
+          id: "spy",
+          afterRead(outcome, ctx) {
+            calls.push(ctx.call);
+            return outcome;
+          },
+        },
+      ],
+    });
+    const options = executeOptions();
+
+    expectOk(await read.execute({ path: "/a.txt" }, options));
+    expectFailure(await read.execute({ path: "/b.txt" }, options), "NOT_FOUND");
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.host).toBe(options);
+    expect(calls[1]?.host).toBe(options);
+  });
+
+  test("the model output holds the redacted view", async () => {
+    const read = createAiSdkReadTool({
+      fs: memoryFileSystem({ files: { "/a.txt": "key=AKIAABCDEFGHIJKLMNOP\n" } }),
+      hooks: [redact({ patterns: [/AKIA[0-9A-Z]{16}/g] })],
+    });
+    const result = expectOk(await read.execute({ path: "/a.txt" }, executeOptions()));
+    const output = read.toModelOutput({ output: result });
+    expect(JSON.stringify(output)).not.toContain("AKIA");
+    expect(output.value[0]).toEqual({
+      type: "text",
+      text: "1|key=[REDACTED]\n\n[read:view-modified] The redact hook changed this view, so it is not the exact file text.",
+    });
   });
 
   test("a denial is a DENIED result the model can read", async () => {

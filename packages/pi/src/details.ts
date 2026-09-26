@@ -26,8 +26,9 @@ export interface PiReadDetails {
  *
  * Pi's read renderer prints "showing N of M lines" from these numbers, so an
  * approximate record is worse than none. A scan-capped read has no exact total,
- * a clamped line is not a line or byte stop, and an error or a refusal has no
- * view. Each of those gives {}, and Pi renders the text alone.
+ * a clamped line or a view-budget stop is not a line or byte stop, and an
+ * error or a refusal has no view. Each of those gives {}, and Pi renders the
+ * text alone.
  */
 export function toPiReadDetails(
   result: ReadResult,
