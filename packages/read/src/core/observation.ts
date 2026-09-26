@@ -26,16 +26,46 @@ export function buildObservation(
       mtimeMs: input.file.mtimeMs,
     }),
   );
-  const viewId =
-    typeof input.view === "string" ? digest.hash(input.view) : partsId(digest, input.view);
+  const viewId = viewIdOf(digest, input.view);
   return {
-    id: digest.hash(JSON.stringify([statId, input.contentId, viewId])),
+    id: observationId(digest, statId, input.contentId, viewId),
     statId,
     contentId: input.contentId,
     viewId,
     observedAt: input.observedAt,
     wholeFileVisible: input.wholeFileVisible,
   };
+}
+
+/**
+ * The observation after a hook changed what the model sees: a new viewId and
+ * id, and wholeFileVisible false. The stat and content ids stay.
+ */
+export function withEditedView(
+  digest: Digest,
+  observation: ReadObservation,
+  view: string | readonly ContentPart[],
+): ReadObservation {
+  const viewId = viewIdOf(digest, view);
+  return {
+    ...observation,
+    id: observationId(digest, observation.statId, observation.contentId, viewId),
+    viewId,
+    wholeFileVisible: false,
+  };
+}
+
+function viewIdOf(digest: Digest, view: string | readonly ContentPart[]): string {
+  return typeof view === "string" ? digest.hash(view) : partsId(digest, view);
+}
+
+function observationId(
+  digest: Digest,
+  statId: string,
+  contentId: string | null,
+  viewId: string,
+): string {
+  return digest.hash(JSON.stringify([statId, contentId, viewId]));
 }
 
 /** One hash over every part. Each part starts with its type and length, so parts cannot run together. */

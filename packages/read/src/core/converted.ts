@@ -138,7 +138,7 @@ function notesOk(notes: unknown): boolean {
   return notes === undefined || (Array.isArray(notes) && notes.every(isNote));
 }
 
-function isContentPart(value: unknown): value is ContentPart {
+export function isContentPart(value: unknown): value is ContentPart {
   if (!isRecord(value)) return false;
   if (value.type === "text") return typeof value.text === "string";
   return (

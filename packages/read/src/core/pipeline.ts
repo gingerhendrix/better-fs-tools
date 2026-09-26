@@ -11,6 +11,7 @@ import { convertFile, selectFileConverter } from "./convert.ts";
 import { AbortReadError, ByteCursor } from "./cursor.ts";
 import { convertDirectory } from "./directory.ts";
 import { formatResult } from "./format.ts";
+import { runHooks } from "./hooks.ts";
 import { parseReadInput } from "./input.ts";
 import { fileInfo, openFile } from "./open.ts";
 import {
@@ -52,59 +53,86 @@ async function readOutcome<THost>(
 
   const scope = new CallScope(deps, request, call);
   // A resolver note travels with every outcome after the resolve stage, and
-  // stays last. Allow notes from the authorizer come just before it.
+  // stays last before the hooks. Allow notes from the authorizer come just before it.
   let resolveNote: ReadNote | null = null;
   const finish = (outcome: ReadOutcome): ReadOutcome =>
     withNotes(
       outcome,
       resolveNote === null ? scope.allowNotes : [...scope.allowNotes, resolveNote],
     );
+  let outcome: ReadOutcome;
   try {
-    scope.checkAbort();
-    scope.enter("open");
-    const fs = scope.fileSystem();
-
-    scope.enter("resolve");
-    const resolved = await resolvePath(deps.resolve, request, fs, scope);
-    resolveNote = resolved.note;
-    if (resolved.kind === "not-found") {
-      return finish(await missOutcome(deps, request, fs, scope, request.path, null));
-    }
-
-    scope.enter("open");
-    const opened = await openFile(deps, fs, request, resolved.path, scope);
-    if (opened.kind === "directory") {
-      const { error, converter } = opened;
-      return finish(
-        await convertDirectory({
-          fs,
-          request,
-          path: resolved.path,
-          error,
-          resolvedFrom: resolved.resolvedFrom,
-          converter,
-          scope,
-        }),
-      );
-    }
-    const { handle } = opened;
-    let outcome: ReadOutcome;
-    try {
-      const file = fileInfo(fs, request, handle.info, resolved.resolvedFrom);
-      await authorizeRead(deps.authorize, request, file, scope);
-      outcome = finish(await readOpenFile(deps, fs, request, file, handle, scope));
-    } finally {
-      // Cleanup is unconditional: EOF, scan limit, abort, denial, refusal, or adapter defect.
-      await handle.close().catch(() => {});
-    }
-    await recordOutcome(scope, outcome);
-    return outcome;
+    outcome = await readStages(deps, request, scope, (note) => {
+      resolveNote = note;
+    });
   } catch (error) {
-    if (error instanceof ReadStop) return finish(error.outcome);
-    if (error instanceof AbortReadError)
-      return finish(aborted(deps.messages, request, scope.phase));
-    return finish(ioError(deps.messages, request, error));
+    outcome = stopped(deps, request, scope, error);
   }
+  outcome = finish(outcome);
+  // The caller gave up: no host code runs after an abort.
+  if (outcome.status === "error" && outcome.code === "ABORTED") return outcome;
+  try {
+    const hooked = await runHooks(scope, outcome);
+    await recordOutcome(scope, hooked);
+    return hooked;
+  } catch (error) {
+    return finish(stopped(deps, request, scope, error));
+  }
+}
+
+/** Resolve, open, then read the file or the directory. Throws ReadStop to end early. */
+async function readStages<THost>(
+  deps: Dependencies<THost>,
+  request: ReadRequest,
+  scope: CallScope<THost>,
+  onResolveNote: (note: ReadNote | null) => void,
+): Promise<ReadOutcome> {
+  scope.checkAbort();
+  scope.enter("open");
+  const fs = scope.fileSystem();
+
+  scope.enter("resolve");
+  const resolved = await resolvePath(deps.resolve, request, fs, scope);
+  onResolveNote(resolved.note);
+  if (resolved.kind === "not-found") {
+    return missOutcome(deps, request, fs, scope, request.path, null);
+  }
+
+  scope.enter("open");
+  const opened = await openFile(deps, fs, request, resolved.path, scope);
+  if (opened.kind === "directory") {
+    const { error, converter } = opened;
+    return convertDirectory({
+      fs,
+      request,
+      path: resolved.path,
+      error,
+      resolvedFrom: resolved.resolvedFrom,
+      converter,
+      scope,
+    });
+  }
+  const { handle } = opened;
+  try {
+    const file = fileInfo(fs, request, handle.info, resolved.resolvedFrom);
+    await authorizeRead(deps.authorize, request, file, scope);
+    return await readOpenFile(deps, fs, request, file, handle, scope);
+  } finally {
+    // Cleanup is unconditional: EOF, scan limit, abort, denial, refusal, or adapter defect.
+    await handle.close().catch(() => {});
+  }
+}
+
+/** The outcome for a stage that threw. */
+function stopped<THost>(
+  deps: Dependencies<THost>,
+  request: ReadRequest,
+  scope: CallScope<THost>,
+  error: unknown,
+): ReadOutcome {
+  if (error instanceof ReadStop) return error.outcome;
+  if (error instanceof AbortReadError) return aborted(deps.messages, request, scope.phase);
+  return ioError(deps.messages, request, error);
 }
 
 function withNotes(outcome: ReadOutcome, notes: readonly ReadNote[]): ReadOutcome {
