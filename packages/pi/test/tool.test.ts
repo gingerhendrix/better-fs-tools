@@ -5,7 +5,9 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { nodeFileSystem } from "@better-fs-tools/node";
 import {
+  askUser,
   createReadTool,
+  denyPaths,
   jsonFormatter,
   lineNumberFormatter,
   textOf as coreText,
@@ -169,6 +171,47 @@ describe("pi resolve and suggest", () => {
   });
 });
 
+describe("pi authorize", () => {
+  test("askUser asks through ctx.ui.confirm and a refusal gives DENIED", async () => {
+    const root = await fixture({ "a.txt": "one\n" });
+    const asked: string[] = [];
+    let answer = false;
+    const ctx = {
+      cwd: root,
+      ui: {
+        confirm: async (title: string, message: string) => {
+          asked.push(`${title}: ${message}`);
+          return answer;
+        },
+      },
+    } as unknown as ExtensionContext;
+    const tool = createPiReadTool({
+      authorize: askUser((target, hook) => hook.call.host.ui.confirm("Read", target.displayPath)),
+    });
+
+    const refused = await tool.execute("call-1", { path: "a.txt" }, undefined, undefined, ctx);
+    expect(textOf(refused)).toBe(
+      "[read:denied] a.txt was refused by policy (the user did not approve the read).",
+    );
+    expect(refused.details).toEqual({});
+    answer = true;
+    const allowed = await tool.execute("call-2", { path: "a.txt" }, undefined, undefined, ctx);
+    expect(textOf(allowed)).toBe("1|one");
+    expect(asked).toEqual(["Read: a.txt", "Read: a.txt"]);
+  });
+
+  test("a host-free denyPaths also denies the suggestion listing", async () => {
+    const root = await fixture({ "secrets/key.txt": "k\n" });
+    const tool = createPiReadTool({ authorize: denyPaths(["**/secrets", "**/secrets/**"]) });
+    expect(textOf(await execute(tool, { path: "secrets/key.txt" }, root))).toStartWith(
+      "[read:denied]",
+    );
+    expect(textOf(await execute(tool, { path: "secrets/key.tx" }, root))).toBe(
+      "[read:not-found] secrets/key.tx was not found.",
+    );
+  });
+});
+
 describe("pi host context", () => {
   test("the formatter gets the same call object in model and view mode, with ctx as host", async () => {
     const root = await fixture({ "a.txt": "one\ntwo\nthree\n" });
@@ -229,6 +272,26 @@ describe("pi host context", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]).toBe(calls[1]);
     expect(calls[0]?.host).toBe(ctx);
+  });
+
+  test("the authorizer gets ctx as host for a list and for a read", async () => {
+    const root = await fixture({ "a.txt": "one\n" });
+    const calls: ReadContext<ExtensionContext>[] = [];
+    const tool = createPiReadTool({
+      authorize: {
+        id: "spy",
+        authorize(_target, ctx) {
+          calls.push(ctx.call);
+          return { allow: true };
+        },
+      },
+    });
+    const ctx = piContext(root);
+    await tool.execute("call-3", { path: "a.txt" }, undefined, undefined, ctx);
+    await tool.execute("call-3", { path: "b.txt" }, undefined, undefined, ctx);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.host).toBe(ctx);
+    expect(calls[1]?.host).toBe(ctx);
   });
 
   test("rejects an execution without a usable ctx.cwd", async () => {

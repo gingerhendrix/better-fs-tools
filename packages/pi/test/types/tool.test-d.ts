@@ -10,7 +10,13 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 
-import { lineNumberFormatter } from "@better-fs-tools/read";
+import {
+  askUser,
+  authorizers,
+  denyPaths,
+  lineNumberFormatter,
+  sizeCeiling,
+} from "@better-fs-tools/read";
 import type { Formatter, ReadContext, ReadStateStore } from "@better-fs-tools/read";
 import { lineRangeSignature } from "@better-fs-tools/read/signature";
 
@@ -43,6 +49,24 @@ export const unknownState = createPiReadTool({
 });
 declare const piFormatter: Formatter<ExtensionContext>;
 export const hostFormatter = createPiReadTool({ formatter: piFormatter });
+
+// askUser takes Pi's ExtensionContext as its host, so ctx.call.host.ui type-checks.
+export const confirmed = createPiReadTool({
+  authorize: askUser((target, ctx) => ctx.call.host.ui.confirm("Read", target.displayPath)),
+});
+createPiReadTool({
+  // @ts-expect-error ExtensionContext has no session field
+  authorize: askUser(async (_target, ctx) => ctx.call.host.session),
+});
+
+// Host-free and Pi-typed authorizers compose.
+export const composed = createPiReadTool({
+  authorize: authorizers(
+    denyPaths(["**/.env"]),
+    sizeCeiling({ maxBytes: 1_000_000, unrangedOnly: true }),
+    askUser((target, ctx) => ctx.call.host.ui.confirm("Read", target.displayPath)),
+  ),
+});
 
 // @ts-expect-error fs is not an option: the root is ctx.cwd
 createPiReadTool({ fs: null });

@@ -1,20 +1,27 @@
 /**
- * Type tests for the resolve and suggest contract. `tsc -b` checks this file;
+ * Type tests for the resolve, suggest, and authorize contract. `tsc -b` checks this file;
  * Bun never runs it. Deviation 1 of batch 1: a host-free helper typed with
  * unknown must fit a tool with a typed host.
  */
 import { memoryFileSystem } from "@better-fs-tools/fs";
 
 import {
+  askUser,
+  authorizers,
   createReadTool,
   defaultSuggest,
+  denyPaths,
   expandHome,
   pathResolvers,
   reanchorLeadingSlash,
+  sizeCeiling,
   stripPrefixes,
   unicodeRepair,
 } from "../../src/index.ts";
 import type {
+  AuthorizeDecision,
+  Authorizer,
+  AuthorizeTarget,
   Dependencies,
   HookContext,
   PathResolver,
@@ -91,4 +98,74 @@ export const badOutcome: PathResolver<unknown> = {
   id: "bad",
   // @ts-expect-error "moved" is not a resolve outcome kind
   resolve: (path) => ({ kind: "moved", path }),
+};
+
+// Host-free authorizers fit a tool with a typed host.
+export const hostFreeAuthorize = createReadTool<Host>({ fs, authorize: denyPaths(["**/.env"]) });
+export const unknownAuthorizer: Authorizer<Host> = sizeCeiling({ maxBytes: 1 });
+export const plainAuthorize = createReadTool({ fs, authorize: sizeCeiling({ maxBytes: 1 }) });
+
+// A host-typed authorizer reads ctx.call.host with its type.
+const sessionAuthorizer: Authorizer<Host> = {
+  id: "session",
+  authorize(target, ctx) {
+    const id: string = ctx.call.host.id;
+    return { allow: target.requestedPath.startsWith(id) };
+  },
+};
+
+// askUser takes its host type from the tool, with no type argument.
+export const asked = createReadTool<Host>({
+  fs,
+  authorize: askUser(async (target, ctx) => ctx.call.host.id === target.displayPath),
+});
+
+// Mixed host-free and host-typed authorizers compose, and the chain fits the typed tool.
+export const mixed = createReadTool<Host>({
+  fs,
+  authorize: authorizers(
+    denyPaths(["**/.env"]),
+    sessionAuthorizer,
+    sizeCeiling({ maxBytes: 1, unrangedOnly: true }),
+    askUser(async (_target, ctx) => ctx.call.host.id !== ""),
+  ),
+});
+export const hostFreeAuthorizers: Authorizer<Host> = authorizers(
+  denyPaths([]),
+  sizeCeiling({ maxBytes: 1 }),
+);
+
+// An authorizer for another host type does not fit.
+declare const otherAuthorizer: Authorizer<{ user: number }>;
+// @ts-expect-error the host types differ
+createReadTool<Host>({ fs, authorize: otherAuthorizer });
+
+createReadTool<{ user: number }>({
+  fs,
+  // @ts-expect-error a Host step does not fit a chain for another host
+  authorize: authorizers(denyPaths([]), sessionAuthorizer),
+});
+
+createReadTool<Host>({
+  fs,
+  // @ts-expect-error the host has no session field
+  authorize: askUser(async (_target, ctx) => ctx.call.host.session),
+});
+
+// The decision and the target are closed shapes.
+export const allowWithNote: AuthorizeDecision = {
+  allow: true,
+  // @ts-expect-error an allow carries notes, not one note
+  note: { code: "x", severity: "info", message: "x" },
+};
+// @ts-expect-error allow is a boolean literal
+export const maybe: AuthorizeDecision = { allow: "yes" };
+export const badTarget: AuthorizeTarget = {
+  // @ts-expect-error the action is "read" or "list"
+  action: "write",
+  requestedPath: "a",
+  resolvedPath: "a",
+  displayPath: "a",
+  size: null,
+  mtimeMs: null,
 };

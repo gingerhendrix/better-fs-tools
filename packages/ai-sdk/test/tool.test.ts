@@ -5,7 +5,7 @@ import type { JSONSchema7, ToolExecutionOptions } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { lineNumberFormatter, textOf } from "@better-fs-tools/read";
+import { denyPaths, lineNumberFormatter, textOf } from "@better-fs-tools/read";
 import type { Formatter, ReadContext, ReadResult } from "@better-fs-tools/read";
 import { defaultSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
 
@@ -237,6 +237,49 @@ describe("ai sdk execute", () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]).toBe(calls[1]);
     expect(calls[0]?.host).toBe(options);
+  });
+
+  test("the authorizer gets the same call object for list and read, with options as host", async () => {
+    const calls: ReadContext<ToolExecutionOptions<Record<string, unknown>>>[] = [];
+    const actions: string[] = [];
+    const read = createAiSdkReadTool<Record<string, unknown>>({
+      fs: memoryFileSystem({ files: { "/a.txt": "alpha\n" } }),
+      resolve: {
+        id: "lister",
+        async resolve(path, ctx) {
+          await ctx.list("/");
+          return { kind: "path", path };
+        },
+      },
+      authorize: {
+        id: "spy",
+        authorize(target, ctx) {
+          calls.push(ctx.call);
+          actions.push(target.action);
+          return { allow: true };
+        },
+      },
+    });
+    const options = executeOptions();
+
+    expectOk(await read.execute({ path: "/a.txt" }, options));
+    expect(actions).toEqual(["list", "read"]);
+    expect(calls[0]).toBe(calls[1]);
+    expect(calls[0]?.host).toBe(options);
+  });
+
+  test("a denial is a DENIED result the model can read", async () => {
+    const read = createAiSdkReadTool({
+      fs: memoryFileSystem({ files: { "/srv/.env": "KEY=1\n" } }),
+      authorize: denyPaths(["**/.env"]),
+    });
+    const result = expectFailure(
+      await read.execute({ path: "/srv/.env" }, executeOptions()),
+      "DENIED",
+    );
+    expect(textOf(result)).toBe(
+      "[read:denied] /srv/.env was refused by policy (the path matches a denied pattern).",
+    );
   });
 
   test("omits the signal when the host supplies none", async () => {
