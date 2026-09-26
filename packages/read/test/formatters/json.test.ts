@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { jsonFormatter, textOf } from "../../src/index.ts";
 import { harness } from "../helpers.ts";
+import { PIXELS, formatContext, mediaOutcome } from "./media.ts";
 
 describe("jsonFormatter", () => {
   test("round-trips the outcome", async () => {
@@ -63,5 +64,32 @@ describe("jsonFormatter", () => {
       request: null,
       file: null,
     });
+  });
+
+  test("media bytes are left out of the JSON and returned as media parts", () => {
+    const content = jsonFormatter().format(mediaOutcome, formatContext("model"));
+    if (!Array.isArray(content)) throw new Error("expected parts");
+    expect(content).toHaveLength(2);
+    const [json, media] = content;
+    if (json?.type !== "text") throw new Error("expected a text part first");
+    const parsed = JSON.parse(json.text);
+    expect(parsed.status).toBe("media");
+    expect(parsed.parts).toEqual([
+      { type: "text", text: "caption" },
+      { type: "media", mediaType: "image/png", data: { bytes: 4 }, name: "a.png" },
+    ]);
+    expect(json.text).not.toContain("137");
+    expect(media).toEqual({ type: "media", mediaType: "image/png", data: PIXELS, name: "a.png" });
+  });
+
+  test('media with notes "after" puts the note lines in the text part', () => {
+    const content = jsonFormatter({
+      pick: (outcome) => ({ status: outcome.status }),
+      notes: "after",
+    }).format(mediaOutcome, formatContext("model"));
+    expect(content).toEqual([
+      { type: "text", text: '{"status":"media"}\n\n[read:resized] Resized.' },
+      { type: "media", mediaType: "image/png", data: PIXELS, name: "a.png" },
+    ]);
   });
 });

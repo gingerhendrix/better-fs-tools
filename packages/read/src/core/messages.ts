@@ -36,6 +36,10 @@ const catalog: MessageCatalog = {
   permissionDenied: ({ request }) => `Permission was denied for ${request.path}.`,
   denied: ({ request, detail }) =>
     `${request.path} was refused by policy${detail === null ? "" : ` (${detail})`}.`,
+  tooLarge: ({ request, stage, limit }) =>
+    stage === "convert"
+      ? `${request.path} is larger than the ${limit}-byte conversion limit, so it was not converted.`
+      : `The media converted from ${request.path} is larger than the ${limit}-byte media limit, so it was not returned.`,
   changedDuringRead: ({ request, retry }) =>
     `${request.path} changed while it was being read. Read it again with ${retry} before relying on this result.`,
   aborted: ({ phase }) =>

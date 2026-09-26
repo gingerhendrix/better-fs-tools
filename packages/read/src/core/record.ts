@@ -1,17 +1,17 @@
-import type { ReadObservation, ReadOk, ReadOutcome } from "../contract/result.ts";
+import type { ReadMedia, ReadObservation, ReadOk, ReadOutcome } from "../contract/result.ts";
 import type { ReadRecord } from "../contract/state.ts";
 import type { CallScope } from "./call-scope.ts";
 
 /**
- * Stores the observation of an ok outcome under its resolved path. Only an ok
- * outcome with an observation needs the store, so `state(call)` runs only
- * then. A failing store never fails the read: session state is a cache.
+ * Stores the observation of an ok or media outcome under its resolved path.
+ * Only an outcome with an observation needs the store, so `state(call)` runs
+ * only then. A failing store never fails the read: session state is a cache.
  */
 export async function recordOutcome<THost>(
   scope: CallScope<THost>,
   outcome: ReadOutcome,
 ): Promise<void> {
-  if (outcome.status !== "ok") return;
+  if (outcome.status !== "ok" && outcome.status !== "media") return;
   const { observation } = outcome;
   if (observation === null) return;
   const store = scope.stateStore();
@@ -24,8 +24,8 @@ export async function recordOutcome<THost>(
 }
 
 /** Built field by field from the outcome, so nothing from `call` reaches the store. */
-function toRecord(outcome: ReadOk, observation: ReadObservation): ReadRecord {
-  const { file, totals, request } = outcome;
+function toRecord(outcome: ReadOk | ReadMedia, observation: ReadObservation): ReadRecord {
+  const { file, request } = outcome;
   return {
     schema: 1,
     observationId: observation.id,
@@ -35,7 +35,8 @@ function toRecord(outcome: ReadOk, observation: ReadObservation): ReadRecord {
     viewId: observation.viewId,
     observedAt: observation.observedAt,
     wholeFileVisible: observation.wholeFileVisible,
-    totalsExact: totals.exact,
+    // Media is only returned from a whole source, so its source totals are exact.
+    totalsExact: outcome.status === "ok" ? outcome.totals.exact : true,
     request: { offset: request.offset, limit: request.limit },
   };
 }

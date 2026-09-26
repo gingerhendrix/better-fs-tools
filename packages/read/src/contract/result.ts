@@ -6,10 +6,16 @@ export interface TextPart {
   readonly text: string;
 }
 
-/** Batch 6 adds MediaPart. */
-export type ContentPart = TextPart;
+export interface MediaPart {
+  readonly type: "media";
+  readonly mediaType: string;
+  readonly data: Uint8Array;
+  readonly name?: string;
+}
 
-export type ReadOutcome = ReadOk | ReadUnsupported | ReadFailure;
+export type ContentPart = TextPart | MediaPart;
+
+export type ReadOutcome = ReadOk | ReadMedia | ReadUnsupported | ReadFailure;
 
 /** The outcome plus the formatter's model-facing content. */
 export type ReadResult = ReadOutcome & { readonly content: readonly ContentPart[] };
@@ -19,7 +25,7 @@ export interface ReadOk {
   readonly request: ReadRequest;
   readonly file: FileInfo;
   readonly classification: ClassificationInfo;
-  /** Set when a converter produced the text. Always null until converters exist. */
+  /** Set when a converter produced the text. */
   readonly conversion: ConversionInfo | null;
   readonly view: ReadView;
   readonly truncation: ReadTruncation;
@@ -29,9 +35,20 @@ export interface ReadOk {
   readonly notes: readonly ReadNote[];
 }
 
+export interface ReadMedia {
+  readonly status: "media";
+  readonly request: ReadRequest;
+  readonly file: FileInfo;
+  readonly classification: ClassificationInfo;
+  readonly conversion: ConversionInfo;
+  readonly parts: readonly ContentPart[];
+  readonly observation: ReadObservation | null;
+  readonly notes: readonly ReadNote[];
+}
+
 export interface ReadUnsupported {
   readonly status: "unsupported";
-  /** Open vocabulary: classifier codes. */
+  /** Open vocabulary: classifier codes, converter refusal codes, "TOO_LARGE". */
   readonly code: string;
   readonly request: ReadRequest;
   readonly file: FileInfo;
@@ -78,10 +95,10 @@ export interface FileInfo {
 }
 
 export interface ClassificationInfo {
-  readonly kind: "text" | "unsupported";
-  /** Classifier id. */
+  readonly kind: "text" | "unsupported" | "directory";
+  /** Classifier id, or "fs" for a directory. */
   readonly classifier: string;
-  /** Unsupported code from the classifier. null for text. */
+  /** Unsupported code from the classifier. null for text and directories. */
   readonly code: string | null;
   readonly mimeType: string | null;
   readonly confidence: Confidence;

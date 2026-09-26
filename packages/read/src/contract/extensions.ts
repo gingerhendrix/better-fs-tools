@@ -1,11 +1,13 @@
-import type { DirectoryEntry, ListOutcome, PathOps } from "@better-fs-tools/fs";
+import type { DirectoryEntry, ListOutcome, OpenFileInfo, PathOps } from "@better-fs-tools/fs";
+
+import type { Classification, ClassificationSample } from "./classify.ts";
 
 import type { ReadContext } from "./context.ts";
 import type { Clock, Digest } from "./digest.ts";
 import type { ReadRequest } from "./input.ts";
 import type { ReadLimits } from "./limits.ts";
 import type { MessageCatalog } from "./messages.ts";
-import type { ReadNote } from "./result.ts";
+import type { ContentPart, ReadNote } from "./result.ts";
 
 /** Given to every host function that runs during a call. */
 export interface HookContext<THost = undefined> {
@@ -73,3 +75,57 @@ export interface AuthorizeTarget {
 export type AuthorizeDecision =
   | { readonly allow: true; readonly notes?: readonly ReadNote[] }
   | { readonly allow: false; readonly note?: ReadNote };
+
+/* Converters */
+
+export type Converter<THost = undefined> = FileConverter<THost> | DirectoryConverter<THost>;
+
+export interface ConverterMatch {
+  readonly classification: Classification;
+  readonly classifier: string;
+  readonly sample: ClassificationSample;
+}
+
+export interface FileConverter<THost = undefined> {
+  readonly id: string;
+  readonly target: "file";
+  /** Sync. The only place a converter may decline. */
+  accepts(match: ConverterMatch): boolean;
+  convert(input: FileConvertInput, ctx: HookContext<THost>): Promise<ConvertOutcome>;
+}
+
+export interface FileConvertInput {
+  readonly info: Readonly<OpenFileInfo>;
+  readonly classification: Classification;
+  readonly sample: ClassificationSample;
+  /** Whole source from byte 0. Counted, hashed, capped at limits.maxConvertBytes. Single use. */
+  bytes(): AsyncIterable<Uint8Array>;
+}
+
+export interface DirectoryConverter<THost = undefined> {
+  readonly id: string;
+  readonly target: "directory";
+  convert(input: DirectoryConvertInput, ctx: HookContext<THost>): Promise<ConvertOutcome>;
+}
+
+export interface DirectoryConvertInput {
+  /** Lexical path that open() reported as a directory. */
+  readonly path: string;
+  readonly target: { readonly resolvedPath: string; readonly displayPath: string } | null;
+  /** authorize(list) + one bounded fs.list. Single use. */
+  list(): Promise<ListOutcome>;
+}
+
+export type ConvertOutcome =
+  | {
+      readonly kind: "text";
+      readonly text: string | AsyncIterable<string>;
+      readonly mimeType: string | null;
+      readonly notes?: readonly ReadNote[];
+    }
+  | {
+      readonly kind: "media";
+      readonly parts: readonly ContentPart[];
+      readonly notes?: readonly ReadNote[];
+    }
+  | { readonly kind: "refuse"; readonly code: string; readonly note: ReadNote };

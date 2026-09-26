@@ -1,6 +1,6 @@
 import type { FormatContext, Formatter } from "../contract/format.ts";
 import type { ReadLine } from "../contract/result.ts";
-import { layout } from "./layout.ts";
+import { layout, withParts } from "./layout.ts";
 import type { LayoutOptions } from "./layout.ts";
 
 export interface LineNumberFormatterOptions extends LayoutOptions {
@@ -10,7 +10,7 @@ export interface LineNumberFormatterOptions extends LayoutOptions {
   clampMarker?: (line: ReadLine) => string;
 }
 
-/** Numbered lines, then notes. */
+/** Numbered lines, then notes. Media outcomes: note text part, then media parts. */
 export function lineNumberFormatter(options: LineNumberFormatterOptions = {}): Formatter<unknown> {
   const gutter = options.gutter ?? defaultGutter;
   const clampMarker = options.clampMarker ?? defaultClampMarker;
@@ -26,7 +26,7 @@ export function lineNumberFormatter(options: LineNumberFormatterOptions = {}): F
               )
               .join("\n")
           : "";
-      return layout(outcome, ctx, body, options);
+      return withParts(outcome, layout(outcome, ctx, body, options));
     },
   });
 }

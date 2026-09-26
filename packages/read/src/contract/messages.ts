@@ -3,13 +3,14 @@ import type { NodeKind } from "@better-fs-tools/fs";
 import type { ReadInput, ReadRequest } from "./input.ts";
 import type { TruncationReason } from "./result.ts";
 
-/** The stage that was running. Later batches add conversion and hooks. */
+/** The stage that was running. Batch 7 adds hooks. */
 export type ReadPhase =
   | "input"
   | "resolve"
   | "open"
   | "authorize"
   | "sampling"
+  | "conversion"
   | "scan"
   | "verification";
 
@@ -34,6 +35,7 @@ export interface MessageCatalog {
   outsideAllowedRoots(c: { request: ReadRequest; detail: string | null }): string;
   permissionDenied(c: { request: ReadRequest; detail: string | null }): string;
   denied(c: { request: ReadRequest; detail: string | null }): string;
+  tooLarge(c: { request: ReadRequest; stage: "convert" | "media"; limit: number }): string;
   changedDuringRead(c: { request: ReadRequest; retry: string }): string;
   aborted(c: { phase: ReadPhase }): string;
   invalidInput(c: { detail: string }): string;

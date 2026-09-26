@@ -3,13 +3,13 @@ import type { FileSystem } from "@better-fs-tools/fs";
 import type { Classifier } from "./classify.ts";
 import type { ReadContext } from "./context.ts";
 import type { Clock, Digest } from "./digest.ts";
-import type { Authorizer, PathResolver, Suggest } from "./extensions.ts";
+import type { Authorizer, Converter, PathResolver, Suggest } from "./extensions.ts";
 import type { Formatter } from "./format.ts";
 import type { ReadLimits } from "./limits.ts";
 import type { MessageCatalog } from "./messages.ts";
 import type { ReadStateStore } from "./state.ts";
 
-/** Batch 5 dependencies. Later batches add converters, budget, and hooks. */
+/** Batch 6 dependencies. Batch 7 adds budget and hooks. */
 export interface Dependencies<THost = undefined> {
   /** A filesystem, or a factory called once for each read before resolve (D19). */
   readonly fs: FileSystem | ((call: ReadContext<THost>) => FileSystem);
@@ -23,6 +23,8 @@ export interface Dependencies<THost = undefined> {
   readonly suggest: Suggest<THost> | null;
   /** Host policy on the open file ("read") and before every listing ("list"). null allows. */
   readonly authorize: Authorizer<THost> | null;
+  /** File converters in order: the first that accepts runs. The first directory converter lists directories. */
+  readonly converters: readonly Converter<THost>[];
   /** A store, or a factory called at most once for each read, and only when the core needs it (D20). */
   readonly state: ReadStateStore | ((call: ReadContext<THost>) => ReadStateStore | null) | null;
   readonly digest: Digest | null;

@@ -12,6 +12,7 @@ import type {
   ReadErrorCode,
   ReadFailure,
   ReadLimits,
+  ReadMedia,
   ReadNote,
   ReadOk,
   ReadResult,
@@ -81,7 +82,17 @@ export function lineText(result: ReadResult): string[] {
 /** Narrows to ok, failing the test with the actual status when it is not. */
 export function expectOk(result: ReadResult): ReadOk & ReadResult {
   if (result.status !== "ok") {
-    throw new Error(`expected ok, got ${result.status} (${result.code})`);
+    const code = "code" in result ? ` (${result.code})` : "";
+    throw new Error(`expected ok, got ${result.status}${code}`);
+  }
+  return result;
+}
+
+/** Narrows to media. */
+export function expectMedia(result: ReadResult): ReadMedia & ReadResult {
+  if (result.status !== "media") {
+    const code = "code" in result ? ` (${result.code})` : "";
+    throw new Error(`expected media, got ${result.status}${code}`);
   }
   return result;
 }

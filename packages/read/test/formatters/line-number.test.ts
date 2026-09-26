@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { defaultNoteLine, lineNumberFormatter, textOf } from "../../src/index.ts";
 import { expectOk, harness } from "../helpers.ts";
+import { PIXELS, formatContext, mediaOutcome } from "./media.ts";
 
 describe("lineNumberFormatter", () => {
   test("the gutter and clamp marker are formatter concerns", async () => {
@@ -97,6 +98,23 @@ describe("lineNumberFormatter", () => {
   test("defaultNoteLine prints the code and message", () => {
     expect(defaultNoteLine({ code: "x", severity: "info", message: "hello" })).toBe(
       "[read:x] hello",
+    );
+  });
+
+  test("a media outcome gives the note text part, then the parts in order", () => {
+    const formatter = lineNumberFormatter({ header: () => "HEADER" });
+    expect(formatter.format(mediaOutcome, formatContext("model"))).toEqual([
+      { type: "text", text: "HEADER\n\n[read:resized] Resized." },
+      { type: "text", text: "caption" },
+      { type: "media", mediaType: "image/png", data: PIXELS, name: "a.png" },
+    ]);
+  });
+
+  test("a media outcome with no note text gives the parts alone, and so does view mode", () => {
+    const quiet = lineNumberFormatter({ notes: () => null });
+    expect(quiet.format(mediaOutcome, formatContext("model"))).toEqual(mediaOutcome.parts);
+    expect(lineNumberFormatter().format(mediaOutcome, formatContext("view"))).toEqual(
+      mediaOutcome.parts,
     );
   });
 });

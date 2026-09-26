@@ -14,7 +14,8 @@ import { ReadStop, extensionFailed, messageOf } from "./outcomes.ts";
 
 /**
  * The two listings a read may make. `resolver` is the one `ctx.list` call a
- * resolver gets. `open` is the one listing after open: suggestions on a miss.
+ * resolver gets. `open` is the one listing after open: suggestions on a miss,
+ * or the directory converter's listing.
  */
 export type ListingSlot = "resolver" | "open";
 
@@ -106,9 +107,10 @@ export class CallScope<THost> {
    * slot; a second request in the same slot gets an error outcome. authorize
    * with action "list" runs before the fs.list. Never throws: a missing
    * list(), a spent slot, a denial, an abort, or a throwing backend becomes an
-   * error outcome. A throwing authorizer is held; see hold().
+   * error outcome. A throwing authorizer is held; see hold(). `display` is the
+   * authorizer's displayPath, when it differs from `dir`.
    */
-  async list(slot: ListingSlot, dir: string): Promise<ListOutcome> {
+  async list(slot: ListingSlot, dir: string, display: string = dir): Promise<ListOutcome> {
     if (this.listed.has(slot)) {
       return { ok: false, error: { reason: "denied", detail: "listing budget spent" } };
     }
@@ -117,7 +119,7 @@ export class CallScope<THost> {
     if (typeof fs.list !== "function") {
       return { ok: false, error: { reason: "unsupported", detail: "the backend cannot list" } };
     }
-    const refused = await authorizeList(this.deps.authorize, this.request, dir, this);
+    const refused = await authorizeList(this.deps.authorize, this.request, dir, display, this);
     if (refused !== null) return refused;
     const signal = this.signal;
     const limit = this.deps.limits.maxDirectoryEntries;

@@ -34,8 +34,33 @@ describe("createReadTool", () => {
     expect(() => createReadTool(null as never)).toThrow(TypeError);
   });
 
+  test("converters must be file or directory converters", () => {
+    const message = "converters must be an array of file and directory converters";
+    const convert = async () => ({ kind: "refuse", code: "X", note: {} }) as never;
+    for (const converters of [
+      null,
+      {},
+      [null],
+      [{ id: "a", target: "file", convert }],
+      [{ id: "a", target: "folder", convert }],
+      [{ target: "directory", convert }],
+      [{ id: "a", target: "directory" }],
+    ]) {
+      expect(() => createReadTool({ fs, converters: converters as never })).toThrow(message);
+    }
+    expect(() =>
+      createReadTool({
+        fs,
+        converters: [
+          { id: "a", target: "file", accepts: () => false, convert },
+          { id: "b", target: "directory", convert },
+        ],
+      }),
+    ).not.toThrow();
+  });
+
   test("an unknown dependency key throws TypeError", () => {
-    for (const key of ["input", "recovery", "converters", "hooks"]) {
+    for (const key of ["input", "recovery", "budget", "hooks"]) {
       expect(() => createReadTool({ fs, [key]: null } as never)).toThrow(
         `Unknown read tool dependency: ${key}`,
       );

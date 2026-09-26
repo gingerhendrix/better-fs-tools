@@ -1,5 +1,5 @@
 import type { Formatter } from "../contract/format.ts";
-import { layout } from "./layout.ts";
+import { layout, withParts } from "./layout.ts";
 import type { LineNumberFormatterOptions } from "./line-number.ts";
 
 /**
@@ -14,7 +14,7 @@ export function plainFormatter(
     format(outcome, ctx) {
       const body =
         outcome.status === "ok" ? outcome.view.lines.map((line) => line.text).join("\n") : "";
-      return layout(outcome, ctx, body, options);
+      return withParts(outcome, layout(outcome, ctx, body, options));
     },
   });
 }

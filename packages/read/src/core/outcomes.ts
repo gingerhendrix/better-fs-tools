@@ -12,6 +12,7 @@ import type {
   ReadOutcome,
   ReadUnsupported,
 } from "../contract/result.ts";
+import { classificationInfo } from "./classify.ts";
 import { isRecord } from "./input.ts";
 
 type Messages = Readonly<MessageCatalog>;
@@ -135,14 +136,7 @@ export function unsupportedOutcome(
     code: classification.code,
     request,
     file,
-    classification: {
-      kind: "unsupported",
-      classifier,
-      code: classification.code,
-      mimeType: classification.mimeType,
-      confidence: classification.confidence,
-      reasons: classification.reasons,
-    },
+    classification: classificationInfo({ classifier, classification }),
     notes: [classification.note],
   };
 }

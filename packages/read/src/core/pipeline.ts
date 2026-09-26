@@ -6,8 +6,10 @@ import type { ReadRequest } from "../contract/input.ts";
 import type { FileInfo, ReadNote, ReadOutcome, ReadResult } from "../contract/result.ts";
 import { authorizeRead } from "./authorize.ts";
 import { CallScope } from "./call-scope.ts";
-import { classifySample, encodingRefusal } from "./classify.ts";
+import { classificationInfo, classifySample, encodingRefusal } from "./classify.ts";
+import { convertFile, selectFileConverter } from "./convert.ts";
 import { AbortReadError, ByteCursor } from "./cursor.ts";
+import { convertDirectory } from "./directory.ts";
 import { formatResult } from "./format.ts";
 import { parseReadInput } from "./input.ts";
 import { fileInfo, openFile } from "./open.ts";
@@ -70,7 +72,22 @@ async function readOutcome<THost>(
     }
 
     scope.enter("open");
-    const handle = await openFile(deps, fs, request, resolved.path, scope);
+    const opened = await openFile(deps, fs, request, resolved.path, scope);
+    if (opened.kind === "directory") {
+      const { error, converter } = opened;
+      return finish(
+        await convertDirectory({
+          fs,
+          request,
+          path: resolved.path,
+          error,
+          resolvedFrom: resolved.resolvedFrom,
+          converter,
+          scope,
+        }),
+      );
+    }
+    const { handle } = opened;
     let outcome: ReadOutcome;
     try {
       const file = fileInfo(fs, request, handle.info, resolved.resolvedFrom);
@@ -111,6 +128,21 @@ async function readOpenFile<THost>(
 
     const decision = classifySample(classifiers, sample);
     if (decision === null) return unsupportedBackend(messages, request, file, null);
+    const converter = selectFileConverter(scope, decision, sample);
+    if (converter !== null) {
+      return await convertFile({
+        deps,
+        fs,
+        request,
+        file,
+        handle,
+        cursor,
+        sample,
+        decision,
+        converter,
+        scope,
+      });
+    }
     if (decision.classification.kind === "unsupported") {
       return unsupportedOutcome(request, file, decision.classifier, decision.classification);
     }
@@ -139,8 +171,11 @@ async function readOpenFile<THost>(
       fs,
       request,
       file,
-      decision: { classifier: decision.classifier, classification: decision.classification },
+      classification: classificationInfo(decision),
+      conversion: null,
       scan,
+      contentId: scan.contentId,
+      notes: decision.classification.notes ?? [],
     });
   } finally {
     await cursor.close();

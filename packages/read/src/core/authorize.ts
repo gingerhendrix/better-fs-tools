@@ -49,6 +49,7 @@ export async function authorizeList<THost>(
   authorizer: Authorizer<THost> | null,
   request: ReadRequest,
   dir: string,
+  display: string,
   scope: CallScope<THost>,
 ): Promise<ListOutcome | null> {
   if (authorizer === null) return null;
@@ -56,7 +57,7 @@ export async function authorizeList<THost>(
     action: "list",
     requestedPath: request.path,
     resolvedPath: dir,
-    displayPath: dir,
+    displayPath: display,
     size: null,
     mtimeMs: null,
   });

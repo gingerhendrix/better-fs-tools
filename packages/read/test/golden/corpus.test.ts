@@ -26,7 +26,7 @@ function goldenText(text: string) {
 function summary(result: ReadResult) {
   const base = {
     status: result.status,
-    ...(result.status === "ok" ? {} : { code: result.code }),
+    ...(result.status === "ok" || result.status === "media" ? {} : { code: result.code }),
     notes: result.notes.map((note) => note.code),
     text: goldenText(textOf(result)),
   };

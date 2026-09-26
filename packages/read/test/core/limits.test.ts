@@ -10,7 +10,7 @@ describe("resolveLimits", () => {
     expect(Object.isFrozen(limits)).toBe(true);
   });
 
-  test("has the plan keys and defaults so far", () => {
+  test("has the plan keys and defaults", () => {
     expect(defaultLimits).toEqual({
       maxLines: 2_000,
       maxViewBytes: 128 * 1_024,
@@ -19,6 +19,8 @@ describe("resolveLimits", () => {
       sampleBytes: 8_192,
       maxDirectoryEntries: 200,
       maxSuggestions: 5,
+      maxConvertBytes: 64 * 1_024 * 1_024,
+      maxMediaBytes: 5 * 1_024 * 1_024,
     });
   });
 
@@ -30,9 +32,8 @@ describe("resolveLimits", () => {
     expect(() => resolveLimits({ maxLines: 0 })).toThrow(TypeError);
     expect(() => resolveLimits({ maxLines: 1.5 })).toThrow(TypeError);
     expect(() => resolveLimits({ nope: 1 } as never)).toThrow(TypeError);
-    expect(() => resolveLimits({ maxConvertBytes: 5 } as never)).toThrow(
-      "Unknown read limit: maxConvertBytes",
-    );
+    expect(() => resolveLimits({ maxConvertBytes: 0 })).toThrow(TypeError);
+    expect(() => resolveLimits({ maxBudget: 5 } as never)).toThrow("Unknown read limit: maxBudget");
     expect(() => resolveLimits(null as never)).toThrow(TypeError);
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { plainFormatter, textOf } from "../../src/index.ts";
 import { harness } from "../helpers.ts";
+import { formatContext, mediaOutcome } from "./media.ts";
 
 describe("plainFormatter", () => {
   test("plain output is byte-exact source", async () => {
@@ -30,5 +31,12 @@ describe("plainFormatter", () => {
     const result = await read({ path: "/a.txt" });
     expect(textOf(result)).toBe("alpha");
     expect(result.notes.length).toBeGreaterThan(0);
+  });
+
+  test("a media outcome gives the note text part, then the parts", () => {
+    expect(plainFormatter().format(mediaOutcome, formatContext("model"))).toEqual([
+      { type: "text", text: "[read:resized] Resized." },
+      ...mediaOutcome.parts,
+    ]);
   });
 });

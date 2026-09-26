@@ -2,6 +2,7 @@ import type { FileSystem } from "@better-fs-tools/fs";
 
 import { defaultClassifiers } from "../classifiers/index.ts";
 import type { Dependencies, ReadToolDeps } from "../contract/deps.ts";
+import type { Converter } from "../contract/extensions.ts";
 import type { ReadStateStore } from "../contract/state.ts";
 import { lineNumberFormatter } from "../formatters/index.ts";
 import { defaultSuggest } from "../suggest/index.ts";
@@ -17,6 +18,7 @@ const KNOWN: ReadonlySet<string> = new Set([
   "resolve",
   "suggest",
   "authorize",
+  "converters",
   "state",
   "digest",
   "clock",
@@ -58,6 +60,10 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
   if (authorize !== null && (!isRecord(authorize) || typeof authorize.authorize !== "function")) {
     throw new TypeError("authorize must be an authorizer or null");
   }
+  const converters = deps.converters === undefined ? [] : deps.converters;
+  if (!Array.isArray(converters) || !converters.every(isConverter)) {
+    throw new TypeError("converters must be an array of file and directory converters");
+  }
   const clock = deps.clock ?? (() => new Date());
   if (typeof clock !== "function") throw new TypeError("clock must be a function");
   const state = deps.state ?? null;
@@ -73,6 +79,7 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
     resolve,
     suggest,
     authorize,
+    converters: Object.freeze([...converters]),
     state,
     digest: deps.digest ?? null,
     clock,
@@ -82,6 +89,14 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
 
 export function isFileSystem(value: unknown): value is FileSystem {
   return isRecord(value) && typeof value.open === "function";
+}
+
+function isConverter(value: unknown): value is Converter<unknown> {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.convert !== "function") {
+    return false;
+  }
+  if (value.target === "directory") return true;
+  return value.target === "file" && typeof value.accepts === "function";
 }
 
 export function isStateStore(value: unknown): value is ReadStateStore {

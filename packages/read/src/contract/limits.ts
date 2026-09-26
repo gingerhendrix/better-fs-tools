@@ -13,4 +13,8 @@ export interface ReadLimits {
   readonly maxDirectoryEntries: number;
   /** Suggested names on a miss. Default 5. */
   readonly maxSuggestions: number;
+  /** Source bytes a converter may read. Default 64 MiB. */
+  readonly maxConvertBytes: number;
+  /** Total bytes of media parts in one result. Default 5 MiB. */
+  readonly maxMediaBytes: number;
 }

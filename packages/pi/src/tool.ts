@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import path from "node:path";
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -165,11 +166,28 @@ function viewOf(
   return typeof view === "string" ? view : null;
 }
 
-/** One case for each ContentPart type. Batch 6 adds "media" as image parts. */
+/**
+ * One case for each ContentPart type. Pi's tool content takes images only, so
+ * other media becomes a text part that says what was left out.
+ */
 function toPiPart(part: ContentPart): PiContentPart {
   switch (part.type) {
     case "text":
       return { type: "text", text: part.text };
+    case "media":
+      if (!part.mediaType.startsWith("image/")) {
+        return {
+          type: "text",
+          text: `[read:media-omitted] ${part.mediaType} (${part.data.byteLength} bytes) cannot be shown in Pi.`,
+        };
+      }
+      return {
+        type: "image",
+        data: Buffer.from(part.data.buffer, part.data.byteOffset, part.data.byteLength).toString(
+          "base64",
+        ),
+        mimeType: part.mediaType,
+      };
   }
 }
 
