@@ -1,0 +1,20 @@
+{
+  "name": "@better-fs-tools/ai-sdk",
+  "version": "0.0.0",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@better-fs-tools/read": "workspace:^"
+  },
+  "devDependencies": {
+    "@better-fs-tools/fs": "workspace:^",
+    "ai": "catalog:"
+  },
+  "peerDependencies": {
+    "ai": "catalog:"
+  }
+}
