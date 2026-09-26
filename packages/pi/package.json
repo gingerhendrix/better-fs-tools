@@ -1,12 +1,34 @@
 {
   "name": "@better-fs-tools/pi",
   "version": "0.0.0",
+  "description": "The Better Read tool and extension for the Pi coding agent.",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts",
     "./extension": "./src/extension.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./extension": {
+        "types": "./dist/extension.d.ts",
+        "import": "./dist/extension.js"
+      }
+    },
+    "access": "public",
+    "pi": {
+      "extensions": [
+        "./dist/extension.js"
+      ]
+    }
   },
   "dependencies": {
     "@better-fs-tools/node": "workspace:^",

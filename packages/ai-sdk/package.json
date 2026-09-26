@@ -1,11 +1,24 @@
 {
   "name": "@better-fs-tools/ai-sdk",
   "version": "0.0.0",
+  "description": "The Better Read tool for AI SDK 7.",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    },
+    "access": "public"
   },
   "dependencies": {
     "@better-fs-tools/read": "workspace:^"

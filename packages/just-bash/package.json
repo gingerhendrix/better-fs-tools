@@ -1,11 +1,24 @@
 {
   "name": "@better-fs-tools/just-bash",
   "version": "0.0.0",
+  "description": "A read-only filesystem over a just-bash IFileSystem.",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {
     ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    },
+    "access": "public"
   },
   "dependencies": {
     "@better-fs-tools/fs": "workspace:^"

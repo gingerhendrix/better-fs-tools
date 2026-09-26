@@ -1,7 +1,12 @@
 {
   "name": "@better-fs-tools/read",
   "version": "0.0.0",
+  "description": "A bounded file reader for TypeScript agent tools.",
   "license": "MIT",
+  "files": [
+    "dist",
+    "docs"
+  ],
   "type": "module",
   "sideEffects": false,
   "exports": {
@@ -9,6 +14,27 @@
     "./formats": "./src/formats/index.ts",
     "./signature": "./src/signature/index.ts",
     "./state": "./src/state/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./formats": {
+        "types": "./dist/formats/index.d.ts",
+        "import": "./dist/formats/index.js"
+      },
+      "./signature": {
+        "types": "./dist/signature/index.d.ts",
+        "import": "./dist/signature/index.js"
+      },
+      "./state": {
+        "types": "./dist/state/index.d.ts",
+        "import": "./dist/state/index.js"
+      }
+    },
+    "access": "public"
   },
   "dependencies": {
     "@better-fs-tools/fs": "workspace:^"
