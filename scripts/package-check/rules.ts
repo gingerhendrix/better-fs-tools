@@ -37,7 +37,13 @@ export const RULES: Readonly<Record<string, PackageRule>> = {
 };
 
 /** Packages whose declarations must type-check with no Node or Bun types. */
-export const RUNTIME_NEUTRAL = ["fs", "read", "cloudflare-shell", "cloudflare-computer"];
+export const RUNTIME_NEUTRAL = [
+  "fs",
+  "read",
+  "cloudflare-shell",
+  "cloudflare-computer",
+  "just-bash",
+];
 
 export interface ExportTarget {
   readonly types?: string;
