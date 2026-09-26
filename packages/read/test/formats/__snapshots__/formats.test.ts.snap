@@ -1,0 +1,274 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`format presets opencode ok 1`] = `
+"ok
+<path>/src/app.ts</path>
+<type>file</type>
+<content>
+1: import { x } from "./x"
+2: export const y = x
+
+(End of file - total 2 lines)
+</content>"
+`;
+
+exports[`format presets opencode truncated 1`] = `
+"ok
+<path>/long.txt</path>
+<type>file</type>
+<content>
+2: two
+3: three
+</content>
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"/long.txt","offset":4,"limit":2}."
+`;
+
+exports[`format presets opencode clamped 1`] = `
+"ok
+<path>/wide.txt</path>
+<type>file</type>
+<content>
+1: short
+2: wwwwwwwwwwwwwwwwwwwwwwwwwwwwww… [line truncated at 30 chars]
+
+(End of file - total 2 lines)
+</content>
+
+[read:line-clamped] Source line 2 exceeded 30 characters and was clamped."
+`;
+
+exports[`format presets opencode empty 1`] = `
+"ok
+<path>/empty.txt</path>
+<type>file</type>
+<content>
+
+(End of file - total 0 lines)
+</content>
+
+[read:empty] /empty.txt is empty (0 bytes); no retry is needed."
+`;
+
+exports[`format presets opencode hook-edited 1`] = `
+"ok
+<path>/secret.txt</path>
+<type>file</type>
+<content>
+1: key=[REDACTED]
+
+(End of file - total 1 lines)
+</content>
+
+[read:view-modified] The redact hook changed this view, so it is not the exact file text."
+`;
+
+exports[`format presets opencode not-found 1`] = `
+"error
+[read:not-found] /src/ap.ts was not found. Nearby names: "app.ts", "lib.ts"."
+`;
+
+exports[`format presets opencode unsupported 1`] = `
+"unsupported
+[read:unsupported-binary] This content is not supported as UTF-8 text. Use a format-specific byte tool."
+`;
+
+exports[`format presets opencode media 1`] = `
+"media
+<path>/image.png</path>
+<type>media</type>
+--- part ---
+[media image/png 11 bytes image.png]"
+`;
+
+exports[`format presets opencode directory 1`] = `
+"ok
+<path>/src</path>
+<type>directory</type>
+<entries>
+app.ts
+lib.ts
+</entries>"
+`;
+
+exports[`format presets deepAgents ok 1`] = `
+"ok
+@@ lines 1-2 of 2 @@
+import { x } from "./x"
+export const y = x
+@@ lines 1-2 of 2 @@"
+`;
+
+exports[`format presets deepAgents truncated 1`] = `
+"ok
+@@ lines 2-3 of 5 | next offset 4 @@
+two
+three
+@@ lines 2-3 of 5 | next offset 4 @@
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"/long.txt","offset":4,"limit":2}."
+`;
+
+exports[`format presets deepAgents clamped 1`] = `
+"ok
+@@ lines 1-2 of 2 @@
+short
+wwwwwwwwwwwwwwwwwwwwwwwwwwwwww
+@@ lines 1-2 of 2 @@
+
+[read:line-clamped] Source line 2 exceeded 30 characters and was clamped."
+`;
+
+exports[`format presets deepAgents empty 1`] = `
+"ok
+@@ no lines of 0 @@
+@@ no lines of 0 @@
+
+[read:empty] /empty.txt is empty (0 bytes); no retry is needed."
+`;
+
+exports[`format presets deepAgents hook-edited 1`] = `
+"ok
+@@ lines 1-1 of 1 @@
+key=[REDACTED]
+@@ lines 1-1 of 1 @@
+
+[read:view-modified] The redact hook changed this view, so it is not the exact file text."
+`;
+
+exports[`format presets deepAgents not-found 1`] = `
+"error
+[read:not-found] /src/ap.ts was not found. Nearby names: "app.ts", "lib.ts"."
+`;
+
+exports[`format presets deepAgents unsupported 1`] = `
+"unsupported
+[read:unsupported-binary] This content is not supported as UTF-8 text. Use a format-specific byte tool."
+`;
+
+exports[`format presets deepAgents media 1`] = `
+"media
+[media image/png 11 bytes image.png]"
+`;
+
+exports[`format presets deepAgents directory 1`] = `
+"ok
+@@ entries 1-2 of 2 @@
+app.ts
+lib.ts
+@@ entries 1-2 of 2 @@"
+`;
+
+exports[`format presets hashline ok 1`] = `
+"ok
+file-hash: fnv:7ac1c392
+1:2f|import { x } from "./x"
+2:b9|export const y = x
+(End of file - total 2 lines)"
+`;
+
+exports[`format presets hashline truncated 1`] = `
+"ok
+file-hash: fnv:e850a3fd
+2:be|two
+3:88|three
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"/long.txt","offset":4,"limit":2}."
+`;
+
+exports[`format presets hashline clamped 1`] = `
+"ok
+file-hash: fnv:77f07aed
+1:ba|short
+2:58|wwwwwwwwwwwwwwwwwwwwwwwwwwwwww… [line truncated at 30 chars]
+(End of file - total 2 lines)
+
+[read:line-clamped] Source line 2 exceeded 30 characters and was clamped."
+`;
+
+exports[`format presets hashline empty 1`] = `
+"ok
+file-hash: fnv:811c9dc5
+(End of file - total 0 lines)
+
+[read:empty] /empty.txt is empty (0 bytes); no retry is needed."
+`;
+
+exports[`format presets hashline hook-edited 1`] = `
+"ok
+file-hash: fnv:548e49e1
+1:a8|key=[REDACTED]
+(End of file - total 1 lines)
+
+[read:view-modified] The redact hook changed this view, so it is not the exact file text."
+`;
+
+exports[`format presets hashline not-found 1`] = `
+"error
+[read:not-found] /src/ap.ts was not found. Nearby names: "app.ts", "lib.ts"."
+`;
+
+exports[`format presets hashline unsupported 1`] = `
+"unsupported
+[read:unsupported-binary] This content is not supported as UTF-8 text. Use a format-specific byte tool."
+`;
+
+exports[`format presets hashline media 1`] = `
+"media
+file-hash: fnv:2f1aa464
+--- part ---
+[media image/png 11 bytes image.png]"
+`;
+
+exports[`format presets hashline directory 1`] = `
+"ok
+1|app.ts
+2|lib.ts"
+`;
+
+exports[`format presets hermes ok 1`] = `
+"ok
+{"content":"1|import { x } from \\"./x\\"\\n2|export const y = x","total_lines":2,"file_size":43,"truncated":false}"
+`;
+
+exports[`format presets hermes truncated 1`] = `
+"ok
+{"content":"2|two\\n3|three","total_lines":5,"file_size":24,"truncated":true,"next_offset":4,"hint":"Output stopped at the line limit. Continue with {\\"path\\":\\"/long.txt\\",\\"offset\\":4,\\"limit\\":2}."}"
+`;
+
+exports[`format presets hermes clamped 1`] = `
+"ok
+{"content":"1|short\\n2|wwwwwwwwwwwwwwwwwwwwwwwwwwwwww... [truncated]","total_lines":2,"file_size":47,"truncated":false,"hint":"Source line 2 exceeded 30 characters and was clamped."}"
+`;
+
+exports[`format presets hermes empty 1`] = `
+"ok
+{"content":"","total_lines":0,"file_size":0,"truncated":false,"hint":"/empty.txt is empty (0 bytes); no retry is needed."}"
+`;
+
+exports[`format presets hermes hook-edited 1`] = `
+"ok
+{"content":"1|key=[REDACTED]","total_lines":1,"file_size":25,"truncated":false,"hint":"The redact hook changed this view, so it is not the exact file text."}"
+`;
+
+exports[`format presets hermes not-found 1`] = `
+"error
+{"error":"/src/ap.ts was not found. Nearby names: \\"app.ts\\", \\"lib.ts\\".","similar_files":["app.ts","lib.ts"]}"
+`;
+
+exports[`format presets hermes unsupported 1`] = `
+"unsupported
+{"error":"This content is not supported as UTF-8 text. Use a format-specific byte tool.","file_size":5}"
+`;
+
+exports[`format presets hermes media 1`] = `
+"media
+{"mime_type":"image/png","file_size":11}
+--- part ---
+[media image/png 11 bytes image.png]"
+`;
+
+exports[`format presets hermes directory 1`] = `
+"ok
+{"content":"app.ts\\nlib.ts","total_entries":2,"truncated":false}"
+`;
