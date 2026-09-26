@@ -1,0 +1,22 @@
+{
+  "name": "@better-fs-tools/examples",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@better-fs-tools/ai-sdk": "workspace:^",
+    "@better-fs-tools/cloudflare-computer": "workspace:^",
+    "@better-fs-tools/cloudflare-shell": "workspace:^",
+    "@better-fs-tools/fs": "workspace:^",
+    "@better-fs-tools/just-bash": "workspace:^",
+    "@better-fs-tools/node": "workspace:^",
+    "@better-fs-tools/pi": "workspace:^",
+    "@better-fs-tools/read": "workspace:^",
+    "@cloudflare/computer": "catalog:",
+    "@cloudflare/shell": "catalog:",
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "ai": "catalog:",
+    "just-bash": "catalog:",
+    "typebox": "catalog:"
+  }
+}

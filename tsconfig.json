@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "./apps/docs" },
+    { "path": "./examples" },
     { "path": "./packages/ai-sdk" },
     { "path": "./packages/cloudflare-computer" },
     { "path": "./packages/cloudflare-shell" },
