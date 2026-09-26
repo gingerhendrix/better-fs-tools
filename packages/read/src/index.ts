@@ -98,6 +98,10 @@ export {
   stripPrefixes,
   unicodeRepair,
 } from "./resolve/index.ts";
+export { redact, repeatReadGuard } from "./hooks/index.ts";
+export type { RedactOptions, RepeatReadGuardOptions } from "./hooks/index.ts";
+export { charsPerToken } from "./budget/index.ts";
+export type { CharsPerTokenOptions } from "./budget/index.ts";
 export { canonicalizeFileName, defaultSuggest, suggestFileNames } from "./suggest/index.ts";
 export {
   defaultNoteLine,
