@@ -77,6 +77,18 @@ export {
 export type { ExtensionClassifierOptions } from "./classifiers/index.ts";
 export { askUser, authorizers, denyPaths, sizeCeiling } from "./authorize/index.ts";
 export {
+  directoryListing,
+  imageConverter,
+  notebookConverter,
+  textConverter,
+} from "./converters/index.ts";
+export type {
+  DirectoryListingOptions,
+  ImageConverterOptions,
+  NotebookConverterOptions,
+  TextConverterOptions,
+} from "./converters/index.ts";
+export {
   expandHome,
   pathResolvers,
   reanchorLeadingSlash,
