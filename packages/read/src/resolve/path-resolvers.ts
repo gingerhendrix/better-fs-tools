@@ -6,9 +6,12 @@ import { stepFailure } from "../core/extension-error.ts";
  * Left to right. Each step gets the previous path. The first not-found stops.
  * All steps share one ctx.list budget. The last note wins. A step that throws
  * is named by its id in EXTENSION_FAILED.
+ *
+ * THost comes from where the chain is used, not from the steps, so an inline
+ * step gets the tool's host type with no type argument.
  */
 export function pathResolvers<THost = unknown>(
-  ...steps: readonly PathResolver<THost>[]
+  ...steps: readonly PathResolver<NoInfer<THost>>[]
 ): PathResolver<THost> {
   for (const step of steps) {
     if (step === null || typeof step !== "object" || typeof step.resolve !== "function") {

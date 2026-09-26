@@ -68,6 +68,30 @@ export const chained = createReadTool<Host>({
 });
 export const hostFreeChain: PathResolver<Host> = pathResolvers(stripPrefixes(), unicodeRepair());
 
+// An inline step takes its host type from the tool, with no type argument.
+export const inlineStep = createReadTool<Host>({
+  fs,
+  resolve: pathResolvers(stripPrefixes(), {
+    id: "inline",
+    resolve: (path, ctx) => ({ kind: "path", path: `${ctx.call.host.id}/${path}` }),
+  }),
+});
+
+createReadTool<{ user: number }>({
+  fs,
+  // @ts-expect-error a Host step does not fit a chain for another host
+  resolve: pathResolvers(stripPrefixes(), sessionResolver),
+});
+
+createReadTool<Host>({
+  fs,
+  resolve: pathResolvers({
+    id: "inline",
+    // @ts-expect-error the host has no session field
+    resolve: (path, ctx) => ({ kind: "path", path: `${ctx.call.host.session}/${path}` }),
+  }),
+});
+
 // A host-typed suggest reads the host too.
 export const hostSuggest: Dependencies<Host>["suggest"] = (ctx) => [ctx.call.host.id];
 
