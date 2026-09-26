@@ -5,6 +5,7 @@
     { "path": "./packages/ai-sdk" },
     { "path": "./packages/fs" },
     { "path": "./packages/node" },
+    { "path": "./packages/pi" },
     { "path": "./packages/read" }
   ]
 }
