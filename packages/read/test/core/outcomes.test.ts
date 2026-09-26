@@ -92,7 +92,7 @@ describe("capability disclosure", () => {
     expect(note(result, "buffered-backend")).toBeDefined();
   });
 
-  test("the file info names the backend and has no resolver fields", async () => {
+  test("the file info names the backend, with resolvedFrom null when no resolver ran", async () => {
     const { read } = harness({ files: { "/a.txt": "one\n" }, fsOptions: { id: "mem-test" } });
     const result = expectOk(await read({ path: "/a.txt" }));
     expect(result.file).toEqual({
@@ -104,6 +104,7 @@ describe("capability disclosure", () => {
       mtimeMs: null,
       identity: "memory:/a.txt:1",
       mimeType: null,
+      resolvedFrom: null,
     });
     expect(result.conversion).toBeNull();
   });

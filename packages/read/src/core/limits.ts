@@ -10,6 +10,8 @@ export const defaultLimits: Readonly<ReadLimits> = Object.freeze({
   maxCharsPerLine: 2_000,
   maxScanBytes: 64 * 1_024 * 1_024,
   sampleBytes: 8_192,
+  maxDirectoryEntries: 200,
+  maxSuggestions: 5,
 });
 
 const LIMIT_KEYS = Object.keys(defaultLimits) as (keyof ReadLimits)[];

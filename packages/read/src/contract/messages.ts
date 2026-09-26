@@ -3,8 +3,8 @@ import type { NodeKind } from "@better-fs-tools/fs";
 import type { ReadInput, ReadRequest } from "./input.ts";
 import type { TruncationReason } from "./result.ts";
 
-/** The stage that was running. Later batches add resolve, authorize, conversion, and hooks. */
-export type ReadPhase = "input" | "open" | "sampling" | "scan" | "verification";
+/** The stage that was running. Later batches add authorize, conversion, and hooks. */
+export type ReadPhase = "input" | "resolve" | "open" | "sampling" | "scan" | "verification";
 
 /**
  * Wording for every note the core owns. Classifiers own their own refusals.
@@ -20,7 +20,8 @@ export interface MessageCatalog {
   lineClamped(c: { lines: readonly number[]; total: number; maxChars: number }): string;
   scanLimit(c: { maxScanBytes: number }): string;
   empty(c: { path: string }): string;
-  notFound(c: { request: ReadRequest }): string;
+  notFound(c: { request: ReadRequest; suggestions: readonly string[] }): string;
+  pathRepaired(c: { from: string; to: string }): string;
   notAFile(c: { request: ReadRequest; kind: NodeKind }): string;
   dangerousPath(c: { request: ReadRequest; detail: string | null }): string;
   outsideAllowedRoots(c: { request: ReadRequest; detail: string | null }): string;

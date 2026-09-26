@@ -62,7 +62,7 @@ export type ReadErrorCode =
   | "IO_ERROR";
 
 export interface FileInfo {
-  /** The path in the model's input. */
+  /** The path in the model's input, before any resolver. */
   readonly requestedPath: string;
   readonly resolvedPath: string;
   readonly displayPath: string;
@@ -73,6 +73,8 @@ export interface FileInfo {
   /** `null` unless `fs.capabilities.identity`. */
   readonly identity: string | null;
   readonly mimeType: string | null;
+  /** The requested path when a resolver changed it, else null. */
+  readonly resolvedFrom: string | null;
 }
 
 export interface ClassificationInfo {

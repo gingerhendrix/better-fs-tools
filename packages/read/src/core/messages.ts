@@ -22,7 +22,12 @@ const catalog: MessageCatalog = {
   scanLimit: ({ maxScanBytes }) =>
     `Scanning stopped at ${maxScanBytes} bytes; total lines and raw content identity are unknown.`,
   empty: ({ path }) => `${path} is empty (0 bytes); no retry is needed.`,
-  notFound: ({ request }) => `${request.path} was not found.`,
+  notFound: ({ request, suggestions }) =>
+    suggestions.length === 0
+      ? `${request.path} was not found.`
+      : `${request.path} was not found. Nearby names: ${quoted(suggestions)}.`,
+  pathRepaired: ({ from, to }) =>
+    `The requested filename ${JSON.stringify(from)} was repaired to the unique Unicode-equivalent path ${JSON.stringify(to)}.`,
   notAFile: ({ request, kind }) =>
     `${request.path} is a ${kindLabel(kind)}; directories, FIFOs, sockets, and devices are refused before any content read.`,
   dangerousPath: ({ request, detail }) =>
@@ -49,6 +54,10 @@ const catalog: MessageCatalog = {
 };
 
 export const defaultMessages: Readonly<MessageCatalog> = Object.freeze(catalog);
+
+function quoted(values: readonly string[]): string {
+  return values.map((value) => JSON.stringify(value)).join(", ");
+}
 
 function reasonLabel(reason: TruncationReason): string {
   if (reason === "lines") return "line limit";

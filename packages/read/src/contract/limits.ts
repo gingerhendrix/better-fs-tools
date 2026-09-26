@@ -9,4 +9,8 @@ export interface ReadLimits {
   readonly maxScanBytes: number;
   /** Bytes given to classifiers. Default 8 KiB. Clamped to maxScanBytes. */
   readonly sampleBytes: number;
+  /** Entries in one directory listing. Default 200. */
+  readonly maxDirectoryEntries: number;
+  /** Suggested names on a miss. Default 5. */
+  readonly maxSuggestions: number;
 }

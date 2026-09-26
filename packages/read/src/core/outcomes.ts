@@ -168,7 +168,7 @@ function messageForError(
 ): string {
   switch (error.reason) {
     case "not-found":
-      return messages.notFound({ request });
+      return messages.notFound({ request, suggestions: [] });
     case "not-a-file":
       return messages.notAFile({ request, kind: error.kind });
     case "dangerous-path":

@@ -31,5 +31,6 @@ export function fileInfo(fs: FileSystem, request: ReadRequest, info: OpenFileInf
     mtimeMs: info.mtimeMs,
     identity: fs.capabilities.identity ? info.identity : null,
     mimeType: info.mimeType,
+    resolvedFrom: null,
   };
 }

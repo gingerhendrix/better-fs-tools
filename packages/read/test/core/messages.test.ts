@@ -27,8 +27,23 @@ describe("resolveMessages", () => {
 
   test("an unknown key or a non-function is refused", () => {
     expect(() => resolveMessages({ nope: () => "" } as never)).toThrow(TypeError);
-    expect(() => resolveMessages({ pathRepaired: () => "" } as never)).toThrow(TypeError);
+    expect(() => resolveMessages({ ambiguousRepair: () => "" } as never)).toThrow(TypeError);
     expect(() => resolveMessages({ empty: "text" } as never)).toThrow(TypeError);
+  });
+});
+
+describe("not-found and repair wording", () => {
+  test("notFound lists quoted suggestions only when there are some", () => {
+    expect(defaultMessages.notFound({ request, suggestions: [] })).toBe("a.txt was not found.");
+    expect(defaultMessages.notFound({ request, suggestions: ["a.ts", 'b "c".txt'] })).toBe(
+      'a.txt was not found. Nearby names: "a.ts", "b \\"c\\".txt".',
+    );
+  });
+
+  test("pathRepaired names both paths", () => {
+    expect(defaultMessages.pathRepaired({ from: "/d/a b.txt", to: "/d/a\u202fb.txt" })).toBe(
+      'The requested filename "/d/a b.txt" was repaired to the unique Unicode-equivalent path "/d/a\u202fb.txt".',
+    );
   });
 });
 
