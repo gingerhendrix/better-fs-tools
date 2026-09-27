@@ -7,7 +7,7 @@ html {
 }
 .prose {
   :where(strong):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
-    font-weight: bolder
+    font-weight: bolder;
   }
 }
 

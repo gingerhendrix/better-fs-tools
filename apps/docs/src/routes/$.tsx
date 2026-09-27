@@ -1,17 +1,17 @@
-import { createFileRoute, notFound } from '@tanstack/react-router';
-import { DocsLayout } from 'fumadocs-ui/layouts/docs';
-import { createServerFn } from '@tanstack/react-start';
-import { docs, source } from '@/lib/source';
-import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/layouts/docs/page';
-import { baseOptions } from '@/lib/layout';
-import { useFumadocsLoader } from 'fumadocs-core/source/client';
-import { Suspense, use } from 'react';
-import { useMDXComponents } from '@/components/mdx';
+import { createFileRoute, notFound } from "@tanstack/react-router";
+import { DocsLayout } from "fumadocs-ui/layouts/docs";
+import { createServerFn } from "@tanstack/react-start";
+import { docs, source } from "@/lib/source";
+import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/layouts/docs/page";
+import { baseOptions } from "@/lib/layout";
+import { useFumadocsLoader } from "fumadocs-core/source/client";
+import { Suspense, use } from "react";
+import { useMDXComponents } from "@/components/mdx";
 
-export const Route = createFileRoute('/$')({
+export const Route = createFileRoute("/$")({
   component: Page,
   loader: async ({ params }) => {
-    const slugs = params._splat?.split('/') ?? [];
+    const slugs = params._splat?.split("/") ?? [];
     const data = await serverLoader({ data: slugs });
     await docs.getPage(data.path)?.preload();
     return data;
@@ -19,7 +19,7 @@ export const Route = createFileRoute('/$')({
 });
 
 const serverLoader = createServerFn({
-  method: 'GET',
+  method: "GET",
 })
   .validator((slugs: string[]) => slugs)
   .handler(async ({ data: slugs }) => {

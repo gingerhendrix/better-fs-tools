@@ -15,7 +15,7 @@ export const Website = Cloudflare.Website.Vite("Website", {
   },
   dev: {
     host: "0.0.0.0",
-  }
+  },
 });
 
 export default Alchemy.Stack(

@@ -1,6 +1,6 @@
 ---
 title: Read Tool
-description:  The simplest tool in the box
+description: The simplest tool in the box
 ---
 
 ## What's in a Read Tool?
@@ -9,9 +9,9 @@ The read tool has a simple job, read from the filesystem and return the contents
 
 ### Signature
 
-Do you even need a read tool? Codex says no, just use the shell, but it stands alone in the harnesses surveyed and though it's an attractive idea to me, it would make dfor a crap article.  How about two read tools?  Back in the day, a read multiple files tool was common, but that has fallen out of favour since parallel tool calls are now widespread, Gemini CLI and (FACT CHECK) are the only harnesses that sill ship one.
+Do you even need a read tool? Codex says no, just use the shell, but it stands alone in the harnesses surveyed and though it's an attractive idea to me, it would make dfor a crap article. How about two read tools? Back in the day, a read multiple files tool was common, but that has fallen out of favour since parallel tool calls are now widespread, Gemini CLI and (FACT CHECK) are the only harnesses that sill ship one.
 
-Other than that, there is general consensus of the shape - a single tool that takes the path to a file along with optional offset and limit parameters.  The name of the tool is usually `read`, `Read` (Claude) or `read_file`, with either a `path`, `filePath` or `file_path` first argument and there is strong agreement on `limit` and `offset` as the remaining parameters. FACT CHECK is the odd one out with `start_line` and `end_line` replacing `offset` and `limit`.
+Other than that, there is general consensus of the shape - a single tool that takes the path to a file along with optional offset and limit parameters. The name of the tool is usually `read`, `Read` (Claude) or `read_file`, with either a `path`, `filePath` or `file_path` first argument and there is strong agreement on `limit` and `offset` as the remaining parameters. FACT CHECK is the odd one out with `start_line` and `end_line` replacing `offset` and `limit`.
 
 Command Code retains read multi-file read capabilities with an optional `paths` (array of absolute paths or glob patterns) and additional `target_directory`, `exclude` (FACT CHECK)
 
@@ -19,10 +19,11 @@ Command Code retains read multi-file read capabilities with an optional `paths` 
 
 #### Docs
 
-The tool signature passed to the LLM is accompanied by a description that serves as documentation for the LLM on how to use the tool.  Cloudflare Computer currently holds the prize for minimalism:
+The tool signature passed to the LLM is accompanied by a description that serves as documentation for the LLM on how to use the tool. Cloudflare Computer currently holds the prize for minimalism:
 
-<blockquote style={{quotes: 'none'}}>
-Read a workspace file. Images and PDFs are passed to capable models. Text output is capped at 2000 lines or 256KB and includes line and byte continuations when truncated.
+<blockquote style={{ quotes: "none" }}>
+  Read a workspace file. Images and PDFs are passed to capable models. Text output is capped at 2000
+  lines or 256KB and includes line and byte continuations when truncated.
 </blockquote>
 
 OpenCode has one of the most verbose (though oh-my-pi is the supreme champion here with over 3000 chars of tool description, but that is mostly due to OMP's virtual filesystem)
@@ -31,6 +32,7 @@ OpenCode has one of the most verbose (though oh-my-pi is the supreme champion he
 Read a file or directory from the local filesystem. If the path does not exist, an error is returned.
 
 Usage:
+
 - The filePath parameter should be an absolute path.
 - By default, this tool returns up to 2000 lines from the start of the file.
 - The offset parameter is the line number to start from (1-indexed).
@@ -42,15 +44,17 @@ Usage:
 - Call this tool in parallel when you know there are multiple files you want to read.
 - Avoid tiny repeated slices (30 line chunks). If you need more context, read a larger window.
 - This tool can read image files and PDFs and return them as file attachments.
+
 </blockquote>
 
 (description length chart)
 
 ### Output
 
-From the LLM's perspective, the next thing that matters is how the output is formatted.  Broadly this comes down to delimiters, line numbering and additional info for truncation and additional messages to accompany the output.
+From the LLM's perspective, the next thing that matters is how the output is formatted. Broadly this comes down to delimiters, line numbering and additional info for truncation and additional messages to accompany the output.
 
 OpenCode wraps its output with tags and numbers the lines (with colon-space as the delimiter).
+
 ```
 <path>/repo/src/app.ts</path>
 <type>file</type>
@@ -62,8 +66,7 @@ OpenCode wraps its output with tags and numbers the lines (with colon-space as t
 </content>
 ```
 
-DeepAgents has recently switched to a new new format instead of their previous line numbered output which the claim reduces edit errors by 15% and token usage by 10%.  The new format simply delimits the content
-
+DeepAgents has recently switched to a new new format instead of their previous line numbered output which the claim reduces edit errors by 15% and token usage by 10%. The new format simply delimits the content
 
 ```
 @@ lines 1-100 of 250 | next offset 100 @@
@@ -75,7 +78,7 @@ export const y = x
 https://x.com/sydneyrunkle/status/2099618743580299305
 (Replace with screenshot)
 
-[Hashline](https://stencil.so/blog/the-harness-problem) is an approach to improving file edits by giving the LLM a stable identifier for each line in a file.  This approach was pioneered by Oh-My-Pi and is available in other harnesses through extensions.
+[Hashline](https://stencil.so/blog/the-harness-problem) is an approach to improving file edits by giving the LLM a stable identifier for each line in a file. This approach was pioneered by Oh-My-Pi and is available in other harnesses through extensions.
 
 ```
 1:a3|function hello() {
@@ -95,18 +98,15 @@ Line numbering is enabled on some harnesses, with a variety of delimiters.
 
 (summary table)
 
-
 ### Implementation
 
 Implementation details dont matter as much to the LLM, but there are still a number of ways they affect the agent experience.
 
 (return to headings, add small summary tables where possible)
 
-- **Path Handling**:  Path handling is a rabbit hole of edge cases, my favourite edge case I discovered when researching this is that macOS uses a narrow no-break space (U+202F) in the filename for screenshots (Claude, Pi and others account for this, but its not universal).  Most harnesses support some kind of path repair, either silently fixing the path, fixing it with a note to the LLM, or returning a not found error with suggestions.
-- **Permissions**:  Most harnesses have some form of permission handling that must run after the path is resolved, either to deny certain directories or to prompt the user for permission. Hermes has the most interesting set of forbidden directories, including variations of `.env` and `/proc/*/environ` to try to prevent accidental disclosure of secrets.
-- **Binary detection**: Dumping binary files to the LLM is an expensive mistake so all the harnesses attempt binary detection.  The robustness of this varies with Deep Agents and Mastra relying on just a file extension check, while others use some form of byte sampling.
+- **Path Handling**: Path handling is a rabbit hole of edge cases, my favourite edge case I discovered when researching this is that macOS uses a narrow no-break space (U+202F) in the filename for screenshots (Claude, Pi and others account for this, but its not universal). Most harnesses support some kind of path repair, either silently fixing the path, fixing it with a note to the LLM, or returning a not found error with suggestions.
+- **Permissions**: Most harnesses have some form of permission handling that must run after the path is resolved, either to deny certain directories or to prompt the user for permission. Hermes has the most interesting set of forbidden directories, including variations of `.env` and `/proc/*/environ` to try to prevent accidental disclosure of secrets.
+- **Binary detection**: Dumping binary files to the LLM is an expensive mistake so all the harnesses attempt binary detection. The robustness of this varies with Deep Agents and Mastra relying on just a file extension check, while others use some form of byte sampling.
 - **Images**: Since most models can handle image input natively, most harnesses will return the image to the LLM. (Fact check: most dont process the image but ...)
-- **File Conversion**: For other formats, some harnesses will attempt to convert the file to text, either by using a library or by calling an external tool.  Claude supports PDF, Hermes, Command Code, and oh-my-pi have a variety of formats they can convert - (fact check: list formats).
-- **Limits**:  Limits are weirdly consistent at 2000 lines of content (fact check count of survey), it's key here to also account for a line length limit and a total byte limit which most harnesses do well.  The LLM also needs to know that the output has been truncated and fairly similar messages are used across the harnesses.
-
-
+- **File Conversion**: For other formats, some harnesses will attempt to convert the file to text, either by using a library or by calling an external tool. Claude supports PDF, Hermes, Command Code, and oh-my-pi have a variety of formats they can convert - (fact check: list formats).
+- **Limits**: Limits are weirdly consistent at 2000 lines of content (fact check count of survey), it's key here to also account for a line length limit and a total byte limit which most harnesses do well. The LLM also needs to know that the output has been truncated and fairly similar messages are used across the harnesses.
