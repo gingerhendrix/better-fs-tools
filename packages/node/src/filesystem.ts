@@ -7,13 +7,17 @@ import path from "node:path";
 import { posixPaths } from "@better-fs-tools/fs";
 import type {
   DirectoryEntry,
-  FileSystem,
   ListOptions,
   ListOutcome,
   OpenFile,
   OpenOptions,
   OpenOutcome,
+  MutateOptions,
+  MutationOutcome,
+  StageOutcome,
   VerifyOutcome,
+  WritableFileSystem,
+  WriteOptions,
 } from "@better-fs-tools/fs";
 
 import {
@@ -32,8 +36,17 @@ import {
   targetPaths as pathsOf,
 } from "./policy.ts";
 import type { NodeFileSystemOptions, Roots, TargetPaths } from "./policy.ts";
+import { nodeStat } from "./stat.ts";
+import { nodeWrites } from "./write.ts";
 
 const DESCRIPTOR_READ_BYTES = 64 * 1024;
+
+/** A WritableFileSystem with every optional method present. */
+export interface NodeFileSystem extends WritableFileSystem {
+  list(path: string, options: ListOptions): Promise<ListOutcome>;
+  stage(path: string, bytes: Uint8Array, options: WriteOptions): Promise<StageOutcome>;
+  remove(path: string, options: MutateOptions): Promise<MutationOutcome>;
+}
 
 /**
  * Descriptor-backed POSIX filesystem.
@@ -44,18 +57,28 @@ const DESCRIPTOR_READ_BYTES = 64 * 1024;
  * only. Statting the descriptor rather than the path is what closes the
  * time-of-check to time-of-use gap, and opening non-blocking is what stops a
  * FIFO from wedging the caller before the type check runs.
+ *
+ * `stat()`, `write()`, `stage()`, and `remove()` apply the same roots, deny
+ * roots, and symlink policy. A replace goes through a temp file and rename(),
+ * a create through link(). See stat.ts and write.ts.
  */
-export function nodeFileSystem(options: NodeFileSystemOptions): FileSystem {
+export function nodeFileSystem(options: NodeFileSystemOptions): NodeFileSystem {
   if (process.platform === "win32") {
     throw new TypeError("nodeFileSystem supports POSIX platforms only in this release");
   }
   const context = nodeContext(options);
   const { config } = context;
+  const writes = nodeWrites(context);
 
   return Object.freeze({
     id: config.id,
     capabilities: Object.freeze({ streaming: true, identity: true }),
+    writeCapabilities: Object.freeze({ atomic: true, compareAndSwap: true, preserveMode: true }),
     paths: posixPaths,
+    stat: (path: string, callOptions: OpenOptions = {}) => nodeStat(context, path, callOptions),
+    write: writes.write,
+    stage: writes.stage,
+    remove: writes.remove,
 
     async open(requested: string, callOptions: OpenOptions = {}): Promise<OpenOutcome> {
       const signal = callOptions.signal;

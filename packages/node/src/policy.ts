@@ -16,6 +16,12 @@ export interface NodeFileSystemOptions {
   /** Default "follow-within-roots". */
   readonly symlinks?: "follow-within-roots" | "reject";
   readonly id?: string;
+  /** A replace of a file with more than one hard link. Default "refuse" (W12). "in-place" truncates and writes, not atomic. */
+  readonly hardLinks?: "refuse" | "in-place";
+  /** Mode of a new file. The umask does not apply. Default 0o644. */
+  readonly newFileMode?: number;
+  /** Mode of a directory that createParents makes. The umask does not apply. Default 0o755. */
+  readonly newDirectoryMode?: number;
 }
 
 export interface NodeConfig {
@@ -24,6 +30,9 @@ export interface NodeConfig {
   readonly allowedRoots: readonly string[];
   readonly denyRoots: readonly string[];
   readonly symlinks: "follow-within-roots" | "reject";
+  readonly hardLinks: "refuse" | "in-place";
+  readonly newFileMode: number;
+  readonly newDirectoryMode: number;
 }
 
 export interface Roots {
@@ -122,6 +131,16 @@ function resolveOptions(options: NodeFileSystemOptions): NodeConfig {
   if (symlinks !== "follow-within-roots" && symlinks !== "reject") {
     throw new TypeError('symlinks must be "follow-within-roots" or "reject"');
   }
+  const hardLinks = options.hardLinks ?? "refuse";
+  if (hardLinks !== "refuse" && hardLinks !== "in-place") {
+    throw new TypeError('hardLinks must be "refuse" or "in-place"');
+  }
+  const newFileMode = options.newFileMode ?? 0o644;
+  const newDirectoryMode = options.newDirectoryMode ?? 0o755;
+  if (!isMode(newFileMode)) throw new TypeError("newFileMode must be an integer from 0 to 0o7777");
+  if (!isMode(newDirectoryMode)) {
+    throw new TypeError("newDirectoryMode must be an integer from 0 to 0o7777");
+  }
   const id = options.id ?? "node";
   if (typeof id !== "string" || id === "") throw new TypeError("id must be a non-empty string");
   return {
@@ -133,7 +152,14 @@ function resolveOptions(options: NodeFileSystemOptions): NodeConfig {
       ...(options.denyRoots ?? []).map((root) => path.resolve(cwd, root)),
     ],
     symlinks,
+    hardLinks,
+    newFileMode,
+    newDirectoryMode,
   };
+}
+
+export function isMode(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 0o7777;
 }
 
 export function fail<TError>(error: TError): { readonly ok: false; readonly error: TError } {
