@@ -23,7 +23,7 @@ describe("change detection", () => {
       ...fs,
       async open(path, options) {
         const opened = await fs.open(path, options);
-        if (opened.ok) fs.write("/a.txt", "two\n");
+        if (opened.ok) fs.setFile("/a.txt", "two\n");
         return opened;
       },
     };

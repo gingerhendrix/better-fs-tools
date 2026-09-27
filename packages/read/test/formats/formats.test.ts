@@ -136,7 +136,7 @@ describe("hashlineFormat ids", () => {
     const second = render((await read({ path: "/a.txt" })).content).split("\n");
     expect(second).toEqual(first);
 
-    fs.write("/a.txt", "one\nTWO\n");
+    fs.setFile("/a.txt", "one\nTWO\n");
     const edited = render((await read({ path: "/a.txt" })).content).split("\n");
     // Line 0 is the file hash, then one gutter per line.
     expect(edited[0]).not.toBe(first[0]);

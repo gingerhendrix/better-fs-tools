@@ -22,7 +22,7 @@ const fs = memoryFileSystem({
   files: { "/src/index.ts": "export const a = 1;\n" },
   directories: ["/src/empty"],
 });
-fs.write("/src/b.ts", "export const b = 2;\n");
+fs.setFile("/src/b.ts", "export const b = 2;\n");
 
 const read = createReadTool({ fs });
 console.log(textOf(await read({ path: "/src/b.ts" }))); // "1|export const b = 2;"
@@ -33,7 +33,7 @@ console.log(textOf(await read({ path: "/src/b.ts" }))); // "1|export const b = 2
 | Export                                                                                   | Use                                                                                        |
 | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `FileSystem`, `OpenFile`, `OpenOutcome`, `FileSystemError`, and the other contract types | The interface an adapter implements                                                        |
-| `memoryFileSystem(options)`                                                              | An in-memory filesystem with `write`, `remove`, `makeDirectory`, and `setMimeType`         |
+| `memoryFileSystem(options)`                                                              | An in-memory filesystem with `setFile`, `deleteFile`, `makeDirectory`, and `setMimeType`   |
 | `runFileSystemConformance(fs, fixtures)`                                                 | Checks that an adapter keeps the contract. Returns a report with one entry for each check. |
 | `posixPaths`, `resolvePosix`, `containsPosix`                                            | POSIX path helpers for adapters                                                            |
 

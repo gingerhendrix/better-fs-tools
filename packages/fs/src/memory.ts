@@ -33,8 +33,10 @@ export interface MemoryFileSystemOptions {
 }
 
 export interface MemoryFileSystem extends FileSystem {
-  write(path: string, contents: string | Uint8Array): void;
-  remove(path: string): void;
+  /** Test helper. Sets the bytes and bumps the version. Creates parents. */
+  setFile(path: string, contents: string | Uint8Array): void;
+  /** Test helper. Removes the file and bumps the generation. */
+  deleteFile(path: string): void;
   makeDirectory(path: string): void;
   setMimeType(path: string, value: string | null): void;
 }
@@ -59,7 +61,7 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
   ]);
   let generation = 0;
 
-  const write = (path: string, contents: string | Uint8Array): void => {
+  const setFile = (path: string, contents: string | Uint8Array): void => {
     const absolute = resolvePosix("/", path);
     generation += 1;
     files.set(absolute, {
@@ -74,7 +76,7 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
     }
   };
 
-  for (const [path, contents] of Object.entries(options.files ?? {})) write(path, contents);
+  for (const [path, contents] of Object.entries(options.files ?? {})) setFile(path, contents);
 
   const fail = (error: FileSystemError): OpenOutcome => ({ ok: false, error });
 
@@ -170,8 +172,8 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
     id: options.id ?? "memory",
     capabilities: Object.freeze({ streaming, identity: identityCapability }),
     paths: posixPaths,
-    write,
-    remove(path: string) {
+    setFile,
+    deleteFile(path: string) {
       generation += 1;
       files.delete(resolvePosix("/", path));
     },

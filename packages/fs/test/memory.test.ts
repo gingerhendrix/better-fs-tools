@@ -41,7 +41,7 @@ describe("memoryFileSystem open", () => {
     if (!first.ok) throw new Error("expected ok");
     expect(first.file.info.identity).toBeNull();
     expect(first.file.info.version).toBe("memory:/a.txt:1");
-    fs.write("/a.txt", "two");
+    fs.setFile("/a.txt", "two");
     const second = await fs.open("/a.txt", {});
     if (!second.ok) throw new Error("expected ok");
     expect(second.file.info.version).toBe("memory:/a.txt:2");
@@ -103,8 +103,8 @@ describe("memoryFileSystem open", () => {
     const b = await fs.open("/b.txt", {});
     if (!a.ok || !b.ok) throw new Error("expected ok");
     expect(await a.file.verify()).toEqual({ ok: true, changed: false });
-    fs.write("/a.txt", "changed");
-    fs.remove("/b.txt");
+    fs.setFile("/a.txt", "changed");
+    fs.deleteFile("/b.txt");
     expect(await a.file.verify()).toEqual({ ok: true, changed: true });
     expect(await b.file.verify()).toEqual({ ok: true, changed: true });
   });

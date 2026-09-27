@@ -45,7 +45,7 @@ describe("repeatReadGuard", () => {
   test("does not fire after an edit", async () => {
     const { read, fs } = guarded();
     expectOk(await read({ path: "/a.txt" }));
-    fs.write("/a.txt", "one\ntwo\nfour\n");
+    fs.setFile("/a.txt", "one\ntwo\nfour\n");
     const after = expectOk(await read({ path: "/a.txt" }));
     expect(lineText(after)).toEqual(["one", "two", "four"]);
     expect(note(after, "repeat-read")).toBeUndefined();

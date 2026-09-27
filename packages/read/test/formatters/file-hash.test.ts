@@ -28,7 +28,7 @@ describe("fileHashHeader", () => {
     const whole = textOf(await read({ path: "/a.txt" })).split("\n")[0];
     const partial = textOf(await read({ path: "/a.txt", offset: 2 })).split("\n")[0];
     expect(partial).toBe(whole);
-    fs.write("/a.txt", "one\nTWO\n");
+    fs.setFile("/a.txt", "one\nTWO\n");
     expect(textOf(await read({ path: "/a.txt" })).split("\n")[0]).not.toBe(whole);
   });
 

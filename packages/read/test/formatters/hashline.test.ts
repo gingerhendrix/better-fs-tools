@@ -28,7 +28,7 @@ describe("hashlineGutter", () => {
     const second = gutters(textOf(await read({ path: "/a.txt" })));
     expect(second).toEqual(first);
 
-    fs.write("/a.txt", "one\nTWO\nthree\n");
+    fs.setFile("/a.txt", "one\nTWO\nthree\n");
     const edited = gutters(textOf(await read({ path: "/a.txt" })));
     expect(edited[0]).toBe(first[0]);
     expect(edited[1]).not.toBe(first[1]);
@@ -41,7 +41,7 @@ describe("hashlineGutter", () => {
       deps: { formatter: lineNumberFormatter({ gutter: hashlineGutter({ width: 8 }) }) },
     });
     const before = gutters(textOf(await read({ path: "/a.txt" })))[0];
-    fs.write("/a.txt", "new\nalpha\n");
+    fs.setFile("/a.txt", "new\nalpha\n");
     const after = gutters(textOf(await read({ path: "/a.txt" })))[1];
     expect(after?.slice(2)).toBe(before?.slice(2));
   });
@@ -76,7 +76,7 @@ describe("hashlineGutter", () => {
       deps: { formatter: lineNumberFormatter({ gutter: hashlineGutter({ width: 8 }) }) },
     });
     const before = gutters(textOf(await read({ path: "/a.txt" })))[0];
-    fs.write("/a.txt", "abcxyz\n");
+    fs.setFile("/a.txt", "abcxyz\n");
     expect(gutters(textOf(await read({ path: "/a.txt" })))[0]).toBe(before);
   });
 

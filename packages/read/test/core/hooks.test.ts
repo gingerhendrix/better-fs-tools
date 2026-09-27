@@ -390,7 +390,7 @@ describe("previous", () => {
     const first = expectOk(await read({ path: "/a.txt" }));
     expect(seen[0]?.ctx.previous).toBeNull();
 
-    fs.write("/a.txt", "two\n");
+    fs.setFile("/a.txt", "two\n");
     const second = expectOk(await read({ path: "/a.txt", offset: 1, limit: 5 }));
     const previous = seen[1]?.ctx.previous;
     expect(previous?.observationId).toBe(first.observation?.id as string);

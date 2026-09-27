@@ -404,7 +404,7 @@ describe("verification after conversion", () => {
         converter(async (input) => {
           await collect(input.bytes());
           log.push("converted");
-          if (edit) memory.write("/a.png", PNG.subarray(0, 9));
+          if (edit) memory.setFile("/a.png", PNG.subarray(0, 9));
           return { kind: "text", text: "x", mimeType: null };
         }),
       ],

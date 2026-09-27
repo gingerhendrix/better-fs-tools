@@ -16,7 +16,7 @@ function memoryFixture() {
     directoryPath: "/dir",
     refusedPath: "/forbidden/x.txt",
     listDirectory: "/dir",
-    mutate: () => fs.write("/a.txt", "changed\n"),
+    mutate: () => fs.setFile("/a.txt", "changed\n"),
   };
   return { fs, fixtures };
 }

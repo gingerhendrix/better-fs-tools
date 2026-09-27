@@ -193,7 +193,7 @@ describe("authorize read", () => {
     const read = createReadTool({
       fs: memory,
       authorize: authorizer(async () => {
-        memory.write("/d/a.txt", "one\nchanged\n");
+        memory.setFile("/d/a.txt", "one\nchanged\n");
         return { allow: true };
       }),
     });

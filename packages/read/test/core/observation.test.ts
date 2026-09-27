@@ -41,7 +41,7 @@ describe("observations", () => {
   test("an edit changes contentId and statId", async () => {
     const { read, fs } = harness({ files: { "/a.txt": "one\n" } });
     const before = expectOk(await read({ path: "/a.txt" })).observation;
-    fs.write("/a.txt", "two\n");
+    fs.setFile("/a.txt", "two\n");
     const after = expectOk(await read({ path: "/a.txt" })).observation;
     expect(after?.contentId).not.toBe(before?.contentId as string);
     expect(after?.statId).not.toBe(before?.statId as string);
