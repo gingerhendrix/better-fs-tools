@@ -27,7 +27,7 @@ export interface ConformanceReport {
   readonly checks: readonly ConformanceCheck[];
 }
 
-const POLICY_REASONS: readonly FileSystemError["reason"][] = [
+export const POLICY_REASONS: readonly FileSystemError["reason"][] = [
   "dangerous-path",
   "outside-allowed-roots",
   "permission-denied",
@@ -43,30 +43,9 @@ export async function runFileSystemConformance(
   fs: FileSystem,
   fixtures: ConformanceFixtures,
 ): Promise<ConformanceReport> {
-  const checks: ConformanceCheck[] = [];
-  const check = async (name: string, run: () => Promise<string | null>): Promise<void> => {
-    try {
-      const detail = await run();
-      checks.push(detail === null ? { name, ok: true } : { name, ok: false, detail });
-    } catch (error) {
-      checks.push({
-        name,
-        ok: false,
-        detail: error instanceof Error ? error.message : String(error),
-      });
-    }
-  };
+  const { checks, check } = checkRunner();
 
-  await check("shape", async () => {
-    if (typeof fs.id !== "string" || fs.id === "") return "id must be a non-empty string";
-    if (typeof fs.open !== "function") return "open must be a function";
-    if (fs.list !== undefined && typeof fs.list !== "function") {
-      return "list must be a function when present";
-    }
-    if (typeof fs.capabilities.streaming !== "boolean") return "capabilities.streaming missing";
-    if (typeof fs.capabilities.identity !== "boolean") return "capabilities.identity missing";
-    return null;
-  });
+  await check("shape", async () => shapeProblem(fs));
 
   await check("open returns a handle with usable metadata", async () => {
     const opened = await fs.open(fixtures.existingFile.path, {});
@@ -250,7 +229,40 @@ export async function runFileSystemConformance(
   return { adapter: fs.id, passed: checks.every((entry) => entry.ok), checks };
 }
 
-function concat(chunks: readonly Uint8Array[]): Uint8Array {
+/** Collects named checks. A check returns null on success or a problem. A throw is a failure. */
+export function checkRunner(): {
+  readonly checks: ConformanceCheck[];
+  readonly check: (name: string, run: () => Promise<string | null>) => Promise<void>;
+} {
+  const checks: ConformanceCheck[] = [];
+  const check = async (name: string, run: () => Promise<string | null>): Promise<void> => {
+    try {
+      const detail = await run();
+      checks.push(detail === null ? { name, ok: true } : { name, ok: false, detail });
+    } catch (error) {
+      checks.push({
+        name,
+        ok: false,
+        detail: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+  return { checks, check };
+}
+
+/** The read contract's shape: id, open, list, capabilities. */
+export function shapeProblem(fs: FileSystem): string | null {
+  if (typeof fs.id !== "string" || fs.id === "") return "id must be a non-empty string";
+  if (typeof fs.open !== "function") return "open must be a function";
+  if (fs.list !== undefined && typeof fs.list !== "function") {
+    return "list must be a function when present";
+  }
+  if (typeof fs.capabilities.streaming !== "boolean") return "capabilities.streaming missing";
+  if (typeof fs.capabilities.identity !== "boolean") return "capabilities.identity missing";
+  return null;
+}
+
+export function concat(chunks: readonly Uint8Array[]): Uint8Array {
   const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
   const joined = new Uint8Array(total);
   let offset = 0;
@@ -261,7 +273,7 @@ function concat(chunks: readonly Uint8Array[]): Uint8Array {
   return joined;
 }
 
-function equal(left: Uint8Array, right: Uint8Array): boolean {
+export function equal(left: Uint8Array, right: Uint8Array): boolean {
   if (left.byteLength !== right.byteLength) return false;
   return left.every((byte, index) => byte === right[index]);
 }

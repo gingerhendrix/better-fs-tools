@@ -42,3 +42,5 @@ export type {
 } from "./writable.ts";
 export { runFileSystemConformance } from "./conformance.ts";
 export type { ConformanceCheck, ConformanceFixtures, ConformanceReport } from "./conformance.ts";
+export { runWritableFileSystemConformance } from "./writable-conformance.ts";
+export type { WritableConformanceFixtures } from "./writable-conformance.ts";
