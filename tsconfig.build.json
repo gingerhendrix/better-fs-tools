@@ -8,6 +8,7 @@
     { "path": "./packages/just-bash/tsconfig.build.json" },
     { "path": "./packages/node/tsconfig.build.json" },
     { "path": "./packages/pi/tsconfig.build.json" },
-    { "path": "./packages/read/tsconfig.build.json" }
+    { "path": "./packages/read/tsconfig.build.json" },
+    { "path": "./packages/write/tsconfig.build.json" }
   ]
 }

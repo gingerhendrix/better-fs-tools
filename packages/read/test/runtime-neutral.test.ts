@@ -27,6 +27,10 @@ describe("runtime-neutral sources", () => {
     expect(offendingFiles("read")).toEqual([]);
   });
 
+  test("no file in packages/write/src imports a Node built-in", () => {
+    expect(offendingFiles("write")).toEqual([]);
+  });
+
   test("the pattern catches the forms it guards against", () => {
     for (const source of [
       'import { open } from "node:fs/promises";',

@@ -18,6 +18,7 @@ export const SCOPE = "@better-fs-tools";
 export const RULES: Readonly<Record<string, PackageRule>> = {
   fs: { dependencies: [], peers: {}, node: false, extraFiles: [] },
   read: { dependencies: ["fs"], peers: {}, node: false, extraFiles: ["docs"] },
+  write: { dependencies: ["fs", "read"], peers: {}, node: false, extraFiles: [] },
   node: { dependencies: ["fs", "read"], peers: {}, node: true, extraFiles: [] },
   "ai-sdk": { dependencies: ["read"], peers: { ai: "^7.0.77" }, node: false, extraFiles: [] },
   pi: {
@@ -40,9 +41,21 @@ export const RULES: Readonly<Record<string, PackageRule>> = {
 export const RUNTIME_NEUTRAL = [
   "fs",
   "read",
+  "write",
   "cloudflare-shell",
   "cloudflare-computer",
   "just-bash",
+];
+
+/**
+ * Entries that are empty on purpose: the write package skeleton, until the
+ * batches that fill it. The Node consumer fails when a listed entry exports
+ * something, so each batch that adds exports must remove its entry here.
+ */
+export const EMPTY_ENTRIES: readonly string[] = [
+  `${SCOPE}/write`,
+  `${SCOPE}/write/patch`,
+  `${SCOPE}/write/signature`,
 ];
 
 export interface ExportTarget {

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { copyFile, mkdir, realpath, symlink, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import { RULES, RUNTIME_NEUTRAL, SCOPE } from "./rules.ts";
+import { EMPTY_ENTRIES, RULES, RUNTIME_NEUTRAL, SCOPE } from "./rules.ts";
 
 /**
  * A throwaway project whose node_modules holds the unpacked tarballs, with the
@@ -43,9 +43,14 @@ export function runNodeConsumer(
   );
   const source = `
 if (process.release?.name !== "node") throw new Error("not running under Node");
+const empty = new Set(${JSON.stringify(EMPTY_ENTRIES)});
 for (const specifier of ${JSON.stringify(imports)}) {
   const module = await import(specifier);
-  if (Object.keys(module).length === 0) throw new Error(specifier + " exported nothing");
+  const exported = Object.keys(module).length > 0;
+  if (!exported && !empty.has(specifier)) throw new Error(specifier + " exported nothing");
+  if (exported && empty.has(specifier)) {
+    throw new Error(specifier + " now exports values: remove it from EMPTY_ENTRIES");
+  }
 }
 const { memoryFileSystem } = await import("${SCOPE}/fs");
 const { createReadTool, textOf } = await import("${SCOPE}/read");

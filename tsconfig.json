@@ -11,6 +11,7 @@
     { "path": "./packages/node" },
     { "path": "./packages/pi" },
     { "path": "./packages/read" },
+    { "path": "./packages/write" },
     { "path": "./scripts" }
   ]
 }

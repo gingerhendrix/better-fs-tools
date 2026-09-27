@@ -147,6 +147,14 @@
         "typebox": "catalog:",
       },
     },
+    "packages/write": {
+      "name": "@better-fs-tools/write",
+      "version": "0.0.0",
+      "dependencies": {
+        "@better-fs-tools/fs": "workspace:^",
+        "@better-fs-tools/read": "workspace:^",
+      },
+    },
   },
   "catalog": {
     "@cloudflare/computer": "0.2.1",
@@ -282,6 +290,8 @@
     "@better-fs-tools/pi": ["@better-fs-tools/pi@workspace:packages/pi"],
 
     "@better-fs-tools/read": ["@better-fs-tools/read@workspace:packages/read"],
+
+    "@better-fs-tools/write": ["@better-fs-tools/write@workspace:packages/write"],
 
     "@borewit/text-codec": ["@borewit/text-codec@0.2.2", "", {}, "sha512-DDaRehssg1aNrH4+2hnj1B7vnUGEjU6OIlyRdkMd0aUdIUvKXrJfXsy8LVtXAy7DRvYVluWbMspsRhz2lcW0mQ=="],
 

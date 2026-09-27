@@ -1,0 +1,37 @@
+{
+  "name": "@better-fs-tools/write",
+  "version": "0.0.0",
+  "description": "Edit, write, and apply_patch tools for TypeScript agents.",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./patch": "./src/patch/index.ts",
+    "./signature": "./src/signature/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./patch": {
+        "types": "./dist/patch/index.d.ts",
+        "import": "./dist/patch/index.js"
+      },
+      "./signature": {
+        "types": "./dist/signature/index.d.ts",
+        "import": "./dist/signature/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "dependencies": {
+    "@better-fs-tools/fs": "workspace:^",
+    "@better-fs-tools/read": "workspace:^"
+  }
+}
