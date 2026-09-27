@@ -266,6 +266,8 @@ function shellOpenFile(
       /* Weak by capability: a Workspace row carries nothing durable to compare. */
       identity: null,
       mimeType: stat.mimeType ?? null,
+      /* Weak: the same size and updatedAt that verify() compares. */
+      version: `shell:${stat.size}:${stat.updatedAt}`,
     },
     bytes(): AsyncIterable<Uint8Array> {
       if (consumed) throw new TypeError("shell workspace byte source is single-use");

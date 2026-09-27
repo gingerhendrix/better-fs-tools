@@ -45,6 +45,12 @@ export interface OpenFileInfo {
   readonly mtimeMs: number | null;
   readonly identity: string | null;
   readonly mimeType: string | null;
+  /**
+   * Change token for the object that was opened. Any change to the bytes
+   * changes it. May be weak (size and mtime). Present on every
+   * WritableFileSystem. Optional so read-only adapters keep compiling.
+   */
+  readonly version?: string | null;
 }
 
 export type VerifyOutcome =

@@ -192,6 +192,7 @@ describe("shell workspace reads", () => {
       mtimeMs: workspace.entries.get("/workspace/a.txt")?.updatedAt ?? 0,
       identity: null,
       mimeType: "text/plain",
+      version: `shell:11:${workspace.entries.get("/workspace/a.txt")?.updatedAt ?? 0}`,
     });
 
     const chunks: Uint8Array[] = [];

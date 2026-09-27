@@ -120,12 +120,17 @@ describe("justBashReadFileSystem", () => {
     const fs = new InMemoryFs({ "/workspace/a.txt": "alpha" });
     const strong = opened(await adapter(fs).open("a.txt", {}));
     expect(strong.info.identity).toContain("test-just-bash");
+    expect(strong.info.version).toBe(strong.info.identity);
     await strong.close();
 
     const weak = opened(await adapter(fs, { identity: "none" }).open("a.txt", {}));
     expect(weak.info.identity).toBeNull();
+    expect(weak.info.version).toContain("weak:5:");
     await fs.writeFile("/workspace/a.txt", "longer");
     expect(await weak.verify()).toEqual({ ok: true, changed: true });
+    const reopened = opened(await adapter(fs, { identity: "none" }).open("a.txt", {}));
+    expect(reopened.info.version).not.toBe(weak.info.version);
+    await reopened.close();
     await weak.close();
 
     const noIdentity = intercept(fs, {

@@ -55,6 +55,20 @@ describe("node filesystem reads", () => {
     expect(result.notes).toEqual([]);
   });
 
+  test("info.version is the descriptor identity and changes with the bytes", async () => {
+    const fs = nodeFileSystem({ cwd: root, allowedRoots: [root] });
+    await writeFile(join(root, "version.txt"), "one\n");
+    const first = await fs.open("version.txt", {});
+    if (!first.ok) throw new Error("expected a handle");
+    expect(first.file.info.version).toBe(first.file.info.identity);
+    await first.file.close();
+    await writeFile(join(root, "version.txt"), "two, longer\n");
+    const second = await fs.open("version.txt", {});
+    if (!second.ok) throw new Error("expected a handle");
+    expect(second.file.info.version).not.toBe(first.file.info.version);
+    await second.file.close();
+  });
+
   test("a missing file suggests real neighbours, with the errno in cause", async () => {
     const result = await toolFor()({ path: "src/index.tsx" });
 

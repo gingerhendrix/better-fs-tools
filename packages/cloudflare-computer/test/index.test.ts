@@ -250,6 +250,7 @@ describe("computer filesystem reads", () => {
       mtimeMs: backend.entries.get("/workspace/a.txt")?.mtime ?? 0,
       identity: null,
       mimeType: null,
+      version: `computer:17:${backend.entries.get("/workspace/a.txt")?.mtime ?? 0}`,
     });
 
     const chunks: Uint8Array[] = [];

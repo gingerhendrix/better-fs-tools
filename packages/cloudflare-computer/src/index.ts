@@ -270,6 +270,8 @@ function computerOpenFile(
       mtimeMs: stat.mtime,
       identity: null,
       mimeType: null,
+      /* Weak: the same size and mtime that verify() compares. */
+      version: `computer:${stat.size}:${stat.mtime}`,
     },
     bytes(): AsyncIterable<Uint8Array> {
       if (consumed) throw new TypeError("cloudflare computer byte source is single-use");

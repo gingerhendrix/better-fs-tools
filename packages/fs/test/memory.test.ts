@@ -31,7 +31,20 @@ describe("memoryFileSystem open", () => {
       mtimeMs: null,
       identity: "memory:/a.txt:1",
       mimeType: null,
+      version: "memory:/a.txt:1",
     });
+  });
+
+  test("info.version is set without identity and changes with the bytes", async () => {
+    const fs = memoryFileSystem({ files: { "/a.txt": "one" }, identity: false });
+    const first = await fs.open("/a.txt", {});
+    if (!first.ok) throw new Error("expected ok");
+    expect(first.file.info.identity).toBeNull();
+    expect(first.file.info.version).toBe("memory:/a.txt:1");
+    fs.write("/a.txt", "two");
+    const second = await fs.open("/a.txt", {});
+    if (!second.ok) throw new Error("expected ok");
+    expect(second.file.info.version).toBe("memory:/a.txt:2");
   });
 
   test("a buffered backend yields one chunk", async () => {

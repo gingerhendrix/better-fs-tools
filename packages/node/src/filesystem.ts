@@ -238,6 +238,7 @@ function nodeOpenFile(
       mtimeMs: Number(stats.mtimeNs) / 1_000_000,
       identity,
       mimeType: null,
+      version: identity,
     },
     bytes(): AsyncIterable<Uint8Array> {
       if (consumed) throw new TypeError("descriptor byte source is single-use");

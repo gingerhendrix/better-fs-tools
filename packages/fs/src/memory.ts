@@ -108,6 +108,8 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
         mtimeMs: null,
         identity: identityCapability ? `memory:${absolute}:${openedGeneration}` : null,
         mimeType: entry.mimeType,
+        // Always set, also without the identity capability.
+        version: `memory:${absolute}:${openedGeneration}`,
       },
       bytes(): AsyncIterable<Uint8Array> {
         if (consumed) throw new TypeError("memory byte source is single-use");

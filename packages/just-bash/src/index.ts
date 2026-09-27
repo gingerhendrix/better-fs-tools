@@ -278,6 +278,8 @@ function justBashOpenFile(context: {
       mtimeMs: context.opened.mtimeMs,
       identity: context.identityMode === "required" ? context.openedFingerprint : null,
       mimeType: null,
+      /* The fingerprint verify() compares. Weak in identity mode "none". */
+      version: context.openedFingerprint,
     },
 
     bytes(): AsyncIterable<Uint8Array> {
