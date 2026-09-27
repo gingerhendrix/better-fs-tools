@@ -50,6 +50,7 @@ describe("node filesystem reads", () => {
     expect(result.file.displayPath).toBe("src/index.ts");
     expect(result.file.resolvedPath).toBe(join(root, "src", "index.ts"));
     expect(result.file.identity).toMatch(/^\d+:\d+:\d+:\d+:\d+$/u);
+    expect(result.file.version).toBe(result.file.identity);
     expect(result.file.size).toBe(26);
     expect(result.observation?.contentId).toStartWith("sha256:");
     expect(result.notes).toEqual([]);
