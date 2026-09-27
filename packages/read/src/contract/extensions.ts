@@ -1,9 +1,9 @@
-import type { DirectoryEntry, ListOutcome, OpenFileInfo, PathOps } from "@better-fs-tools/fs";
+import type { DirectoryEntry, ListOutcome, OpenFileInfo } from "@better-fs-tools/fs";
 
+import type { AccessTarget, ToolHookContext, ToolResolveContext } from "./base.ts";
 import type { Classification, ClassificationSample } from "./classify.ts";
 
 import type { ReadContext } from "./context.ts";
-import type { Clock, Digest } from "./digest.ts";
 import type { ReadRequest } from "./input.ts";
 import type { ReadLimits } from "./limits.ts";
 import type { MessageCatalog } from "./messages.ts";
@@ -11,32 +11,25 @@ import type { ContentPart, ReadNote, ReadOutcome } from "./result.ts";
 import type { ReadRecord } from "./state.ts";
 
 /** Given to every host function that runs during a call. */
-export interface HookContext<THost = undefined> {
+export interface HookContext<THost = undefined> extends ToolHookContext<THost> {
+  readonly tool: "read";
   readonly request: ReadRequest;
   readonly limits: Readonly<ReadLimits>;
   readonly messages: Readonly<MessageCatalog>;
-  readonly digest: Digest | null;
-  readonly clock: Clock;
   /** Same object for every stage of one call. */
   readonly call: ReadContext<THost>;
 }
 
 /* Resolve */
 
-export interface PathResolver<THost = undefined> {
-  readonly id: string;
-  resolve(path: string, ctx: ResolveContext<THost>): ResolveOutcome | Promise<ResolveOutcome>;
-}
+/**
+ * What the core passes to a resolver. It fits ToolResolveContext, the type
+ * resolvers take, so a resolver works for every tool.
+ */
+export interface ResolveContext<THost = undefined>
+  extends HookContext<THost>, Pick<ToolResolveContext<THost>, "paths" | "list"> {}
 
-export interface ResolveContext<THost = undefined> extends HookContext<THost> {
-  readonly paths: PathOps;
-  /** authorize(list) + one bounded fs.list. A second call in the same read returns an error outcome. */
-  list(dir: string): Promise<ListOutcome>;
-}
-
-export type ResolveOutcome =
-  | { readonly kind: "path"; readonly path: string; readonly note?: ReadNote }
-  | { readonly kind: "not-found"; readonly note?: ReadNote };
+export type { PathResolver, ResolveOutcome } from "./base.ts";
 
 /* Suggest */
 
@@ -63,16 +56,15 @@ export interface Authorizer<THost = undefined> {
   ): AuthorizeDecision | Promise<AuthorizeDecision>;
 }
 
-export interface AuthorizeTarget {
+export interface AuthorizeTarget extends AccessTarget {
   readonly action: "read" | "list";
-  readonly requestedPath: string;
   /** Realpath for "read". Lexical directory path for "list". */
   readonly resolvedPath: string;
-  readonly displayPath: string;
   readonly size: number | null;
   readonly mtimeMs: number | null;
 }
 
+/** AccessDecision with read notes, so a denial can carry a retry. A ToolAuthorizer's decision fits it. */
 export type AuthorizeDecision =
   | { readonly allow: true; readonly notes?: readonly ReadNote[] }
   | { readonly allow: false; readonly note?: ReadNote };

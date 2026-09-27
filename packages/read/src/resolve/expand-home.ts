@@ -1,4 +1,4 @@
-import type { PathResolver } from "../contract/extensions.ts";
+import type { PathResolver } from "../contract/base.ts";
 
 /** "~" and "~/x". Other "~user" forms pass through unchanged. */
 export function expandHome(options: { home: string }): PathResolver<unknown> {

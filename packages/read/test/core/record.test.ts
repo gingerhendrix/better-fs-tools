@@ -68,7 +68,7 @@ describe("record", () => {
     expect(textOf(expectOk(await read({ path: "/a.txt" })))).toBe("1|one");
   });
 
-  test("the record copies the observation, file, totals, and request", async () => {
+  test("the record is schema 2 and copies the observation, file, digest, totals, and request", async () => {
     const state = spyStore();
     const { read } = harness({ files: { "/a.txt": "one\ntwo\nthree\n" }, deps: { state } });
     const result = expectOk(await read({ path: "/a.txt", offset: 2, limit: 1 }));
@@ -78,10 +78,13 @@ describe("record", () => {
       [
         "/a.txt",
         {
-          schema: 1,
+          schema: 2,
+          origin: "read",
           observationId: observation.id,
           resolvedPath: "/a.txt",
           identity: result.file.identity,
+          version: "memory:/a.txt:1",
+          digest: "test-fnv",
           contentId: observation.contentId,
           viewId: observation.viewId,
           observedAt: "2026-08-22T00:00:00.000Z",

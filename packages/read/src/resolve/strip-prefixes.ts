@@ -1,4 +1,4 @@
-import type { PathResolver } from "../contract/extensions.ts";
+import type { PathResolver } from "../contract/base.ts";
 
 const FILE_URL = "file://";
 

@@ -96,7 +96,8 @@ function markEdited<THost>(
 /**
  * The stored record for this file from before this read. Asks for the store
  * (state(call) at most once for each read, shared with record). A failing get
- * gives null: session state is a cache.
+ * gives null: session state is a cache. A record of another schema, such as a
+ * schema 1 record from an older store, also gives null.
  */
 async function previousRecord<THost>(
   scope: CallScope<THost>,
@@ -111,7 +112,7 @@ async function previousRecord<THost>(
   } catch {
     return null;
   }
-  return isRecord(record) && record.schema === 1 ? (record as unknown as ReadRecord) : null;
+  return isRecord(record) && record.schema === 2 ? (record as unknown as ReadRecord) : null;
 }
 
 /** The hook's return has the outcome shape, keeps the status rule, and keeps the frozen fields. */

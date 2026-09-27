@@ -73,6 +73,7 @@ export async function convertDirectory<THost>(
     identity: null,
     mimeType: null,
     resolvedFrom: input.resolvedFrom,
+    version: null,
   };
 
   let listing: ListOutcome | null = null;

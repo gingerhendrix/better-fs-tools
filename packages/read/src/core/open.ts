@@ -59,5 +59,6 @@ export function fileInfo(
     identity: fs.capabilities.identity ? info.identity : null,
     mimeType: info.mimeType,
     resolvedFrom,
+    version: info.version ?? null,
   };
 }

@@ -25,8 +25,8 @@ export function formatResult<THost>(
   return { ...outcome, content };
 }
 
-/** Joins the text parts of `result.content` with "\n". */
-export function textOf(result: ReadResult): string {
+/** Joins the text parts of `result.content` with "\n". Works on any tool's result. */
+export function textOf(result: { readonly content: readonly ContentPart[] }): string {
   return result.content
     .filter((part) => part.type === "text")
     .map((part) => part.text)

@@ -3,15 +3,16 @@ import { describe, expect, test } from "bun:test";
 import { memoryFileSystem } from "@better-fs-tools/fs";
 
 import { createReadTool, repeatReadGuard, textOf } from "../../src/index.ts";
+import type { ReadRecord } from "../../src/index.ts";
 import { createMemoryStore } from "../../src/state/index.ts";
 import { expectOk, harness, lineText, note, testDigest } from "../helpers.ts";
 
 const FILE = "one\ntwo\nthree\n";
 
-function guarded(options: Parameters<typeof repeatReadGuard>[0] = {}) {
+function guarded(options: Parameters<typeof repeatReadGuard>[0] = {}, state = createMemoryStore()) {
   return harness({
     files: { "/a.txt": FILE },
-    deps: { hooks: [repeatReadGuard(options)], state: createMemoryStore() },
+    deps: { hooks: [repeatReadGuard(options)], state },
   });
 }
 
@@ -47,6 +48,20 @@ describe("repeatReadGuard", () => {
     fs.write("/a.txt", "one\ntwo\nfour\n");
     const after = expectOk(await read({ path: "/a.txt" }));
     expect(lineText(after)).toEqual(["one", "two", "four"]);
+    expect(note(after, "repeat-read")).toBeUndefined();
+  });
+
+  test("ignores a record a write tool stored, even with the same content", async () => {
+    const state = createMemoryStore();
+    const { read } = guarded({}, state);
+    const first = expectOk(await read({ path: "/a.txt" }));
+    const stored = await state.get("/a.txt");
+    if (stored === null) throw new Error("expected a record");
+    const written: ReadRecord = { ...stored, origin: "write", request: null };
+    await state.put("/a.txt", written);
+    const after = expectOk(await read({ path: "/a.txt" }));
+    expect(after.observation?.contentId).toBe(first.observation?.contentId as string);
+    expect(lineText(after)).toEqual(["one", "two", "three"]);
     expect(note(after, "repeat-read")).toBeUndefined();
   });
 
@@ -92,7 +107,7 @@ describe("repeatReadGuard", () => {
   });
 
   test("takes a custom message", async () => {
-    const { read } = guarded({ message: (previous) => `seen ${previous.request.limit}` });
+    const { read } = guarded({ message: (previous) => `seen ${previous.request?.limit}` });
     await read({ path: "/a.txt" });
     expect(note(await read({ path: "/a.txt" }), "repeat-read")?.message).toBe("seen 2000");
   });

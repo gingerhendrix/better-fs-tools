@@ -11,6 +11,7 @@ export function resolveContext(
 ): ResolveContext<unknown> {
   const entries: DirectoryEntry[] = names.map((name) => ({ name, type: "file" }));
   return {
+    tool: "read",
     request: { path: "x", offset: 1, limit: 2_000, ranged: false },
     limits: defaultLimits,
     messages: defaultMessages,

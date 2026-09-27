@@ -93,6 +93,7 @@ export class CallScope<THost> {
     if (this.hook !== null) return this.hook;
     const { limits, messages, digest, clock } = this.deps;
     return (this.hook = Object.freeze({
+      tool: "read",
       request: this.request,
       limits,
       messages,

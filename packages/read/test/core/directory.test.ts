@@ -84,6 +84,7 @@ describe("directory reads", () => {
       identity: null,
       mimeType: null,
       resolvedFrom: null,
+      version: null,
     });
     // No handle, so no change detection and no observation.
     expect(result.observation).toBeNull();

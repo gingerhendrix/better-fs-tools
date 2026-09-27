@@ -37,7 +37,7 @@ describe("askUser", () => {
       note: {
         code: "denied",
         severity: "warning",
-        message: "/d/a.txt was refused by policy (the user did not approve the read).",
+        message: "/a was refused by policy (the user did not approve the read).",
       },
     });
   });

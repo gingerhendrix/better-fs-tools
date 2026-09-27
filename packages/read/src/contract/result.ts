@@ -1,5 +1,5 @@
+import type { Note } from "./base.ts";
 import type { ReadInput, ReadRequest } from "./input.ts";
-import type { JsonObject } from "./json.ts";
 
 export interface TextPart {
   readonly type: "text";
@@ -92,6 +92,8 @@ export interface FileInfo {
   readonly mimeType: string | null;
   /** The requested path when a resolver changed it, else null. */
   readonly resolvedFrom: string | null;
+  /** `info.version` from the backend, or null. Kept when `capabilities.identity` is false. */
+  readonly version: string | null;
 }
 
 export interface ClassificationInfo {
@@ -153,14 +155,9 @@ export interface ReadTotals {
   readonly bytes: number;
 }
 
-export interface ReadNote {
-  /** Stable identifier. */
-  readonly code: string;
-  readonly severity: "info" | "warning";
-  readonly message: string;
+export interface ReadNote extends Note {
   /** A concrete canonical retry. */
   readonly retry?: ReadInput;
-  readonly data?: JsonObject;
 }
 
 export interface ReadObservation {

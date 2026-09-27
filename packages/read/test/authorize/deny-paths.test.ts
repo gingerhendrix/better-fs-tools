@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 
-import { createReadTool, denyPaths, textOf } from "../../src/index.ts";
+import { createReadTool, defaultMessages, denyPaths, textOf } from "../../src/index.ts";
+import type { ToolHookContext } from "../../src/index.ts";
 import { expectFailure, expectOk } from "../helpers.ts";
 import { hookContext, listTarget, readTarget } from "./context.ts";
 
@@ -49,7 +50,7 @@ describe("denyPaths", () => {
     expect((await authorizer.authorize(listTarget("/srv/public"), hookContext())).allow).toBe(true);
   });
 
-  test("the denial note uses the catalog's denied text and names the pattern", async () => {
+  test("the denial note names the requested path and the pattern", async () => {
     const decision = await denyPaths(["/a", "**/.env"]).authorize(
       readTarget("/srv/.env"),
       hookContext({ path: "config" }),
@@ -59,10 +60,33 @@ describe("denyPaths", () => {
       note: {
         code: "denied",
         severity: "warning",
-        message: "config was refused by policy (the path matches a denied pattern).",
+        message: "/srv/.env was refused by policy (the path matches a denied pattern).",
         data: { pattern: "**/.env" },
       },
     });
+  });
+
+  test("denies another tool's action through the tool-neutral context", async () => {
+    const ctx: ToolHookContext<unknown> = {
+      tool: "write",
+      messages: defaultMessages,
+      digest: null,
+      clock: () => new Date(0),
+      call: { host: undefined },
+    };
+    const target = {
+      action: "write",
+      requestedPath: "src/.env",
+      resolvedPath: "/srv/src/.env",
+      displayPath: "src/.env",
+    };
+    expect(await denyPaths(["**/.env"]).authorize(target, ctx)).toMatchObject({
+      allow: false,
+      note: { message: "src/.env was refused by policy (the path matches a denied pattern)." },
+    });
+    expect(
+      await denyPaths(["**/.env"]).authorize({ ...target, resolvedPath: "/srv/a.txt" }, ctx),
+    ).toEqual({ allow: true });
   });
 
   test("denies through createReadTool, and allows other files", async () => {

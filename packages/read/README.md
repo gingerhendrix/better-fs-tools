@@ -259,6 +259,8 @@ export const workspaceAlias: PathResolver<unknown> = {
 
 A resolver that throws gives `EXTENSION_FAILED`.
 
+`PathResolver` takes a `ToolResolveContext`: `tool`, `messages`, `digest`, `clock`, `call`, `paths`, and `list()`. It does not see the read request, so the same resolver works for the write tools. The read core passes its full context, with `request` and `limits`, and `ctx.tool` is `"read"`.
+
 ## Suggestions on a miss
 
 When a file does not exist, the core lists the parent folder once, calls `suggest`, and returns `NOT_FOUND`. The names are in the note text and in `note.data.suggestions`. The core never opens a suggested name. The model must send a new call.
@@ -301,7 +303,7 @@ export const read = createNodeReadTool({
 
 | Authorizer                                | Effect                                                                                                                                                                                                                  |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `denyPaths(globs)`                        | Refuses reads and listings whose `resolvedPath` matches a glob (`**`, `*`, `?`). For a read, `resolvedPath` is the realpath, so a symlink `config -> .env` is refused too.                                              |
+| `denyPaths(globs)`                        | Refuses every action whose `resolvedPath` matches a glob (`**`, `*`, `?`). For a read, `resolvedPath` is the realpath, so a symlink `config -> .env` is refused too. It is a `ToolAuthorizer`, so it fits every tool.   |
 | `sizeCeiling({ maxBytes, unrangedOnly })` | Refuses a read of a file larger than `maxBytes`. With `unrangedOnly: true`, a read with an explicit `offset` or `limit` is allowed, and the refusal note offers a ranged retry. A file with an unknown size is allowed. |
 | `askUser(prompt)`                         | Calls `prompt(target, ctx)` for each read, not for listings. Only `true` allows. `false` or a throw refuses.                                                                                                            |
 | `authorizers(...steps)`                   | Runs in order. The first refusal wins. Allow notes from every step are kept.                                                                                                                                            |
@@ -320,12 +322,17 @@ export const noLockfiles: Authorizer<unknown> = {
           note: {
             code: "denied",
             severity: "warning",
-            message: ctx.messages.denied({ request: ctx.request, detail: "lockfiles are off" }),
+            message: ctx.messages.denied({
+              path: target.requestedPath,
+              detail: "lockfiles are off",
+            }),
           },
         }
       : { allow: true },
 };
 ```
+
+`ctx.messages.denied({ path, detail })` gives the host's refusal text. It takes a path, not the read request, so tool-neutral authorizers can use it. A `ToolAuthorizer` sees only `action`, `requestedPath`, `resolvedPath`, and `displayPath`, and a context with no read request. It fits the read tool's `Authorizer` and the write tools' authorizers. `compileGlob(pattern)` is the matcher `denyPaths` uses.
 
 A refusal always gives `DENIED`. The authorizer's note replaces the default `denied` note. A `DENIED` result has `file: null`, so it does not show the real path behind a link. An authorizer that throws gives `EXTENSION_FAILED`.
 
@@ -465,10 +472,10 @@ export const read = createNodeReadTool({
 });
 ```
 
-| Hook                                | Effect                                                                                                                                                               |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `repeatReadGuard({ message })`      | When the model reads the same unchanged range again, it replaces the view with an empty one and adds a `repeat-read` note. Needs `state` and a `digest`.             |
-| `redact({ patterns, replacement })` | Replaces matches in the view lines and text parts before the model or the store sees them. Each pattern needs the `g` flag. The default replacement is `[REDACTED]`. |
+| Hook                                | Effect                                                                                                                                                                                              |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repeatReadGuard({ message })`      | When the model reads the same unchanged range again, it replaces the view with an empty one and adds a `repeat-read` note. Needs `state` and a `digest`. A record from a write tool never fires it. |
+| `redact({ patterns, replacement })` | Replaces matches in the view lines and text parts before the model or the store sees them. Each pattern needs the `g` flag. The default replacement is `[REDACTED]`.                                |
 
 A hook gets the outcome and a context with `previous`, the stored record from before this read (or `null`). It returns an outcome. A hook can change the view lines, the notes, and the content parts. It can also replace the view with an empty one. It cannot change `request`, `file`, `classification`, `conversion`, `truncation`, `continuation`, `totals`, or `observation`. It cannot turn an error or an `unsupported` result into a success. A hook that breaks a rule, or throws, gives `EXTENSION_FAILED`.
 
@@ -656,7 +663,9 @@ await read({ path: "/a.txt" }, { host: session, callId: "call-1" });
 
 - `fs` can be a function of the call. It runs once for each read, before `resolve`. Use it to choose a backend for each call.
 - `state` can be a function of the call. It runs at most once for each read, and only when the core needs the store. Return `null` for no store. A factory that throws gives `EXTENSION_FAILED`. A store whose `get` or `put` fails never fails the read.
-- The record key is `file.resolvedPath`. `createMemoryStore()` from `@better-fs-tools/read/state` keeps records in memory, with a size cap and a TTL.
+- The record key is `file.resolvedPath`. A read stores a `ReadRecord` with `schema: 2` and `origin: "read"`. It holds the backend `version`, the `digest` id, the content and view ids, and the read range. The write tools store records with `origin: "write"` and `request: null` after a commit. A record of another schema counts as absent.
+- `result.file.version` is the backend's change token from `open()`, or `null`. It is kept when the backend has no identity capability.
+- `createMemoryStore()` from `@better-fs-tools/read/state` keeps records in memory, with a size cap and a TTL.
 - The helpers in this package are typed with `unknown` for the host, so they fit a tool with any host type. `askUser`, `imageConverter`, and `textConverter` can take your host type, as `askUser<Session>` does above.
 
 ## Security guarantees
@@ -695,6 +704,8 @@ Cloudflare Agents hosts use `@better-fs-tools/ai-sdk` with `shellWorkspaceFileSy
 | `@better-fs-tools/read/state`     | `createMemoryStore`                                                                                                                                                        |
 
 The package has no peers and imports no `node:` module, so it runs in Node, Bun, browsers, and Cloudflare Workers. It does not re-export the `fs` types. Import `FileSystem` and the other filesystem types from `@better-fs-tools/fs`. `ReadStateStore` and `ReadRecord` come from `@better-fs-tools/read`.
+
+The root entry also exports the tool-neutral base types that `@better-fs-tools/write` builds on: `ToolCallContext`, `ToolName`, `Note`, `ToolMessages`, `ToolHookContext`, `ToolResolveContext`, `AccessTarget`, `AccessDecision`, and `ToolAuthorizer`. `ReadContext` extends `ToolCallContext`, `ReadNote` extends `Note`, and `MessageCatalog` extends `ToolMessages`.
 
 ## A host that changes everything
 

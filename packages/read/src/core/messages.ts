@@ -34,8 +34,8 @@ const catalog: MessageCatalog = {
     `${request.path} belongs to a refused policy class${detail === null ? "" : ` (${detail})`}.`,
   outsideAllowedRoots: ({ request }) => `${request.path} is outside every configured allowed root.`,
   permissionDenied: ({ request }) => `Permission was denied for ${request.path}.`,
-  denied: ({ request, detail }) =>
-    `${request.path} was refused by policy${detail === null ? "" : ` (${detail})`}.`,
+  denied: ({ path, detail }) =>
+    `${path} was refused by policy${detail === null ? "" : ` (${detail})`}.`,
   tooLarge: ({ request, stage, limit }) =>
     stage === "convert"
       ? `${request.path} is larger than the ${limit}-byte conversion limit, so it was not converted.`

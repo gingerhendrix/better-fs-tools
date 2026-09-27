@@ -60,7 +60,7 @@ The core owns line scanning, view selection, clamping, the byte limit, continuat
 
 | Path                                                                                                        | Role                                                                                                        |
 | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `src/contract/`                                                                                             | The public types, one file for each area. No runtime code.                                                  |
+| `src/contract/`                                                                                             | The public types, one file for each area. No runtime code. `base.ts` holds the tool-neutral types           |
 | `src/core/create-read-tool.ts`, `core/deps.ts`                                                              | Checks and resolves the dependencies once, synchronously                                                    |
 | `src/core/pipeline.ts`                                                                                      | The stage order, and nothing else                                                                           |
 | `src/core/call-scope.ts`                                                                                    | Per-read state: the call object, the phase, `fs(call)`, `state(call)`, the listing budget, and abort checks |
@@ -76,7 +76,7 @@ The core owns line scanning, view selection, clamping, the byte limit, continuat
 
 ## One call, one context
 
-The adapter builds a `ReadContext` for each tool call: `{ signal?, callId?, host }`. The core passes this object by reference to every stage and every host function, as `ctx.call`. It never reads, copies, freezes, or stores `host`. `host` never appears in the result, the record, notes, or content.
+The adapter builds a `ReadContext` for each tool call: `{ signal?, callId?, host }`. It extends the tool-neutral `ToolCallContext`. The core passes this object by reference to every stage and every host function, as `ctx.call`. It never reads, copies, freezes, or stores `host`. `host` never appears in the result, the record, notes, or content.
 
 `CallScope` holds the per-read state:
 
@@ -85,6 +85,15 @@ The adapter builds a `ReadContext` for each tool call: `{ signal?, callId?, host
 - A read has at most two listings. One is for a resolver (`ctx.list()`). The other is for suggestions or a directory converter. A second request for the same slot gets a `denied` list outcome with detail `listing budget spent`. `authorize` with `action: "list"` runs before each listing.
 - A listing never throws. A missing `list()`, a denial, an abort, or a throwing backend becomes an error outcome. A throwing list authorizer is held and raised after the stage that listed, so a resolver cannot swallow it.
 - The signal is checked before each stage and raced against each backend call. An abort gives `ABORTED` with the current phase, and no host code runs after it.
+
+### Tool-neutral base types
+
+`src/contract/base.ts` holds the types that the read tool and the write tools share: `ToolCallContext`, `ToolName`, `Note`, `ToolMessages`, `ToolHookContext`, `ToolResolveContext`, `PathResolver`, `ResolveOutcome`, `AccessTarget`, `AccessDecision`, and `ToolAuthorizer`. `@better-fs-tools/write` imports them from this package, so it has no copy of its own.
+
+- `HookContext` extends `ToolHookContext` with `tool: "read"`, the request, and the limits. `ResolveContext` adds `paths` and `list()`, so it fits `ToolResolveContext`.
+- Resolvers take a `ToolResolveContext`. The built-in resolvers never need the read request, so they work for every tool.
+- `denyPaths` is a `ToolAuthorizer`. It sees only the fields every target has, and uses `ctx.messages.denied({ path, detail })`, which every tool's catalog has. A `ToolAuthorizer` fits the read `Authorizer`.
+- The read `AuthorizeDecision` keeps `ReadNote`, so a denial can carry a `retry`. An `AccessDecision` fits it.
 
 The public types keep `THost` out of conditional types. `ReadContext<THost>` is an interface with a required `host`. Only the `ReadTool<THost>` parameter type makes the context and `host` optional when `THost` includes `undefined`. With this shape, a helper typed with `unknown` for the host fits a tool with any host type. A conditional context type made `Formatter` and the other contexts invariant in `THost` under TypeScript 7, and then host-free helpers did not fit.
 
@@ -172,7 +181,7 @@ An observation exists when there is a `digest`:
 | `id`               | Hash of `statId`, `contentId`, and `viewId`                                                      |
 | `wholeFileVisible` | `true` only when the offset is 1, nothing was truncated or clamped, and no hook changed the view |
 
-The record stores these fields with the request range, under the key `file.resolvedPath`. `record` builds it field by field from the outcome, so nothing from `call` reaches the store. A store whose `get` or `put` fails does not fail the read. A `state` factory that throws does.
+The record stores these fields with the request range, under the key `file.resolvedPath`. It is schema 2: it also has `origin: "read"`, the backend `version`, and the `digest` id. The write tools store records with `origin: "write"` and `request: null` in the same store, so a later edit knows what the model has seen. The hook runner treats a record of another schema as absent, and `repeatReadGuard` ignores a write record. `record` builds it field by field from the outcome, so nothing from `call` reaches the store. A store whose `get` or `put` fails does not fail the read. A `state` factory that throws does.
 
 ## Errors
 

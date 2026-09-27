@@ -1,5 +1,6 @@
 import type { NodeKind } from "@better-fs-tools/fs";
 
+import type { ToolMessages } from "./base.ts";
 import type { ReadInput, ReadRequest } from "./input.ts";
 import type { TruncationReason } from "./result.ts";
 
@@ -19,7 +20,7 @@ export type ReadPhase =
  * Wording for every note the core owns. Classifiers own their own refusals.
  * Every message that suggests a retry gets `retry`, the text from `retry(next)`.
  */
-export interface MessageCatalog {
+export interface MessageCatalog extends ToolMessages {
   /** Prints a canonical retry the way the model must send it. Default: JSON.stringify(next). */
   retry(next: ReadInput): string;
   continuation(c: { request: ReadRequest; retry: string; reason: TruncationReason }): string;
@@ -35,7 +36,8 @@ export interface MessageCatalog {
   dangerousPath(c: { request: ReadRequest; detail: string | null }): string;
   outsideAllowedRoots(c: { request: ReadRequest; detail: string | null }): string;
   permissionDenied(c: { request: ReadRequest; detail: string | null }): string;
-  denied(c: { request: ReadRequest; detail: string | null }): string;
+  /** Tool-neutral: shared authorizers such as denyPaths use it for every tool. */
+  denied(c: { path: string; detail: string | null }): string;
   tooLarge(c: { request: ReadRequest; stage: "convert" | "media"; limit: number }): string;
   changedDuringRead(c: { request: ReadRequest; retry: string }): string;
   aborted(c: { phase: ReadPhase }): string;

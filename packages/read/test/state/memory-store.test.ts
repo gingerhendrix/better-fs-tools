@@ -5,10 +5,13 @@ import { createMemoryStore } from "../../src/state/index.ts";
 
 function record(overrides: Partial<ReadRecord> = {}): ReadRecord {
   return {
-    schema: 1,
+    schema: 2,
+    origin: "read",
     observationId: "obs-1",
     resolvedPath: "/a.txt",
     identity: "1:2:3:4:5",
+    version: "1:2:3:4:5",
+    digest: "sha256",
     contentId: "sha256:abc",
     viewId: "sha256:def",
     observedAt: "2026-08-22T00:00:00.000Z",

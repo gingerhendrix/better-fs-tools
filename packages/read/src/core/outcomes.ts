@@ -84,7 +84,7 @@ export function denied(
     note ?? {
       code: "denied",
       severity: "warning",
-      message: messages.denied({ request, detail: null }),
+      message: messages.denied({ path: request.path, detail: null }),
     },
   );
 }
@@ -215,7 +215,7 @@ function messageForError(
     case "permission-denied":
       return messages.permissionDenied({ request, detail });
     case "denied":
-      return messages.denied({ request, detail });
+      return messages.denied({ path: request.path, detail });
     case "unsupported":
       return messages.unsupportedBackend({ request, detail });
     default:

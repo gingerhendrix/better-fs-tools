@@ -1,3 +1,4 @@
+import type { ToolCallContext } from "./base.ts";
 import type { ReadInput } from "./input.ts";
 import type { ReadResult } from "./result.ts";
 
@@ -6,12 +7,7 @@ import type { ReadResult } from "./result.ts";
  * every stage and never reads `host`. A direct caller with no host leaves
  * `host` out; see ReadTool.
  */
-export interface ReadContext<THost = undefined> {
-  readonly signal?: AbortSignal;
-  /** The framework's tool call id, when it has one. */
-  readonly callId?: string;
-  readonly host: THost;
-}
+export interface ReadContext<THost = undefined> extends ToolCallContext<THost> {}
 
 /**
  * The context argument is optional, and `host` may be left out, when THost

@@ -22,7 +22,7 @@ export function askUser<THost>(
       } catch {
         approved = false;
       }
-      return approved === true ? ALLOW : deny(ctx, "the user did not approve the read");
+      return approved === true ? ALLOW : deny(ctx, target, "the user did not approve the read");
     },
   } satisfies Authorizer<THost>);
 }

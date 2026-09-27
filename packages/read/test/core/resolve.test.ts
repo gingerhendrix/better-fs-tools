@@ -189,7 +189,7 @@ describe("resolve stage", () => {
     expect(opens).toEqual([]);
   });
 
-  test("the resolver gets the caller's call object and the hook context", async () => {
+  test("the resolver gets the caller's call object and the read hook context", async () => {
     const { fs } = files();
     const seen: ResolveContext<Host>[] = [];
     const read = createReadTool<Host>({
@@ -197,7 +197,8 @@ describe("resolve stage", () => {
       resolve: {
         id: "spy",
         resolve(path, ctx) {
-          seen.push(ctx);
+          // Resolvers are typed on ToolResolveContext. The read core passes the full ResolveContext.
+          seen.push(ctx as ResolveContext<Host>);
           return { kind: "path", path };
         },
       },
@@ -206,6 +207,7 @@ describe("resolve stage", () => {
     expectOk(await read({ path: "/src/a.ts", limit: 3 }, call));
     const ctx = seen[0];
     expect(ctx?.call).toBe(call);
+    expect(ctx?.tool).toBe("read");
     expect(ctx?.request).toEqual({ path: "/src/a.ts", offset: 1, limit: 3, ranged: true });
     expect(ctx?.paths).toBe(fs.paths);
     expect(ctx?.limits.maxDirectoryEntries).toBe(200);

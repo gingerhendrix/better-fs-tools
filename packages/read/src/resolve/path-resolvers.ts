@@ -1,5 +1,4 @@
-import type { PathResolver } from "../contract/extensions.ts";
-import type { ReadNote } from "../contract/result.ts";
+import type { Note, PathResolver } from "../contract/base.ts";
 import { stepFailure } from "../core/extension-error.ts";
 
 /**
@@ -23,7 +22,7 @@ export function pathResolvers<THost = unknown>(
     id: chain.length === 0 ? "identity" : chain.map((step) => step.id).join("+"),
     async resolve(path, ctx) {
       let current = path;
-      let note: ReadNote | undefined;
+      let note: Note | undefined;
       for (const step of chain) {
         let outcome;
         try {

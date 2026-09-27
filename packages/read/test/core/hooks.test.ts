@@ -102,11 +102,12 @@ describe("hooks", () => {
     expect(seen[1]).toBe(call);
   });
 
-  test("the context has the request, limits, messages, digest, and clock", async () => {
+  test("the context has the tool, request, limits, messages, digest, and clock", async () => {
     const { seen, hook: spy } = spyHook();
     const { read } = harness({ files: { "/a.txt": "one\n" }, deps: { hooks: [spy] } });
     await read({ path: "/a.txt", offset: 1 });
     const ctx = seen[0]?.ctx;
+    expect(ctx?.tool).toBe("read");
     expect(ctx?.request).toEqual({ path: "/a.txt", offset: 1, limit: 2_000, ranged: true });
     expect(ctx?.limits.maxLines).toBe(2_000);
     expect(ctx?.digest?.id).toBe("test-fnv");
@@ -427,6 +428,28 @@ describe("previous", () => {
     const missing = harness({ deps: { hooks: [spy], state: counting } });
     expectFailure(await missing.read({ path: "/missing.txt" }), "NOT_FOUND");
     expect(gets).toBe(0);
+  });
+
+  test("a schema 1 record from an older store gives null", async () => {
+    const state = createMemoryStore();
+    const legacy = {
+      schema: 1,
+      observationId: "obs-old",
+      resolvedPath: "/a.txt",
+      identity: null,
+      contentId: "fnv:0",
+      viewId: "fnv:0",
+      observedAt: "2026-08-21T00:00:00.000Z",
+      wholeFileVisible: true,
+      totalsExact: true,
+      request: { offset: 1, limit: 2_000 },
+    };
+    await state.put("/a.txt", legacy as unknown as ReadRecord);
+    const { seen, hook: spy } = spyHook();
+    const { read } = harness({ files: { "/a.txt": "one\n" }, deps: { hooks: [spy], state } });
+    expectOk(await read({ path: "/a.txt" }));
+    expect(seen[0]?.ctx.previous).toBeNull();
+    expect((await state.get("/a.txt"))?.schema).toBe(2);
   });
 
   test("state(call) runs once when both previous and record need it", async () => {

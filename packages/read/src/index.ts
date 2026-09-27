@@ -7,6 +7,17 @@ export type {
   TextClassification,
   UnsupportedClassification,
 } from "./contract/classify.ts";
+export type {
+  AccessDecision,
+  AccessTarget,
+  Note,
+  ToolAuthorizer,
+  ToolCallContext,
+  ToolHookContext,
+  ToolMessages,
+  ToolName,
+  ToolResolveContext,
+} from "./contract/base.ts";
 export type { ReadContext, ReadTool } from "./contract/context.ts";
 export type { Dependencies, ReadToolDeps } from "./contract/deps.ts";
 export type { Clock, Digest, DigestStream } from "./contract/digest.ts";
@@ -78,7 +89,7 @@ export {
   utf8Classifier,
 } from "./classifiers/index.ts";
 export type { ExtensionClassifierOptions } from "./classifiers/index.ts";
-export { askUser, authorizers, denyPaths, sizeCeiling } from "./authorize/index.ts";
+export { askUser, authorizers, compileGlob, denyPaths, sizeCeiling } from "./authorize/index.ts";
 export {
   directoryListing,
   imageConverter,

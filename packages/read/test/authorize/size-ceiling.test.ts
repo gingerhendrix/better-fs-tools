@@ -17,7 +17,7 @@ describe("sizeCeiling", () => {
       note: {
         code: "denied",
         severity: "warning",
-        message: "/d/a.txt was refused by policy (11 bytes is over the 10-byte ceiling).",
+        message: "/a was refused by policy (11 bytes is over the 10-byte ceiling).",
         data: { size: 11, maxBytes: 10 },
       },
     });

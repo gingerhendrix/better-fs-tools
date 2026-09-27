@@ -118,7 +118,15 @@ describe("capability disclosure", () => {
       identity: "memory:/a.txt:1",
       mimeType: null,
       resolvedFrom: null,
+      version: "memory:/a.txt:1",
     });
     expect(result.conversion).toBeNull();
+  });
+
+  test("file.version is info.version, also without the identity capability", async () => {
+    const { read } = harness({ files: { "/a.txt": "one\n" }, fsOptions: { identity: false } });
+    const result = expectOk(await read({ path: "/a.txt" }));
+    expect(result.file.identity).toBeNull();
+    expect(result.file.version).toBe("memory:/a.txt:1");
   });
 });

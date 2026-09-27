@@ -1,4 +1,4 @@
-import type { PathResolver } from "../contract/extensions.ts";
+import type { PathResolver } from "../contract/base.ts";
 
 /**
  * "/src/x.ts" to "src/x.ts" when "/src" is missing and "src" exists under the

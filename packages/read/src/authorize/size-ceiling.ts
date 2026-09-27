@@ -25,13 +25,16 @@ export function sizeCeiling(options: {
       }
       const data = { size: target.size, maxBytes };
       if (!unrangedOnly) {
-        return deny(ctx, `${target.size} bytes is over the ${maxBytes}-byte ceiling`, { data });
+        return deny(ctx, target, `${target.size} bytes is over the ${maxBytes}-byte ceiling`, {
+          data,
+        });
       }
       if (ctx.request.ranged) return ALLOW;
       const { path, offset, limit } = ctx.request;
       const retry = { path, offset, limit };
       return deny(
         ctx,
+        target,
         `${target.size} bytes is over the ${maxBytes}-byte ceiling for a whole-file read; a ranged read such as ${ctx.messages.retry(retry)} is allowed`,
         { data, retry },
       );

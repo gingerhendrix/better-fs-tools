@@ -4,6 +4,7 @@ import type { AuthorizeTarget, HookContext, ReadRequest } from "../../src/index.
 /** A hook context for unit tests of one authorizer. */
 export function hookContext(request: Partial<ReadRequest> = {}): HookContext<unknown> {
   return {
+    tool: "read",
     request: { path: "/d/a.txt", offset: 1, limit: 2_000, ranged: false, ...request },
     limits: defaultLimits,
     messages: defaultMessages,

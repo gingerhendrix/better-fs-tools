@@ -7,7 +7,8 @@ export interface RepeatReadGuardOptions {
 }
 
 /**
- * When previous has the same contentId (not null), offset, and limit, replaces
+ * When previous is a read record (origin "read", not a record a write tool
+ * stored) with the same contentId (not null), offset, and limit, replaces
  * the view with an empty view and adds a "repeat-read" note. Does nothing when
  * the observation is null (no digest) or previous is null (no state). Needs
  * both a digest and a state store to fire. The core then marks the view as
@@ -22,7 +23,13 @@ export function repeatReadGuard(options: RepeatReadGuardOptions = {}): ReadHook<
     id: "repeat-read-guard",
     afterRead(outcome, ctx) {
       const { previous } = ctx;
-      if (outcome.status !== "ok" || outcome.observation === null || previous === null) {
+      if (
+        outcome.status !== "ok" ||
+        outcome.observation === null ||
+        previous === null ||
+        previous.origin !== "read" ||
+        previous.request === null
+      ) {
         return outcome;
       }
       const { contentId } = outcome.observation;

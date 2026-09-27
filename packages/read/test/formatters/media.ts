@@ -17,6 +17,7 @@ export const mediaOutcome: ReadMedia = {
     identity: null,
     mimeType: null,
     resolvedFrom: null,
+    version: null,
   },
   classification: {
     kind: "unsupported",

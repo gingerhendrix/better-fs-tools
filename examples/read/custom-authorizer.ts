@@ -9,7 +9,10 @@ export const noLockfiles: Authorizer<unknown> = {
           note: {
             code: "denied",
             severity: "warning",
-            message: ctx.messages.denied({ request: ctx.request, detail: "lockfiles are off" }),
+            message: ctx.messages.denied({
+              path: target.requestedPath,
+              detail: "lockfiles are off",
+            }),
           },
         }
       : { allow: true },
