@@ -8,35 +8,32 @@ import { posixPaths } from "@better-fs-tools/fs";
 import type {
   DirectoryEntry,
   FileSystem,
-  FileSystemError,
   ListOptions,
   ListOutcome,
-  NodeKind,
   OpenFile,
   OpenOptions,
   OpenOutcome,
   VerifyOutcome,
 } from "@better-fs-tools/fs";
 
+import {
+  checkRequest,
+  checkResolved,
+  errorCode,
+  fail,
+  hasSymlinkComponent,
+  insideRoots,
+  mapError,
+  matchDenyRoot,
+  nodeContext,
+  nodeIdentity,
+  notAFile,
+  SYMLINK_REJECTED,
+  targetPaths as pathsOf,
+} from "./policy.ts";
+import type { NodeFileSystemOptions, Roots, TargetPaths } from "./policy.ts";
+
 const DESCRIPTOR_READ_BYTES = 64 * 1024;
-const DEFAULT_DENY_ROOTS = Object.freeze(["/dev", "/proc", "/sys"]);
-
-export interface NodeFileSystemOptions {
-  /** Default process.cwd(). */
-  readonly cwd?: string;
-  /** At least one. A path outside every root is refused. */
-  readonly allowedRoots: readonly string[];
-  /** Added to /dev, /proc, /sys. Refused before any inspection. */
-  readonly denyRoots?: readonly string[];
-  /** Default "follow-within-roots". */
-  readonly symlinks?: "follow-within-roots" | "reject";
-  readonly id?: string;
-}
-
-interface Roots {
-  readonly allowed: readonly string[];
-  readonly denied: readonly string[];
-}
 
 /**
  * Descriptor-backed POSIX filesystem.
@@ -52,33 +49,8 @@ export function nodeFileSystem(options: NodeFileSystemOptions): FileSystem {
   if (process.platform === "win32") {
     throw new TypeError("nodeFileSystem supports POSIX platforms only in this release");
   }
-  const config = resolveOptions(options);
-  let rootResolution: Promise<Roots> | undefined;
-
-  const resolveRoots = async (): Promise<Roots> => {
-    const pending =
-      rootResolution ??
-      (async () => ({
-        allowed: await Promise.all(config.allowedRoots.map((root) => realpath(root))),
-        denied: await Promise.all(
-          config.denyRoots.map(async (root) => {
-            try {
-              return await realpath(root);
-            } catch (error) {
-              if (errorCode(error) === "ENOENT") return root;
-              throw error;
-            }
-          }),
-        ),
-      }))();
-    rootResolution = pending;
-    try {
-      return await pending;
-    } catch (error) {
-      rootResolution = undefined;
-      throw error;
-    }
-  };
+  const context = nodeContext(options);
+  const { config } = context;
 
   return Object.freeze({
     id: config.id,
@@ -89,23 +61,13 @@ export function nodeFileSystem(options: NodeFileSystemOptions): FileSystem {
       const signal = callOptions.signal;
       if (signal?.aborted) return fail({ reason: "aborted" });
 
-      // The refused namespaces are checked on the raw request too, so a
-      // request for /dev/... is refused before the filesystem is touched.
-      const rawDangerous = matchDenyRoot(requested, config.denyRoots);
-      if (rawDangerous !== null) return fail({ reason: "dangerous-path", detail: rawDangerous });
-
-      const lexical = path.resolve(config.cwd, requested);
-      if (!insideRoots(config.allowedRoots, lexical)) {
-        return fail({ reason: "outside-allowed-roots" });
-      }
-      const lexicalDangerous = matchDenyRoot(lexical, config.denyRoots);
-      if (lexicalDangerous !== null) {
-        return fail({ reason: "dangerous-path", detail: lexicalDangerous });
-      }
+      const checked = checkRequest(config, requested);
+      if ("error" in checked) return fail(checked.error);
+      const { lexical } = checked;
 
       let roots: Roots;
       try {
-        roots = await resolveRoots();
+        roots = await context.roots();
       } catch (error) {
         return fail(mapError(error, "root-resolution"));
       }
@@ -113,25 +75,19 @@ export function nodeFileSystem(options: NodeFileSystemOptions): FileSystem {
       let target: string;
       try {
         if (config.symlinks === "reject" && (await hasSymlinkComponent(lexical))) {
-          return fail({
-            reason: "denied",
-            detail: "the path contains a symbolic link and policy rejects symlinks",
-          });
+          return fail({ reason: "denied", detail: SYMLINK_REJECTED });
         }
         target = await realpath(lexical);
       } catch (error) {
         return fail(mapError(error, "resolve"));
       }
 
-      if (!insideRoots(roots.allowed, target)) return fail({ reason: "outside-allowed-roots" });
-      const resolvedDangerous = matchDenyRoot(target, roots.denied);
-      if (resolvedDangerous !== null) {
-        return fail({ reason: "dangerous-path", detail: resolvedDangerous });
-      }
+      const refused = checkResolved(roots, target);
+      if (refused !== null) return fail(refused);
 
       const noFollow = typeof constants.O_NOFOLLOW === "number" ? constants.O_NOFOLLOW : 0;
       const nonBlock = typeof constants.O_NONBLOCK === "number" ? constants.O_NONBLOCK : 0;
-      const targetPaths = { resolvedPath: target, displayPath: displayPathOf(config.cwd, target) };
+      const targetPaths = pathsOf(config.cwd, target);
       let handle: FileHandle;
       try {
         handle = await open(target, constants.O_RDONLY | noFollow | nonBlock);
@@ -177,7 +133,7 @@ export function nodeFileSystem(options: NodeFileSystemOptions): FileSystem {
       let roots: Roots;
       let target: string;
       try {
-        roots = await resolveRoots();
+        roots = await context.roots();
         if (config.symlinks === "reject" && (await hasSymlinkComponent(lexical))) {
           return fail({ reason: "denied", detail: "symlinked directory" });
         }
@@ -215,11 +171,6 @@ export function nodeFileSystem(options: NodeFileSystemOptions): FileSystem {
 }
 
 /* -------------------------------------------------------------------------- */
-
-interface TargetPaths {
-  readonly resolvedPath: string;
-  readonly displayPath: string;
-}
 
 function nodeOpenFile(
   handle: FileHandle,
@@ -293,145 +244,4 @@ async function closeDirectory(directory: Dir): Promise<void> {
   } catch (error) {
     if (errorCode(error) !== "ERR_DIR_CLOSED") throw error;
   }
-}
-
-/** Device, inode, size and both nanosecond timestamps. */
-function nodeIdentity(stats: BigIntStats): string {
-  return `${stats.dev}:${stats.ino}:${stats.size}:${stats.mtimeNs}:${stats.ctimeNs}`;
-}
-
-function resolveOptions(options: NodeFileSystemOptions) {
-  if (options === null || typeof options !== "object" || Array.isArray(options)) {
-    throw new TypeError("nodeFileSystem options must be an object");
-  }
-  const cwd = path.resolve(options.cwd ?? process.cwd());
-  const roots = options.allowedRoots;
-  if (
-    !Array.isArray(roots) ||
-    roots.length === 0 ||
-    roots.some((root) => typeof root !== "string" || root === "")
-  ) {
-    throw new TypeError("allowedRoots must contain at least one non-empty path");
-  }
-  const symlinks = options.symlinks ?? "follow-within-roots";
-  if (symlinks !== "follow-within-roots" && symlinks !== "reject") {
-    throw new TypeError('symlinks must be "follow-within-roots" or "reject"');
-  }
-  const id = options.id ?? "node";
-  if (typeof id !== "string" || id === "") throw new TypeError("id must be a non-empty string");
-  return {
-    id,
-    cwd,
-    allowedRoots: roots.map((root) => path.resolve(cwd, root)),
-    denyRoots: [
-      ...DEFAULT_DENY_ROOTS,
-      ...(options.denyRoots ?? []).map((root) => path.resolve(cwd, root)),
-    ],
-    symlinks,
-  };
-}
-
-function fail(error: FileSystemError): { readonly ok: false; readonly error: FileSystemError } {
-  return { ok: false, error };
-}
-
-function displayPathOf(cwd: string, resolvedPath: string): string {
-  return path.relative(cwd, resolvedPath) || path.basename(resolvedPath);
-}
-
-function containsPath(root: string, candidate: string): boolean {
-  const relative = path.relative(root, candidate);
-  return (
-    relative === "" ||
-    (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative))
-  );
-}
-
-function insideRoots(roots: readonly string[], candidate: string): boolean {
-  return roots.some((root) => containsPath(root, candidate));
-}
-
-function matchDenyRoot(candidate: string, denyRoots: readonly string[]): string | null {
-  if (!candidate.startsWith("/")) return null;
-  for (const root of denyRoots) {
-    const normalized = root.replace(/\/$/u, "") || "/";
-    if (candidate === normalized) return root;
-    if (normalized === "/" ? candidate.startsWith("/") : candidate.startsWith(`${normalized}/`)) {
-      return root;
-    }
-  }
-  return null;
-}
-
-async function hasSymlinkComponent(candidate: string): Promise<boolean> {
-  const parsed = path.parse(candidate);
-  const relative = path.relative(parsed.root, candidate);
-  let current = parsed.root;
-  for (const segment of relative.split(path.sep).filter(Boolean)) {
-    current = path.join(current, segment);
-    const stats = await lstat(current);
-    if (stats.isSymbolicLink()) return true;
-  }
-  return false;
-}
-
-/** The descriptor is not a regular file. Devices keep their character or block detail. */
-function notAFile(stats: BigIntStats, target: TargetPaths): FileSystemError {
-  const kind: NodeKind = stats.isDirectory()
-    ? "directory"
-    : stats.isFIFO()
-      ? "fifo"
-      : stats.isSocket()
-        ? "socket"
-        : stats.isCharacterDevice() || stats.isBlockDevice()
-          ? "device"
-          : "other";
-  const detail = stats.isCharacterDevice()
-    ? "character device"
-    : stats.isBlockDevice()
-      ? "block device"
-      : undefined;
-  return detail === undefined
-    ? { reason: "not-a-file", kind, target }
-    : { reason: "not-a-file", kind, target, detail };
-}
-
-/**
- * Maps a Node error to a typed refusal. The errno code and the adapter step go
- * in `cause`; `detail` stays for the few cases with a useful plain reason.
- */
-function mapError(error: unknown, phase: string, target?: TargetPaths): FileSystemError {
-  const code = errorCode(error);
-  const cause = { code: code ?? "UNKNOWN", phase };
-  switch (code) {
-    case "ABORT_ERR":
-      return { reason: "aborted", cause };
-    case "ENOENT":
-    case "ENOTDIR":
-      return { reason: "not-found", cause };
-    case "EACCES":
-    case "EPERM":
-      return { reason: "permission-denied", cause };
-    case "ELOOP":
-      return { reason: "denied", detail: "too many symbolic links", cause };
-    case "EISDIR":
-      return { reason: "not-a-file", kind: "directory", target: target ?? null, cause };
-    case "ENAMETOOLONG":
-      return { reason: "denied", detail: "the path is too long", cause };
-    default:
-      return { reason: "io", cause };
-  }
-}
-
-function errorCode(error: unknown): string | null {
-  if (
-    error !== null &&
-    typeof error === "object" &&
-    "code" in error &&
-    typeof error.code === "string"
-  ) {
-    return error.code;
-  }
-  if (error instanceof Error && error.name === "AbortError") return "ABORT_ERR";
-  return null;
 }
