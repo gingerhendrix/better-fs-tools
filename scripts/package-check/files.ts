@@ -17,7 +17,8 @@ export async function listFiles(root: string): Promise<string[]> {
 
 /**
  * Checks the files in one unpacked tarball: exactly the build output for every
- * source file, no src or test files, and every path the manifest names.
+ * source file, the README and LICENSE, no src or test files, and every path the
+ * manifest names.
  */
 export async function checkFiles(
   folder: string,
@@ -32,7 +33,7 @@ export async function checkFiles(
   const files = await listFiles(unpacked);
   const present = new Set(files);
 
-  const expected = new Set(["package.json", "README.md"]);
+  const expected = new Set(["package.json", "README.md", "LICENSE"]);
   for (const file of await listFiles(join(source, "src"))) {
     if (!file.endsWith(".ts")) continue;
     const stem = `dist/${file.slice(0, -3)}`;

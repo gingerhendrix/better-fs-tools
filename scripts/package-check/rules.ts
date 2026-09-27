@@ -9,7 +9,7 @@ export interface PackageRule {
   readonly peers: Readonly<Record<string, string>>;
   /** True when the package may import `node:*` builtins. */
   readonly node: boolean;
-  /** Extra top-level paths the tarball ships besides dist, README.md, and package.json. */
+  /** Extra top-level paths the tarball ships besides dist, README.md, LICENSE, and package.json. */
   readonly extraFiles: readonly string[];
 }
 

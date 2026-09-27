@@ -55,4 +55,8 @@ Create each publishable package at `packages/<name>` and name it `@better-fs-too
 
 Each TypeScript package must extend `../../tsconfig.base.json` and enable `composite`. Add its path to the root `tsconfig.json` references so `bun run typecheck` checks the complete dependency graph.
 
-For the release build, add a `tsconfig.build.json` that extends `../../tsconfig.build.base.json` and references the build configs of the packages it imports, and add it to the root `tsconfig.build.json`. In `package.json`, set `files`, and map every export to `dist/` in `publishConfig.exports` with `types` and `import` conditions. Add the package to `scripts/package-check/rules.ts`, and give it a `README.md` whose `ts` examples live in `examples/`.
+For the release build, add a `tsconfig.build.json` that extends `../../tsconfig.build.base.json` and references the build configs of the packages it imports, and add it to the root `tsconfig.build.json`. In `package.json`, set `files`, and map every export to `dist/` in `publishConfig.exports` with `types` and `import` conditions. Add the package to `scripts/package-check/rules.ts`, give it a `README.md` whose `ts` examples live in `examples/`, and copy the root `LICENSE` into the package folder. `check:packages` fails when a tarball has no `LICENSE`.
+
+## License
+
+MIT. See [LICENSE](LICENSE). Each package ships a copy of the same file.
