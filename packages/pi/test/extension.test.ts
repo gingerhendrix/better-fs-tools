@@ -9,7 +9,9 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import readToolExtension from "../src/extension.ts";
 import type { PiReadTool } from "../src/index.ts";
-import { fixture } from "./helpers.ts";
+import { fixtures } from "./helpers.ts";
+
+const fixture = fixtures();
 
 const PACKAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EXTENSION_SOURCE = path.join(PACKAGE_DIR, "src", "extension.ts");

@@ -11,7 +11,9 @@ import type { ReadLimits, ReadOk, ReadResult } from "@better-fs-tools/read";
 
 import { createPiReadTool, toPiReadDetails } from "../src/index.ts";
 import type { PiReadDetails } from "../src/index.ts";
-import { execute, fixture, textOf } from "./helpers.ts";
+import { execute, fixtures, textOf } from "./helpers.ts";
+
+const fixture = fixtures();
 
 function expectOk(result: ReadResult): ReadOk & ReadResult {
   if (result.status !== "ok") throw new Error(`expected ok, got ${result.status}`);

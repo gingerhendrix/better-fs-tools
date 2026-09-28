@@ -8,7 +8,9 @@ import {
 } from "@better-fs-tools/read/formats";
 
 import { createPiReadTool } from "../src/index.ts";
-import { execute, fixture, textOf } from "./helpers.ts";
+import { execute, fixtures, textOf } from "./helpers.ts";
+
+const fixture = fixtures();
 
 describe("pi with the ./formats presets", () => {
   test("details take the view-mode body of each preset, with no notes", async () => {

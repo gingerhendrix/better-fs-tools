@@ -17,7 +17,9 @@ import type { ContentPart, FormatContext, Formatter, ReadContext } from "@better
 import { defaultSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
 
 import { createPiReadTool } from "../src/index.ts";
-import { execute, fixture, piContext, textOf } from "./helpers.ts";
+import { execute, fixtures, piContext, textOf } from "./helpers.ts";
+
+const fixture = fixtures();
 
 describe("pi tool shape", () => {
   test("matches Pi's built-in read name, label, prompt text, and parameter keys", () => {

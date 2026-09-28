@@ -4,7 +4,9 @@ import path from "node:path";
 
 import * as read from "@better-fs-tools/read";
 
-import { execute, fixture, textOf } from "./helpers.ts";
+import { execute, fixtures, textOf } from "./helpers.ts";
+
+const fixture = fixtures();
 
 // Counts core tools. The wrapper delegates to the real function, so other test
 // files that share this module registry behave the same.

@@ -10,22 +10,28 @@ import type { JsonObject } from "@better-fs-tools/read";
 
 import type { PiReadTool, PiReadToolResult } from "../src/index.ts";
 
-const roots: string[] = [];
-
-afterAll(async () => {
-  for (const root of roots) await rm(root, { recursive: true, force: true });
-});
-
-/** A temporary directory with the given files. Removed after the test file. */
-export async function fixture(files: Record<string, string | Uint8Array> = {}): Promise<string> {
-  const root = await realpath(await mkdtemp(path.join(tmpdir(), "better-fs-tools-pi-")));
-  roots.push(root);
-  for (const [name, content] of Object.entries(files)) {
-    const target = path.join(root, name);
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, content);
-  }
-  return root;
+/**
+ * Call once at the top of each test file. Returns a function that makes a
+ * temporary directory with the given files, and registers an afterAll in
+ * that file that removes every directory it made. A single afterAll here
+ * would run for the first test file that imports this module only, and
+ * leave every other file's directories behind.
+ */
+export function fixtures(): (files?: Record<string, string | Uint8Array>) => Promise<string> {
+  const roots: string[] = [];
+  afterAll(async () => {
+    for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
+  });
+  return async (files = {}) => {
+    const root = await realpath(await mkdtemp(path.join(tmpdir(), "better-fs-tools-pi-")));
+    roots.push(root);
+    for (const [name, content] of Object.entries(files)) {
+      const target = path.join(root, name);
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, content);
+    }
+    return root;
+  };
 }
 
 /** A Pi context. The adapter reads only `cwd`; the rest stays as Pi sent it. */

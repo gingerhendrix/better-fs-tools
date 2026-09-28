@@ -9,7 +9,9 @@ import { directoryListing, imageConverter } from "@better-fs-tools/read";
 import type { AuthorizeTarget, DirectoryConverter, HookContext } from "@better-fs-tools/read";
 
 import { createPiReadTool } from "../src/index.ts";
-import { execute, fixture, piContext, textOf } from "./helpers.ts";
+import { execute, fixtures, piContext, textOf } from "./helpers.ts";
+
+const fixture = fixtures();
 
 /** A real 1x1 PNG from the shared fixtures in the read package. */
 const PNG = new Uint8Array(

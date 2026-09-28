@@ -5,7 +5,9 @@ import { mkdir, symlink, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { createPiReadTool } from "../src/index.ts";
-import { execute, fixture, textOf } from "./helpers.ts";
+import { execute, fixtures, textOf } from "./helpers.ts";
+
+const fixture = fixtures();
 
 describe("pi working directory confinement", () => {
   test("binds every call to that call's ctx.cwd", async () => {
