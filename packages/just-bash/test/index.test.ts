@@ -417,15 +417,20 @@ describe("just-bash not-a-file", () => {
 });
 
 describe("just-bash imports", () => {
-  test("the source imports only @better-fs-tools/fs, just-bash types and its own modules", async () => {
+  test("the source imports only @better-fs-tools/fs, types from just-bash and shell, and its own modules", async () => {
     const folder = resolve(import.meta.dir, "../src");
     const specifiers = await sourceSpecifiers(folder);
-    expect(new Set(specifiers)).toEqual(new Set(["@better-fs-tools/fs", "just-bash"]));
+    expect(new Set(specifiers)).toEqual(
+      new Set(["@better-fs-tools/fs", "@better-fs-tools/shell", "just-bash"]),
+    );
     for (const file of new Bun.Glob("*.ts").scanSync({ cwd: folder, absolute: true })) {
       const source = await Bun.file(file).text();
-      for (const line of source.split("\n").filter((text) => text.includes('from "just-bash"'))) {
-        expect(line).toStartWith("import type ");
+      const typeOnly = (text: string) =>
+        text.includes('from "just-bash"') || text.includes('} from "@better-fs-tools/shell"');
+      for (const line of source.split("\n").filter(typeOnly)) {
+        expect(line).toMatch(/^(import type |\} from)/u);
       }
+      expect(source).not.toMatch(/^import \{[^}]*\} from "@better-fs-tools\/shell"/mu);
     }
   });
 });

@@ -1,3 +1,5 @@
+export { createAiSdkBashTool } from "./bash-tool.ts";
+export type { AiSdkBashTool, CreateAiSdkBashToolOptions } from "./bash-tool.ts";
 export {
   createAiSdkApplyPatchTool,
   createAiSdkEditTool,

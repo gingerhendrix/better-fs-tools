@@ -22,13 +22,13 @@ export const RULES: Readonly<Record<string, PackageRule>> = {
   shell: { dependencies: ["fs", "read"], peers: {}, node: false, extraFiles: [] },
   node: { dependencies: ["fs", "read", "write", "shell"], peers: {}, node: true, extraFiles: [] },
   "ai-sdk": {
-    dependencies: ["read", "write"],
+    dependencies: ["read", "write", "shell"],
     peers: { ai: "^7.0.77" },
     node: false,
     extraFiles: [],
   },
   pi: {
-    dependencies: ["node", "read", "write"],
+    dependencies: ["node", "read", "write", "shell"],
     peers: { "@earendil-works/pi-coding-agent": "^0.84.2", typebox: "^1.3.16" },
     node: true,
     extraFiles: [],
@@ -36,7 +36,7 @@ export const RULES: Readonly<Record<string, PackageRule>> = {
   "cloudflare-shell": { dependencies: ["fs"], peers: {}, node: false, extraFiles: [] },
   "cloudflare-computer": { dependencies: ["fs"], peers: {}, node: false, extraFiles: [] },
   "just-bash": {
-    dependencies: ["fs"],
+    dependencies: ["fs", "shell"],
     peers: { "just-bash": "3.4.2" },
     node: false,
     extraFiles: [],

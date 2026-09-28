@@ -57,6 +57,8 @@ import {
 import type { JustBashSettings, ValidatedStat } from "./policy.ts";
 import { JUST_BASH_WRITE_CAPABILITIES, justBashWrites } from "./write.ts";
 
+export { justBashCommandRunner } from "./command-runner.ts";
+export type { JustBashCommandRunnerOptions, JustBashShell } from "./command-runner.ts";
 export type {
   JustBashFileSystem,
   JustBashIdentityMode,

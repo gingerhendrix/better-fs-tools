@@ -1,3 +1,10 @@
+export { createPiBashTool } from "./bash-tool.ts";
+export type {
+  CreatePiBashToolOptions,
+  PiBashDetails,
+  PiBashTool,
+  PiBashToolResult,
+} from "./bash-tool.ts";
 export { toPiReadDetails } from "./details.ts";
 export type { PiReadDetails, PiTruncationResult } from "./details.ts";
 export { createPiFsTools } from "./fs-tools.ts";
