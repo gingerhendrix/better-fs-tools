@@ -71,7 +71,11 @@ export interface CreateNodeFsToolsOptions<THost = undefined> {
   readonly edit?: Omit<Partial<EditToolDeps<THost>>, Shared>;
   readonly write?: Omit<Partial<WriteToolDeps<THost>>, Shared>;
   readonly applyPatch?: Omit<Partial<ApplyPatchToolDeps<THost>>, Shared>;
-  /** The runner defaults to nodeCommandRunner({ cwd }). */
+  /**
+   * The runner defaults to nodeCommandRunner({ cwd }). With a given runner,
+   * an explicit top-level cwd becomes the bash cwd dependency, so commands
+   * still run there. bash.cwd wins over both.
+   */
   readonly bash?: Partial<ShellToolDeps<THost>>;
 }
 
@@ -138,7 +142,7 @@ export function createNodeFsTools<THost = undefined>(
     edit: createEditTool<THost>({ ...options.edit, ...shared, locks }),
     write: createWriteTool<THost>({ ...options.write, ...shared, locks }),
     applyPatch: createApplyPatchTool<THost>({ ...options.applyPatch, ...shared, locks }),
-    bash: createBashTool<THost>(withNodeShellDefaults(options.bash ?? {}, cwd)),
+    bash: createBashTool<THost>(bashDeps(options.bash ?? {}, options.cwd, cwd)),
     fs,
     state,
     locks,
@@ -146,4 +150,22 @@ export function createNodeFsTools<THost = undefined>(
       await invalidate?.(path);
     },
   });
+}
+
+/**
+ * The bash dependencies. Without a runner, nodeCommandRunner({ cwd }) runs in
+ * cwd. A given runner has its own default cwd, so an explicit top-level cwd
+ * is passed as the bash cwd dependency: it must not be dropped in silence.
+ */
+function bashDeps<THost>(
+  bash: Partial<ShellToolDeps<THost>>,
+  given: string | undefined,
+  cwd: string,
+): ShellToolDeps<THost> {
+  if (bash === null || typeof bash !== "object" || Array.isArray(bash)) {
+    throw new TypeError("createNodeFsTools bash options must be an object");
+  }
+  const deps = withNodeShellDefaults(bash, cwd);
+  if (bash.runner === undefined || given === undefined || bash.cwd !== undefined) return deps;
+  return { ...deps, cwd };
 }

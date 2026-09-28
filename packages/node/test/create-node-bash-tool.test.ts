@@ -143,4 +143,25 @@ describe("createNodeFsTools bash", () => {
     const edit = await tools.edit({ path: "a.txt", edits: [{ oldText: "two", newText: "three" }] });
     expect(edit.error?.code).toBe("NOT_READ");
   });
+
+  test("an explicit cwd applies to a given runner, which has its own default cwd", async () => {
+    const cwd = await workdir();
+    const other = await workdir();
+    const tools = createNodeFsTools({ cwd, bash: { runner: nodeCommandRunner({ cwd: other }) } });
+    const ran = await tools.bash({ command: "pwd" });
+    expect(ran.output?.head).toBe(cwd);
+  });
+
+  test("bash.cwd wins over the top-level cwd", async () => {
+    const cwd = await workdir();
+    const other = await workdir();
+    const tools = createNodeFsTools({ cwd, bash: { runner: nodeCommandRunner(), cwd: other } });
+    expect((await tools.bash({ command: "pwd" })).output?.head).toBe(other);
+  });
+
+  test("without a top-level cwd, a given runner keeps its own cwd", async () => {
+    const other = await workdir();
+    const tools = createNodeFsTools({ bash: { runner: nodeCommandRunner({ cwd: other }) } });
+    expect((await tools.bash({ command: "pwd" })).output?.head).toBe(other);
+  });
 });
