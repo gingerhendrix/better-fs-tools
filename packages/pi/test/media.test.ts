@@ -7,8 +7,8 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { directoryListing, imageConverter } from "@better-fs-tools/read";
 import type {
-  ReadAuthorizeTarget,
   DirectoryConverter,
+  ReadAuthorizeTarget,
   ReadHookContext,
 } from "@better-fs-tools/read";
 

@@ -21,9 +21,9 @@ import {
 } from "../../src/index.ts";
 import type {
   ContentPart,
+  ReadContext,
   ReadFormatContext,
   ReadFormatter,
-  ReadContext,
 } from "../../src/index.ts";
 import { corpus } from "../fixtures/corpus.ts";
 import { harness, testDigest } from "../helpers.ts";

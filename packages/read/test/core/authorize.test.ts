@@ -8,8 +8,8 @@ import type {
   ReadAuthorizeDecision,
   ReadAuthorizer,
   ReadAuthorizeTarget,
-  ReadHookContext,
   ReadContext,
+  ReadHookContext,
   ReadNote,
 } from "../../src/index.ts";
 import { expectFailure, expectOk } from "../helpers.ts";

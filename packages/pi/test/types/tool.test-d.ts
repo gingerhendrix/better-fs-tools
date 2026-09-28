@@ -12,9 +12,9 @@ import type { TSchema } from "typebox";
 
 import {
   askUser,
-  readAuthorizers,
   denyPaths,
   lineNumberFormatter,
+  readAuthorizers,
   sizeCeiling,
 } from "@better-fs-tools/read";
 import type { ReadFormatter, ReadContext, ReadStateStore } from "@better-fs-tools/read";

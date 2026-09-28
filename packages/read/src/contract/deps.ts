@@ -4,9 +4,9 @@ import type { Classifier } from "./classify.ts";
 import type { ReadContext } from "./context.ts";
 import type { Clock, Digest } from "./digest.ts";
 import type {
-  ReadAuthorizer,
   Converter,
   PathResolver,
+  ReadAuthorizer,
   ReadHook,
   Suggest,
   ViewBudget,

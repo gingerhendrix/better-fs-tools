@@ -8,8 +8,8 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 import { charsPerToken, createReadTool, redact, repeatReadGuard } from "../../src/index.ts";
 import type {
   AfterReadContext,
-  ReadHookContext,
   ReadHook,
+  ReadHookContext,
   ReadRecord,
   TruncationReason,
   ViewBudget,

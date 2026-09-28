@@ -15,9 +15,9 @@ import {
 } from "@better-fs-tools/read";
 import type {
   ContentPart,
+  ReadContext,
   ReadFormatContext,
   ReadFormatter,
-  ReadContext,
 } from "@better-fs-tools/read";
 import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
 
