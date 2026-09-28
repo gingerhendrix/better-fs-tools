@@ -2,11 +2,11 @@
   "files": [],
   "references": [
     { "path": "./apps/docs" },
+    { "path": "./apps/eval-harness" },
     { "path": "./examples" },
     { "path": "./packages/ai-sdk" },
     { "path": "./packages/cloudflare-computer" },
     { "path": "./packages/cloudflare-shell" },
-    { "path": "./packages/eval-harness" },
     { "path": "./packages/fs" },
     { "path": "./packages/just-bash" },
     { "path": "./packages/node" },

@@ -39,6 +39,20 @@
         "vite": "8.2.2",
       },
     },
+    "apps/eval-harness": {
+      "name": "@better-fs-tools/eval-harness",
+      "version": "0.0.0",
+      "dependencies": {
+        "@ai-sdk/openai-compatible": "3.0.57",
+        "@better-fs-tools/ai-sdk": "workspace:^",
+        "@better-fs-tools/node": "workspace:^",
+        "@better-fs-tools/read": "workspace:^",
+        "@better-fs-tools/write": "workspace:^",
+        "ai": "catalog:",
+        "diff": "^8.0.2",
+        "prettier": "^3.6.2",
+      },
+    },
     "examples": {
       "name": "@better-fs-tools/examples",
       "version": "0.0.0",
@@ -97,20 +111,6 @@
         "@better-fs-tools/read": "workspace:^",
         "@better-fs-tools/write": "workspace:^",
         "@cloudflare/shell": "catalog:",
-      },
-    },
-    "packages/eval-harness": {
-      "name": "@better-fs-tools/eval-harness",
-      "version": "0.0.0",
-      "dependencies": {
-        "@ai-sdk/openai-compatible": "3.0.57",
-        "@better-fs-tools/ai-sdk": "workspace:^",
-        "@better-fs-tools/node": "workspace:^",
-        "@better-fs-tools/read": "workspace:^",
-        "@better-fs-tools/write": "workspace:^",
-        "ai": "catalog:",
-        "diff": "^8.0.2",
-        "prettier": "^3.6.2",
       },
     },
     "packages/fs": {
@@ -306,7 +306,7 @@
 
     "@better-fs-tools/docs": ["@better-fs-tools/docs@workspace:apps/docs"],
 
-    "@better-fs-tools/eval-harness": ["@better-fs-tools/eval-harness@workspace:packages/eval-harness"],
+    "@better-fs-tools/eval-harness": ["@better-fs-tools/eval-harness@workspace:apps/eval-harness"],
 
     "@better-fs-tools/examples": ["@better-fs-tools/examples@workspace:examples"],
 

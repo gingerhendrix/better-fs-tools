@@ -8,9 +8,9 @@ A proof-of-concept harness. It runs the Oh My Pi `typescript-edit-benchmark` fix
 export COMMANDCODE_API_KEY=...            # or AA_COMMANDCODE_API_KEY
 export OMP_EDIT_FIXTURES=/path/to/fixtures  # folders with prompt.md, input/, expected/, metadata.json
 
-bun run packages/eval-harness/src/cli.ts list
-bun run packages/eval-harness/src/cli.ts run --out <dir> --suite poc-12 --arms edit,patch
-bun run packages/eval-harness/src/cli.ts report --out <dir>
+bun run apps/eval-harness/src/cli.ts list
+bun run apps/eval-harness/src/cli.ts run --out <dir> --suite poc-12 --arms edit,patch
+bun run apps/eval-harness/src/cli.ts report --out <dir>
 ```
 
 Get the fixtures from `packages/typescript-edit-benchmark/fixtures.tar.gz` in `can1357/oh-my-pi` (MIT).
