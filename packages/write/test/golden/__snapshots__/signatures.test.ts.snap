@@ -1,0 +1,81 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`golden output for each signature preset defaultEditSignature 1`] = `
+[
+  "[edit:ambiguous-match] Edit 1: the old_string matches 2 places in /a.txt (lines 1, 3). Add surrounding lines to make it unique, or set replace_all.",
+  
+"Edited /a.txt: 2 replacements (replace all) at lines 1, 3.
+1|ALPHA
+2|beta
+3|ALPHA
+4|gamma"
+,
+  "[edit:no-match] Edit 1: the old_string was not found in /a.txt.",
+]
+`;
+
+exports[`golden output for each signature preset multiEditSignature 1`] = `
+[
+  "[edit:ambiguous-match] Edit 1: the oldText matches 2 places in /a.txt (lines 1, 3). Add surrounding lines to make it unique.",
+  
+"Edited /a.txt: 2 replacements at lines 2, 4.
+1|alpha
+2|BETA
+3|alpha
+4|GAMMA"
+,
+]
+`;
+
+exports[`golden output for each signature preset camelCaseEditSignature 1`] = `
+[
+  
+"Edited /a.txt: 1 replacement at line 2.
+1|alpha
+2|alpha
+3|gamma"
+,
+  "[edit:no-match] Edit 1: the oldString was not found in /a.txt.",
+]
+`;
+
+exports[`golden output for each signature preset defaultWriteSignature 1`] = `
+[
+  "Created /new.md (1 line).",
+  "No change to /a.txt: the content is the same.",
+]
+`;
+
+exports[`golden output for each signature preset snakeCaseWriteSignature 1`] = `
+[
+  "Updated /a.txt (+1 -4 lines).",
+]
+`;
+
+exports[`golden output for each signature preset defaultPatchSignature 1`] = `
+[
+  
+"Success. Updated the following files:
+M /a.txt"
+,
+  
+"[apply_patch:patch-verify] Patch validation failed (no files were modified):
+- /a.txt: hunk 1: failed to find the expected lines:
+    delta"
+,
+]
+`;
+
+exports[`golden output for each signature preset freeformPatchSignature 1`] = `
+[
+  
+"Success. Updated the following files:
+M /a.txt"
+,
+  
+"[apply_patch:patch-verify] Patch validation failed (no files were modified):
+- /a.txt: hunk 1: failed to find the expected lines:
+    delta"
+,
+]
+`;

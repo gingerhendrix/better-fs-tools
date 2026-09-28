@@ -154,6 +154,9 @@
         "@better-fs-tools/fs": "workspace:^",
         "@better-fs-tools/read": "workspace:^",
       },
+      "devDependencies": {
+        "typebox": "catalog:",
+      },
     },
   },
   "catalog": {

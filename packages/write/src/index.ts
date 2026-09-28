@@ -68,7 +68,7 @@ export type {
 } from "./contract/patch.ts";
 
 export { createApplyPatchTool, createEditTool, createWriteTool } from "./core/create-tools.ts";
-export { codexPatchParser, parsePatch } from "./patch/index.ts";
+export { CODEX_PATCH_GRAMMAR, codexPatchParser, parsePatch } from "./patch/index.ts";
 export { parseApplyPatchInput, parseEditInput, parseWriteInput } from "./core/input.ts";
 export { defaultWriteLimits, resolveWriteLimits } from "./core/limits.ts";
 export { defaultWriteMessages, resolveWriteMessages } from "./core/messages.ts";

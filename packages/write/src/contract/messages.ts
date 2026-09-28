@@ -19,7 +19,11 @@ export type CanonicalParam =
  * `param(name)`, which a signature overrides.
  */
 export interface WriteMessageCatalog extends ToolMessages {
-  /** Host name for a canonical parameter. Default: the canonical name. */
+  /**
+   * Host name for a canonical parameter. Default: the canonical name. An empty
+   * string means the host has no such parameter, and the default texts leave
+   * out the advice that names it.
+   */
   param(name: CanonicalParam): string;
 
   invalidInput(c: { tool: WriteToolName; detail: string }): string;

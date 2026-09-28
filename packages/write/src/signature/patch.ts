@@ -1,0 +1,86 @@
+import type { ApplyPatchInput } from "../contract/input.ts";
+import { CODEX_PATCH_GRAMMAR } from "../patch/grammar.ts";
+import type { MutationSignatureDocs, PatchSignature } from "./contract.ts";
+import {
+  checkDocs,
+  deepFreeze,
+  nonBlankSchema,
+  objectSchema,
+  readNonBlank,
+  readObject,
+} from "./schema.ts";
+
+const KEYS = ["patch"];
+
+const EXAMPLE = [
+  "*** Begin Patch",
+  "*** Update File: src/app.ts",
+  "@@ export function main() {",
+  " const a = 1;",
+  "-const b = 2;",
+  "+const b = 3;",
+  "*** Add File: docs/notes.md",
+  "+# Notes",
+  "*** Delete File: old.txt",
+  "*** End Patch",
+].join("\n");
+
+/**
+ * Works with and without grammar support: it names the `patch` parameter but
+ * never says whether to wrap the text in JSON, because a model without
+ * grammar tools sends JSON.
+ */
+const DESCRIPTION =
+  "Apply a patch that adds, updates, moves, or deletes text files. The input is one patch " +
+  "text (the `patch` parameter) in the Codex apply_patch format:\n\n" +
+  `${EXAMPLE}\n\n` +
+  "In an Update, each line starts with a space (context), `-` (remove), or `+` (add). " +
+  "`@@ <line>` names a line above the change to find the right place. Put " +
+  "`*** Move to: <path>` after an Update line to rename the file. Every line of an Add " +
+  "starts with `+`. Every hunk is checked before any file changes: when one fails, no file " +
+  "changes. Read each file you update or delete with the read tool first.";
+
+/** apply_patch({ patch }) as JSON, with a short example in the description. */
+export function defaultPatchSignature(
+  options: MutationSignatureDocs<"patch"> = {},
+): PatchSignature {
+  return patchSignature(options, "defaultPatchSignature");
+}
+
+/** The same schema plus grammar.lark = CODEX_PATCH_GRAMMAR. The description works with and without grammar support. */
+export function freeformPatchSignature(
+  options: MutationSignatureDocs<"patch"> = {},
+): PatchSignature {
+  return Object.freeze<PatchSignature>({
+    ...patchSignature(options, "freeformPatchSignature"),
+    grammar: Object.freeze({ lark: CODEX_PATCH_GRAMMAR }),
+  });
+}
+
+/** One required string property, so Pi can use it as a grammar tool. */
+function patchSignature(options: MutationSignatureDocs<"patch">, label: string): PatchSignature {
+  const describe = checkDocs(options, label, KEYS);
+  const schema = deepFreeze(
+    objectSchema(
+      [
+        [
+          "patch",
+          nonBlankSchema(
+            describe.patch ?? "The whole patch, from *** Begin Patch to *** End Patch.",
+          ),
+        ],
+      ],
+      KEYS,
+    ),
+  );
+  return Object.freeze<PatchSignature>({
+    name: options.name ?? "apply_patch",
+    description: options.description ?? DESCRIPTION,
+    schema,
+    toInput(input): ApplyPatchInput {
+      const record = readObject(input, "apply_patch input", KEYS, KEYS);
+      return { patch: readNonBlank(record.patch, "patch") };
+    },
+    param: (name) => name,
+  });
+}

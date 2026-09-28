@@ -1,0 +1,257 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`signature presets defaultEditSignature: schema and description snapshot 1`] = `
+{
+  "description": "Edit a text file by replacing text. \`old_string\` must match exactly one place in the file: add surrounding lines to make it unique, or set \`replace_all\` to change every place. \`old_string\` should match the file exactly. When it does not, a close match is used, and the result says so. A close match may differ in: trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces; escape sequences such as \\n, \\t, and \\" written out in the old text. Copy old text from the file without the line-number prefix the read tool adds. Read the file with the read tool before you edit it. After an edit, the same file can be edited again without another read. To create a file or replace all of its content, use the write tool.",
+  "grammar": false,
+  "name": "edit",
+  "schema": {
+    "additionalProperties": false,
+    "properties": {
+      "new_string": {
+        "description": "Replacement text. Send an empty string to delete old_string.",
+        "type": "string",
+      },
+      "old_string": {
+        "description": "Text to replace. It must match one place in the file unless replace_all is true.",
+        "minLength": 1,
+        "type": "string",
+      },
+      "path": {
+        "description": "Path of the file to edit, relative to the working directory or absolute within an allowed root.",
+        "minLength": 1,
+        "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+        "type": "string",
+      },
+      "replace_all": {
+        "description": "Replace every place old_string matches. Default false.",
+        "type": "boolean",
+      },
+    },
+    "required": [
+      "path",
+      "old_string",
+      "new_string",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`signature presets multiEditSignature: schema and description snapshot 1`] = `
+{
+  "description": "Edit a text file with one or more replacements in one call. Each \`edits[].oldText\` must match exactly one place in the original file. Edits must not overlap or nest: merge nearby changes into one edit. \`edits[].oldText\` should match the file exactly. When it does not, a close match is used, and the result says so. A close match may differ in: trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces; escape sequences such as \\n, \\t, and \\" written out in the old text. Copy old text from the file without the line-number prefix the read tool adds. Read the file with the read tool before you edit it. After an edit, the same file can be edited again without another read. To create a file or replace all of its content, use the write tool.",
+  "grammar": false,
+  "name": "edit",
+  "schema": {
+    "additionalProperties": false,
+    "properties": {
+      "edits": {
+        "description": "One or more replacements. Each is matched against the original file, not after earlier edits. Merge nearby changes into one edit.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "newText": {
+              "description": "Replacement text. Send an empty string to delete oldText.",
+              "type": "string",
+            },
+            "oldText": {
+              "description": "Text for one replacement. It must match one place in the original file and must not overlap another edit.",
+              "minLength": 1,
+              "type": "string",
+            },
+          },
+          "required": [
+            "oldText",
+            "newText",
+          ],
+          "type": "object",
+        },
+        "minItems": 1,
+        "type": "array",
+      },
+      "path": {
+        "description": "Path of the file to edit, relative to the working directory or absolute within an allowed root.",
+        "minLength": 1,
+        "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+        "type": "string",
+      },
+    },
+    "required": [
+      "path",
+      "edits",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`signature presets camelCaseEditSignature: schema and description snapshot 1`] = `
+{
+  "description": "Edit a text file by replacing text. \`oldString\` must match exactly one place in the file: add surrounding lines to make it unique, or set \`replaceAll\` to change every place. \`oldString\` should match the file exactly. When it does not, a close match is used, and the result says so. A close match may differ in: trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces; escape sequences such as \\n, \\t, and \\" written out in the old text. Copy old text from the file without the line-number prefix the read tool adds. Read the file with the read tool before you edit it. After an edit, the same file can be edited again without another read. To create a file or replace all of its content, use the write tool.",
+  "grammar": false,
+  "name": "edit",
+  "schema": {
+    "additionalProperties": false,
+    "properties": {
+      "filePath": {
+        "description": "Path of the file to edit, relative to the working directory or absolute within an allowed root.",
+        "minLength": 1,
+        "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+        "type": "string",
+      },
+      "newString": {
+        "description": "Replacement text. Send an empty string to delete oldString.",
+        "type": "string",
+      },
+      "oldString": {
+        "description": "Text to replace. It must match one place in the file unless replaceAll is true.",
+        "minLength": 1,
+        "type": "string",
+      },
+      "replaceAll": {
+        "description": "Replace every place oldString matches. Default false.",
+        "type": "boolean",
+      },
+    },
+    "required": [
+      "filePath",
+      "oldString",
+      "newString",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`signature presets defaultWriteSignature: schema and description snapshot 1`] = `
+{
+  "description": "Create a text file, or replace all of its content. Missing parent directories are created. To replace a file that exists, read all of it with the read tool first. To change part of a file, use the edit tool: it sends less text and keeps the rest of the file as it is.",
+  "grammar": false,
+  "name": "write",
+  "schema": {
+    "additionalProperties": false,
+    "properties": {
+      "content": {
+        "description": "The complete new content of the file. Nothing of the old content is kept.",
+        "type": "string",
+      },
+      "path": {
+        "description": "Path of the file to create or replace, relative to the working directory or absolute within an allowed root.",
+        "minLength": 1,
+        "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+        "type": "string",
+      },
+    },
+    "required": [
+      "path",
+      "content",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`signature presets snakeCaseWriteSignature: schema and description snapshot 1`] = `
+{
+  "description": "Create a text file, or replace all of its content. Missing parent directories are created. To replace a file that exists, read all of it with the read tool first. To change part of a file, use the edit tool: it sends less text and keeps the rest of the file as it is.",
+  "grammar": false,
+  "name": "write_file",
+  "schema": {
+    "additionalProperties": false,
+    "properties": {
+      "content": {
+        "description": "The complete new content of the file. Nothing of the old content is kept.",
+        "type": "string",
+      },
+      "file_path": {
+        "description": "Path of the file to create or replace, relative to the working directory or absolute within an allowed root.",
+        "minLength": 1,
+        "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+        "type": "string",
+      },
+    },
+    "required": [
+      "file_path",
+      "content",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`signature presets defaultPatchSignature: schema and description snapshot 1`] = `
+{
+  "description": 
+"Apply a patch that adds, updates, moves, or deletes text files. The input is one patch text (the \`patch\` parameter) in the Codex apply_patch format:
+
+*** Begin Patch
+*** Update File: src/app.ts
+@@ export function main() {
+ const a = 1;
+-const b = 2;
++const b = 3;
+*** Add File: docs/notes.md
++# Notes
+*** Delete File: old.txt
+*** End Patch
+
+In an Update, each line starts with a space (context), \`-\` (remove), or \`+\` (add). \`@@ <line>\` names a line above the change to find the right place. Put \`*** Move to: <path>\` after an Update line to rename the file. Every line of an Add starts with \`+\`. Every hunk is checked before any file changes: when one fails, no file changes. Read each file you update or delete with the read tool first."
+,
+  "grammar": false,
+  "name": "apply_patch",
+  "schema": {
+    "additionalProperties": false,
+    "properties": {
+      "patch": {
+        "description": "The whole patch, from *** Begin Patch to *** End Patch.",
+        "minLength": 1,
+        "pattern": "^[\\s\\S]*\\S[\\s\\S]*$",
+        "type": "string",
+      },
+    },
+    "required": [
+      "patch",
+    ],
+    "type": "object",
+  },
+}
+`;
+
+exports[`signature presets freeformPatchSignature: schema and description snapshot 1`] = `
+{
+  "description": 
+"Apply a patch that adds, updates, moves, or deletes text files. The input is one patch text (the \`patch\` parameter) in the Codex apply_patch format:
+
+*** Begin Patch
+*** Update File: src/app.ts
+@@ export function main() {
+ const a = 1;
+-const b = 2;
++const b = 3;
+*** Add File: docs/notes.md
++# Notes
+*** Delete File: old.txt
+*** End Patch
+
+In an Update, each line starts with a space (context), \`-\` (remove), or \`+\` (add). \`@@ <line>\` names a line above the change to find the right place. Put \`*** Move to: <path>\` after an Update line to rename the file. Every line of an Add starts with \`+\`. Every hunk is checked before any file changes: when one fails, no file changes. Read each file you update or delete with the read tool first."
+,
+  "grammar": true,
+  "name": "apply_patch",
+  "schema": {
+    "additionalProperties": false,
+    "properties": {
+      "patch": {
+        "description": "The whole patch, from *** Begin Patch to *** End Patch.",
+        "minLength": 1,
+        "pattern": "^[\\s\\S]*\\S[\\s\\S]*$",
+        "type": "string",
+      },
+    },
+    "required": [
+      "patch",
+    ],
+    "type": "object",
+  },
+}
+`;

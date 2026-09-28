@@ -82,7 +82,7 @@ function catalogFor(param: Param): WriteMessageCatalog {
       return lines.join("\n");
     },
     ambiguousMatch: ({ path, index, lines, total }) =>
-      `Edit ${index + 1}: the ${param("oldText")} matches ${total} places in ${path} (lines ${lines.join(", ")}${total > lines.length ? ", …" : ""}). Add surrounding lines to make it unique, or set ${param("replaceAll")}.`,
+      `Edit ${index + 1}: the ${param("oldText")} matches ${total} places in ${path} (lines ${lines.join(", ")}${total > lines.length ? ", …" : ""}). Add surrounding lines to make it unique${param("replaceAll") === "" ? "" : `, or set ${param("replaceAll")}`}.`,
     matchRefused: ({ path, index, matcher, reason }) => {
       const found = `Edit ${index + 1}: the ${matcher} matcher found the ${param("oldText")} in ${path}, but the match was refused (${refusalLabel(reason)}).`;
       if (reason === "too-many") {
