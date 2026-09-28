@@ -2,9 +2,13 @@
 
 Edit, write, and apply_patch tools for TypeScript agents.
 
-This package is in progress. It has the shared mutation core and the `write` tool. The `edit` and `apply_patch` tools, the built-in guards, and the signatures come in later batches of the write tools build.
+This package is in progress. It has the shared mutation core, the `write` tool, and the `edit` tool. The `apply_patch` tool, the built-in guards, and the signatures come in later batches of the write tools build.
 
 `createWriteTool({ fs })` takes a `WritableFileSystem` from `@better-fs-tools/fs`. It creates a missing file, or replaces an existing one. With the read tool's `state` store and a `digest`, an existing file must be read in full first, and a file that changed since the read is refused as `STALE`. A replace keeps the file's BOM and CRLF line endings. Same content gives `no-change` and writes nothing.
+
+`createEditTool({ fs })` replaces text in an existing file. Its input is a path and one or more `{ oldText, newText, replaceAll? }` pairs, all matched against one snapshot of the file. Each old text must match once, unless `replaceAll` is set. The replacement is a literal splice: `$&` and `$1` in the new text stay as written, and every byte outside the matched ranges stays the same. With a store, the file must be read first, but a partial read is enough, and a second edit needs no new read. When the file changed since the read, the edit still goes ahead if every old text matches exactly once, with a `stale-rematched` note.
+
+Matching tries `exactMatcher()` first, then `normalizedMatcher()` (trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces), then `escapeMatcher()` (escape sequences written out). The result says when a loose match was used. `lineTrimmedMatcher()`, `indentationMatcher()`, and `blockAnchorMatcher()` are opt-in through the `matchers` dependency. A miss shows the closest region of the file. An edit that is already in the file gives `no-change` with a note. The model text is a short header and the new lines around each change; the full diff is in `changes[].diff`.
 
 ## Install
 
@@ -14,11 +18,11 @@ npm install @better-fs-tools/write @better-fs-tools/read @better-fs-tools/fs
 
 ## Entries
 
-| Entry                              | Contents                                                                                                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@better-fs-tools/write`           | `createWriteTool`, the mutation core's types, `utf8Codec`, `memoryLocks`, `askBeforeWrite`, `writeAuthorizers`, `defaultWriteFormatter`, `createInvalidator` |
-| `@better-fs-tools/write/patch`     | Empty for now                                                                                                                                                |
-| `@better-fs-tools/write/signature` | Empty for now                                                                                                                                                |
+| Entry                              | Contents                                                                                                                                                                                     |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@better-fs-tools/write`           | `createWriteTool`, `createEditTool`, the matchers, the mutation core's types, `utf8Codec`, `memoryLocks`, `askBeforeWrite`, `writeAuthorizers`, `defaultWriteFormatter`, `createInvalidator` |
+| `@better-fs-tools/write/patch`     | Empty for now                                                                                                                                                                                |
+| `@better-fs-tools/write/signature` | Empty for now                                                                                                                                                                                |
 
 The package imports no `node:` module. It builds on the tool-neutral base types in `@better-fs-tools/read`, such as `ToolCallContext`, `PathResolver`, and `ToolAuthorizer`. An authorizer or resolver typed on them works for the read tool and for the write tools:
 
