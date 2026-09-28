@@ -1,0 +1,175 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`golden write output create, update, and no-change 1`] = `
+[
+  {
+    "error": null,
+    "status": "ok",
+    "text": 
+"Created /docs/guide/notes.md (3 lines).
+
+[write:directories-created] Created the directories /docs, /docs/guide."
+,
+  },
+  {
+    "error": null,
+    "status": "ok",
+    "text": "Updated /src/app.ts (+2 -1 lines).",
+  },
+  {
+    "error": null,
+    "status": "no-change",
+    "text": "No change to /src/app.ts: the content is the same.",
+  },
+]
+`;
+
+exports[`golden write output with diff: true 1`] = `
+"Updated /src/app.ts (+1 -1 lines).
+\`\`\`diff
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -1,2 +1,2 @@
+ const a = 1;
+-const b = 2;
++const b = 3;
+\`\`\`"
+`;
+
+exports[`golden write output refusals 1`] = `
+[
+  {
+    "error": {
+      "code": "NOT_READ",
+      "phase": "precondition",
+    },
+    "status": "error",
+    "text": "[write:not-read] Read /src/app.ts with the read tool before changing it.",
+  },
+  {
+    "error": {
+      "code": "NOT_READ",
+      "data": {
+        "wholeFile": true,
+      },
+      "phase": "precondition",
+    },
+    "status": "error",
+    "text": "[write:not-read] Read all of /src/app.ts before replacing it. A partial read is not enough for write.",
+  },
+  {
+    "error": {
+      "code": "STALE",
+      "phase": "precondition",
+    },
+    "status": "error",
+    "text": "[write:stale] /src/old.ts changed since it was last read. Read it again, then retry.",
+  },
+  {
+    "error": {
+      "code": "NOT_TEXT",
+      "data": {
+        "classifier": "binary",
+        "code": "BINARY",
+      },
+      "phase": "load",
+    },
+    "status": "error",
+    "text": "[write:not-text] /img.bin is not a text file (BINARY), so it cannot be changed with this tool.",
+  },
+  {
+    "error": {
+      "code": "NOT_A_FILE",
+      "data": {
+        "kind": "directory",
+      },
+      "phase": "stat",
+    },
+    "status": "error",
+    "text": "[write:not-a-file] /dir is a directory. Only regular files can be changed.",
+  },
+  {
+    "error": {
+      "code": "TOO_LARGE",
+      "data": {
+        "bytes": 65,
+        "limit": 64,
+      },
+      "phase": "encode",
+    },
+    "status": "error",
+    "text": "[write:too-large] The new content for /big.txt is larger than the 64-byte write limit. Change the file in smaller steps with the edit tool.",
+  },
+  {
+    "error": {
+      "code": "INVALID_INPUT",
+      "phase": "input",
+    },
+    "status": "error",
+    "text": "[write:invalid-input] The write input was rejected: path must be a non-empty string without NUL",
+  },
+]
+`;
+
+exports[`golden write output host policy 1`] = `
+[
+  {
+    "error": {
+      "code": "DENIED",
+      "data": {
+        "pattern": "**/.env",
+      },
+      "phase": "authorize",
+    },
+    "status": "error",
+    "text": "[write:denied] /app/.env was refused by policy (the path matches a denied pattern).",
+  },
+  {
+    "error": {
+      "code": "GUARD_REFUSED",
+      "data": {
+        "guard": "no-todo",
+        "path": "/a.ts",
+        "source": "todo",
+      },
+      "phase": "guards",
+    },
+    "status": "error",
+    "text": "[write:guard-refused] Finish the TODO first.",
+  },
+  {
+    "error": null,
+    "status": "ok",
+    "text": 
+"Created /a.ts (1 line).
+
+[write:hook-failed] The lint hook failed after /a.ts was written. The file is changed."
+,
+  },
+]
+`;
+
+exports[`golden write output weak backends and no store 1`] = `
+[
+  {
+    "error": null,
+    "status": "ok",
+    "text": 
+"Updated /a.txt (+1 -1 lines).
+
+[write:not-atomic] The no-cas backend does not replace files atomically, so a reader could have seen a partial file.
+[write:no-compare-and-swap] The no-cas backend cannot check the file version at the moment of the write. The tool checked it just before.
+[write:mode-not-kept] The no-cas backend does not keep file modes, so the file's permissions may have changed."
+,
+  },
+  {
+    "error": null,
+    "status": "ok",
+    "text": 
+"Updated /a.txt (+1 -1 lines).
+
+[write:read-before-write-off] Read-before-write is off: this tool has no state store."
+,
+  },
+]
+`;
