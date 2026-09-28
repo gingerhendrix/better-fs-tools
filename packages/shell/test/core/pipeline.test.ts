@@ -721,6 +721,18 @@ describe("createBashTool", () => {
     expect(() => bashTool({ runner: scriptedRunner(), cwd: "relative" })).toThrow(TypeError);
   });
 
+  test("env is required: no silent defaultShellEnv-only environment (Q4)", () => {
+    const runner = scriptedRunner();
+    // @ts-expect-error: env is a required dependency.
+    expect(() => createBashTool({ runner })).toThrow(
+      "env is required: pass shellEnv(() => process.env), an allow list such as shellEnv({ PATH }), or shellEnv()",
+    );
+    expect(() => createBashTool({ runner, env: undefined as never })).toThrow("env is required");
+    expect(() => createBashTool({ runner, env: "PATH=/bin" as never })).toThrow(
+      "env must be a function",
+    );
+  });
+
   test("a runner factory runs for each call", async () => {
     const runner = scriptedRunner();
     let calls = 0;
