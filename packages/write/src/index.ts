@@ -83,7 +83,7 @@ export {
   syntaxGuard,
   truncationNoticeGuard,
 } from "./guards/index.ts";
-export { askBeforeWrite, writeAuthorizers } from "./authorize/index.ts";
+export { askBeforeWrite, protectPaths, writeAuthorizers } from "./authorize/index.ts";
 export { defaultWriteFormatter } from "./formatters/index.ts";
 export type { WriteFormatterOptions } from "./formatters/index.ts";
 export { createInvalidator } from "./state/index.ts";
