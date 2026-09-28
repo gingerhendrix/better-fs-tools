@@ -17,6 +17,8 @@ export async function bump(path: string): Promise<string> {
 }
 
 // A shell tool changed the file: the next edit must read it first.
-export async function afterShell(path: string): Promise<void> {
-  await tools.invalidate(path);
+export async function afterShell(path: string): Promise<boolean> {
+  const outcome = await tools.invalidate(path);
+  // ok: false means the stat or the store failed, and a record may still be there.
+  return outcome.ok;
 }

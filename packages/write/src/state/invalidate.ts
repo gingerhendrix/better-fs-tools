@@ -1,31 +1,52 @@
-import type { WritableFileSystem } from "@better-fs-tools/fs";
+import type { FileSystemError, WritableFileSystem } from "@better-fs-tools/fs";
 import type { ReadStateStore } from "@better-fs-tools/read";
 
 import { isStateStore, isWritable } from "../core/deps.ts";
+import { messageOf } from "../core/outcomes.ts";
+
+/**
+ * What `invalidate(path)` did. `recorded` says whether a record was there
+ * before the delete. A failed stat or a failed store call is `ok: false`, and
+ * the record, if any, stays.
+ */
+export type InvalidateOutcome =
+  | { readonly ok: true; readonly resolvedPath: string; readonly recorded: boolean }
+  | { readonly ok: false; readonly phase: "stat"; readonly error: FileSystemError }
+  | { readonly ok: false; readonly phase: "state"; readonly detail: string };
+
+export type Invalidate = (path: string) => Promise<InvalidateOutcome>;
 
 /**
  * Deletes the record for a path, so the next edit or write needs a read. For
  * a shell tool that may have written the file. Runs fs.stat, then deletes
- * the record under the stat's resolved path. A stat failure deletes nothing.
- * Never throws.
+ * the record under the stat's resolved path. Never throws: every failure is
+ * an outcome, so a policy hook can stop when invalidation did not happen.
  */
 export function createInvalidator(deps: {
   readonly fs: WritableFileSystem;
   readonly state: ReadStateStore;
-}): (path: string) => Promise<void> {
+}): Invalidate {
   if (deps === null || typeof deps !== "object") {
     throw new TypeError("createInvalidator takes { fs, state }");
   }
   const { fs, state } = deps;
   if (!isWritable(fs)) throw new TypeError("fs must be a WritableFileSystem");
   if (!isStateStore(state)) throw new TypeError("state must be a read state store");
-  return async (path: string): Promise<void> => {
+  return async (path: string): Promise<InvalidateOutcome> => {
+    let resolvedPath: string;
     try {
       const outcome = await fs.stat(path, {});
-      if (!outcome.ok) return;
-      await state.delete(outcome.stat.resolvedPath);
-    } catch {
-      // Invalidation is best effort: a failure leaves the record as it was.
+      if (!outcome.ok) return { ok: false, phase: "stat", error: outcome.error };
+      resolvedPath = outcome.stat.resolvedPath;
+    } catch (error) {
+      return { ok: false, phase: "stat", error: { reason: "io", detail: messageOf(error) } };
+    }
+    try {
+      const recorded = (await state.get(resolvedPath)) !== null;
+      await state.delete(resolvedPath);
+      return { ok: true, resolvedPath, recorded };
+    } catch (error) {
+      return { ok: false, phase: "state", detail: messageOf(error) };
     }
   };
 }

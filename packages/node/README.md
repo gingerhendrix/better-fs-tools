@@ -53,20 +53,22 @@ export async function bump(path: string): Promise<string> {
 }
 
 // A shell tool changed the file: the next edit must read it first.
-export async function afterShell(path: string): Promise<void> {
-  await tools.invalidate(path);
+export async function afterShell(path: string): Promise<boolean> {
+  const outcome = await tools.invalidate(path);
+  // ok: false means the stat or the store failed, and a record may still be there.
+  return outcome.ok;
 }
 ```
 
 ## Contents
 
-| Export                                                                                       | Use                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `createNodeReadTool(options?)`                                                               | `createReadTool()` from `@better-fs-tools/read` with Node defaults. `fs` defaults to `nodeFileSystem` rooted at `process.cwd()`. `digest` defaults to `nodeDigest()`. Pass `digest: null` to turn observations off. Every other option goes to the core.                                                                                                                                                                                                                                                                                                    |
-| `createNodeFsTools(options?)`                                                                | `read`, `edit`, `write`, and `apply_patch` over one `nodeFileSystem`, one `createMemoryStore()`, one `nodeDigest()`, and one `memoryLocks()`. Options: `cwd`, `allowedRoots` (default `[cwd]`), `denyRoots`, `symlinks`, `hardLinks`, `state` (`null` turns read-before-write off), `digest`, `locks`, and per-tool options under `read`, `edit`, `write`, and `applyPatch`. The result also has `fs`, `state`, `locks`, and `invalidate(path)`. An unknown option key, or `fs`, `state`, `digest`, or `locks` inside a per-tool object, throws `TypeError` |
-| `createNodeEditTool(deps?)`, `createNodeWriteTool(deps?)`, `createNodeApplyPatchTool(deps?)` | One write tool each. `fs` defaults to `nodeFileSystem` rooted at `process.cwd()`, `digest` to `nodeDigest()`. `state` stays `null`, so every update carries a `read-before-write-off` note                                                                                                                                                                                                                                                                                                                                                                  |
-| `nodeFileSystem(options)`                                                                    | A `WritableFileSystem` over Node file descriptors                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `nodeDigest()`                                                                               | SHA-256 over `node:crypto`. Values look like `sha256:<hex>`, the same as `sha256Digest()` from `@better-fs-tools/read`.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Export                                                                                       | Use                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createNodeReadTool(options?)`                                                               | `createReadTool()` from `@better-fs-tools/read` with Node defaults. `fs` defaults to `nodeFileSystem` rooted at `process.cwd()`. `digest` defaults to `nodeDigest()`. Pass `digest: null` to turn observations off. Every other option goes to the core.                                                                                                                                                                                                                                                                                                                                          |
+| `createNodeFsTools(options?)`                                                                | `read`, `edit`, `write`, and `apply_patch` over one `nodeFileSystem`, one `createMemoryStore()`, one `nodeDigest()`, and one `memoryLocks()`. Options: `cwd`, `allowedRoots` (default `[cwd]`), `denyRoots`, `symlinks`, `hardLinks`, `state` (`null` turns read-before-write off), `digest`, `locks`, and per-tool options under `read`, `edit`, `write`, and `applyPatch`. The result also has `fs`, `state`, `locks`, and `invalidate(path)`, which returns an `InvalidateOutcome`. An unknown option key, or `fs`, `state`, `digest`, or `locks` inside a per-tool object, throws `TypeError` |
+| `createNodeEditTool(deps?)`, `createNodeWriteTool(deps?)`, `createNodeApplyPatchTool(deps?)` | One write tool each. `fs` defaults to `nodeFileSystem` rooted at `process.cwd()`, `digest` to `nodeDigest()`. `state` stays `null`, so every update carries a `read-before-write-off` note                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `nodeFileSystem(options)`                                                                    | A `WritableFileSystem` over Node file descriptors                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `nodeDigest()`                                                                               | SHA-256 over `node:crypto`. Values look like `sha256:<hex>`, the same as `sha256Digest()` from `@better-fs-tools/read`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 `nodeFileSystem` options:
 
@@ -115,10 +117,17 @@ tools = createNodeFsTools({
     afterRun: [
       {
         id: "invalidate-package-json",
-        afterRun: async () => {
-          await tools?.invalidate("package.json");
+        afterRun: async (outcome) => {
+          const invalidated = await tools?.invalidate("package.json");
           // An empty update keeps the output and the notes.
-          return {};
+          if (invalidated === undefined || invalidated.ok) return {};
+          // Tell the model when the record could not be removed.
+          const warning = {
+            code: "invalidate-failed",
+            severity: "warning" as const,
+            message: "Read package.json again before you edit it.",
+          };
+          return { notes: [...outcome.notes, warning] };
         },
       },
     ],

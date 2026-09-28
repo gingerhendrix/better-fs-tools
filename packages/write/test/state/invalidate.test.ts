@@ -9,7 +9,11 @@ describe("createInvalidator", () => {
     const invalidate = createInvalidator({ fs, state });
     await read({ path: "/a.txt" });
     expect((await write({ path: "/a.txt", content: "two\n" })).status).toBe("ok");
-    await invalidate("/a.txt");
+    expect(await invalidate("/a.txt")).toEqual({
+      ok: true,
+      resolvedPath: "/a.txt",
+      recorded: true,
+    });
     expect(await state.get("/a.txt")).toBeNull();
     expect(errorCode(await write({ path: "/a.txt", content: "three\n" }))).toBe("NOT_READ");
   });
@@ -17,19 +21,45 @@ describe("createInvalidator", () => {
   test("deletes under the stat's resolved path, also for a missing file", async () => {
     const { fs, state } = harness();
     const deleted = spyOn(state, "delete");
-    await createInvalidator({ fs, state })("gone/../b.txt");
+    expect(await createInvalidator({ fs, state })("gone/../b.txt")).toEqual({
+      ok: true,
+      resolvedPath: "/b.txt",
+      recorded: false,
+    });
     expect(deleted).toHaveBeenCalledWith("/b.txt");
   });
 
-  test("a stat failure deletes nothing and does not throw", async () => {
+  test("a stat failure deletes nothing and is reported", async () => {
     const { fs, state } = harness({ fsOptions: { denyRoots: ["/secret"] } });
     const deleted = spyOn(state, "delete");
-    await createInvalidator({ fs, state })("/secret/x");
+    expect(await createInvalidator({ fs, state })("/secret/x")).toEqual({
+      ok: false,
+      phase: "stat",
+      error: { reason: "dangerous-path", detail: "/secret" },
+    });
     expect(deleted).not.toHaveBeenCalled();
     spyOn(fs, "stat").mockImplementation(async () => {
       throw new Error("down");
     });
-    await expect(createInvalidator({ fs, state })("/a")).resolves.toBeUndefined();
+    expect(await createInvalidator({ fs, state })("/a")).toEqual({
+      ok: false,
+      phase: "stat",
+      error: { reason: "io", detail: "down" },
+    });
+  });
+
+  test("a store failure is reported, not swallowed", async () => {
+    const { fs, state, read } = harness({ files: { "/a.txt": "one\n" } });
+    await read({ path: "/a.txt" });
+    spyOn(state, "delete").mockImplementation(async () => {
+      throw new Error("store down");
+    });
+    expect(await createInvalidator({ fs, state })("/a.txt")).toEqual({
+      ok: false,
+      phase: "state",
+      detail: "store down",
+    });
+    expect(await state.get("/a.txt")).not.toBeNull();
   });
 
   test("rejects bad deps", () => {

@@ -14,6 +14,7 @@ import type {
   ApplyPatchToolDeps,
   EditTool,
   EditToolDeps,
+  InvalidateOutcome,
   LockManager,
   WriteTool,
   WriteToolDeps,
@@ -44,6 +45,13 @@ const KNOWN = new Set([
   "applyPatch",
   "bash",
 ]);
+/** With state null, invalidate still stats the path, and there is never a record. */
+const NO_STATE: ReadStateStore = Object.freeze({
+  get: async () => null,
+  put: async () => {},
+  delete: async () => {},
+});
+
 /** The keys each tool's options may not set, because the bundle shares them. */
 const SHARED_KEYS = {
   read: ["fs", "state", "digest"],
@@ -88,8 +96,8 @@ export interface NodeFsTools<THost = undefined> {
   readonly fs: NodeFileSystem;
   readonly state: ReadStateStore | null;
   readonly locks: LockManager;
-  /** createInvalidator over fs and state. A no-op when state is null. */
-  invalidate(path: string): Promise<void>;
+  /** createInvalidator over fs and state. With state null it still stats, and reports recorded: false. */
+  invalidate(path: string): Promise<InvalidateOutcome>;
 }
 
 /**
@@ -134,7 +142,7 @@ export function createNodeFsTools<THost = undefined>(
   const digest = options.digest ?? nodeDigest();
   const locks = options.locks ?? memoryLocks();
   const shared = { fs, state, digest };
-  const invalidate = state === null ? null : createInvalidator({ fs, state });
+  const invalidate = createInvalidator({ fs, state: state ?? NO_STATE });
 
   return Object.freeze<NodeFsTools<THost>>({
     read: createReadTool<THost>({ ...options.read, ...shared }),
@@ -145,9 +153,7 @@ export function createNodeFsTools<THost = undefined>(
     fs,
     state,
     locks,
-    invalidate: async (path) => {
-      await invalidate?.(path);
-    },
+    invalidate,
   });
 }
 

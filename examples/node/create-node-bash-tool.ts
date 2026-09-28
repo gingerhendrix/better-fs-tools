@@ -10,10 +10,17 @@ tools = createNodeFsTools({
     afterRun: [
       {
         id: "invalidate-package-json",
-        afterRun: async () => {
-          await tools?.invalidate("package.json");
+        afterRun: async (outcome) => {
+          const invalidated = await tools?.invalidate("package.json");
           // An empty update keeps the output and the notes.
-          return {};
+          if (invalidated === undefined || invalidated.ok) return {};
+          // Tell the model when the record could not be removed.
+          const warning = {
+            code: "invalidate-failed",
+            severity: "warning" as const,
+            message: "Read package.json again before you edit it.",
+          };
+          return { notes: [...outcome.notes, warning] };
         },
       },
     ],

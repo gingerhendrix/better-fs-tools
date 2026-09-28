@@ -45,7 +45,11 @@ describe("createNodeFsTools on disk", () => {
     const cwd = await workspace({ "app.ts": "x\n" });
     const tools = createNodeFsTools({ cwd });
     await tools.read({ path: "app.ts" });
-    await tools.invalidate("app.ts");
+    expect(await tools.invalidate("app.ts")).toEqual({
+      ok: true,
+      resolvedPath: join(await realpath(cwd), "app.ts"),
+      recorded: true,
+    });
 
     const result = await tools.edit(edit("x", "y"));
     expect(errorOf(result)?.code).toBe("NOT_READ");
@@ -55,12 +59,16 @@ describe("createNodeFsTools on disk", () => {
     expect(await readFile(join(cwd, "app.ts"), "utf8")).toBe("x\n");
   });
 
-  test("invalidate of a missing or refused path does nothing and does not throw", async () => {
+  test("invalidate of a missing or refused path reports it and keeps the record", async () => {
     const cwd = await workspace({ "app.ts": "x\n" });
     const tools = createNodeFsTools({ cwd });
     await tools.read({ path: "app.ts" });
-    await tools.invalidate("missing.ts");
-    await tools.invalidate("/etc/hostname");
+    expect(await tools.invalidate("missing.ts")).toMatchObject({ ok: true, recorded: false });
+    expect(await tools.invalidate("/etc/hostname")).toMatchObject({
+      ok: false,
+      phase: "stat",
+      error: { reason: "outside-allowed-roots" },
+    });
     expect((await tools.edit(edit("x", "y"))).status).toBe("ok");
   });
 
@@ -141,10 +149,10 @@ describe("createNodeFsTools sharing", () => {
     expect(Object.isFrozen(tools)).toBe(true);
   });
 
-  test("state: null turns read-before-write off, and invalidate is a no-op", async () => {
+  test("state: null turns read-before-write off, and invalidate finds no record", async () => {
     const cwd = await workspace({ "app.ts": "x\n" });
     const tools = createNodeFsTools({ cwd, state: null });
-    await tools.invalidate("app.ts");
+    expect(await tools.invalidate("app.ts")).toMatchObject({ ok: true, recorded: false });
     const result = await tools.edit(edit("x", "y"));
     expect(result.status).toBe("ok");
     expect(result.notes.map((note) => note.code)).toContain("read-before-write-off");

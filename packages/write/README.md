@@ -128,7 +128,7 @@ With the read tool's `state` store and a `digest`, the write tools check what th
 - A file that changed since the read gives `STALE`, with one exception: `edit` and `apply_patch` go ahead when every old text still matches exactly once, with a `stale-rematched` note. `write` always refuses.
 - On a backend with stable identity, the check compares the backend `version`. On every other backend it compares the content hash.
 - After a commit, the tool stores a record with `origin: "write"`. A second edit needs no new read. When an authorizer replaced the content, a hook rewrote the file, or an edit went ahead on a stale file, the record says the model has not seen the whole file, so a following `write` needs a read.
-- `createInvalidator({ fs, state })` returns `invalidate(path)`. Call it when something else, for example a shell tool, may have changed a file. The next edit then needs a read.
+- `createInvalidator({ fs, state })` returns `invalidate(path)`. Call it when something else, for example a shell tool, may have changed a file. The next edit then needs a read. It never throws. It resolves to an `InvalidateOutcome`: `{ ok: true, resolvedPath, recorded }`, where `recorded` says whether a record was there, or `{ ok: false, phase }` when the stat (`phase: "stat"`, with the backend `error`) or the store (`phase: "state"`, with a `detail`) failed. After `ok: false` the record may still be there.
 - `preconditions: { requireRead: "off" }` turns the check off. `partialRead` and `onStale` change the other two rules.
 
 `state` without `digest` is a `TypeError`, as in the read tool, and the `StateNeedsDigest` type refuses it at compile time. `state: null` turns the check off, and every update carries a `read-before-write-off` note.
