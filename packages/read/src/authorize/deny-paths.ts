@@ -5,7 +5,7 @@ import { ALLOW, deny } from "./shared.ts";
 /**
  * Globs on resolvedPath: "**", "*", "?". Denies every action of every tool.
  * For a read the resolvedPath is the realpath, so a symlink to a denied file
- * is denied. Tool-neutral: it fits the read tool's Authorizer too.
+ * is denied. Tool-neutral: it fits the ReadAuthorizer too.
  */
 export function denyPaths(patterns: readonly string[]): ToolAuthorizer<unknown> {
   if (

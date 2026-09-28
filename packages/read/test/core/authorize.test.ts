@@ -5,10 +5,10 @@ import type { FileSystem, ListOptions, ListOutcome } from "@better-fs-tools/fs";
 
 import { createReadTool, textOf } from "../../src/index.ts";
 import type {
-  AuthorizeDecision,
-  Authorizer,
-  AuthorizeTarget,
-  HookContext,
+  ReadAuthorizeDecision,
+  ReadAuthorizer,
+  ReadAuthorizeTarget,
+  ReadHookContext,
   ReadContext,
   ReadNote,
 } from "../../src/index.ts";
@@ -22,10 +22,10 @@ const NOTE: ReadNote = { code: "policy", severity: "info", message: "policy chec
 
 function authorizer(
   authorize: (
-    target: AuthorizeTarget,
-    ctx: HookContext<unknown>,
-  ) => AuthorizeDecision | Promise<AuthorizeDecision>,
-): Authorizer<unknown> {
+    target: ReadAuthorizeTarget,
+    ctx: ReadHookContext<unknown>,
+  ) => ReadAuthorizeDecision | Promise<ReadAuthorizeDecision>,
+): ReadAuthorizer<unknown> {
   return { id: "test", authorize };
 }
 
@@ -77,7 +77,7 @@ function files() {
 describe("authorize read", () => {
   test("runs after open and before any content byte, with the open target", async () => {
     const { fs, log } = files();
-    const targets: AuthorizeTarget[] = [];
+    const targets: ReadAuthorizeTarget[] = [];
     const read = createReadTool({
       fs,
       authorize: authorizer((target) => {
@@ -136,7 +136,7 @@ describe("authorize read", () => {
   test("the authorizer gets the same call object the caller passed", async () => {
     const { fs } = files();
     const call: ReadContext<Host> = { host: { id: "h1" }, callId: "c1" };
-    const seen: HookContext<Host>[] = [];
+    const seen: ReadHookContext<Host>[] = [];
     const read = createReadTool<Host>({
       fs,
       authorize: {
@@ -253,7 +253,7 @@ describe("authorize read", () => {
 describe("authorize list", () => {
   test("runs before the suggest listing, on the lexical parent", async () => {
     const { fs, log } = files();
-    const targets: AuthorizeTarget[] = [];
+    const targets: ReadAuthorizeTarget[] = [];
     const read = createReadTool({
       fs,
       authorize: authorizer((target) => {

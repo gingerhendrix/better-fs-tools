@@ -1,5 +1,5 @@
 import type { AfterReadContext, ReadHook } from "../contract/extensions.ts";
-import type { ReadNote, ReadOutcome } from "../contract/result.ts";
+import type { ReadNote, ReadReport } from "../contract/result.ts";
 import type { ReadRecord } from "../contract/state.ts";
 import type { CallScope } from "./call-scope.ts";
 import { isContentPart } from "./converted.ts";
@@ -38,8 +38,8 @@ const STATUSES: ReadonlySet<unknown> = new Set(["ok", "media", "unsupported", "e
  */
 export async function runHooks<THost>(
   scope: CallScope<THost>,
-  outcome: ReadOutcome,
-): Promise<ReadOutcome> {
+  outcome: ReadReport,
+): Promise<ReadReport> {
   const { hooks } = scope.deps;
   if (hooks.length === 0) return outcome;
   scope.enter("hooks");
@@ -57,9 +57,9 @@ export async function runHooks<THost>(
 async function runHook<THost>(
   scope: CallScope<THost>,
   hook: ReadHook<THost>,
-  before: ReadOutcome,
+  before: ReadReport,
   ctx: AfterReadContext<THost>,
-): Promise<ReadOutcome> {
+): Promise<ReadReport> {
   scope.checkAbort();
   let produced: unknown;
   try {
@@ -78,8 +78,8 @@ async function runHook<THost>(
 function markEdited<THost>(
   scope: CallScope<THost>,
   hookId: string,
-  outcome: ReadOutcome,
-): ReadOutcome {
+  outcome: ReadReport,
+): ReadReport {
   const { messages, digest } = scope.deps;
   const note: ReadNote = {
     code: "view-modified",
@@ -102,7 +102,7 @@ function markEdited<THost>(
  */
 async function previousRecord<THost>(
   scope: CallScope<THost>,
-  outcome: ReadOutcome,
+  outcome: ReadReport,
 ): Promise<ReadRecord | null> {
   if (outcome.file === null) return null;
   const store = scope.stateStore();
@@ -117,7 +117,7 @@ async function previousRecord<THost>(
 }
 
 /** The hook's return has the outcome shape, keeps the status rule, and keeps the frozen fields. */
-function keepsRules(before: ReadOutcome, after: unknown): after is ReadOutcome {
+function keepsRules(before: ReadReport, after: unknown): after is ReadReport {
   if (!isRecord(after) || !STATUSES.has(after.status)) return false;
   if (!Array.isArray(after.notes) || !after.notes.every(isNote)) return false;
   const refused = before.status === "error" || before.status === "unsupported";
@@ -168,7 +168,7 @@ function hasShape(after: Record<string, unknown>): boolean {
 }
 
 /** True when the model would see other view text or other parts. */
-function viewChanged(before: ReadOutcome, after: ReadOutcome): boolean {
+function viewChanged(before: ReadReport, after: ReadReport): boolean {
   if (before.status === "ok" && after.status === "ok") {
     const lines = (outcome: typeof before) =>
       outcome.view.lines.map((line) => [line.number, line.text]);
@@ -180,6 +180,6 @@ function viewChanged(before: ReadOutcome, after: ReadOutcome): boolean {
 }
 
 /** The view text, joined as the scanner joins it for the first viewId. */
-function viewText(outcome: Extract<ReadOutcome, { status: "ok" }>): string {
+function viewText(outcome: Extract<ReadReport, { status: "ok" }>): string {
   return outcome.view.lines.map((line) => line.text).join("\n");
 }

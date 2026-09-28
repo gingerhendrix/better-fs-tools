@@ -6,7 +6,7 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { WritableFileSystem } from "@better-fs-tools/fs";
 import { denyPaths, expandHome, unicodeRepair } from "@better-fs-tools/read";
 import type {
-  Authorizer,
+  ReadAuthorizer,
   Digest,
   ReadStateStore,
   ToolAuthorizer,
@@ -105,8 +105,8 @@ export const sees: WriteAuthorizer<Host> = {
       ? { allow: true, content: "replaced" }
       : { allow: false },
 };
-declare const readOnly: Authorizer<Host>;
-// @ts-expect-error: the read Authorizer's target has size and mtimeMs, which write targets lack.
+declare const readOnly: ReadAuthorizer<Host>;
+// @ts-expect-error: the ReadAuthorizer target has size and mtimeMs, which write targets lack.
 export const notWrite: WriteAuthorizer<Host> = readOnly;
 
 // A state needs a digest (StateNeedsDigest), in the write tools as in read.

@@ -1,6 +1,6 @@
 import type { ListOutcome } from "@better-fs-tools/fs";
 
-import type { Authorizer, AuthorizeTarget } from "../contract/extensions.ts";
+import type { ReadAuthorizer, ReadAuthorizeTarget } from "../contract/extensions.ts";
 import type { ReadRequest } from "../contract/input.ts";
 import type { FileInfo, ReadNote } from "../contract/result.ts";
 import type { CallScope } from "./call-scope.ts";
@@ -19,14 +19,14 @@ type Authorization =
  * on a denial, a throw, and an abort alike.
  */
 export async function authorizeRead<THost>(
-  authorizer: Authorizer<THost> | null,
+  authorizer: ReadAuthorizer<THost> | null,
   request: ReadRequest,
   file: FileInfo,
   scope: CallScope<THost>,
 ): Promise<void> {
   if (authorizer === null) return;
   scope.enter("authorize");
-  const target: AuthorizeTarget = Object.freeze({
+  const target: ReadAuthorizeTarget = Object.freeze({
     action: "read",
     requestedPath: request.path,
     resolvedPath: file.resolvedPath,
@@ -46,14 +46,14 @@ export async function authorizeRead<THost>(
  * ABORTED.
  */
 export async function authorizeList<THost>(
-  authorizer: Authorizer<THost> | null,
+  authorizer: ReadAuthorizer<THost> | null,
   request: ReadRequest,
   dir: string,
   display: string,
   scope: CallScope<THost>,
 ): Promise<ListOutcome | null> {
   if (authorizer === null) return null;
-  const target: AuthorizeTarget = Object.freeze({
+  const target: ReadAuthorizeTarget = Object.freeze({
     action: "list",
     requestedPath: request.path,
     resolvedPath: dir,
@@ -79,8 +79,8 @@ export async function authorizeList<THost>(
  * gives EXTENSION_FAILED. An abort throws AbortReadError.
  */
 async function runAuthorizer<THost>(
-  authorizer: Authorizer<THost>,
-  target: AuthorizeTarget,
+  authorizer: ReadAuthorizer<THost>,
+  target: ReadAuthorizeTarget,
   scope: CallScope<THost>,
 ): Promise<Authorization> {
   let decision: unknown;

@@ -1,5 +1,5 @@
-import type { Formatter } from "../contract/format.ts";
-import type { ReadOutcome } from "../contract/result.ts";
+import type { ReadFormatter } from "../contract/format.ts";
+import type { ReadReport } from "../contract/result.ts";
 import { plainFormatter } from "../formatters/plain.ts";
 import { isDirectory, preset } from "./shared.ts";
 
@@ -8,11 +8,11 @@ import { isDirectory, preset } from "./shared.ts";
  * `@@ lines 1-100 of 250 | next offset 101 @@`. The offset is canonical
  * (one-based). The total is left out when the scan stopped before EOF.
  */
-export function deepAgentsFormat(): Formatter<unknown> {
+export function deepAgentsFormat(): ReadFormatter<unknown> {
   return preset("deep-agents", plainFormatter({ header: range, footer: range }));
 }
 
-function range(outcome: ReadOutcome): string | null {
+function range(outcome: ReadReport): string | null {
   if (outcome.status !== "ok") return null;
   const noun = isDirectory(outcome) ? "entries" : "lines";
   const { lines } = outcome.view;

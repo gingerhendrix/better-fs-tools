@@ -9,7 +9,7 @@ import type {
   ReadContext,
   ReadHook,
   ReadOk,
-  ReadOutcome,
+  ReadReport,
   ReadRecord,
   ReadStateStore,
 } from "../../src/index.ts";
@@ -29,15 +29,15 @@ interface Host {
   readonly id: string;
 }
 
-type Edit = (outcome: ReadOutcome, ctx: AfterReadContext<unknown>) => unknown;
+type Edit = (outcome: ReadReport, ctx: AfterReadContext<unknown>) => unknown;
 
 function hook(id: string, edit: Edit): ReadHook<unknown> {
-  return { id, afterRead: (outcome, ctx) => edit(outcome, ctx) as ReadOutcome };
+  return { id, afterRead: (outcome, ctx) => edit(outcome, ctx) as ReadReport };
 }
 
 /** Records every outcome and context it sees, and returns the outcome unchanged. */
 function spyHook(id = "spy") {
-  const seen: { outcome: ReadOutcome; ctx: AfterReadContext<unknown> }[] = [];
+  const seen: { outcome: ReadReport; ctx: AfterReadContext<unknown> }[] = [];
   return {
     seen,
     hook: hook(id, (outcome, ctx) => {
@@ -47,7 +47,7 @@ function spyHook(id = "spy") {
   };
 }
 
-function upper(outcome: ReadOutcome): ReadOutcome {
+function upper(outcome: ReadReport): ReadReport {
   if (outcome.status !== "ok") return outcome;
   const lines = outcome.view.lines.map((line) => ({ ...line, text: line.text.toUpperCase() }));
   return { ...outcome, view: { ...outcome.view, lines } };

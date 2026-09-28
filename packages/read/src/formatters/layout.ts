@@ -1,9 +1,9 @@
-import type { FormatContext } from "../contract/format.ts";
-import type { ContentPart, ReadNote, ReadOutcome } from "../contract/result.ts";
+import type { ReadFormatContext } from "../contract/format.ts";
+import type { ContentPart, ReadNote, ReadReport } from "../contract/result.ts";
 
 export interface LayoutOptions {
-  header?: (outcome: ReadOutcome, ctx: FormatContext<unknown>) => string | null;
-  footer?: (outcome: ReadOutcome, ctx: FormatContext<unknown>) => string | null;
+  header?: (outcome: ReadReport, ctx: ReadFormatContext<unknown>) => string | null;
+  footer?: (outcome: ReadReport, ctx: ReadFormatContext<unknown>) => string | null;
   /** Filter or rewrite a note for display. null hides it. */
   notes?: (note: ReadNote) => ReadNote | null;
   /** Default: `[read:${note.code}] ${note.message}`. */
@@ -19,8 +19,8 @@ export function defaultNoteLine(note: ReadNote): string {
  * "view" mode returns the body only.
  */
 export function layout(
-  outcome: ReadOutcome,
-  ctx: FormatContext<unknown>,
+  outcome: ReadReport,
+  ctx: ReadFormatContext<unknown>,
   body: string,
   options: LayoutOptions,
 ): string {
@@ -53,7 +53,7 @@ export function join(main: string, lines: readonly string[]): string {
  * the outcome's parts in order. An empty text part is left out, so "view" mode
  * gives the parts alone. Other outcomes give the text.
  */
-export function withParts(outcome: ReadOutcome, text: string): string | readonly ContentPart[] {
+export function withParts(outcome: ReadReport, text: string): string | readonly ContentPart[] {
   if (outcome.status !== "media") return text;
   return text === "" ? [...outcome.parts] : [{ type: "text", text }, ...outcome.parts];
 }

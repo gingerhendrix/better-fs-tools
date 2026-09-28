@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { createReadTool, textOf } from "../../src/index.ts";
-import type { FormatContext, Formatter, ReadResult } from "../../src/index.ts";
+import type { ReadFormatContext, ReadFormatter, ReadResult } from "../../src/index.ts";
 import { harness } from "../helpers.ts";
 
 describe("formatter call", () => {
@@ -12,7 +12,7 @@ describe("formatter call", () => {
   });
 
   test("an array of parts passes through", async () => {
-    const parts: Formatter<unknown> = {
+    const parts: ReadFormatter<unknown> = {
       id: "parts",
       format: () => [
         { type: "text", text: "a" },
@@ -26,8 +26,8 @@ describe("formatter call", () => {
   });
 
   test("runs in model mode with the call object, digest, and limits", async () => {
-    const seen: FormatContext<unknown>[] = [];
-    const spy: Formatter<unknown> = {
+    const seen: ReadFormatContext<unknown>[] = [];
+    const spy: ReadFormatter<unknown> = {
       id: "spy",
       format: (_outcome, ctx) => {
         seen.push(ctx);
@@ -45,7 +45,7 @@ describe("formatter call", () => {
   });
 
   test("a formatter that throws falls back to the default formatter with a warning", async () => {
-    const broken: Formatter<unknown> = {
+    const broken: ReadFormatter<unknown> = {
       id: "broken",
       format: () => {
         throw new Error("formatter bug");
@@ -65,7 +65,7 @@ describe("formatter call", () => {
   });
 
   test("a formatter that returns neither a string nor an array falls back too", async () => {
-    const wrong = { id: "wrong", format: () => 42 } as unknown as Formatter<unknown>;
+    const wrong = { id: "wrong", format: () => 42 } as unknown as ReadFormatter<unknown>;
     const { read } = harness({ files: { "/a.txt": "one\n" }, deps: { formatter: wrong } });
     const result = await read({ path: "/missing.txt" });
     expect(result.status).toBe("error");

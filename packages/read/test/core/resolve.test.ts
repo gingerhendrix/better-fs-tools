@@ -8,7 +8,7 @@ import type {
   PathResolver,
   ReadContext,
   ReadNote,
-  ResolveContext,
+  ReadResolveContext,
   ResolveOutcome,
 } from "../../src/index.ts";
 import { expectFailure, expectOk, spyFileSystem } from "../helpers.ts";
@@ -20,7 +20,10 @@ interface Host {
 const NOTE: ReadNote = { code: "moved", severity: "info", message: "moved" };
 
 function resolver(
-  resolve: (path: string, ctx: ResolveContext<unknown>) => ResolveOutcome | Promise<ResolveOutcome>,
+  resolve: (
+    path: string,
+    ctx: ReadResolveContext<unknown>,
+  ) => ResolveOutcome | Promise<ResolveOutcome>,
 ): PathResolver<unknown> {
   return { id: "test", resolve };
 }
@@ -191,14 +194,14 @@ describe("resolve stage", () => {
 
   test("the resolver gets the caller's call object and the read hook context", async () => {
     const { fs } = files();
-    const seen: ResolveContext<Host>[] = [];
+    const seen: ReadResolveContext<Host>[] = [];
     const read = createReadTool<Host>({
       fs,
       resolve: {
         id: "spy",
         resolve(path, ctx) {
-          // Resolvers are typed on ToolResolveContext. The read core passes the full ResolveContext.
-          seen.push(ctx as ResolveContext<Host>);
+          // Resolvers are typed on ToolResolveContext. The read core passes the full ReadResolveContext.
+          seen.push(ctx as ReadResolveContext<Host>);
           return { kind: "path", path };
         },
       },

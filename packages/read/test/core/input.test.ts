@@ -1,28 +1,28 @@
 import { describe, expect, test } from "bun:test";
 
-import { defaultLimits, parseReadInput, textOf } from "../../src/index.ts";
+import { defaultReadLimits, parseReadInput, textOf } from "../../src/index.ts";
 import { expectFailure, harness, note } from "../helpers.ts";
 
 describe("parseReadInput", () => {
   test("fills defaults and clamps the limit", () => {
-    expect(parseReadInput({ path: "a.ts" }, defaultLimits)).toEqual({
+    expect(parseReadInput({ path: "a.ts" }, defaultReadLimits)).toEqual({
       path: "a.ts",
       offset: 1,
-      limit: defaultLimits.maxLines,
+      limit: defaultReadLimits.maxLines,
       ranged: false,
     });
-    expect(parseReadInput({ path: "a.ts", limit: 10_000 }, defaultLimits).limit).toBe(
-      defaultLimits.maxLines,
+    expect(parseReadInput({ path: "a.ts", limit: 10_000 }, defaultReadLimits).limit).toBe(
+      defaultReadLimits.maxLines,
     );
   });
 
   test("marks a request ranged when offset or limit is set", () => {
-    expect(parseReadInput({ path: "a.ts", offset: 3 }, defaultLimits).ranged).toBe(true);
-    expect(parseReadInput({ path: "a.ts", limit: 3 }, defaultLimits).ranged).toBe(true);
+    expect(parseReadInput({ path: "a.ts", offset: 3 }, defaultReadLimits).ranged).toBe(true);
+    expect(parseReadInput({ path: "a.ts", limit: 3 }, defaultReadLimits).ranged).toBe(true);
   });
 
   test("rejects aliases, strings, and non-positive integers", () => {
-    const parse = (input: unknown) => () => parseReadInput(input, defaultLimits);
+    const parse = (input: unknown) => () => parseReadInput(input, defaultReadLimits);
     expect(parse({ file_path: "a.ts" })).toThrow(TypeError);
     expect(parse({ path: "a.ts", start_line: 3 })).toThrow("Unknown read input key: start_line");
     expect(parse({ path: "a.ts", limit: "50" })).toThrow(TypeError);

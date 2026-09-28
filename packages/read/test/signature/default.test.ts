@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
-import { defaultSignature } from "../../src/signature/index.ts";
+import { defaultReadSignature } from "../../src/signature/index.ts";
 import type { ReadSignature } from "../../src/signature/index.ts";
 import { generatedInputs } from "./generated.ts";
 
@@ -21,16 +21,16 @@ function toReadAccepts(signature: ReadSignature, input: unknown): boolean {
   }
 }
 
-describe("defaultSignature", () => {
+describe("defaultReadSignature", () => {
   test("schema snapshot", () => {
-    const signature = defaultSignature();
+    const signature = defaultReadSignature();
     expect(signature.name).toBe("read");
     expect(signature.schema).toMatchSnapshot();
     expect(signature.description).toMatchSnapshot();
   });
 
   test("docs options replace the name, description, and parameter descriptions", () => {
-    const signature = defaultSignature({
+    const signature = defaultReadSignature({
       name: "read_file",
       description: "Read one file.",
       describe: { path: "Where to read." },
@@ -43,14 +43,14 @@ describe("defaultSignature", () => {
   });
 
   test("the schema and the signature are frozen", () => {
-    const signature = defaultSignature();
+    const signature = defaultReadSignature();
     expect(Object.isFrozen(signature)).toBe(true);
     expect(Object.isFrozen(signature.schema)).toBe(true);
     expect(Object.isFrozen(signature.schema.properties)).toBe(true);
   });
 
   test("toRead and fromRead are the identity on canonical input", () => {
-    const signature = defaultSignature();
+    const signature = defaultReadSignature();
     for (const input of [
       { path: "a.txt" },
       { path: "a.txt", offset: 2 },
@@ -63,7 +63,7 @@ describe("defaultSignature", () => {
   });
 
   test("toRead refuses aliases, strings for numbers, zero, fractions, and blank paths", () => {
-    const signature = defaultSignature();
+    const signature = defaultReadSignature();
     const rejected: unknown[] = [
       { file_path: "a.txt" },
       { path: "a.txt", line: 2 },
@@ -85,7 +85,7 @@ describe("defaultSignature", () => {
   });
 
   test("toRead error messages name the parameter", () => {
-    const signature = defaultSignature();
+    const signature = defaultReadSignature();
     expect(() => signature.toRead({})).toThrow("path is required");
     expect(() => signature.toRead({ path: "a", offset: 0 })).toThrow(
       "offset must be a positive integer",
@@ -96,7 +96,7 @@ describe("defaultSignature", () => {
   });
 
   test("toRead rejects exactly what the schema rejects on generated inputs", () => {
-    const signature = defaultSignature();
+    const signature = defaultReadSignature();
     const inputs = generatedInputs(["path", "offset", "limit"], 3_000);
     let accepted = 0;
     for (const input of inputs) {

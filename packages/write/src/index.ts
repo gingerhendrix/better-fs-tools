@@ -60,7 +60,7 @@ export type { LockManager, LockOutcome } from "./contract/locks.ts";
 export type { PreconditionPolicy } from "./contract/preconditions.ts";
 export type { WriteFormatContext, WriteFormatter } from "./contract/format.ts";
 export type { WriteLimits } from "./contract/limits.ts";
-export type { CanonicalParam, WriteMessageCatalog } from "./contract/messages.ts";
+export type { WriteCanonicalParam, WriteMessageCatalog } from "./contract/messages.ts";
 export type {
   PatchHunk,
   PatchLine,

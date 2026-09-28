@@ -1,7 +1,7 @@
 import type { ReadContext } from "../contract/context.ts";
-import type { Dependencies } from "../contract/deps.ts";
-import type { FormatContext } from "../contract/format.ts";
-import type { ContentPart, ReadOutcome, ReadResult } from "../contract/result.ts";
+import type { ReadDependencies } from "../contract/deps.ts";
+import type { ReadFormatContext } from "../contract/format.ts";
+import type { ContentPart, ReadReport, ReadResult } from "../contract/result.ts";
 import { lineNumberFormatter } from "../formatters/index.ts";
 import { extensionId } from "./extension-error.ts";
 
@@ -11,11 +11,11 @@ import { extensionId } from "./extension-error.ts";
  * warning, and the default formatter formats the outcome. The status stays.
  */
 export function formatResult<THost>(
-  deps: Dependencies<THost>,
+  deps: ReadDependencies<THost>,
   call: ReadContext<THost>,
-  outcome: ReadOutcome,
+  outcome: ReadReport,
 ): ReadResult {
-  const ctx: FormatContext<THost> = {
+  const ctx: ReadFormatContext<THost> = {
     digest: deps.digest,
     limits: deps.limits,
     mode: "model",
@@ -29,7 +29,7 @@ export function formatResult<THost>(
   }
   if (content !== null) return { ...outcome, content };
   const id = extensionId(deps.formatter);
-  const failed: ReadOutcome = {
+  const failed: ReadReport = {
     ...outcome,
     notes: [
       ...outcome.notes,

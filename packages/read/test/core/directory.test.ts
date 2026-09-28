@@ -5,11 +5,11 @@ import type { FileSystem, ListOptions, MemoryFileSystem } from "@better-fs-tools
 
 import { createReadTool, directoryListing, textOf } from "../../src/index.ts";
 import type {
-  AuthorizeTarget,
+  ReadAuthorizeTarget,
   ConvertOutcome,
   DirectoryConverter,
   DirectoryConvertInput,
-  HookContext,
+  ReadHookContext,
   ReadContext,
 } from "../../src/index.ts";
 import { expectFailure, expectMedia, expectOk, lineText, testDigest } from "../helpers.ts";
@@ -52,7 +52,7 @@ function listed(inner: FileSystem) {
 }
 
 function directoryConverter(
-  convert: (input: DirectoryConvertInput, ctx: HookContext<unknown>) => Promise<ConvertOutcome>,
+  convert: (input: DirectoryConvertInput, ctx: ReadHookContext<unknown>) => Promise<ConvertOutcome>,
   id = "dir",
 ): DirectoryConverter<unknown> {
   return { id, target: "directory", convert };
@@ -246,7 +246,7 @@ describe("target null", () => {
 
   test("the authorizer sees the lexical path", async () => {
     const { fs } = targetless(files());
-    const targets: AuthorizeTarget[] = [];
+    const targets: ReadAuthorizeTarget[] = [];
     const read = createReadTool({
       fs,
       authorize: {
@@ -288,7 +288,7 @@ describe("authorize list", () => {
       },
     });
     const log: string[] = [];
-    const targets: AuthorizeTarget[] = [];
+    const targets: ReadAuthorizeTarget[] = [];
     const read = createReadTool({
       fs,
       authorize: {
@@ -432,7 +432,7 @@ describe("host code failures", () => {
 describe("the call object", () => {
   test("the directory converter gets the same call object the caller passed", async () => {
     const call: ReadContext<Host> = { host: { id: "h1" }, callId: "c1" };
-    const seen: HookContext<Host>[] = [];
+    const seen: ReadHookContext<Host>[] = [];
     const read = createReadTool<Host>({
       fs: files(),
       converters: [

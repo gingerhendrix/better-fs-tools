@@ -43,7 +43,7 @@ export async function ask(model: LanguageModel, prompt: string): Promise<string>
 ## What the tool does
 
 - `createAiSdkReadTool(options)` takes every `createReadTool()` option, plus `signature`. `fs` is required. `digest` defaults to `null`, as in the core.
-- The model sees the signature's name, description, and JSON Schema. The tool is `strict: true`. For strict mode, the provider schema lists every property in `required`, makes each optional property nullable, and sets `additionalProperties: false` on every object. The tool maps a `null` back to an absent parameter before the signature reads the input. The default signature is `defaultSignature()`: `read` with `path`, `offset`, and `limit`.
+- The model sees the signature's name, description, and JSON Schema. The tool is `strict: true`. For strict mode, the provider schema lists every property in `required`, makes each optional property nullable, and sets `additionalProperties: false` on every object. The tool maps a `null` back to an absent parameter before the signature reads the input. The default signature is `defaultReadSignature()`: `read` with `path`, `offset`, and `limit`.
 - The schema's `validate` hook runs `signature.toRead` and then the core input check. A refusal names the host's parameters, and `generateText` reports it as a tool error.
 - `execute` passes AI SDK's `ToolExecutionOptions` object to the core as `ctx.call.host`, with `abortSignal` as the signal and `toolCallId` as `callId`. Host functions can read `ctx.call.host.context`. `execute` returns the whole `ReadResult`. If `toRead` refuses an input that reached `execute`, `execute` rejects with that `TypeError`.
 - Retry text in notes uses the signature's names. `result.continuation.next` stays canonical.

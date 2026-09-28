@@ -1,14 +1,14 @@
 import type { FileSystem } from "@better-fs-tools/fs";
 
 import { defaultClassifiers } from "../classifiers/index.ts";
-import type { Dependencies, ReadToolDeps } from "../contract/deps.ts";
+import type { ReadDependencies, ReadToolDeps } from "../contract/deps.ts";
 import type { Converter, ReadHook, ViewBudget } from "../contract/extensions.ts";
 import type { ReadStateStore } from "../contract/state.ts";
 import { lineNumberFormatter } from "../formatters/index.ts";
 import { defaultSuggest } from "../suggest/index.ts";
 import { isRecord } from "./input.ts";
-import { resolveLimits } from "./limits.ts";
-import { resolveMessages } from "./messages.ts";
+import { resolveReadLimits } from "./limits.ts";
+import { resolveReadMessages } from "./messages.ts";
 
 const KNOWN: ReadonlySet<string> = new Set([
   "fs",
@@ -32,7 +32,7 @@ const KNOWN: ReadonlySet<string> = new Set([
  * `messages` merge over their defaults key by key. Every other dependency
  * replaces its default. The core has no filesystem default: `fs` is required.
  */
-export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependencies<THost> {
+export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): ReadDependencies<THost> {
   if (!isRecord(deps)) throw new TypeError("read tool dependencies must be an object");
   for (const key of Object.keys(deps)) {
     if (!KNOWN.has(key)) throw new TypeError(`Unknown read tool dependency: ${key}`);
@@ -89,8 +89,8 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
 
   return Object.freeze({
     fs,
-    limits: resolveLimits(deps.limits),
-    messages: resolveMessages(deps.messages),
+    limits: resolveReadLimits(deps.limits),
+    messages: resolveReadMessages(deps.messages),
     classifiers: Object.freeze([...classifiers]),
     resolve,
     suggest,

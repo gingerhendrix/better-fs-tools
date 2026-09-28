@@ -20,13 +20,10 @@ export type {
   ToolResolveContext,
 } from "./contract/base.ts";
 export type { ReadContext, ReadTool } from "./contract/context.ts";
-export type { Dependencies, ReadToolDeps, StateNeedsDigest } from "./contract/deps.ts";
+export type { ReadDependencies, ReadToolDeps, StateNeedsDigest } from "./contract/deps.ts";
 export type { Clock, Digest, DigestStream } from "./contract/digest.ts";
 export type {
   AfterReadContext,
-  AuthorizeDecision,
-  Authorizer,
-  AuthorizeTarget,
   Converter,
   ConverterMatch,
   ConvertOutcome,
@@ -34,20 +31,23 @@ export type {
   DirectoryConvertInput,
   FileConverter,
   FileConvertInput,
-  HookContext,
   PathResolver,
+  ReadAuthorizeDecision,
+  ReadAuthorizer,
+  ReadAuthorizeTarget,
   ReadHook,
-  ResolveContext,
+  ReadHookContext,
+  ReadResolveContext,
   ResolveOutcome,
   Suggest,
   SuggestContext,
   ViewBudget,
 } from "./contract/extensions.ts";
-export type { FormatContext, Formatter } from "./contract/format.ts";
+export type { ReadFormatContext, ReadFormatter } from "./contract/format.ts";
 export type { ReadInput, ReadRequest } from "./contract/input.ts";
 export type { JsonObject, JsonValue } from "./contract/json.ts";
 export type { ReadLimits } from "./contract/limits.ts";
-export type { MessageCatalog, ReadPhase } from "./contract/messages.ts";
+export type { ReadMessageCatalog, ReadPhase } from "./contract/messages.ts";
 export type {
   ClassificationInfo,
   Confidence,
@@ -64,7 +64,7 @@ export type {
   ReadNote,
   ReadObservation,
   ReadOk,
-  ReadOutcome,
+  ReadReport,
   ReadResult,
   ReadTotals,
   ReadTruncation,
@@ -77,8 +77,8 @@ export type { ReadRecord, ReadStateStore } from "./contract/state.ts";
 
 export { createReadTool } from "./core/create-read-tool.ts";
 export { parseReadInput } from "./core/input.ts";
-export { defaultLimits, resolveLimits } from "./core/limits.ts";
-export { defaultMessages, resolveMessages } from "./core/messages.ts";
+export { defaultReadLimits, resolveReadLimits } from "./core/limits.ts";
+export { defaultReadMessages, resolveReadMessages } from "./core/messages.ts";
 export { textOf } from "./core/format.ts";
 export {
   binaryClassifier,
@@ -91,7 +91,13 @@ export {
   utf8Classifier,
 } from "./classifiers/index.ts";
 export type { ExtensionClassifierOptions } from "./classifiers/index.ts";
-export { askUser, authorizers, compileGlob, denyPaths, sizeCeiling } from "./authorize/index.ts";
+export {
+  askUser,
+  compileGlob,
+  denyPaths,
+  readAuthorizers,
+  sizeCeiling,
+} from "./authorize/index.ts";
 export {
   directoryListing,
   imageConverter,

@@ -1,20 +1,20 @@
-import { defaultLimits, defaultMessages } from "../../src/index.ts";
-import type { AuthorizeTarget, HookContext, ReadRequest } from "../../src/index.ts";
+import { defaultReadLimits, defaultReadMessages } from "../../src/index.ts";
+import type { ReadAuthorizeTarget, ReadHookContext, ReadRequest } from "../../src/index.ts";
 
 /** A hook context for unit tests of one authorizer. */
-export function hookContext(request: Partial<ReadRequest> = {}): HookContext<unknown> {
+export function hookContext(request: Partial<ReadRequest> = {}): ReadHookContext<unknown> {
   return {
     tool: "read",
     request: { path: "/d/a.txt", offset: 1, limit: 2_000, ranged: false, ...request },
-    limits: defaultLimits,
-    messages: defaultMessages,
+    limits: defaultReadLimits,
+    messages: defaultReadMessages,
     digest: null,
     clock: () => new Date(0),
     call: { host: undefined },
   };
 }
 
-export function readTarget(resolvedPath: string, size: number | null = 10): AuthorizeTarget {
+export function readTarget(resolvedPath: string, size: number | null = 10): ReadAuthorizeTarget {
   return {
     action: "read",
     requestedPath: resolvedPath,
@@ -25,7 +25,7 @@ export function readTarget(resolvedPath: string, size: number | null = 10): Auth
   };
 }
 
-export function listTarget(dir: string): AuthorizeTarget {
+export function listTarget(dir: string): ReadAuthorizeTarget {
   return {
     action: "list",
     requestedPath: `${dir}/x`,

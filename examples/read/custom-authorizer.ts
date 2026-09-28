@@ -1,6 +1,6 @@
-import type { Authorizer } from "@better-fs-tools/read";
+import type { ReadAuthorizer } from "@better-fs-tools/read";
 
-export const noLockfiles: Authorizer<unknown> = {
+export const noLockfiles: ReadAuthorizer<unknown> = {
   id: "no-lockfiles",
   authorize: (target, ctx) =>
     target.action === "read" && target.resolvedPath.endsWith(".lock")

@@ -1,4 +1,4 @@
-import type { ReadOutcome } from "../contract/result.ts";
+import type { ReadReport } from "../contract/result.ts";
 import type { LineNumberFormatterOptions } from "./line-number.ts";
 
 /**
@@ -15,7 +15,7 @@ export function eofFooter(
   };
 }
 
-function eofTotal(outcome: ReadOutcome): number | null {
+function eofTotal(outcome: ReadReport): number | null {
   if (outcome.status !== "ok" || outcome.classification.kind === "directory") return null;
   const total = outcome.totals.lines;
   if (!outcome.totals.exact || total === null || outcome.continuation.available) return null;

@@ -13,8 +13,13 @@ import {
   textOf as coreText,
   unicodeRepair,
 } from "@better-fs-tools/read";
-import type { ContentPart, FormatContext, Formatter, ReadContext } from "@better-fs-tools/read";
-import { defaultSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
+import type {
+  ContentPart,
+  ReadFormatContext,
+  ReadFormatter,
+  ReadContext,
+} from "@better-fs-tools/read";
+import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
 
 import { createPiReadTool } from "../src/index.ts";
 import { execute, fixtures, piContext, textOf } from "./helpers.ts";
@@ -34,7 +39,7 @@ describe("pi tool shape", () => {
     expect(tool.promptSnippet).toBe(builtIn.promptSnippet as string);
     expect(tool.promptGuidelines).toEqual(["Use read to examine files instead of cat or sed."]);
     expect(tool.promptGuidelines).toEqual(builtIn.promptGuidelines as string[]);
-    expect(tool.description).toBe(defaultSignature().description);
+    expect(tool.description).toBe(defaultReadSignature().description);
 
     const parameters = tool.parameters as unknown as {
       type: string;
@@ -217,9 +222,9 @@ describe("pi authorize", () => {
 describe("pi host context", () => {
   test("the formatter gets the same call object in model and view mode, with ctx as host", async () => {
     const root = await fixture({ "a.txt": "one\ntwo\nthree\n" });
-    const seen: FormatContext<ExtensionContext>[] = [];
+    const seen: ReadFormatContext<ExtensionContext>[] = [];
     const base = lineNumberFormatter();
-    const formatter: Formatter<ExtensionContext> = {
+    const formatter: ReadFormatter<ExtensionContext> = {
       id: "spy",
       format(outcome, ctx) {
         seen.push(ctx);
@@ -331,7 +336,7 @@ describe("pi host context", () => {
 describe("pi custom formatter", () => {
   test("details take their content from view mode", async () => {
     const root = await fixture({ "a.txt": "one\ntwo\nthree\n" });
-    const formatter: Formatter<unknown> = {
+    const formatter: ReadFormatter<unknown> = {
       id: "modes",
       format: (outcome, ctx) =>
         `${ctx.mode}:${outcome.status === "ok" ? outcome.view.lines.map((line) => line.text).join(",") : ""}`,
@@ -349,7 +354,7 @@ describe("pi custom formatter", () => {
 
   test("a formatter that throws still returns the file, with a warning", async () => {
     const root = await fixture({ "a.txt": "one\ntwo\nthree\n" });
-    const formatter: Formatter<unknown> = {
+    const formatter: ReadFormatter<unknown> = {
       id: "broken",
       format: () => {
         throw new Error("format failed");
@@ -367,7 +372,7 @@ describe("pi custom formatter", () => {
 
   test("a formatter that returns parts gives {} details", async () => {
     const root = await fixture({ "a.txt": "one\ntwo\nthree\n" });
-    const formatter: Formatter<unknown> = {
+    const formatter: ReadFormatter<unknown> = {
       id: "parts",
       format: (outcome): readonly ContentPart[] => [{ type: "text", text: outcome.status }],
     };

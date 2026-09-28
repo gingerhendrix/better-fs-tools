@@ -9,7 +9,7 @@ import type {
   ConvertOutcome,
   FileConverter,
   FileConvertInput,
-  HookContext,
+  ReadHookContext,
   ReadContext,
   ReadToolDeps,
   StateNeedsDigest,
@@ -35,7 +35,7 @@ const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 
 
 /** A file converter for every file, or for the given classification code. */
 function converter(
-  convert: (input: FileConvertInput, ctx: HookContext<unknown>) => Promise<ConvertOutcome>,
+  convert: (input: FileConvertInput, ctx: ReadHookContext<unknown>) => Promise<ConvertOutcome>,
   accepts: (match: ConverterMatch) => boolean = () => true,
   id = "test",
 ): FileConverter<unknown> {
@@ -664,7 +664,7 @@ describe("the call object", () => {
   test("the converter gets the same call object the caller passed", async () => {
     const memory = memoryFileSystem({ files: { "/a.png": PNG } });
     const call: ReadContext<Host> = { host: { id: "h1" }, callId: "c1" };
-    const seen: HookContext<Host>[] = [];
+    const seen: ReadHookContext<Host>[] = [];
     const read = createReadTool<Host>({
       fs: memory,
       converters: [

@@ -6,7 +6,7 @@ import type { Tool, ToolExecutionOptions, ToolSet } from "ai";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { lineNumberFormatter } from "@better-fs-tools/read";
-import type { Formatter, JsonObject, ReadContext, ReadResult } from "@better-fs-tools/read";
+import type { ReadFormatter, JsonObject, ReadContext, ReadResult } from "@better-fs-tools/read";
 
 import { createAiSdkReadTool } from "../../src/index.ts";
 import type { AiSdkReadOutput, AiSdkReadTool } from "../../src/index.ts";
@@ -46,7 +46,7 @@ export const unknownFormatter = createAiSdkReadTool<{ user: string }>({
 export const unknownFactory = createAiSdkReadTool<{ user: string }>({
   fs: (_call: ReadContext<unknown>) => fs,
 });
-declare const hostFormatter: Formatter<ToolExecutionOptions<{ user: string }>>;
+declare const hostFormatter: ReadFormatter<ToolExecutionOptions<{ user: string }>>;
 export const hostTyped = createAiSdkReadTool<{ user: string }>({ fs, formatter: hostFormatter });
 
 // fs is required, as in the core.

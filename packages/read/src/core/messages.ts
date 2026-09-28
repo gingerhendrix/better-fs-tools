@@ -1,13 +1,13 @@
 import type { NodeKind } from "@better-fs-tools/fs";
 
-import type { MessageCatalog } from "../contract/messages.ts";
+import type { ReadMessageCatalog } from "../contract/messages.ts";
 import type { TruncationReason } from "../contract/result.ts";
 
 /**
  * Wording for every note the core owns. No message names a parameter: text
  * that suggests a retry prints the `retry` string, which `retry(next)` built.
  */
-const catalog: MessageCatalog = {
+const catalog: ReadMessageCatalog = {
   retry: (next) => JSON.stringify(next),
   continuation: ({ retry, reason }) =>
     `Output stopped at the ${reasonLabel(reason)}. Continue with ${retry}.`,
@@ -63,7 +63,7 @@ const catalog: MessageCatalog = {
     `The ${formatter} formatter failed, so the default formatter formatted this result.`,
 };
 
-export const defaultMessages: Readonly<MessageCatalog> = Object.freeze(catalog);
+export const defaultReadMessages: Readonly<ReadMessageCatalog> = Object.freeze(catalog);
 
 function quoted(values: readonly string[]): string {
   return values.map((value) => JSON.stringify(value)).join(", ");
@@ -84,16 +84,18 @@ function kindLabel(kind: NodeKind): string {
 }
 
 /** Merges key by key. Throws TypeError on an unknown key or a non-function value. */
-export function resolveMessages(overrides: Partial<MessageCatalog> = {}): Readonly<MessageCatalog> {
+export function resolveReadMessages(
+  overrides: Partial<ReadMessageCatalog> = {},
+): Readonly<ReadMessageCatalog> {
   if (overrides === null || typeof overrides !== "object" || Array.isArray(overrides)) {
     throw new TypeError("messages must be an object");
   }
-  const resolved: Record<string, unknown> = { ...defaultMessages };
+  const resolved: Record<string, unknown> = { ...defaultReadMessages };
   for (const [key, value] of Object.entries(overrides)) {
-    if (!Object.hasOwn(defaultMessages, key)) throw new TypeError(`Unknown message: ${key}`);
+    if (!Object.hasOwn(defaultReadMessages, key)) throw new TypeError(`Unknown message: ${key}`);
     if (value === undefined) continue;
     if (typeof value !== "function") throw new TypeError(`messages.${key} must be a function`);
     resolved[key] = value;
   }
-  return Object.freeze(resolved as unknown as MessageCatalog);
+  return Object.freeze(resolved as unknown as ReadMessageCatalog);
 }

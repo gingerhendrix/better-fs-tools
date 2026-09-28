@@ -1,11 +1,11 @@
-import type { Formatter } from "../contract/format.ts";
+import type { ReadFormatter } from "../contract/format.ts";
 import type { JsonObject } from "../contract/json.ts";
-import type { ReadOutcome } from "../contract/result.ts";
+import type { ReadReport } from "../contract/result.ts";
 import { join, noteLines } from "./layout.ts";
 
 export interface JsonFormatterOptions {
   /** Default: the whole outcome. */
-  pick?: (outcome: ReadOutcome) => JsonObject;
+  pick?: (outcome: ReadReport) => JsonObject;
   /** "inside" (default) puts notes in the JSON; "after" adds note lines after it. */
   notes?: "inside" | "after";
   space?: number;
@@ -17,12 +17,12 @@ export interface JsonFormatterOptions {
  * Media bytes are left out of the JSON: each byte array becomes its length.
  * A media outcome returns the JSON text part, then its media parts.
  */
-export function jsonFormatter(options: JsonFormatterOptions = {}): Formatter<unknown> {
-  const pick = options.pick ?? ((outcome: ReadOutcome) => outcome as unknown as JsonObject);
+export function jsonFormatter(options: JsonFormatterOptions = {}): ReadFormatter<unknown> {
+  const pick = options.pick ?? ((outcome: ReadReport) => outcome as unknown as JsonObject);
   const placement = options.notes ?? "inside";
   const space = options.space ?? 0;
   const stringify = (value: JsonObject): string => JSON.stringify(value, withoutBytes, space);
-  return Object.freeze<Formatter<unknown>>({
+  return Object.freeze<ReadFormatter<unknown>>({
     id: "json",
     format(outcome, ctx) {
       const picked = pick(outcome);

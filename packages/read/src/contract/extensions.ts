@@ -6,16 +6,16 @@ import type { Classification, ClassificationSample } from "./classify.ts";
 import type { ReadContext } from "./context.ts";
 import type { ReadRequest } from "./input.ts";
 import type { ReadLimits } from "./limits.ts";
-import type { MessageCatalog } from "./messages.ts";
-import type { ContentPart, ReadNote, ReadOutcome } from "./result.ts";
+import type { ReadMessageCatalog } from "./messages.ts";
+import type { ContentPart, ReadNote, ReadReport } from "./result.ts";
 import type { ReadRecord } from "./state.ts";
 
 /** Given to every host function that runs during a call. */
-export interface HookContext<THost = undefined> extends ToolHookContext<THost> {
+export interface ReadHookContext<THost = undefined> extends ToolHookContext<THost> {
   readonly tool: "read";
   readonly request: ReadRequest;
   readonly limits: Readonly<ReadLimits>;
-  readonly messages: Readonly<MessageCatalog>;
+  readonly messages: Readonly<ReadMessageCatalog>;
   /** Same object for every stage of one call. */
   readonly call: ReadContext<THost>;
 }
@@ -26,8 +26,8 @@ export interface HookContext<THost = undefined> extends ToolHookContext<THost> {
  * What the core passes to a resolver. It fits ToolResolveContext, the type
  * resolvers take, so a resolver works for every tool.
  */
-export interface ResolveContext<THost = undefined>
-  extends HookContext<THost>, Pick<ToolResolveContext<THost>, "paths" | "list"> {}
+export interface ReadResolveContext<THost = undefined>
+  extends ReadHookContext<THost>, Pick<ToolResolveContext<THost>, "paths" | "list"> {}
 
 export type { PathResolver, ResolveOutcome } from "./base.ts";
 
@@ -48,15 +48,15 @@ export interface SuggestContext<THost = undefined> {
 
 /* Authorize */
 
-export interface Authorizer<THost = undefined> {
+export interface ReadAuthorizer<THost = undefined> {
   readonly id: string;
   authorize(
-    target: AuthorizeTarget,
-    ctx: HookContext<THost>,
-  ): AuthorizeDecision | Promise<AuthorizeDecision>;
+    target: ReadAuthorizeTarget,
+    ctx: ReadHookContext<THost>,
+  ): ReadAuthorizeDecision | Promise<ReadAuthorizeDecision>;
 }
 
-export interface AuthorizeTarget extends AccessTarget {
+export interface ReadAuthorizeTarget extends AccessTarget {
   readonly action: "read" | "list";
   /** Realpath for "read". Lexical directory path for "list". */
   readonly resolvedPath: string;
@@ -65,7 +65,7 @@ export interface AuthorizeTarget extends AccessTarget {
 }
 
 /** AccessDecision with read notes, so a denial can carry a retry. A ToolAuthorizer's decision fits it. */
-export type AuthorizeDecision =
+export type ReadAuthorizeDecision =
   | { readonly allow: true; readonly notes?: readonly ReadNote[] }
   | { readonly allow: false; readonly note?: ReadNote };
 
@@ -84,7 +84,7 @@ export interface FileConverter<THost = undefined> {
   readonly target: "file";
   /** Sync. The only place a converter may decline. */
   accepts(match: ConverterMatch): boolean;
-  convert(input: FileConvertInput, ctx: HookContext<THost>): Promise<ConvertOutcome>;
+  convert(input: FileConvertInput, ctx: ReadHookContext<THost>): Promise<ConvertOutcome>;
 }
 
 export interface FileConvertInput {
@@ -98,7 +98,7 @@ export interface FileConvertInput {
 export interface DirectoryConverter<THost = undefined> {
   readonly id: string;
   readonly target: "directory";
-  convert(input: DirectoryConvertInput, ctx: HookContext<THost>): Promise<ConvertOutcome>;
+  convert(input: DirectoryConvertInput, ctx: ReadHookContext<THost>): Promise<ConvertOutcome>;
 }
 
 export interface DirectoryConvertInput {
@@ -127,10 +127,10 @@ export type ConvertOutcome =
 
 export interface ReadHook<THost = undefined> {
   readonly id: string;
-  afterRead(outcome: ReadOutcome, ctx: AfterReadContext<THost>): ReadOutcome | Promise<ReadOutcome>;
+  afterRead(outcome: ReadReport, ctx: AfterReadContext<THost>): ReadReport | Promise<ReadReport>;
 }
 
-export interface AfterReadContext<THost = undefined> extends HookContext<THost> {
+export interface AfterReadContext<THost = undefined> extends ReadHookContext<THost> {
   /** The stored record from before this read. null with no state or no record. */
   readonly previous: ReadRecord | null;
 }

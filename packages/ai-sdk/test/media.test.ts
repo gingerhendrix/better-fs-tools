@@ -6,7 +6,7 @@ import type { ToolExecutionOptions } from "ai";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { directoryListing, imageConverter, textOf } from "@better-fs-tools/read";
-import type { FileConverter, HookContext, ReadResult } from "@better-fs-tools/read";
+import type { FileConverter, ReadHookContext, ReadResult } from "@better-fs-tools/read";
 
 import { createAiSdkReadTool, toAiSdkOutput } from "../src/index.ts";
 import { CLOCK, executeOptions, expectOk } from "./helpers.ts";
@@ -73,7 +73,7 @@ describe("AI SDK media parts", () => {
   });
 
   test("the converter gets the ToolExecutionOptions object as host", async () => {
-    const seen: HookContext<ToolExecutionOptions<Record<string, unknown>>>[] = [];
+    const seen: ReadHookContext<ToolExecutionOptions<Record<string, unknown>>>[] = [];
     const converter: FileConverter<ToolExecutionOptions<Record<string, unknown>>> = {
       id: "host",
       target: "file",

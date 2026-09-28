@@ -4,23 +4,23 @@ import type { Classifier } from "./classify.ts";
 import type { ReadContext } from "./context.ts";
 import type { Clock, Digest } from "./digest.ts";
 import type {
-  Authorizer,
+  ReadAuthorizer,
   Converter,
   PathResolver,
   ReadHook,
   Suggest,
   ViewBudget,
 } from "./extensions.ts";
-import type { Formatter } from "./format.ts";
+import type { ReadFormatter } from "./format.ts";
 import type { ReadLimits } from "./limits.ts";
-import type { MessageCatalog } from "./messages.ts";
+import type { ReadMessageCatalog } from "./messages.ts";
 import type { ReadStateStore } from "./state.ts";
 
-export interface Dependencies<THost = undefined> {
+export interface ReadDependencies<THost = undefined> {
   /** A filesystem, or a factory called once for each read before resolve (D19). */
   readonly fs: FileSystem | ((call: ReadContext<THost>) => FileSystem);
   readonly limits: Readonly<ReadLimits>;
-  readonly messages: Readonly<MessageCatalog>;
+  readonly messages: Readonly<ReadMessageCatalog>;
   /** Ordered. First classifier with an opinion wins. Non-empty. */
   readonly classifiers: readonly Classifier[];
   /** Changes the path string that goes into the one fs.open(). null is identity. */
@@ -28,7 +28,7 @@ export interface Dependencies<THost = undefined> {
   /** Names for a NOT_FOUND note, from one listing of the parent. null never lists. */
   readonly suggest: Suggest<THost> | null;
   /** Host policy on the open file ("read") and before every listing ("list"). null allows. */
-  readonly authorize: Authorizer<THost> | null;
+  readonly authorize: ReadAuthorizer<THost> | null;
   /** File converters in order: the first that accepts runs. The first directory converter lists directories. */
   readonly converters: readonly Converter<THost>[];
   /** Stops the view early, at a line boundary, when the next line would pass `max`. null has no budget. */
@@ -39,7 +39,7 @@ export interface Dependencies<THost = undefined> {
   readonly state: ReadStateStore | ((call: ReadContext<THost>) => ReadStateStore | null) | null;
   readonly digest: Digest | null;
   readonly clock: Clock;
-  readonly formatter: Formatter<THost>;
+  readonly formatter: ReadFormatter<THost>;
 }
 
 /**
@@ -51,7 +51,7 @@ export interface Dependencies<THost = undefined> {
 export type StateNeedsDigest = { readonly state?: null } | { readonly digest: Digest };
 
 export type ReadToolDeps<THost = undefined> = {
-  readonly fs: Dependencies<THost>["fs"];
+  readonly fs: ReadDependencies<THost>["fs"];
   readonly limits?: Partial<ReadLimits>;
-  readonly messages?: Partial<MessageCatalog>;
-} & Partial<Omit<Dependencies<THost>, "fs" | "limits" | "messages">>;
+  readonly messages?: Partial<ReadMessageCatalog>;
+} & Partial<Omit<ReadDependencies<THost>, "fs" | "limits" | "messages">>;

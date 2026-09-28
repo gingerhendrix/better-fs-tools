@@ -3,7 +3,7 @@ import { createPiReadTool } from "@better-fs-tools/pi";
 import { lineRangeSignature } from "@better-fs-tools/read/signature";
 import {
   askUser,
-  authorizers,
+  readAuthorizers,
   denyPaths,
   directoryListing,
   eofFooter,
@@ -26,7 +26,7 @@ export const read = createPiReadTool({
     names: { path: "file_path", start: "start_line", end: "end_line" },
   }),
   resolve: pathResolvers(stripPrefixes(), unicodeRepair({ note: false })),
-  authorize: authorizers(
+  authorize: readAuthorizers(
     denyPaths(["**/.env", "**/.env.*"]),
     sizeCeiling({ maxBytes: 256 * 1024, unrangedOnly: true }),
     askUser<ExtensionContext>(async (target, ctx) => {

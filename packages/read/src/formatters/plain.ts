@@ -1,4 +1,4 @@
-import type { Formatter } from "../contract/format.ts";
+import type { ReadFormatter } from "../contract/format.ts";
 import { layout, withParts } from "./layout.ts";
 import type { LineNumberFormatterOptions } from "./line-number.ts";
 
@@ -8,8 +8,8 @@ import type { LineNumberFormatterOptions } from "./line-number.ts";
  */
 export function plainFormatter(
   options: Omit<LineNumberFormatterOptions, "gutter" | "clampMarker"> = {},
-): Formatter<unknown> {
-  return Object.freeze<Formatter<unknown>>({
+): ReadFormatter<unknown> {
+  return Object.freeze<ReadFormatter<unknown>>({
     id: "plain",
     format(outcome, ctx) {
       const body =

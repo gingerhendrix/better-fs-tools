@@ -4,7 +4,7 @@ import type { ToolMessages } from "@better-fs-tools/read";
 import type { WriteToolName } from "./context.ts";
 import type { WriteErrorCode, WritePhase } from "./result.ts";
 
-export type CanonicalParam =
+export type WriteCanonicalParam =
   | "path"
   | "edits"
   | "oldText"
@@ -24,7 +24,7 @@ export interface WriteMessageCatalog extends ToolMessages {
    * string means the host has no such parameter, and the default texts leave
    * out the advice that names it.
    */
-  param(name: CanonicalParam): string;
+  param(name: WriteCanonicalParam): string;
 
   invalidInput(c: { tool: WriteToolName; detail: string }): string;
   notFound(c: { tool: WriteToolName; path: string }): string;

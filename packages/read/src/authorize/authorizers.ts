@@ -1,4 +1,4 @@
-import type { Authorizer } from "../contract/extensions.ts";
+import type { ReadAuthorizer } from "../contract/extensions.ts";
 import type { ReadNote } from "../contract/result.ts";
 import { stepFailure } from "../core/extension-error.ts";
 
@@ -10,9 +10,9 @@ import { stepFailure } from "../core/extension-error.ts";
  * THost comes from where the chain is used, not from the steps, so a step
  * such as askUser(...) gets the tool's host type with no type argument.
  */
-export function authorizers<THost = unknown>(
-  ...steps: readonly Authorizer<NoInfer<THost>>[]
-): Authorizer<THost> {
+export function readAuthorizers<THost = unknown>(
+  ...steps: readonly ReadAuthorizer<NoInfer<THost>>[]
+): ReadAuthorizer<THost> {
   for (const step of steps) {
     if (step === null || typeof step !== "object" || typeof step.authorize !== "function") {
       throw new TypeError("authorizers takes authorizers");
@@ -35,5 +35,5 @@ export function authorizers<THost = unknown>(
       }
       return notes.length === 0 ? { allow: true } : { allow: true, notes };
     },
-  } satisfies Authorizer<THost>);
+  } satisfies ReadAuthorizer<THost>);
 }

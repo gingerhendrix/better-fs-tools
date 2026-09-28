@@ -8,7 +8,7 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 import { charsPerToken, createReadTool, redact, repeatReadGuard } from "../../src/index.ts";
 import type {
   AfterReadContext,
-  HookContext,
+  ReadHookContext,
   ReadHook,
   ReadRecord,
   TruncationReason,
@@ -71,10 +71,10 @@ declare const otherHook: ReadHook<{ user: number }>;
 // @ts-expect-error the host types differ
 createReadTool<Host>({ fs, hooks: [otherHook] });
 
-// The context widens to unknown and is a HookContext.
+// The context widens to unknown and is a ReadHookContext.
 declare const afterRead: AfterReadContext<Host>;
 export const widened: AfterReadContext<unknown> = afterRead;
-export const asHookContext: HookContext<Host> = afterRead;
+export const asHookContext: ReadHookContext<Host> = afterRead;
 declare const unknownAfterRead: AfterReadContext<unknown>;
 // @ts-expect-error an unknown host is not a Host
 export const narrowed: AfterReadContext<Host> = unknownAfterRead;

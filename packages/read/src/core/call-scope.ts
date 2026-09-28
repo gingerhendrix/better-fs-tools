@@ -1,8 +1,8 @@
 import type { FileSystem, ListOutcome } from "@better-fs-tools/fs";
 
 import type { ReadContext } from "../contract/context.ts";
-import type { Dependencies } from "../contract/deps.ts";
-import type { HookContext } from "../contract/extensions.ts";
+import type { ReadDependencies } from "../contract/deps.ts";
+import type { ReadHookContext } from "../contract/extensions.ts";
 import type { ReadRequest } from "../contract/input.ts";
 import type { ReadPhase } from "../contract/messages.ts";
 import type { ReadNote } from "../contract/result.ts";
@@ -33,11 +33,11 @@ export class CallScope<THost> {
   private resolvedFs: FileSystem | null = null;
   /** undefined until the core first needs the store. */
   private resolvedState: ReadStateStore | null | undefined = undefined;
-  private hook: HookContext<THost> | null = null;
+  private hook: ReadHookContext<THost> | null = null;
   private readonly listed = new Set<ListingSlot>();
 
   constructor(
-    readonly deps: Dependencies<THost>,
+    readonly deps: ReadDependencies<THost>,
     private readonly request: ReadRequest,
     readonly call: ReadContext<THost>,
   ) {}
@@ -89,7 +89,7 @@ export class CallScope<THost> {
   }
 
   /** The context every host function gets. One object for each read. */
-  hookContext(): HookContext<THost> {
+  hookContext(): ReadHookContext<THost> {
     if (this.hook !== null) return this.hook;
     const { limits, messages, digest, clock } = this.deps;
     return (this.hook = Object.freeze({

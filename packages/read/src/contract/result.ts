@@ -20,10 +20,10 @@ export type ContentPart = TextPart | MediaPart;
  * One variant for each status. `status` narrows the union: only the "error"
  * variant has `error`, and it is never null there.
  */
-export type ReadOutcome = ReadOk | ReadMedia | ReadUnsupported | ReadFailure;
+export type ReadReport = ReadOk | ReadMedia | ReadUnsupported | ReadFailure;
 
 /** The outcome plus the formatter's model-facing content. */
-export type ReadResult = ReadOutcome & { readonly content: readonly ContentPart[] };
+export type ReadResult = ReadReport & { readonly content: readonly ContentPart[] };
 
 export interface ReadOk {
   readonly tool: "read";

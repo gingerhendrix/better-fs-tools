@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { createReadTool, hashlineGutter, lineNumberFormatter, textOf } from "@better-fs-tools/read";
-import type { Digest, Formatter } from "@better-fs-tools/read";
+import type { Digest, ReadFormatter } from "@better-fs-tools/read";
 import { hashlineFormat, hermesFormat, opencodeFormat } from "@better-fs-tools/read/formats";
 
 import { readPrefixGuard } from "../../src/index.ts";
@@ -29,7 +29,7 @@ function base64Digest(): Digest {
 }
 
 /** The file lines as the read tool shows them with `formatter`. */
-async function readOutput(formatter: Formatter<unknown>, digest: Digest): Promise<string[]> {
+async function readOutput(formatter: ReadFormatter<unknown>, digest: Digest): Promise<string[]> {
   const fs = memoryFileSystem({ files: { "/src/sum.ts": `${SOURCE.join("\n")}\n` } });
   const read = createReadTool({ fs, digest, formatter });
   const shown = textOf(await read({ path: "/src/sum.ts" }));
@@ -39,7 +39,7 @@ async function readOutput(formatter: Formatter<unknown>, digest: Digest): Promis
 }
 
 describe("readPrefixGuard", () => {
-  const presets: [string, Formatter<unknown>, Digest][] = [
+  const presets: [string, ReadFormatter<unknown>, Digest][] = [
     ["line-number (default)", lineNumberFormatter(), testDigest()],
     ["hashline, hex digest", hashlineFormat(), testDigest()],
     ["hashline, base64url digest", hashlineFormat(), base64Digest()],

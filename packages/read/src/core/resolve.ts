@@ -1,6 +1,6 @@
 import type { FileSystem } from "@better-fs-tools/fs";
 
-import type { PathResolver, ResolveContext } from "../contract/extensions.ts";
+import type { PathResolver, ReadResolveContext } from "../contract/extensions.ts";
 import type { ReadRequest } from "../contract/input.ts";
 import type { ReadNote } from "../contract/result.ts";
 import type { CallScope } from "./call-scope.ts";
@@ -33,7 +33,7 @@ export async function resolvePath<THost>(
 ): Promise<ResolvedPath> {
   if (resolver === null)
     return { kind: "path", path: request.path, resolvedFrom: null, note: null };
-  const ctx: ResolveContext<THost> = {
+  const ctx: ReadResolveContext<THost> = {
     ...scope.hookContext(),
     paths: fs.paths,
     list: (dir) => scope.list("resolver", dir),

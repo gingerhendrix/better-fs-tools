@@ -1,6 +1,6 @@
 import type { ConvertOutcome } from "../contract/extensions.ts";
 import type { ReadRequest } from "../contract/input.ts";
-import type { MessageCatalog } from "../contract/messages.ts";
+import type { ReadMessageCatalog } from "../contract/messages.ts";
 import type {
   ClassificationInfo,
   ContentPart,
@@ -108,7 +108,7 @@ export function refusedOutcome(
 
 /** Converter input past maxConvertBytes, or media past maxMediaBytes. */
 export function tooLarge(
-  messages: Readonly<MessageCatalog>,
+  messages: Readonly<ReadMessageCatalog>,
   request: ReadRequest,
   file: FileInfo,
   classification: ClassificationInfo,

@@ -1,6 +1,6 @@
 import type { FileSystem } from "@better-fs-tools/fs";
 
-import type { Dependencies } from "../contract/deps.ts";
+import type { ReadDependencies } from "../contract/deps.ts";
 import type { ReadRequest } from "../contract/input.ts";
 import type {
   ClassificationInfo,
@@ -15,7 +15,7 @@ import { buildObservation } from "./observation.ts";
 import type { ScanOutcome } from "./scan.ts";
 
 export interface TextOutcomeInput<THost> {
-  readonly deps: Dependencies<THost>;
+  readonly deps: ReadDependencies<THost>;
   /** The backend, for capability notes. null for a directory: it has no observation. */
   readonly fs: FileSystem | null;
   readonly request: ReadRequest;

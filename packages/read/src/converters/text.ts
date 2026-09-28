@@ -1,4 +1,4 @@
-import type { ConverterMatch, FileConverter, HookContext } from "../contract/extensions.ts";
+import type { ConverterMatch, FileConverter, ReadHookContext } from "../contract/extensions.ts";
 
 export interface TextConverterOptions<THost = unknown> {
   id: string;
@@ -7,7 +7,7 @@ export interface TextConverterOptions<THost = unknown> {
   /** Media type of the text. */
   mimeType: string | null;
   /** Source bytes in, text out. The core scans the text as it arrives. */
-  run: (source: AsyncIterable<Uint8Array>, ctx: HookContext<THost>) => AsyncIterable<string>;
+  run: (source: AsyncIterable<Uint8Array>, ctx: ReadHookContext<THost>) => AsyncIterable<string>;
 }
 
 /** Builds a text converter from a stream function, for example a pdftotext process in the host. */

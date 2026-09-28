@@ -1,6 +1,6 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`defaultSignature schema snapshot 1`] = `
+exports[`defaultReadSignature schema snapshot 1`] = `
 {
   "additionalProperties": false,
   "properties": {
@@ -30,4 +30,4 @@ exports[`defaultSignature schema snapshot 1`] = `
 }
 `;
 
-exports[`defaultSignature schema snapshot 2`] = `"Read a UTF-8 text file. \`offset\` is a one-based source line and \`limit\` is a number of source lines. Output is bounded by line, byte, and line-length limits. When the result reports truncation, follow the continuation it returns instead of guessing the next \`offset\`. Paths outside the allowed roots, binary content, and special files are refused."`;
+exports[`defaultReadSignature schema snapshot 2`] = `"Read a UTF-8 text file. \`offset\` is a one-based source line and \`limit\` is a number of source lines. Output is bounded by line, byte, and line-length limits. When the result reports truncation, follow the continuation it returns instead of guessing the next \`offset\`. Paths outside the allowed roots, binary content, and special files are refused."`;

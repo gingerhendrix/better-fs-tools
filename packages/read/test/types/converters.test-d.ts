@@ -18,9 +18,9 @@ import type {
   ConvertOutcome,
   DirectoryConverter,
   FileConverter,
-  HookContext,
+  ReadHookContext,
   ReadMedia,
-  ReadOutcome,
+  ReadReport,
 } from "../../src/index.ts";
 
 interface Host {
@@ -100,8 +100,8 @@ declare const otherConverter: FileConverter<{ user: number }>;
 createReadTool<Host>({ fs, converters: [otherConverter] });
 
 // Context types widen to unknown.
-declare const hook: HookContext<Host>;
-export const widened: HookContext<unknown> = hook;
+declare const hook: ReadHookContext<Host>;
+export const widened: ReadHookContext<unknown> = hook;
 
 // A file converter needs accepts; a directory converter has none to call.
 // @ts-expect-error accepts is required for target "file"
@@ -123,7 +123,7 @@ export const refusal: ConvertOutcome = {
 };
 
 // ReadMedia is an outcome with parts and a conversion.
-export function partsOf(outcome: ReadOutcome): readonly ContentPart[] {
+export function partsOf(outcome: ReadReport): readonly ContentPart[] {
   if (outcome.status === "media") {
     const media: ReadMedia = outcome;
     return media.conversion.converter === "" ? [] : media.parts;

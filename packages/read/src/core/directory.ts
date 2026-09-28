@@ -2,7 +2,7 @@ import type { FileSystem, ListOutcome, NotAFileError } from "@better-fs-tools/fs
 
 import type { DirectoryConverter, DirectoryConvertInput } from "../contract/extensions.ts";
 import type { ReadRequest } from "../contract/input.ts";
-import type { ClassificationInfo, FileInfo, ReadOutcome } from "../contract/result.ts";
+import type { ClassificationInfo, FileInfo, ReadReport } from "../contract/result.ts";
 import type { CallScope } from "./call-scope.ts";
 import {
   checkConvertOutcome,
@@ -59,7 +59,7 @@ export interface ConvertDirectoryInput<THost> {
  */
 export async function convertDirectory<THost>(
   input: ConvertDirectoryInput<THost>,
-): Promise<ReadOutcome> {
+): Promise<ReadReport> {
   const { fs, request, path, error, converter, scope } = input;
   const { limits, messages } = scope.deps;
   const dir = error.target?.resolvedPath ?? path;

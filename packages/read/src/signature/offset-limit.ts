@@ -1,6 +1,6 @@
 import type { ReadInput } from "../contract/input.ts";
 import type { JsonObject } from "../contract/json.ts";
-import type { DefaultModelInput, ReadParam, ReadSignature, SignatureDocs } from "./contract.ts";
+import type { DefaultReadModelInput, ReadParam, ReadSignature, SignatureDocs } from "./contract.ts";
 import {
   DEFAULT_NAME,
   lineSchema,
@@ -15,10 +15,10 @@ import {
 const PARAMS: readonly ReadParam[] = ["path", "offset", "limit"];
 
 /** The default schema: integer offset and limit, NUL-free non-blank path. Identity mapping. */
-export function defaultSignature(
+export function defaultReadSignature(
   options: SignatureDocs<ReadParam> = {},
-): ReadSignature<DefaultModelInput> {
-  return offsetLimitSignature(options, {}) as ReadSignature<DefaultModelInput>;
+): ReadSignature<DefaultReadModelInput> {
+  return offsetLimitSignature(options, {}) as ReadSignature<DefaultReadModelInput>;
 }
 
 /** The default signature with host names for path, offset, and limit. */

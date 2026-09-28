@@ -3,23 +3,23 @@ import type { FileSystemError } from "@better-fs-tools/fs";
 import type { UnsupportedClassification } from "../contract/classify.ts";
 import type { ReadRequest } from "../contract/input.ts";
 import type { JsonValue } from "../contract/json.ts";
-import type { MessageCatalog, ReadPhase } from "../contract/messages.ts";
+import type { ReadMessageCatalog, ReadPhase } from "../contract/messages.ts";
 import type {
   FileInfo,
   ReadErrorCode,
   ReadFailure,
   ReadNote,
-  ReadOutcome,
+  ReadReport,
   ReadUnsupported,
 } from "../contract/result.ts";
 import { classificationInfo } from "./classify.ts";
 import { isRecord } from "./input.ts";
 
-type Messages = Readonly<MessageCatalog>;
+type Messages = Readonly<ReadMessageCatalog>;
 
 /** Thrown by a stage to end the read with a finished outcome. Internal. */
 export class ReadStop extends Error {
-  constructor(readonly outcome: ReadOutcome) {
+  constructor(readonly outcome: ReadReport) {
     super(`read stopped with ${outcome.status}`);
   }
 }

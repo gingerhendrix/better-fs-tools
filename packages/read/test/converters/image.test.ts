@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { createReadTool, imageConverter } from "../../src/index.ts";
-import type { HookContext, ReadContext } from "../../src/index.ts";
+import type { ReadHookContext, ReadContext } from "../../src/index.ts";
 import { corpus } from "../fixtures/corpus.ts";
 import { expectMedia, expectUnsupported, harness } from "../helpers.ts";
 import { memoryFileSystem } from "@better-fs-tools/fs";
@@ -57,7 +57,7 @@ describe("imageConverter", () => {
   });
 
   test("transform gets the bytes, the type, and the same call object", async () => {
-    const seen: HookContext<Host>[] = [];
+    const seen: ReadHookContext<Host>[] = [];
     const call: ReadContext<Host> = { host: { id: "h1" } };
     const read = createReadTool<Host>({
       fs: memoryFileSystem({ files: { "/a.png": fixture("image.png") } }),

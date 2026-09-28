@@ -12,12 +12,12 @@ import type { TSchema } from "typebox";
 
 import {
   askUser,
-  authorizers,
+  readAuthorizers,
   denyPaths,
   lineNumberFormatter,
   sizeCeiling,
 } from "@better-fs-tools/read";
-import type { Formatter, ReadContext, ReadStateStore } from "@better-fs-tools/read";
+import type { ReadFormatter, ReadContext, ReadStateStore } from "@better-fs-tools/read";
 import {
   deepAgentsFormat,
   hashlineFormat,
@@ -53,7 +53,7 @@ export const unknownFormatter = createPiReadTool({ formatter: lineNumberFormatte
 export const unknownState = createPiReadTool({
   state: (_call: ReadContext<unknown>) => null,
 });
-declare const piFormatter: Formatter<ExtensionContext>;
+declare const piFormatter: ReadFormatter<ExtensionContext>;
 export const hostFormatter = createPiReadTool({ formatter: piFormatter });
 
 // askUser takes Pi's ExtensionContext as its host, so ctx.call.host.ui type-checks.
@@ -67,7 +67,7 @@ createPiReadTool({
 
 // Host-free and Pi-typed authorizers compose.
 export const composed = createPiReadTool({
-  authorize: authorizers(
+  authorize: readAuthorizers(
     denyPaths(["**/.env"]),
     sizeCeiling({ maxBytes: 1_000_000, unrangedOnly: true }),
     askUser((target, ctx) => ctx.call.host.ui.confirm("Read", target.displayPath)),
@@ -84,4 +84,4 @@ export const presets: PiReadTool[] = [
   hashlineFormat(),
   hermesFormat(),
 ].map((formatter) => createPiReadTool({ formatter }));
-export const presetAsPiFormatter: Formatter<ExtensionContext> = hashlineFormat();
+export const presetAsPiFormatter: ReadFormatter<ExtensionContext> = hashlineFormat();

@@ -1,5 +1,5 @@
-import { defaultLimits } from "../../src/index.ts";
-import type { FormatContext, ReadMedia } from "../../src/index.ts";
+import { defaultReadLimits } from "../../src/index.ts";
+import type { ReadFormatContext, ReadMedia } from "../../src/index.ts";
 
 export const PIXELS = Uint8Array.from([0x89, 0x50, 0x4e, 0x47]);
 
@@ -37,6 +37,6 @@ export const mediaOutcome: ReadMedia = {
   notes: [{ code: "resized", severity: "info", message: "Resized." }],
 };
 
-export function formatContext(mode: "model" | "view"): FormatContext<unknown> {
-  return { digest: null, limits: defaultLimits, mode, call: { host: undefined } };
+export function formatContext(mode: "model" | "view"): ReadFormatContext<unknown> {
+  return { digest: null, limits: defaultReadLimits, mode, call: { host: undefined } };
 }

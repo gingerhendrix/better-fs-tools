@@ -1,4 +1,4 @@
-import type { Authorizer } from "../contract/extensions.ts";
+import type { ReadAuthorizer } from "../contract/extensions.ts";
 import { ALLOW, deny } from "./shared.ts";
 
 /**
@@ -9,7 +9,7 @@ import { ALLOW, deny } from "./shared.ts";
 export function sizeCeiling(options: {
   maxBytes: number;
   unrangedOnly?: boolean;
-}): Authorizer<unknown> {
+}): ReadAuthorizer<unknown> {
   const { maxBytes, unrangedOnly = false } = options ?? {};
   if (typeof maxBytes !== "number" || !Number.isSafeInteger(maxBytes) || maxBytes < 0) {
     throw new TypeError("sizeCeiling maxBytes must be a non-negative safe integer");
@@ -39,5 +39,5 @@ export function sizeCeiling(options: {
         { data, retry },
       );
     },
-  } satisfies Authorizer<unknown>);
+  } satisfies ReadAuthorizer<unknown>);
 }

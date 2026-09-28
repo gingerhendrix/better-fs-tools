@@ -1,6 +1,6 @@
 import type { FileSystem, NotAFileError, OpenFile, OpenFileInfo } from "@better-fs-tools/fs";
 
-import type { Dependencies } from "../contract/deps.ts";
+import type { ReadDependencies } from "../contract/deps.ts";
 import type { DirectoryConverter } from "../contract/extensions.ts";
 import type { ReadRequest } from "../contract/input.ts";
 import type { FileInfo } from "../contract/result.ts";
@@ -23,7 +23,7 @@ export type Opened<THost> =
  * goes to the directory converter when there is one and the backend can list.
  */
 export async function openFile<THost>(
-  deps: Dependencies<THost>,
+  deps: ReadDependencies<THost>,
   fs: FileSystem,
   request: ReadRequest,
   path: string,

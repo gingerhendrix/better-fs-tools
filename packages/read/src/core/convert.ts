@@ -1,10 +1,10 @@
 import type { FileSystem, OpenFile } from "@better-fs-tools/fs";
 
 import type { Classification, ClassificationSample } from "../contract/classify.ts";
-import type { Dependencies } from "../contract/deps.ts";
+import type { ReadDependencies } from "../contract/deps.ts";
 import type { ConverterMatch, FileConverter, FileConvertInput } from "../contract/extensions.ts";
 import type { ReadRequest } from "../contract/input.ts";
-import type { ClassificationInfo, FileInfo, ReadMedia, ReadOutcome } from "../contract/result.ts";
+import type { ClassificationInfo, FileInfo, ReadMedia, ReadReport } from "../contract/result.ts";
 import type { CallScope } from "./call-scope.ts";
 import { classificationInfo } from "./classify.ts";
 import type { Decision } from "./classify.ts";
@@ -56,7 +56,7 @@ export function selectFileConverter<THost>(
 }
 
 export interface ConvertFileInput<THost> {
-  readonly deps: Dependencies<THost>;
+  readonly deps: ReadDependencies<THost>;
   readonly fs: FileSystem;
   readonly request: ReadRequest;
   readonly file: FileInfo;
@@ -75,7 +75,7 @@ export interface ConvertFileInput<THost> {
  * maxConvertBytes (even when the converter caught the error), gives TOO_LARGE.
  * contentId hashes the source bytes.
  */
-export async function convertFile<THost>(input: ConvertFileInput<THost>): Promise<ReadOutcome> {
+export async function convertFile<THost>(input: ConvertFileInput<THost>): Promise<ReadReport> {
   const { deps, request, file, handle, sample, decision, converter, scope } = input;
   const { limits, messages } = deps;
   const classification = classificationInfo(decision);

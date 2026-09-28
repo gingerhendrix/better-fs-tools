@@ -1,17 +1,17 @@
 # Result schema
 
-Every read returns a `ReadResult`: a `ReadOutcome` plus `content`, the parts that the formatter made for the model.
+Every read returns a `ReadResult`: a `ReadReport` plus `content`, the parts that the formatter made for the model.
 
 ```ts
-type ReadResult = ReadOutcome & { readonly content: readonly ContentPart[] };
-type ReadOutcome = ReadOk | ReadMedia | ReadUnsupported | ReadFailure;
+type ReadResult = ReadReport & { readonly content: readonly ContentPart[] };
+type ReadReport = ReadOk | ReadMedia | ReadUnsupported | ReadFailure;
 
 type ContentPart =
   | { type: "text"; text: string }
   | { type: "media"; mediaType: string; data: Uint8Array; name?: string };
 ```
 
-`ReadOutcome` is a discriminated union on `status`. Every variant has `tool: "read"`. Only the `error` variant has an `error` field, and it is never null there, so a plain `if (result.status === "error")` narrows it:
+`ReadReport` is a discriminated union on `status`. Every variant has `tool: "read"`. Only the `error` variant has an `error` field, and it is never null there, so a plain `if (result.status === "error")` narrows it:
 
 ```ts
 if (result.status === "error") console.log(result.error.code, result.error.phase);

@@ -126,18 +126,18 @@ Pass dependencies to `createReadTool()`, `createNodeReadTool()`, or an adapter f
 
 | Dimension                                              | Dependency                  | Default                                                                     |
 | ------------------------------------------------------ | --------------------------- | --------------------------------------------------------------------------- |
-| Tool name, parameters, range model, descriptions       | `signature` (adapters only) | `defaultSignature()`: `read` with `path`, `offset`, `limit`                 |
+| Tool name, parameters, range model, descriptions       | `signature` (adapters only) | `defaultReadSignature()`: `read` with `path`, `offset`, `limit`             |
 | Filesystem, allowed roots, deny roots, symlinks        | `fs`                        | Required. `createNodeReadTool()` uses `nodeFileSystem` over `process.cwd()` |
 | Path rewrites (`~`, `file://`, `@`, Unicode repair)    | `resolve`                   | `null` (the path is used as given)                                          |
 | Names to suggest when a file is missing                | `suggest`                   | `defaultSuggest()`                                                          |
 | Per-path policy, size ceiling, user approval           | `authorize`                 | `null` (allow)                                                              |
 | Binary and format detection                            | `classifiers`               | `defaultClassifiers()`                                                      |
 | File conversion, images, directories                   | `converters`                | `[]`                                                                        |
-| Line, byte, scan, conversion, and media limits         | `limits`                    | `defaultLimits`                                                             |
+| Line, byte, scan, conversion, and media limits         | `limits`                    | `defaultReadLimits`                                                         |
 | Token limit                                            | `budget`                    | `null`                                                                      |
 | Redaction, repeat-read guard, your own after-read code | `hooks`                     | `[]`                                                                        |
 | Output text or content parts                           | `formatter`                 | `lineNumberFormatter()`                                                     |
-| Note and message wording                               | `messages`                  | `defaultMessages`                                                           |
+| Note and message wording                               | `messages`                  | `defaultReadMessages`                                                       |
 | Read records for later tools                           | `state`                     | `null`                                                                      |
 | Content hashes and observations                        | `digest`                    | `null`. `createNodeReadTool()` and the Pi tool use `nodeDigest()`           |
 | Timestamps                                             | `clock`                     | `() => new Date()`                                                          |
@@ -175,13 +175,13 @@ Three builders cover the common cases:
 
 ```ts
 import {
-  defaultSignature,
+  defaultReadSignature,
   lineRangeSignature,
   renamedSignature,
 } from "@better-fs-tools/read/signature";
 
 // The default schema, with your own descriptions.
-export const documented = defaultSignature({
+export const documented = defaultReadSignature({
   description: "Read a file in the repository.",
   describe: { path: "Path relative to the repository root." },
 });
@@ -201,7 +201,7 @@ export const lineRange = lineRangeSignature({
 
 With `lineRangeSignature`, a truncated read tells the model to continue with `{"file_path":"src/a.ts","start_line":101,"end_line":200}`. The structured result stays canonical: `result.continuation.next` is still `{ path, offset, limit }`.
 
-`createAiSdkReadTool()` and `createPiReadTool()` wire the retry wording for you with `signatureMessages(signature)`. If you call the core yourself behind a signature, pass `messages: signatureMessages(signature)`. Otherwise the retry text uses `path`, `offset`, and `limit`.
+`createAiSdkReadTool()` and `createPiReadTool()` wire the retry wording for you with `readSignatureMessages(signature)`. If you call the core yourself behind a signature, pass `messages: readSignatureMessages(signature)`. Otherwise the retry text uses `path`, `offset`, and `limit`.
 
 The core has no alias repair. The default signature refuses `file_path` or `start_line`. To accept those names, choose a signature that uses them. For another shape, write your own `ReadSignature`. Keep `toRead` pure and synchronous. The core still validates what `toRead` returns, so a signature cannot skip the path checks or the `maxLines` clamp.
 
@@ -287,13 +287,13 @@ The filesystem owns the root policy: allowed roots, deny roots, and symlinks. `a
 
 ```ts
 import { createNodeReadTool } from "@better-fs-tools/node";
-import { askUser, authorizers, denyPaths, sizeCeiling } from "@better-fs-tools/read";
+import { askUser, readAuthorizers, denyPaths, sizeCeiling } from "@better-fs-tools/read";
 
 // Your own prompt, for example a dialog in your UI.
 declare function confirmInUi(question: string): Promise<boolean>;
 
 export const read = createNodeReadTool({
-  authorize: authorizers(
+  authorize: readAuthorizers(
     denyPaths(["**/.env", "**/.env.*", "**/*.pem"]),
     sizeCeiling({ maxBytes: 256 * 1024, unrangedOnly: true }),
     askUser(async (target) => confirmInUi(`Read ${target.displayPath}?`)),
@@ -306,14 +306,14 @@ export const read = createNodeReadTool({
 | `denyPaths(globs)`                        | Refuses every action whose `resolvedPath` matches a glob (`**`, `*`, `?`). For a read, `resolvedPath` is the realpath, so a symlink `config -> .env` is refused too. It is a `ToolAuthorizer`, so it fits every tool.   |
 | `sizeCeiling({ maxBytes, unrangedOnly })` | Refuses a read of a file larger than `maxBytes`. With `unrangedOnly: true`, a read with an explicit `offset` or `limit` is allowed, and the refusal note offers a ranged retry. A file with an unknown size is allowed. |
 | `askUser(prompt)`                         | Calls `prompt(target, ctx)` for each read, not for listings. Only `true` allows. `false` or a throw refuses.                                                                                                            |
-| `authorizers(...steps)`                   | Runs in order. The first refusal wins. Allow notes from every step are kept.                                                                                                                                            |
+| `readAuthorizers(...steps)`               | Runs in order. The first refusal wins. Allow notes from every step are kept.                                                                                                                                            |
 
 A custom authorizer returns `{ allow: true, notes? }` or `{ allow: false, note? }`:
 
 ```ts
-import type { Authorizer } from "@better-fs-tools/read";
+import type { ReadAuthorizer } from "@better-fs-tools/read";
 
-export const noLockfiles: Authorizer<unknown> = {
+export const noLockfiles: ReadAuthorizer<unknown> = {
   id: "no-lockfiles",
   authorize: (target, ctx) =>
     target.action === "read" && target.resolvedPath.endsWith(".lock")
@@ -332,7 +332,7 @@ export const noLockfiles: Authorizer<unknown> = {
 };
 ```
 
-`ctx.messages.denied({ path, detail })` gives the host's refusal text. It takes a path, not the read request, so tool-neutral authorizers can use it. A `ToolAuthorizer` sees only `action`, `requestedPath`, `resolvedPath`, and `displayPath`, and a context with no read request. It fits the read tool's `Authorizer` and the write tools' authorizers. `compileGlob(pattern)` is the matcher `denyPaths` uses.
+`ctx.messages.denied({ path, detail })` gives the host's refusal text. It takes a path, not the read request, so tool-neutral authorizers can use it. A `ToolAuthorizer` sees only `action`, `requestedPath`, `resolvedPath`, and `displayPath`, and a context with no read request. It fits the read tool's `ReadAuthorizer` and the write tools' authorizers. `compileGlob(pattern)` is the matcher `denyPaths` uses.
 
 A refusal always gives `DENIED`. The authorizer's note replaces the default `denied` note. A `DENIED` result has `file: null`, so it does not show the real path behind a link. An authorizer that throws gives `EXTENSION_FAILED`.
 
@@ -583,13 +583,13 @@ Every note has a `code`, a `severity`, and a `message`. It can also have `data`,
 
 Key your code on `code`, not on the wording. You can change notes in four places:
 
-| To change                                | Use                                                 |
-| ---------------------------------------- | --------------------------------------------------- |
-| The wording of a core note               | `messages`                                          |
-| How a retry call is printed              | `messages.retry`, or `signatureMessages(signature)` |
-| The wording of a format refusal          | `defaultClassifiers({ notes })`                     |
-| How a note looks in the text, or hide it | formatter `notes` or `noteLine`                     |
-| The note in the structured result        | an `afterRead` hook that rewrites `outcome.notes`   |
+| To change                                | Use                                                     |
+| ---------------------------------------- | ------------------------------------------------------- |
+| The wording of a core note               | `messages`                                              |
+| How a retry call is printed              | `messages.retry`, or `readSignatureMessages(signature)` |
+| The wording of a format refusal          | `defaultClassifiers({ notes })`                         |
+| How a note looks in the text, or hide it | formatter `notes` or `noteLine`                         |
+| The note in the structured result        | an `afterRead` hook that rewrites `outcome.notes`       |
 
 No default message names `offset` or `limit`. Every message that suggests a retry prints it with `messages.retry`. The structured `truncation` and `continuation` fields always stay in the result. If you hide the `continue` note, your code can still read `result.continuation`.
 
@@ -709,13 +709,13 @@ Cloudflare Agents hosts use `@better-fs-tools/ai-sdk` with `shellWorkspaceFileSy
 | Entry                             | Contents                                                                                                                                                                   |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@better-fs-tools/read`           | `createReadTool`, `textOf`, `parseReadInput`, limits, messages, classifiers, resolvers, suggestions, authorizers, converters, hooks, the budget, formatters, and the types |
-| `@better-fs-tools/read/signature` | `defaultSignature`, `renamedSignature`, `lineRangeSignature`, `signatureMessages`, and the signature types                                                                 |
+| `@better-fs-tools/read/signature` | `defaultReadSignature`, `renamedSignature`, `lineRangeSignature`, `readSignatureMessages`, and the signature types                                                         |
 | `@better-fs-tools/read/formats`   | `opencodeFormat`, `deepAgentsFormat`, `hashlineFormat`, `hermesFormat`                                                                                                     |
 | `@better-fs-tools/read/state`     | `createMemoryStore`                                                                                                                                                        |
 
 The package has no peers and imports no `node:` module, so it runs in Node, Bun, browsers, and Cloudflare Workers. It does not re-export the `fs` types. Import `FileSystem` and the other filesystem types from `@better-fs-tools/fs`. `ReadStateStore` and `ReadRecord` come from `@better-fs-tools/read`.
 
-The root entry also exports the tool-neutral base types that `@better-fs-tools/write` builds on: `ToolCallContext`, `ToolName`, `Note`, `ToolMessages`, `ToolHookContext`, `ToolResolveContext`, `AccessTarget`, `AccessDecision`, and `ToolAuthorizer`. `ReadContext` extends `ToolCallContext`, `ReadNote` extends `Note`, and `MessageCatalog` extends `ToolMessages`.
+The root entry also exports the tool-neutral base types that `@better-fs-tools/write` builds on: `ToolCallContext`, `ToolName`, `Note`, `ToolMessages`, `ToolHookContext`, `ToolResolveContext`, `AccessTarget`, `AccessDecision`, and `ToolAuthorizer`. `ReadContext` extends `ToolCallContext`, `ReadNote` extends `Note`, and `ReadMessageCatalog` extends `ToolMessages`.
 
 ## A host that changes everything
 
@@ -727,7 +727,7 @@ import { createPiReadTool } from "@better-fs-tools/pi";
 import { lineRangeSignature } from "@better-fs-tools/read/signature";
 import {
   askUser,
-  authorizers,
+  readAuthorizers,
   denyPaths,
   directoryListing,
   eofFooter,
@@ -750,7 +750,7 @@ export const read = createPiReadTool({
     names: { path: "file_path", start: "start_line", end: "end_line" },
   }),
   resolve: pathResolvers(stripPrefixes(), unicodeRepair({ note: false })),
-  authorize: authorizers(
+  authorize: readAuthorizers(
     denyPaths(["**/.env", "**/.env.*"]),
     sizeCeiling({ maxBytes: 256 * 1024, unrangedOnly: true }),
     askUser<ExtensionContext>(async (target, ctx) => {

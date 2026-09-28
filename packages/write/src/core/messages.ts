@@ -1,8 +1,8 @@
 import type { NodeKind } from "@better-fs-tools/fs";
 
-import type { CanonicalParam, WriteMessageCatalog } from "../contract/messages.ts";
+import type { WriteCanonicalParam, WriteMessageCatalog } from "../contract/messages.ts";
 
-type Param = (name: CanonicalParam) => string;
+type Param = (name: WriteCanonicalParam) => string;
 
 /**
  * The default wording, built around one `param`. resolveWriteMessages builds

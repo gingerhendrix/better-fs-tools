@@ -90,12 +90,12 @@ The adapter builds a `ReadContext` for each tool call: `{ signal?, callId?, host
 
 `src/contract/base.ts` holds the types that the read tool and the write tools share: `ToolCallContext`, `ToolName`, `Note`, `ToolMessages`, `ToolHookContext`, `ToolResolveContext`, `PathResolver`, `ResolveOutcome`, `AccessTarget`, `AccessDecision`, and `ToolAuthorizer`. `@better-fs-tools/write` imports them from this package, so it has no copy of its own.
 
-- `HookContext` extends `ToolHookContext` with `tool: "read"`, the request, and the limits. `ResolveContext` adds `paths` and `list()`, so it fits `ToolResolveContext`.
+- `ReadHookContext` extends `ToolHookContext` with `tool: "read"`, the request, and the limits. `ReadResolveContext` adds `paths` and `list()`, so it fits `ToolResolveContext`.
 - Resolvers take a `ToolResolveContext`. The built-in resolvers never need the read request, so they work for every tool.
-- `denyPaths` is a `ToolAuthorizer`. It sees only the fields every target has, and uses `ctx.messages.denied({ path, detail })`, which every tool's catalog has. A `ToolAuthorizer` fits the read `Authorizer`.
-- The read `AuthorizeDecision` keeps `ReadNote`, so a denial can carry a `retry`. An `AccessDecision` fits it.
+- `denyPaths` is a `ToolAuthorizer`. It sees only the fields every target has, and uses `ctx.messages.denied({ path, detail })`, which every tool's catalog has. A `ToolAuthorizer` fits the read `ReadAuthorizer`.
+- The read `ReadAuthorizeDecision` keeps `ReadNote`, so a denial can carry a `retry`. An `AccessDecision` fits it.
 
-The public types keep `THost` out of conditional types. `ReadContext<THost>` is an interface with a required `host`. Only the `ReadTool<THost>` parameter type makes the context and `host` optional when `THost` includes `undefined`. With this shape, a helper typed with `unknown` for the host fits a tool with any host type. A conditional context type made `Formatter` and the other contexts invariant in `THost` under TypeScript 7, and then host-free helpers did not fit.
+The public types keep `THost` out of conditional types. `ReadContext<THost>` is an interface with a required `host`. Only the `ReadTool<THost>` parameter type makes the context and `host` optional when `THost` includes `undefined`. With this shape, a helper typed with `unknown` for the host fits a tool with any host type. A conditional context type made `ReadFormatter` and the other contexts invariant in `THost` under TypeScript 7, and then host-free helpers did not fit.
 
 ## Why the filesystem returns a handle
 
@@ -212,7 +212,7 @@ A formatter that throws, or returns neither a string nor an array, does not reje
 
 ## Adapters
 
-Adapters sit above the core. A `ReadSignature` owns the tool name, the JSON Schema, and the mapping between model input and canonical input. `signatureMessages(signature)` makes retry text use the model's names. The structured result always stays canonical.
+Adapters sit above the core. A `ReadSignature` owns the tool name, the JSON Schema, and the mapping between model input and canonical input. `readSignatureMessages(signature)` makes retry text use the model's names. The structured result always stays canonical.
 
 The AI SDK adapter passes `ToolExecutionOptions` as `host`. The Pi adapter passes Pi's `ExtensionContext`, and builds the filesystem for each call from `ctx.cwd` with an `fs` factory. No adapter adds policy of its own, except Pi's rule that the root is always the call's working directory.
 

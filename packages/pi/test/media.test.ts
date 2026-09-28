@@ -6,7 +6,11 @@ import path from "node:path";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { directoryListing, imageConverter } from "@better-fs-tools/read";
-import type { AuthorizeTarget, DirectoryConverter, HookContext } from "@better-fs-tools/read";
+import type {
+  ReadAuthorizeTarget,
+  DirectoryConverter,
+  ReadHookContext,
+} from "@better-fs-tools/read";
 
 import { createPiReadTool } from "../src/index.ts";
 import { execute, fixtures, piContext, textOf } from "./helpers.ts";
@@ -75,7 +79,7 @@ describe("pi directory reads", () => {
     const cwd = await fixture({ "real/a.txt": "a" });
     await mkdir(path.join(cwd, "links"));
     await symlink(path.join(cwd, "real"), path.join(cwd, "links", "dir"));
-    const targets: AuthorizeTarget[] = [];
+    const targets: ReadAuthorizeTarget[] = [];
     const tool = createPiReadTool({
       authorize: {
         id: "log",
@@ -102,7 +106,7 @@ describe("pi directory reads", () => {
 
   test("the directory converter gets ctx as host", async () => {
     const cwd = await fixture({ "d/a.txt": "a" });
-    const seen: HookContext<ExtensionContext>[] = [];
+    const seen: ReadHookContext<ExtensionContext>[] = [];
     const converter: DirectoryConverter<ExtensionContext> = {
       id: "host",
       target: "directory",

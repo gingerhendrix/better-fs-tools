@@ -18,7 +18,7 @@ import {
   hashlineGutter,
   lineNumberFormatter,
 } from "../../src/index.ts";
-import type { Formatter, LineNumberFormatterOptions } from "../../src/index.ts";
+import type { ReadFormatter, LineNumberFormatterOptions } from "../../src/index.ts";
 
 interface Host {
   readonly id: string;
@@ -32,7 +32,7 @@ export const deepAgents = createReadTool<Host>({ fs, formatter: deepAgentsFormat
 export const hashline = createReadTool<Host>({ fs, formatter: hashlineFormat() });
 export const hermes = createReadTool<Host>({ fs, formatter: hermesFormat() });
 export const plain = createReadTool({ fs, formatter: hashlineFormat() });
-export const asHostFormatter: Formatter<Host> = opencodeFormat();
+export const asHostFormatter: ReadFormatter<Host> = opencodeFormat();
 
 // The helpers fill the lineNumberFormatter options.
 export const gutter: NonNullable<LineNumberFormatterOptions["gutter"]> = hashlineGutter({

@@ -180,7 +180,7 @@ describe("pi details mapping", () => {
     const result = await read({ path: "lines.txt", limit: 2 });
     const view = lineNumberFormatter().format(result, {
       digest: null,
-      limits: { ...(await import("@better-fs-tools/read")).defaultLimits },
+      limits: { ...(await import("@better-fs-tools/read")).defaultReadLimits },
       mode: "view",
       call: { host: undefined },
     });

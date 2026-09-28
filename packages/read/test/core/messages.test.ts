@@ -1,16 +1,16 @@
 import { describe, expect, test } from "bun:test";
 
-import { defaultMessages, resolveMessages, textOf } from "../../src/index.ts";
+import { defaultReadMessages, resolveReadMessages, textOf } from "../../src/index.ts";
 import type { ReadRequest } from "../../src/index.ts";
 import { expectOk, harness, note } from "../helpers.ts";
 
 const request: ReadRequest = { path: "a.txt", offset: 4, limit: 2, ranged: true };
 
-describe("resolveMessages", () => {
+describe("resolveReadMessages", () => {
   test("merges by key and keeps note codes stable", async () => {
-    const messages = resolveMessages({ empty: ({ path }) => `nothing in ${path}` });
+    const messages = resolveReadMessages({ empty: ({ path }) => `nothing in ${path}` });
     expect(messages.empty({ path: "a.txt" })).toBe("nothing in a.txt");
-    expect(messages.scanLimit).toBe(defaultMessages.scanLimit);
+    expect(messages.scanLimit).toBe(defaultReadMessages.scanLimit);
 
     const { read } = harness({
       files: { "/e.txt": "" },
@@ -22,26 +22,26 @@ describe("resolveMessages", () => {
   });
 
   test("an undefined override keeps the default", () => {
-    expect(resolveMessages({ empty: undefined }).empty).toBe(defaultMessages.empty);
+    expect(resolveReadMessages({ empty: undefined }).empty).toBe(defaultReadMessages.empty);
   });
 
   test("an unknown key or a non-function is refused", () => {
-    expect(() => resolveMessages({ nope: () => "" } as never)).toThrow(TypeError);
-    expect(() => resolveMessages({ ambiguousRepair: () => "" } as never)).toThrow(TypeError);
-    expect(() => resolveMessages({ empty: "text" } as never)).toThrow(TypeError);
+    expect(() => resolveReadMessages({ nope: () => "" } as never)).toThrow(TypeError);
+    expect(() => resolveReadMessages({ ambiguousRepair: () => "" } as never)).toThrow(TypeError);
+    expect(() => resolveReadMessages({ empty: "text" } as never)).toThrow(TypeError);
   });
 });
 
 describe("not-found and repair wording", () => {
   test("notFound lists quoted suggestions only when there are some", () => {
-    expect(defaultMessages.notFound({ request, suggestions: [] })).toBe("a.txt was not found.");
-    expect(defaultMessages.notFound({ request, suggestions: ["a.ts", 'b "c".txt'] })).toBe(
+    expect(defaultReadMessages.notFound({ request, suggestions: [] })).toBe("a.txt was not found.");
+    expect(defaultReadMessages.notFound({ request, suggestions: ["a.ts", 'b "c".txt'] })).toBe(
       'a.txt was not found. Nearby names: "a.ts", "b \\"c\\".txt".',
     );
   });
 
   test("pathRepaired names both paths", () => {
-    expect(defaultMessages.pathRepaired({ from: "/d/a b.txt", to: "/d/a\u202fb.txt" })).toBe(
+    expect(defaultReadMessages.pathRepaired({ from: "/d/a b.txt", to: "/d/a\u202fb.txt" })).toBe(
       'The requested filename "/d/a b.txt" was repaired to the unique Unicode-equivalent path "/d/a\u202fb.txt".',
     );
   });
@@ -51,11 +51,11 @@ describe("retry text", () => {
   test("no default message names offset or limit", () => {
     const retry = "<retry>";
     const texts = [
-      defaultMessages.continuation({ request, retry, reason: "lines" }),
-      defaultMessages.firstLineTooLong({ line: 4, maxViewBytes: 8, retry }),
-      defaultMessages.offsetPastEof({ request, totalLines: 3, retry }),
-      defaultMessages.offsetUnreached({ request, reachedLine: 2, retry }),
-      defaultMessages.changedDuringRead({ request, retry }),
+      defaultReadMessages.continuation({ request, retry, reason: "lines" }),
+      defaultReadMessages.firstLineTooLong({ line: 4, maxViewBytes: 8, retry }),
+      defaultReadMessages.offsetPastEof({ request, totalLines: 3, retry }),
+      defaultReadMessages.offsetUnreached({ request, reachedLine: 2, retry }),
+      defaultReadMessages.changedDuringRead({ request, retry }),
     ];
     for (const text of texts) {
       expect(text).toContain(retry);

@@ -7,7 +7,7 @@ import { MockLanguageModelV4 } from "ai/test";
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { ReadResult } from "@better-fs-tools/read";
 import {
-  defaultSignature,
+  defaultReadSignature,
   lineRangeSignature,
   renamedSignature,
 } from "@better-fs-tools/read/signature";
@@ -141,7 +141,7 @@ describe("strict provider schema", () => {
   });
 
   test("an optional property becomes required and nullable; a required one does not", () => {
-    const schema = toStrictSchema(defaultSignature().schema) as JSONSchema7;
+    const schema = toStrictSchema(defaultReadSignature().schema) as JSONSchema7;
     const properties = schema.properties as Record<string, JSONSchema7>;
     expect(schema.required).toEqual(["path", "offset", "limit"]);
     expect(properties.path?.type).toBe("string");
@@ -165,7 +165,7 @@ describe("strict provider schema", () => {
     const schema = multiEditSignature().schema;
     const input = { path: "a", edits: [{ oldText: "x", newText: "y" }] };
     expect(fromStrictInput(schema, input)).toEqual(input);
-    const read = defaultSignature().schema;
+    const read = defaultReadSignature().schema;
     expect(fromStrictInput(read, { path: "a", offset: null, limit: 3 })).toEqual({
       path: "a",
       limit: 3,

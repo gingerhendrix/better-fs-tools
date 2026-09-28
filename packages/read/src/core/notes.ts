@@ -2,7 +2,7 @@ import type { FileSystem } from "@better-fs-tools/fs";
 
 import type { ReadInput, ReadRequest } from "../contract/input.ts";
 import type { ReadLimits } from "../contract/limits.ts";
-import type { MessageCatalog } from "../contract/messages.ts";
+import type { ReadMessageCatalog } from "../contract/messages.ts";
 import type { ReadNote } from "../contract/result.ts";
 import type { LineScanner } from "./scanner.ts";
 
@@ -12,7 +12,7 @@ export interface ViewNoteContext {
   readonly scanner: LineScanner;
   readonly request: ReadRequest;
   readonly limits: Readonly<ReadLimits>;
-  readonly messages: Readonly<MessageCatalog>;
+  readonly messages: Readonly<ReadMessageCatalog>;
   readonly scanCapped: boolean;
 }
 
@@ -118,12 +118,15 @@ export function buildViewNotes(context: ViewNoteContext): ReadNote[] {
   return notes;
 }
 
-export function emptyNote(messages: Readonly<MessageCatalog>, path: string): ReadNote {
+export function emptyNote(messages: Readonly<ReadMessageCatalog>, path: string): ReadNote {
   return { code: "empty", severity: "info", message: messages.empty({ path }) };
 }
 
 /** Discloses backend limits that weaken what an observation can promise. */
-export function capabilityNotes(fs: FileSystem, messages: Readonly<MessageCatalog>): ReadNote[] {
+export function capabilityNotes(
+  fs: FileSystem,
+  messages: Readonly<ReadMessageCatalog>,
+): ReadNote[] {
   const notes: ReadNote[] = [];
   if (!fs.capabilities.identity) {
     notes.push({

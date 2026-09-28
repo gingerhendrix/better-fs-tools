@@ -7,7 +7,7 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 
 import {
   askUser,
-  authorizers,
+  readAuthorizers,
   createReadTool,
   defaultSuggest,
   denyPaths,
@@ -19,13 +19,13 @@ import {
   unicodeRepair,
 } from "../../src/index.ts";
 import type {
-  AuthorizeDecision,
-  Authorizer,
-  AuthorizeTarget,
-  Dependencies,
-  HookContext,
+  ReadAuthorizeDecision,
+  ReadAuthorizer,
+  ReadAuthorizeTarget,
+  ReadDependencies,
+  ReadHookContext,
   PathResolver,
-  ResolveContext,
+  ReadResolveContext,
   Suggest,
   SuggestContext,
 } from "../../src/index.ts";
@@ -93,18 +93,18 @@ createReadTool<Host>({
 });
 
 // A host-typed suggest reads the host too.
-export const hostSuggest: Dependencies<Host>["suggest"] = (ctx) => [ctx.call.host.id];
+export const hostSuggest: ReadDependencies<Host>["suggest"] = (ctx) => [ctx.call.host.id];
 
 // Context types widen to unknown and do not narrow back.
-declare const hook: HookContext<Host>;
-declare const resolveCtx: ResolveContext<Host>;
+declare const hook: ReadHookContext<Host>;
+declare const resolveCtx: ReadResolveContext<Host>;
 declare const suggestCtx: SuggestContext<Host>;
-export const widenedHook: HookContext<unknown> = hook;
-export const widenedResolve: ResolveContext<unknown> = resolveCtx;
+export const widenedHook: ReadHookContext<unknown> = hook;
+export const widenedResolve: ReadResolveContext<unknown> = resolveCtx;
 export const widenedSuggest: SuggestContext<unknown> = suggestCtx;
-declare const unknownHook: HookContext<unknown>;
+declare const unknownHook: ReadHookContext<unknown>;
 // @ts-expect-error an unknown host is not a Host
-export const narrowedHook: HookContext<Host> = unknownHook;
+export const narrowedHook: ReadHookContext<Host> = unknownHook;
 
 // A resolver for another host type does not fit.
 declare const otherResolver: PathResolver<{ user: number }>;
@@ -126,11 +126,11 @@ export const badOutcome: PathResolver<unknown> = {
 
 // Host-free authorizers fit a tool with a typed host.
 export const hostFreeAuthorize = createReadTool<Host>({ fs, authorize: denyPaths(["**/.env"]) });
-export const unknownAuthorizer: Authorizer<Host> = sizeCeiling({ maxBytes: 1 });
+export const unknownAuthorizer: ReadAuthorizer<Host> = sizeCeiling({ maxBytes: 1 });
 export const plainAuthorize = createReadTool({ fs, authorize: sizeCeiling({ maxBytes: 1 }) });
 
 // A host-typed authorizer reads ctx.call.host with its type.
-const sessionAuthorizer: Authorizer<Host> = {
+const sessionAuthorizer: ReadAuthorizer<Host> = {
   id: "session",
   authorize(target, ctx) {
     const id: string = ctx.call.host.id;
@@ -147,27 +147,27 @@ export const asked = createReadTool<Host>({
 // Mixed host-free and host-typed authorizers compose, and the chain fits the typed tool.
 export const mixed = createReadTool<Host>({
   fs,
-  authorize: authorizers(
+  authorize: readAuthorizers(
     denyPaths(["**/.env"]),
     sessionAuthorizer,
     sizeCeiling({ maxBytes: 1, unrangedOnly: true }),
     askUser(async (_target, ctx) => ctx.call.host.id !== ""),
   ),
 });
-export const hostFreeAuthorizers: Authorizer<Host> = authorizers(
+export const hostFreeAuthorizers: ReadAuthorizer<Host> = readAuthorizers(
   denyPaths([]),
   sizeCeiling({ maxBytes: 1 }),
 );
 
 // An authorizer for another host type does not fit.
-declare const otherAuthorizer: Authorizer<{ user: number }>;
+declare const otherAuthorizer: ReadAuthorizer<{ user: number }>;
 // @ts-expect-error the host types differ
 createReadTool<Host>({ fs, authorize: otherAuthorizer });
 
 createReadTool<{ user: number }>({
   fs,
   // @ts-expect-error a Host step does not fit a chain for another host
-  authorize: authorizers(denyPaths([]), sessionAuthorizer),
+  authorize: readAuthorizers(denyPaths([]), sessionAuthorizer),
 });
 
 createReadTool<Host>({
@@ -177,14 +177,14 @@ createReadTool<Host>({
 });
 
 // The decision and the target are closed shapes.
-export const allowWithNote: AuthorizeDecision = {
+export const allowWithNote: ReadAuthorizeDecision = {
   allow: true,
   // @ts-expect-error an allow carries notes, not one note
   note: { code: "x", severity: "info", message: "x" },
 };
 // @ts-expect-error allow is a boolean literal
-export const maybe: AuthorizeDecision = { allow: "yes" };
-export const badTarget: AuthorizeTarget = {
+export const maybe: ReadAuthorizeDecision = { allow: "yes" };
+export const badTarget: ReadAuthorizeTarget = {
   // @ts-expect-error the action is "read" or "list"
   action: "write",
   requestedPath: "a",

@@ -6,8 +6,8 @@ import { MockLanguageModelV4 } from "ai/test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { denyPaths, lineNumberFormatter, redact, textOf } from "@better-fs-tools/read";
-import type { Formatter, ReadContext, ReadResult } from "@better-fs-tools/read";
-import { defaultSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
+import type { ReadFormatter, ReadContext, ReadResult } from "@better-fs-tools/read";
+import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
 
 import { createAiSdkReadTool } from "../src/index.ts";
 import type { AiSdkReadTool } from "../src/index.ts";
@@ -32,7 +32,7 @@ async function validate(read: AiSdkReadTool, value: unknown) {
 describe("ai sdk input schema", () => {
   test("is the signature's schema, name, and description", async () => {
     const { read } = tool();
-    const signature = defaultSignature();
+    const signature = defaultReadSignature();
 
     expect(read.strict).toBe(true);
     expect(read.name).toBe("read");
@@ -194,7 +194,7 @@ describe("ai sdk execute", () => {
     const calls: unknown[] = [];
     const fs = memoryFileSystem({ files: { "/a.txt": "alpha\n" } });
     const base = lineNumberFormatter();
-    const formatter: Formatter<ToolExecutionOptions<Record<string, unknown>>> = {
+    const formatter: ReadFormatter<ToolExecutionOptions<Record<string, unknown>>> = {
       id: "spy",
       format(outcome, ctx) {
         calls.push(ctx.call);

@@ -1,6 +1,6 @@
 import type { EditInput, EditPair } from "../contract/input.ts";
 import type { Matcher } from "../contract/matcher.ts";
-import type { CanonicalParam } from "../contract/messages.ts";
+import type { WriteCanonicalParam } from "../contract/messages.ts";
 import type { EditSignature, MutationSignatureDocs } from "./contract.ts";
 import { checkMatchers, matchingSentence } from "./matching.ts";
 import {
@@ -94,7 +94,7 @@ function singleEditSignature(
       [names.path, names.old, names.new],
     ),
   );
-  const params: Partial<Record<CanonicalParam, string>> = {
+  const params: Partial<Record<WriteCanonicalParam, string>> = {
     path: names.path,
     oldText: names.old,
     newText: names.new,

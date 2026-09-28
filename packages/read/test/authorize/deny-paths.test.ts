@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 
-import { createReadTool, defaultMessages, denyPaths, textOf } from "../../src/index.ts";
+import { createReadTool, defaultReadMessages, denyPaths, textOf } from "../../src/index.ts";
 import type { ToolHookContext } from "../../src/index.ts";
 import { expectFailure, expectOk } from "../helpers.ts";
 import { hookContext, listTarget, readTarget } from "./context.ts";
@@ -69,7 +69,7 @@ describe("denyPaths", () => {
   test("denies another tool's action through the tool-neutral context", async () => {
     const ctx: ToolHookContext<unknown> = {
       tool: "write",
-      messages: defaultMessages,
+      messages: defaultReadMessages,
       digest: null,
       clock: () => new Date(0),
       call: { host: undefined },

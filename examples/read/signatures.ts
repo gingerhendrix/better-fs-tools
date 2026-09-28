@@ -1,11 +1,11 @@
 import {
-  defaultSignature,
+  defaultReadSignature,
   lineRangeSignature,
   renamedSignature,
 } from "@better-fs-tools/read/signature";
 
 // The default schema, with your own descriptions.
-export const documented = defaultSignature({
+export const documented = defaultReadSignature({
   description: "Read a file in the repository.",
   describe: { path: "Path relative to the repository root." },
 });

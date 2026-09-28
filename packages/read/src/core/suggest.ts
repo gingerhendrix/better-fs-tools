@@ -1,6 +1,6 @@
 import type { FileSystem, FileSystemError } from "@better-fs-tools/fs";
 
-import type { Dependencies } from "../contract/deps.ts";
+import type { ReadDependencies } from "../contract/deps.ts";
 import type { Suggest } from "../contract/extensions.ts";
 import type { ReadRequest } from "../contract/input.ts";
 import type { ReadFailure } from "../contract/result.ts";
@@ -14,7 +14,7 @@ import { errorData, notFound } from "./outcomes.ts";
  * EXTENSION_FAILED. A failed or denied listing gives no suggestions.
  */
 export async function missOutcome<THost>(
-  deps: Dependencies<THost>,
+  deps: ReadDependencies<THost>,
   request: ReadRequest,
   fs: FileSystem,
   scope: CallScope<THost>,

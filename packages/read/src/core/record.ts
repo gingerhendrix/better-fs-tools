@@ -1,4 +1,4 @@
-import type { ReadMedia, ReadObservation, ReadOk, ReadOutcome } from "../contract/result.ts";
+import type { ReadMedia, ReadObservation, ReadOk, ReadReport } from "../contract/result.ts";
 import type { ReadRecord } from "../contract/state.ts";
 import type { CallScope } from "./call-scope.ts";
 
@@ -11,7 +11,7 @@ import type { CallScope } from "./call-scope.ts";
  */
 export async function recordOutcome<THost>(
   scope: CallScope<THost>,
-  outcome: ReadOutcome,
+  outcome: ReadReport,
 ): Promise<void> {
   if (outcome.status !== "ok" && outcome.status !== "media") return;
   const { observation } = outcome;

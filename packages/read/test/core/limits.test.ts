@@ -1,17 +1,17 @@
 import { describe, expect, test } from "bun:test";
 
-import { defaultLimits, resolveLimits } from "../../src/index.ts";
+import { defaultReadLimits, resolveReadLimits } from "../../src/index.ts";
 
-describe("resolveLimits", () => {
+describe("resolveReadLimits", () => {
   test("merges over defaults and may raise a limit", () => {
-    const limits = resolveLimits({ maxLines: 10_000 });
+    const limits = resolveReadLimits({ maxLines: 10_000 });
     expect(limits.maxLines).toBe(10_000);
-    expect(limits.maxViewBytes).toBe(defaultLimits.maxViewBytes);
+    expect(limits.maxViewBytes).toBe(defaultReadLimits.maxViewBytes);
     expect(Object.isFrozen(limits)).toBe(true);
   });
 
   test("has the plan keys and defaults", () => {
-    expect(defaultLimits).toEqual({
+    expect(defaultReadLimits).toEqual({
       maxLines: 2_000,
       maxViewBytes: 128 * 1_024,
       maxCharsPerLine: 2_000,
@@ -25,23 +25,25 @@ describe("resolveLimits", () => {
   });
 
   test("throws on a sample you set above the scan limit", () => {
-    expect(() => resolveLimits({ maxScanBytes: 64, sampleBytes: 4_096 })).toThrow(
+    expect(() => resolveReadLimits({ maxScanBytes: 64, sampleBytes: 4_096 })).toThrow(
       "sampleBytes must not be more than maxScanBytes",
     );
-    expect(() => resolveLimits({ maxScanBytes: 64, sampleBytes: 65 })).toThrow(TypeError);
-    expect(resolveLimits({ maxScanBytes: 64, sampleBytes: 64 }).sampleBytes).toBe(64);
+    expect(() => resolveReadLimits({ maxScanBytes: 64, sampleBytes: 65 })).toThrow(TypeError);
+    expect(resolveReadLimits({ maxScanBytes: 64, sampleBytes: 64 }).sampleBytes).toBe(64);
   });
 
   test("lowers the default sample to a scan limit you set", () => {
-    expect(resolveLimits({ maxScanBytes: 64 }).sampleBytes).toBe(64);
+    expect(resolveReadLimits({ maxScanBytes: 64 }).sampleBytes).toBe(64);
   });
 
   test("rejects non-positive, fractional, and unknown values", () => {
-    expect(() => resolveLimits({ maxLines: 0 })).toThrow(TypeError);
-    expect(() => resolveLimits({ maxLines: 1.5 })).toThrow(TypeError);
-    expect(() => resolveLimits({ nope: 1 } as never)).toThrow(TypeError);
-    expect(() => resolveLimits({ maxConvertBytes: 0 })).toThrow(TypeError);
-    expect(() => resolveLimits({ maxBudget: 5 } as never)).toThrow("Unknown read limit: maxBudget");
-    expect(() => resolveLimits(null as never)).toThrow(TypeError);
+    expect(() => resolveReadLimits({ maxLines: 0 })).toThrow(TypeError);
+    expect(() => resolveReadLimits({ maxLines: 1.5 })).toThrow(TypeError);
+    expect(() => resolveReadLimits({ nope: 1 } as never)).toThrow(TypeError);
+    expect(() => resolveReadLimits({ maxConvertBytes: 0 })).toThrow(TypeError);
+    expect(() => resolveReadLimits({ maxBudget: 5 } as never)).toThrow(
+      "Unknown read limit: maxBudget",
+    );
+    expect(() => resolveReadLimits(null as never)).toThrow(TypeError);
   });
 });

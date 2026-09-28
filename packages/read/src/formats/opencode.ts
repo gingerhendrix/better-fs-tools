@@ -1,5 +1,5 @@
-import type { FormatContext, Formatter } from "../contract/format.ts";
-import type { ReadOutcome } from "../contract/result.ts";
+import type { ReadFormatContext, ReadFormatter } from "../contract/format.ts";
+import type { ReadReport } from "../contract/result.ts";
 import { eofFooter } from "../formatters/eof.ts";
 import { lineNumberFormatter } from "../formatters/line-number.ts";
 import { plainFormatter } from "../formatters/plain.ts";
@@ -12,7 +12,7 @@ const eof = eofFooter();
  * and an end-of-file line. Directory entries go in `<entries>` with no
  * numbers. Notes follow the closing tag.
  */
-export function opencodeFormat(): Formatter<unknown> {
+export function opencodeFormat(): ReadFormatter<unknown> {
   const options = { header, footer };
   return preset(
     "opencode",
@@ -21,7 +21,7 @@ export function opencodeFormat(): Formatter<unknown> {
   );
 }
 
-function header(outcome: ReadOutcome): string | null {
+function header(outcome: ReadReport): string | null {
   if (outcome.status === "media") {
     return `<path>${outcome.file.displayPath}</path>\n<type>media</type>`;
   }
@@ -34,7 +34,7 @@ function header(outcome: ReadOutcome): string | null {
   ].join("\n");
 }
 
-function footer(outcome: ReadOutcome, ctx: FormatContext<unknown>): string | null {
+function footer(outcome: ReadReport, ctx: ReadFormatContext<unknown>): string | null {
   if (outcome.status !== "ok") return null;
   if (isDirectory(outcome)) return "</entries>";
   const end = eof(outcome, ctx);

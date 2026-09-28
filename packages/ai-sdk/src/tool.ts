@@ -1,7 +1,7 @@
 import { jsonSchema } from "ai";
 import type { JSONSchema7, Schema, ToolExecutionOptions } from "ai";
 
-import { createReadTool, parseReadInput, resolveLimits } from "@better-fs-tools/read";
+import { createReadTool, parseReadInput, resolveReadLimits } from "@better-fs-tools/read";
 import type {
   JsonObject,
   ReadContext,
@@ -9,7 +9,7 @@ import type {
   ReadToolDeps,
   StateNeedsDigest,
 } from "@better-fs-tools/read";
-import { defaultSignature, signatureMessages } from "@better-fs-tools/read/signature";
+import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
 
 import { toAiSdkOutput } from "./output.ts";
@@ -19,7 +19,7 @@ import { fromStrictInput, toStrictSchema } from "./strict.ts";
 export interface CreateAiSdkReadToolOptions<C = unknown> extends ReadToolDeps<
   ToolExecutionOptions<C>
 > {
-  /** Default defaultSignature(). */
+  /** Default defaultReadSignature(). */
   readonly signature?: ReadSignature;
 }
 
@@ -35,20 +35,20 @@ export interface AiSdkReadTool<C = unknown> {
   toModelOutput(options: { output: ReadResult }): AiSdkReadOutput;
 }
 
-/** Builds the core with messages = { ...signatureMessages(signature), ...options.messages }. */
+/** Builds the core with messages = { ...readSignatureMessages(signature), ...options.messages }. */
 export function createAiSdkReadTool<C = unknown>(
   options: CreateAiSdkReadToolOptions<C> & StateNeedsDigest,
 ): AiSdkReadTool<C> {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("AI SDK read tool options must be an object");
   }
-  const { signature = defaultSignature(), ...deps } = options;
+  const { signature = defaultReadSignature(), ...deps } = options;
   // The rest of a paired type loses the pairing. The options type checked it.
   const read = createReadTool<ToolExecutionOptions<C>>({
     ...deps,
-    messages: { ...signatureMessages(signature), ...deps.messages },
+    messages: { ...readSignatureMessages(signature), ...deps.messages },
   } as ReadToolDeps<ToolExecutionOptions<C>> & StateNeedsDigest);
-  const limits = resolveLimits(deps.limits);
+  const limits = resolveReadLimits(deps.limits);
   const strict = toStrictSchema(signature.schema);
 
   return Object.freeze<AiSdkReadTool<C>>({

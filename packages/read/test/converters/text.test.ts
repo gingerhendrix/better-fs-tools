@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { memoryFileSystem } from "@better-fs-tools/fs";
 
 import { createReadTool, textConverter } from "../../src/index.ts";
-import type { ConverterMatch, HookContext, ReadContext } from "../../src/index.ts";
+import type { ConverterMatch, ReadHookContext, ReadContext } from "../../src/index.ts";
 import { corpus } from "../fixtures/corpus.ts";
 import { expectOk, expectUnsupported, harness, lineText } from "../helpers.ts";
 
@@ -60,7 +60,7 @@ describe("textConverter", () => {
   });
 
   test("run gets the same call object the caller passed", async () => {
-    const seen: HookContext<Host>[] = [];
+    const seen: ReadHookContext<Host>[] = [];
     const call: ReadContext<Host> = { host: { id: "h1" } };
     const read = createReadTool<Host>({
       fs: memoryFileSystem({ files: { "/a.pdf": corpus["document.pdf"] ?? "" } }),

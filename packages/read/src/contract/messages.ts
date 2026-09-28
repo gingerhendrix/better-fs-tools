@@ -20,7 +20,7 @@ export type ReadPhase =
  * Wording for every note the core owns. Classifiers own their own refusals.
  * Every message that suggests a retry gets `retry`, the text from `retry(next)`.
  */
-export interface MessageCatalog extends ToolMessages {
+export interface ReadMessageCatalog extends ToolMessages {
   /** Prints a canonical retry the way the model must send it. Default: JSON.stringify(next). */
   retry(next: ReadInput): string;
   continuation(c: { request: ReadRequest; retry: string; reason: TruncationReason }): string;

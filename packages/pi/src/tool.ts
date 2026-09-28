@@ -3,17 +3,17 @@ import { Type } from "typebox";
 import type { TSchema } from "typebox";
 
 import { nodeDigest } from "@better-fs-tools/node";
-import { createReadTool, lineNumberFormatter, resolveLimits } from "@better-fs-tools/read";
+import { createReadTool, lineNumberFormatter, resolveReadLimits } from "@better-fs-tools/read";
 import type {
-  FormatContext,
-  Formatter,
+  ReadFormatContext,
+  ReadFormatter,
   JsonObject,
   ReadContext,
   ReadResult,
   ReadToolDeps,
   StateNeedsDigest,
 } from "@better-fs-tools/read";
-import { defaultSignature, signatureMessages } from "@better-fs-tools/read/signature";
+import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
 
 import { toPiReadDetails } from "./details.ts";
@@ -30,7 +30,7 @@ const PROMPT_SNIPPET = "Read file contents";
 const PROMPT_GUIDELINES: readonly string[] = ["Use read to examine files instead of cat or sed."];
 
 export interface CreatePiReadToolOptions extends Omit<ReadToolDeps<ExtensionContext>, "fs"> {
-  /** Default defaultSignature({ name: "read" }). */
+  /** Default defaultReadSignature({ name: "read" }). */
   readonly signature?: ReadSignature;
   /** Default "Read file contents". */
   readonly promptSnippet?: string;
@@ -81,19 +81,19 @@ export function buildPiReadTool(
   fileSystemFor: PiFileSystems,
 ): PiReadTool {
   const {
-    signature = defaultSignature({ name: "read" }),
+    signature = defaultReadSignature({ name: "read" }),
     promptSnippet = PROMPT_SNIPPET,
     promptGuidelines = PROMPT_GUIDELINES,
     ...deps
   } = options;
-  const limits = resolveLimits(deps.limits);
-  const formatter: Formatter<ExtensionContext> = deps.formatter ?? lineNumberFormatter();
+  const limits = resolveReadLimits(deps.limits);
+  const formatter: ReadFormatter<ExtensionContext> = deps.formatter ?? lineNumberFormatter();
   const digest = deps.digest === undefined ? nodeDigest() : deps.digest;
   // The core checks at run time that a state comes with a digest.
   const read = createReadTool<ExtensionContext>({
     ...deps,
     limits,
-    messages: { ...signatureMessages(signature), ...deps.messages },
+    messages: { ...readSignatureMessages(signature), ...deps.messages },
     formatter,
     digest,
     fs: fileSystemFor,
@@ -133,9 +133,9 @@ export function buildPiReadTool(
  * noted it in "model" mode.
  */
 function viewOf(
-  formatter: Formatter<ExtensionContext>,
+  formatter: ReadFormatter<ExtensionContext>,
   result: ReadResult,
-  ctx: FormatContext<ExtensionContext>,
+  ctx: ReadFormatContext<ExtensionContext>,
 ): string | null {
   if (result.status !== "ok") return null;
   const { content: _content, ...outcome } = result;

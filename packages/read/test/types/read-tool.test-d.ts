@@ -6,10 +6,10 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 
 import { createReadTool, jsonFormatter, lineNumberFormatter } from "../../src/index.ts";
 import type {
-  Dependencies,
+  ReadDependencies,
   Digest,
-  FormatContext,
-  Formatter,
+  ReadFormatContext,
+  ReadFormatter,
   ReadContext,
   ReadStateStore,
   ReadTool,
@@ -56,12 +56,12 @@ export const withHost = createReadTool<{ id: string }>({
   formatter: lineNumberFormatter(),
 });
 export const withoutHost = createReadTool({ fs, formatter: jsonFormatter() });
-export const unknownFits: Formatter<{ id: string }> = lineNumberFormatter();
-declare const hostContext: FormatContext<{ id: string }>;
-export const widened: FormatContext<unknown> = hostContext;
-declare const unknownContext: FormatContext<unknown>;
+export const unknownFits: ReadFormatter<{ id: string }> = lineNumberFormatter();
+declare const hostContext: ReadFormatContext<{ id: string }>;
+export const widened: ReadFormatContext<unknown> = hostContext;
+declare const unknownContext: ReadFormatContext<unknown>;
 // @ts-expect-error an unknown host is not a { id: string } host
-export const narrowed: FormatContext<{ id: string }> = unknownContext;
+export const narrowed: ReadFormatContext<{ id: string }> = unknownContext;
 
 // The state factory sees the typed host. A host-free store fits any tool.
 declare const digest: Digest;
@@ -83,7 +83,7 @@ createReadTool({ fs, state: createMemoryStore() });
 // @ts-expect-error a state with a null digest
 createReadTool({ fs, state: createMemoryStore(), digest: null });
 export const noState = createReadTool({ fs, state: null, digest: null });
-export const unknownState: Dependencies<{ id: string }>["state"] = (
+export const unknownState: ReadDependencies<{ id: string }>["state"] = (
   _call: ReadContext<unknown>,
 ): ReadStateStore | null => null;
 createReadTool<{ id: string }>({

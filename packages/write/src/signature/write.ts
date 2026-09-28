@@ -1,5 +1,5 @@
 import type { WriteInput } from "../contract/input.ts";
-import type { CanonicalParam } from "../contract/messages.ts";
+import type { WriteCanonicalParam } from "../contract/messages.ts";
 import type { MutationSignatureDocs, WriteSignature } from "./contract.ts";
 import {
   checkDocs,
@@ -55,7 +55,7 @@ function writeSignature(
       keys,
     ),
   );
-  const params: Partial<Record<CanonicalParam, string>> = { path: pathName };
+  const params: Partial<Record<WriteCanonicalParam, string>> = { path: pathName };
 
   return Object.freeze<WriteSignature>({
     name: options.name ?? name,

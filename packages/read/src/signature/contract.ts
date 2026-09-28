@@ -28,7 +28,7 @@ export interface SignatureDocs<TParam extends string> {
  * to the JsonValue index signature, but an object type literal still fits the
  * JsonObject constraint.
  */
-export type DefaultModelInput = {
+export type DefaultReadModelInput = {
   readonly path: string;
   readonly offset?: number;
   readonly limit?: number;

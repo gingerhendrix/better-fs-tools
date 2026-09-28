@@ -10,7 +10,7 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 
 import {
   createReadTool,
-  defaultLimits,
+  defaultReadLimits,
   directoryListing,
   eofFooter,
   fileHashHeader,
@@ -19,11 +19,16 @@ import {
   lineNumberFormatter,
   redact,
 } from "../../src/index.ts";
-import type { ContentPart, FormatContext, Formatter, ReadContext } from "../../src/index.ts";
+import type {
+  ContentPart,
+  ReadFormatContext,
+  ReadFormatter,
+  ReadContext,
+} from "../../src/index.ts";
 import { corpus } from "../fixtures/corpus.ts";
 import { harness, testDigest } from "../helpers.ts";
 
-const PRESETS: Record<string, () => Formatter<unknown>> = {
+const PRESETS: Record<string, () => ReadFormatter<unknown>> = {
   opencode: opencodeFormat,
   deepAgents: deepAgentsFormat,
   hashline: hashlineFormat,
@@ -54,7 +59,7 @@ const CASES = {
   directory: { path: "/src" },
 } as const;
 
-function tool(formatter: Formatter<unknown>) {
+function tool(formatter: ReadFormatter<unknown>) {
   return harness({
     files: FILES,
     limits: { maxCharsPerLine: 30 },
@@ -112,9 +117,9 @@ describe("format presets", () => {
     for (const make of Object.values(PRESETS)) {
       const formatter = make();
       const result = await tool(formatter)(CASES.truncated);
-      const ctx: FormatContext<unknown> = {
+      const ctx: ReadFormatContext<unknown> = {
         digest: null,
-        limits: defaultLimits,
+        limits: defaultReadLimits,
         mode: "view",
         call: { host: undefined },
       };
@@ -191,11 +196,11 @@ describe("same call object (plan section 8 rule)", () => {
 
   const files = { "/a.txt": "one\n" };
 
-  test("each preset gets the caller's call object through FormatContext.call", async () => {
+  test("each preset gets the caller's call object through ReadFormatContext.call", async () => {
     for (const make of Object.values(PRESETS)) {
       const preset = make();
       const seen: ReadContext<Host>[] = [];
-      const spy: Formatter<Host> = {
+      const spy: ReadFormatter<Host> = {
         id: preset.id,
         format(outcome, ctx) {
           seen.push(ctx.call);

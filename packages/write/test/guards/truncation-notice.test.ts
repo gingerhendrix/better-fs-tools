@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { createReadTool, plainFormatter, textOf } from "@better-fs-tools/read";
-import type { Formatter } from "@better-fs-tools/read";
+import type { ReadFormatter } from "@better-fs-tools/read";
 import { deepAgentsFormat, hermesFormat, opencodeFormat } from "@better-fs-tools/read/formats";
 
 import { truncationNoticeGuard } from "../../src/index.ts";
@@ -13,7 +13,7 @@ const LONG = "x".repeat(40);
 const FILE = `${["a", LONG, "c", "d", "e"].join("\n")}\n`;
 
 /** Read output for FILE with a clamp and a continuation, gutter removed. */
-async function readOutput(formatter?: Formatter<unknown>): Promise<string> {
+async function readOutput(formatter?: ReadFormatter<unknown>): Promise<string> {
   const fs = memoryFileSystem({ files: { "/f.txt": FILE } });
   const read = createReadTool({
     fs,

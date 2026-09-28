@@ -1,6 +1,6 @@
-import type { Formatter } from "../contract/format.ts";
+import type { ReadFormatter } from "../contract/format.ts";
 import type { JsonObject } from "../contract/json.ts";
-import type { ReadNote, ReadOutcome } from "../contract/result.ts";
+import type { ReadNote, ReadReport } from "../contract/result.ts";
 import { jsonFormatter } from "../formatters/json.ts";
 import { isDirectory } from "./shared.ts";
 
@@ -12,9 +12,9 @@ import { isDirectory } from "./shared.ts";
  * `similar_files`. Media gives the JSON, then the media parts. "view" mode
  * leaves out the hint.
  */
-export function hermesFormat(): Formatter<unknown> {
+export function hermesFormat(): ReadFormatter<unknown> {
   const json = jsonFormatter({ pick: hermesFields });
-  return Object.freeze<Formatter<unknown>>({
+  return Object.freeze<ReadFormatter<unknown>>({
     id: "hermes",
     // "view" mode is the body only, so the notes do not become a hint.
     format: (outcome, ctx) =>
@@ -22,7 +22,7 @@ export function hermesFormat(): Formatter<unknown> {
   });
 }
 
-function hermesFields(outcome: ReadOutcome): JsonObject {
+function hermesFields(outcome: ReadReport): JsonObject {
   const messages = outcome.notes.map((note) => note.message).join(" ");
   const hint: JsonObject = messages === "" ? {} : { hint: messages };
   const size = outcome.file?.size ?? null;

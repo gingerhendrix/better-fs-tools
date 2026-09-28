@@ -1,6 +1,6 @@
 import { posixPaths } from "@better-fs-tools/fs";
 
-import type { FileConverter, HookContext } from "../contract/extensions.ts";
+import type { FileConverter, ReadHookContext } from "../contract/extensions.ts";
 import { collect, hasCode } from "./shared.ts";
 
 export interface ImageConverterOptions<THost = unknown> {
@@ -8,7 +8,7 @@ export interface ImageConverterOptions<THost = unknown> {
   transform?: (
     bytes: Uint8Array,
     mediaType: string,
-    ctx: HookContext<THost>,
+    ctx: ReadHookContext<THost>,
   ) => Promise<Uint8Array>;
 }
 

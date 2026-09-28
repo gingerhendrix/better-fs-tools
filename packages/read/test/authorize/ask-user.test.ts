@@ -4,7 +4,7 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { FileSystem } from "@better-fs-tools/fs";
 
 import { askUser, createReadTool } from "../../src/index.ts";
-import type { AuthorizeTarget, HookContext, ReadContext } from "../../src/index.ts";
+import type { ReadAuthorizeTarget, ReadHookContext, ReadContext } from "../../src/index.ts";
 import { expectFailure, expectOk } from "../helpers.ts";
 import { hookContext, listTarget, readTarget } from "./context.ts";
 
@@ -54,7 +54,7 @@ describe("askUser", () => {
 
   test("the prompt gets the target and the call, and keeps answers through the host", async () => {
     const call: ReadContext<Host> = { host: { answers: new Map([["/a.txt", true]]) } };
-    const seen: [AuthorizeTarget, HookContext<Host>][] = [];
+    const seen: [ReadAuthorizeTarget, ReadHookContext<Host>][] = [];
     const read = createReadTool<Host>({
       fs: memoryFileSystem({ files: { "/a.txt": "a\n", "/b.txt": "b\n" } }),
       authorize: askUser(async (target, ctx) => {

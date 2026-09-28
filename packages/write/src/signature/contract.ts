@@ -1,7 +1,7 @@
 import type { JsonObject } from "@better-fs-tools/read";
 
 import type { ApplyPatchInput, EditInput, WriteInput } from "../contract/input.ts";
-import type { CanonicalParam } from "../contract/messages.ts";
+import type { WriteCanonicalParam } from "../contract/messages.ts";
 
 /** Adapter level. The core never sees it. */
 export interface MutationSignature<TInput> {
@@ -17,7 +17,7 @@ export interface MutationSignature<TInput> {
    * the signature has no such parameter, and messages leave out the advice
    * that names it.
    */
-  param(name: CanonicalParam): string;
+  param(name: WriteCanonicalParam): string;
   /** Set on freeform signatures. Hosts that support grammar tools use it. */
   readonly grammar?: { readonly lark: string };
 }

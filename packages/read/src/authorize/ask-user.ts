@@ -1,4 +1,8 @@
-import type { Authorizer, AuthorizeTarget, HookContext } from "../contract/extensions.ts";
+import type {
+  ReadAuthorizer,
+  ReadAuthorizeTarget,
+  ReadHookContext,
+} from "../contract/extensions.ts";
 import { ALLOW, deny } from "./shared.ts";
 
 /**
@@ -9,8 +13,8 @@ import { ALLOW, deny } from "./shared.ts";
  * prompt ignores it.
  */
 export function askUser<THost>(
-  prompt: (target: AuthorizeTarget, ctx: HookContext<THost>) => Promise<boolean>,
-): Authorizer<THost> {
+  prompt: (target: ReadAuthorizeTarget, ctx: ReadHookContext<THost>) => Promise<boolean>,
+): ReadAuthorizer<THost> {
   if (typeof prompt !== "function") throw new TypeError("askUser takes a prompt function");
   return Object.freeze({
     id: "ask-user",
@@ -24,5 +28,5 @@ export function askUser<THost>(
       }
       return approved === true ? ALLOW : deny(ctx, target, "the user did not approve the read");
     },
-  } satisfies Authorizer<THost>);
+  } satisfies ReadAuthorizer<THost>);
 }
