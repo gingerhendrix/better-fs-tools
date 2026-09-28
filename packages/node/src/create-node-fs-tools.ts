@@ -30,6 +30,29 @@ import type { NodeFileSystem } from "./filesystem.ts";
 
 type Shared = "fs" | "state" | "digest" | "locks";
 
+const KNOWN = new Set([
+  "cwd",
+  "allowedRoots",
+  "denyRoots",
+  "symlinks",
+  "hardLinks",
+  "state",
+  "digest",
+  "locks",
+  "read",
+  "edit",
+  "write",
+  "applyPatch",
+  "bash",
+]);
+/** The keys each tool's options may not set, because the bundle shares them. */
+const SHARED_KEYS = {
+  read: ["fs", "state", "digest"],
+  edit: ["fs", "state", "digest", "locks"],
+  write: ["fs", "state", "digest", "locks"],
+  applyPatch: ["fs", "state", "digest", "locks"],
+} as const;
+
 export interface CreateNodeFsToolsOptions<THost = undefined> {
   /** Default process.cwd(). */
   readonly cwd?: string;
@@ -78,6 +101,23 @@ export function createNodeFsTools<THost = undefined>(
 ): NodeFsTools<THost> {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("createNodeFsTools options must be an object");
+  }
+  for (const key of Object.keys(options)) {
+    if (!KNOWN.has(key)) throw new TypeError(`Unknown createNodeFsTools option: ${key}`);
+  }
+  for (const [tool, keys] of Object.entries(SHARED_KEYS)) {
+    const part: unknown = options[tool as keyof typeof SHARED_KEYS];
+    if (part === undefined) continue;
+    if (part === null || typeof part !== "object" || Array.isArray(part)) {
+      throw new TypeError(`createNodeFsTools ${tool} options must be an object`);
+    }
+    for (const key of keys) {
+      if (Object.hasOwn(part, key)) {
+        throw new TypeError(
+          `createNodeFsTools ${tool} options cannot set ${key}: set it once at the top level`,
+        );
+      }
+    }
   }
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const fs = nodeFileSystem({

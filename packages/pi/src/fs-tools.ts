@@ -18,6 +18,18 @@ import type { CreatePiReadToolOptions, PiReadTool } from "./tool.ts";
 /** Set once for all four tools. */
 type Shared = "state" | "digest" | "locks" | keyof PiRootOptions;
 
+const KNOWN = new Set([
+  "state",
+  "denyRoots",
+  "symlinks",
+  "hardLinks",
+  "read",
+  "edit",
+  "write",
+  "applyPatch",
+]);
+const SHARED_KEYS = ["state", "digest", "locks", "denyRoots", "symlinks", "hardLinks"] as const;
+
 export interface CreatePiFsToolsOptions extends PiRootOptions {
   /** Default createMemoryStore(). null turns read-before-write off. */
   readonly state?: ReadStateStore | null;
@@ -37,10 +49,14 @@ export interface PiFsTools {
 /**
  * Four tools with one store, one digest (nodeDigest()), one lock manager, and
  * one root cache over ctx.cwd. Throws TypeError on fs, cwd, or allowedRoots,
- * at the top level or in any tool's options.
+ * at the top level or in any tool's options, on an unknown top-level key, and
+ * on a shared option (state, digest, locks, or a root option) in a tool's options.
  */
 export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools {
   checkPiOptions(options, "fs");
+  for (const key of Object.keys(options)) {
+    if (!KNOWN.has(key)) throw new TypeError(`Unknown createPiFsTools option: ${key}`);
+  }
   const { state: given, denyRoots, symlinks, hardLinks } = options;
   const parts = {
     read: options.read ?? {},
@@ -48,7 +64,16 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
     write: options.write ?? {},
     applyPatch: options.applyPatch ?? {},
   };
-  for (const [key, value] of Object.entries(parts)) checkPiOptions(value, key);
+  for (const [key, value] of Object.entries(parts)) {
+    checkPiOptions(value, key);
+    for (const shared of SHARED_KEYS) {
+      if (Object.hasOwn(value, shared)) {
+        throw new TypeError(
+          `createPiFsTools ${key} options cannot set ${shared}: set it once at the top level`,
+        );
+      }
+    }
+  }
 
   const fileSystemFor = piFileSystems({ denyRoots, symlinks, hardLinks });
   const shared = {

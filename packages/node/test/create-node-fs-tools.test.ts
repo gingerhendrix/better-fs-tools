@@ -208,4 +208,26 @@ describe("createNodeFsTools sharing", () => {
   test("non-object options throw TypeError", () => {
     expect(() => createNodeFsTools(null as never)).toThrow(TypeError);
   });
+
+  test("an unknown option key throws TypeError, like the core factories", () => {
+    expect(() => createNodeFsTools({ bogus: true } as never)).toThrow(
+      "Unknown createNodeFsTools option: bogus",
+    );
+    expect(() => createNodeFsTools({ allowedRoot: ["/tmp"] } as never)).toThrow(TypeError);
+  });
+
+  test("a per-tool object that sets a shared dependency throws TypeError", () => {
+    expect(() => createNodeFsTools({ read: { state: null } } as never)).toThrow(
+      "createNodeFsTools read options cannot set state: set it once at the top level",
+    );
+    expect(() => createNodeFsTools({ edit: { locks: memoryLocks() } } as never)).toThrow(TypeError);
+    expect(() => createNodeFsTools({ write: { digest: null } } as never)).toThrow(TypeError);
+    expect(() => createNodeFsTools({ applyPatch: { fs: null } } as never)).toThrow(TypeError);
+    expect(() => createNodeFsTools({ read: "x" } as never)).toThrow(TypeError);
+  });
+
+  test("an unknown key inside a per-tool object still throws from the core", () => {
+    expect(() => createNodeFsTools({ read: { bogus: 1 } } as never)).toThrow(TypeError);
+    expect(() => createNodeFsTools({ bash: { bogus: 1 } } as never)).toThrow(TypeError);
+  });
 });

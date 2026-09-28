@@ -117,4 +117,22 @@ describe("createPiFsTools", () => {
     }
     expect(() => createPiFsTools(null as never)).toThrow(TypeError);
   });
+
+  test("an unknown top-level key throws TypeError, like the core factories", () => {
+    expect(() => createPiFsTools({ bogus: true } as never)).toThrow(
+      "Unknown createPiFsTools option: bogus",
+    );
+    expect(() => createPiFsTools({ digest: null } as never)).toThrow(TypeError);
+    expect(() => createPiFsTools({ denyRoot: ["/x"] } as never)).toThrow(TypeError);
+  });
+
+  test("a shared option inside a tool's options throws TypeError", () => {
+    for (const tool of ["read", "edit", "write", "applyPatch"]) {
+      for (const key of ["state", "digest", "locks", "denyRoots", "symlinks", "hardLinks"]) {
+        expect(() => createPiFsTools({ [tool]: { [key]: null } } as never)).toThrow(
+          `createPiFsTools ${tool} options cannot set ${key}: set it once at the top level`,
+        );
+      }
+    }
+  });
 });
