@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { stat } from "node:fs/promises";
+import path from "node:path";
 
 import type {
   CommandRunner,
@@ -13,7 +14,7 @@ import type {
 const PIPE_GRACE_MS = 100;
 
 export interface NodeCommandRunnerOptions {
-  /** Default process.cwd(). */
+  /** Default process.cwd(). A relative cwd resolves against process.cwd(), as in nodeFileSystem. */
   readonly cwd?: string;
   /** Default "bash". Run as `<shell> -c <command>`. */
   readonly shell?: string;
@@ -32,10 +33,11 @@ export function nodeCommandRunner(options: NodeCommandRunnerOptions = {}): Comma
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("nodeCommandRunner options must be an object");
   }
-  const { cwd = process.cwd(), shell = "bash", id = "node" } = options;
-  if (typeof cwd !== "string" || !cwd.startsWith("/")) {
-    throw new TypeError("cwd must be an absolute path");
+  const { cwd: given = process.cwd(), shell = "bash", id = "node" } = options;
+  if (typeof given !== "string" || given === "" || given.includes("\0")) {
+    throw new TypeError("cwd must be a non-empty path without NUL");
   }
+  const cwd = path.resolve(given);
   if (typeof shell !== "string" || shell === "") throw new TypeError("shell must be a string");
   if (typeof id !== "string" || id === "") throw new TypeError("id must be a string");
   return Object.freeze<CommandRunner>({

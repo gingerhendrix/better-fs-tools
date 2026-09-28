@@ -103,7 +103,7 @@ A write goes to a `0o600` temp file next to the target. The bytes are written an
 
 ## Bash tool
 
-`createNodeBashTool()` is the zero-config local `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell). It uses `nodeCommandRunner()`: `bash -c` in its own process group, stdin on `/dev/null`, SIGTERM to the group on a stop, and SIGKILL after the grace time. The environment is `process.env`, read on each call, with the pager and colour defaults over it. `createNodeFsTools()` adds the same tool as `bash`, in the same cwd. With your own `bash.runner`, an explicit `cwd` still applies: it becomes the bash `cwd` dependency. `bash.cwd` wins over both.
+`createNodeBashTool()` is the zero-config local `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell). It uses `nodeCommandRunner()`: `bash -c` in its own process group, stdin on `/dev/null`, SIGTERM to the group on a stop, and SIGKILL after the grace time. The environment is `process.env`, read on each call, with the pager and colour defaults over it. `createNodeFsTools()` adds the same tool as `bash`, in the same cwd. With your own `bash.runner`, an explicit `cwd` still applies: it becomes the bash `cwd` dependency. `bash.cwd` wins over both. `nodeCommandRunner({ cwd })` resolves a relative `cwd` against `process.cwd()`, as `nodeFileSystem` does.
 
 ```ts
 import { createNodeFsTools, nodeCommandRunner } from "@better-fs-tools/node";

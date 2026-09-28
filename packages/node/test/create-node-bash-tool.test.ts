@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, realpath, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createNodeBashTool, createNodeFsTools, nodeCommandRunner } from "@better-fs-tools/node";
+import {
+  createNodeBashTool,
+  createNodeFsTools,
+  nodeCommandRunner,
+  nodeFileSystem,
+} from "@better-fs-tools/node";
 import { textOf } from "@better-fs-tools/shell";
 
 async function workdir(): Promise<string> {
@@ -109,6 +114,23 @@ describe("createNodeBashTool", () => {
     expect(errorOf(await bash({ command: "ls", cwd: "file.txt" }))?.code).toBe(
       "CWD_NOT_A_DIRECTORY",
     );
+  });
+
+  test("a relative cwd resolves against process.cwd(), as in nodeFileSystem (CF-18)", async () => {
+    const parent = await workdir();
+    await mkdir(join(parent, "packages"));
+    const before = process.cwd();
+    process.chdir(parent);
+    try {
+      const runner = nodeCommandRunner({ cwd: "packages" });
+      const fs = nodeFileSystem({ cwd: "packages", allowedRoots: ["."] });
+      expect(runner.cwd).toBe(join(parent, "packages"));
+      expect(fs.cwd).toBe(runner.cwd);
+    } finally {
+      process.chdir(before);
+    }
+    expect(() => nodeCommandRunner({ cwd: "" })).toThrow(TypeError);
+    expect(() => nodeCommandRunner({ cwd: "a\0b" })).toThrow(TypeError);
   });
 
   test("a missing shell is SPAWN_FAILED", async () => {

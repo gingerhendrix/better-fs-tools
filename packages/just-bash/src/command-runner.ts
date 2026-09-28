@@ -41,7 +41,8 @@ export function justBashCommandRunner(
   const { id = "just-bash (emulated)", cwd = bash.getCwd() } = options;
   if (typeof id !== "string" || id === "") throw new TypeError("id must be a non-empty string");
   if (typeof cwd !== "string" || !cwd.startsWith("/")) {
-    throw new TypeError("cwd must be an absolute path");
+    // A virtual shell has no process cwd to resolve a relative path against.
+    throw new TypeError("cwd must be an absolute path: just-bash has no process cwd");
   }
   return Object.freeze<CommandRunner>({ id, cwd, run: (request) => run(bash, request) });
 }

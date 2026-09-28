@@ -35,6 +35,12 @@ describe("justBashCommandRunner", () => {
     expect((await bash({ command: "pwd" })).output?.head).toBe("/w");
   });
 
+  test("a relative runner cwd throws: there is no process cwd to resolve it against", () => {
+    expect(() => justBashCommandRunner(shell(), { cwd: "sub" })).toThrow(
+      "cwd must be an absolute path: just-bash has no process cwd",
+    );
+  });
+
   test("the environment replaces the shell's own", async () => {
     const bash = createBashTool({
       runner: justBashCommandRunner(shell()),
