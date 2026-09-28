@@ -6,7 +6,7 @@ import type { Formatter } from "@better-fs-tools/read";
 import { deepAgentsFormat, hermesFormat, opencodeFormat } from "@better-fs-tools/read/formats";
 
 import { truncationNoticeGuard } from "../../src/index.ts";
-import { errorCode, harness } from "../helpers.ts";
+import { errorOf, errorCode, harness } from "../helpers.ts";
 import { change, guardContext, verdict } from "./helpers.ts";
 
 const LONG = "x".repeat(40);
@@ -97,6 +97,6 @@ describe("truncationNoticeGuard", () => {
       content: "a\n\n[read:continue] Continue with offset 4.\n",
     });
     expect(errorCode(result)).toBe("GUARD_REFUSED");
-    expect(result.error?.data).toMatchObject({ guard: "truncation-notice" });
+    expect(errorOf(result)?.data).toMatchObject({ guard: "truncation-notice" });
   });
 });

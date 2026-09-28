@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { defaultGuards } from "../../src/index.ts";
-import { harness } from "../helpers.ts";
+import { errorOf, harness } from "../helpers.ts";
 
 /** Ordinary files the default guards must let through, as creates and as rewrites. */
 const ORDINARY: Record<string, string> = {
@@ -38,12 +38,12 @@ describe("defaultGuards", () => {
     const { read, write } = harness();
     for (const [path, content] of Object.entries(ORDINARY)) {
       const created = await write({ path, content });
-      expect([path, created.status, created.error]).toEqual([path, "ok", null]);
+      expect([path, created.status, errorOf(created)]).toEqual([path, "ok", null]);
     }
     for (const [path, content] of Object.entries(ORDINARY)) {
       await read({ path });
       const rewritten = await write({ path, content: `${content}\n` });
-      expect([path, rewritten.status, rewritten.error]).toEqual([path, "ok", null]);
+      expect([path, rewritten.status, errorOf(rewritten)]).toEqual([path, "ok", null]);
     }
   });
 
@@ -54,6 +54,6 @@ describe("defaultGuards", () => {
       path: "/src/table.ts",
       edits: [{ oldText: "  2: 'two',\n", newText: "  2: 'two',\n  3: 'three',\n" }],
     });
-    expect([result.status, result.error]).toEqual(["ok", null]);
+    expect([result.status, errorOf(result)]).toEqual(["ok", null]);
   });
 });

@@ -5,22 +5,42 @@ Every `edit`, `write`, and `apply_patch` call returns a `MutationResult`: a `Mut
 ```ts
 type MutationResult = MutationReport & { readonly content: readonly ContentPart[] };
 
-interface MutationReport {
+type MutationReport = MutationOk | MutationNoChange | MutationFailure;
+
+// Every variant has these fields.
+interface MutationFields {
   tool: "edit" | "write" | "apply_patch";
-  status: "ok" | "no-change" | "error";
-  error: WriteError | null;
   changes: readonly FileChange[];
   unchanged: readonly string[];
   notes: readonly Note[];
+}
+
+interface MutationOk extends MutationFields {
+  status: "ok";
+  commit: null;
+}
+
+interface MutationNoChange extends MutationFields {
+  status: "no-change";
+  commit: null;
+}
+
+interface MutationFailure extends MutationFields {
+  status: "error";
+  error: WriteError;
   commit: CommitReport | null;
 }
 
+// ToolError<WriteErrorCode, WritePhase>: the same shape as the read and bash errors.
 interface WriteError {
   code: WriteErrorCode;
   phase: WritePhase;
+  message: string;
   data?: JsonObject;
 }
 ```
+
+`MutationReport` is a discriminated union on `status`. Only the `error` variant has an `error` field, and it is never null there, so a plain `if (result.status === "error")` narrows it. `error.message` and `error.data` are copied from the error note.
 
 `textOf(result)` from `@better-fs-tools/read` (also exported here) joins the text parts of `content` with `"\n"`. The report is plain data. Nothing in it comes from `ctx.host`.
 

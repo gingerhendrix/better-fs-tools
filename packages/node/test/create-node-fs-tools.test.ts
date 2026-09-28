@@ -34,7 +34,7 @@ describe("createNodeFsTools on disk", () => {
     const cwd = await workspace({ "app.ts": "const a = 1;\nconst b = 2;\n" });
     const tools = createNodeFsTools({ cwd });
 
-    expect((await tools.edit(edit("a = 1", "a = 10"))).error?.code).toBe("NOT_READ");
+    expect(errorOf(await tools.edit(edit("a = 1", "a = 10")))?.code).toBe("NOT_READ");
     expect((await tools.read({ path: "app.ts" })).status).toBe("ok");
     expect((await tools.edit(edit("a = 1", "a = 10"))).status).toBe("ok");
     expect((await tools.edit(edit("b = 2", "b = 20"))).status).toBe("ok");
@@ -48,7 +48,7 @@ describe("createNodeFsTools on disk", () => {
     await tools.invalidate("app.ts");
 
     const result = await tools.edit(edit("x", "y"));
-    expect(result.error?.code).toBe("NOT_READ");
+    expect(errorOf(result)?.code).toBe("NOT_READ");
     expect(textOf(result)).toBe(
       "[edit:not-read] Read app.ts with the read tool before changing it.",
     );
@@ -77,8 +77,8 @@ describe("createNodeFsTools on disk", () => {
     await tools.read({ path: "app.ts" });
 
     const result = await tools.edit(edit("one", "two"));
-    expect(result.error?.code).toBe("STALE");
-    expect(result.error?.phase).toBe("commit");
+    expect(errorOf(result)?.code).toBe("STALE");
+    expect(errorOf(result)?.phase).toBe("commit");
     expect(await readFile(join(cwd, "app.ts"), "utf8")).toBe("other writer\n");
   });
 
@@ -86,7 +86,7 @@ describe("createNodeFsTools on disk", () => {
     const cwd = await workspace({ "app.ts": "old\n" });
     const tools = createNodeFsTools({ cwd });
 
-    expect((await tools.write({ path: "app.ts", content: "new\n" })).error?.code).toBe("NOT_READ");
+    expect(errorOf(await tools.write({ path: "app.ts", content: "new\n" }))?.code).toBe("NOT_READ");
     expect((await tools.write({ path: "dir/new.md", content: "# New\n" })).status).toBe("ok");
     await tools.read({ path: "app.ts" });
     expect((await tools.write({ path: "app.ts", content: "new\n" })).status).toBe("ok");
@@ -99,7 +99,7 @@ describe("createNodeFsTools on disk", () => {
     const tools = createNodeFsTools({ cwd });
     const patch = ["*** Begin Patch", "*** Update File: app.ts", "@@", "-b", "+B", "*** End Patch"];
 
-    expect((await tools.applyPatch({ patch: patch.join("\n") })).error?.code).toBe("NOT_READ");
+    expect(errorOf(await tools.applyPatch({ patch: patch.join("\n") }))?.code).toBe("NOT_READ");
     await tools.read({ path: "app.ts" });
     expect((await tools.applyPatch({ patch: patch.join("\n") })).status).toBe("ok");
     // The patch left a write record, so an edit needs no second read.
@@ -112,7 +112,7 @@ describe("createNodeFsTools on disk", () => {
     const outside = await workspace();
     const tools = createNodeFsTools({ cwd });
     const result = await tools.write({ path: join(outside, "x.txt"), content: "x\n" });
-    expect(result.error?.code).toBe("OUTSIDE_ALLOWED_ROOTS");
+    expect(errorOf(result)?.code).toBe("OUTSIDE_ALLOWED_ROOTS");
   });
 
   test("hardLinks: a hard-linked file is refused by default and written with in-place", async () => {
@@ -121,7 +121,7 @@ describe("createNodeFsTools on disk", () => {
 
     const refusing = createNodeFsTools({ cwd });
     await refusing.read({ path: "app.ts" });
-    expect((await refusing.edit(edit("x", "y"))).error?.code).toBe("DENIED");
+    expect(errorOf(await refusing.edit(edit("x", "y")))?.code).toBe("DENIED");
 
     const inPlace = createNodeFsTools({ cwd, hardLinks: "in-place" });
     await inPlace.read({ path: "app.ts" });
@@ -231,3 +231,10 @@ describe("createNodeFsTools sharing", () => {
     expect(() => createNodeFsTools({ bash: { bogus: 1 } } as never)).toThrow(TypeError);
   });
 });
+
+/** The error of a result, or null when its status is not "error". */
+function errorOf<T extends { readonly status: string }>(
+  result: T,
+): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {
+  return result.status === "error" ? (result as unknown as { readonly error: never }).error : null;
+}

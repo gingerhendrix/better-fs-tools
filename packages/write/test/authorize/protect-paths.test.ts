@@ -4,7 +4,7 @@ import type { ToolCallContext } from "@better-fs-tools/read";
 
 import { defaultWriteMessages, protectPaths, writeAuthorizers } from "../../src/index.ts";
 import type { WriteAuthorizeTarget } from "../../src/index.ts";
-import { errorCode, harness, text } from "../helpers.ts";
+import { errorOf, errorCode, harness, text } from "../helpers.ts";
 
 describe("protectPaths", () => {
   test.each(["/repo/AGENTS.md", "/repo/sub/CLAUDE.md", "/repo/.git/config", "/AGENTS.md"])(
@@ -16,7 +16,7 @@ describe("protectPaths", () => {
       });
       const open = spyOn(fs, "open");
       const result = await write({ path, content: "x" });
-      expect(result.error).toMatchObject({ code: "DENIED", phase: "authorize" });
+      expect(errorOf(result)).toMatchObject({ code: "DENIED", phase: "authorize" });
       expect(result.notes[0]?.data).toMatchObject({ pattern: expect.any(String) });
       expect(open).not.toHaveBeenCalled();
       expect(text(fs, path)).toBe("keep\n");

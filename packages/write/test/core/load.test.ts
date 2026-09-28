@@ -2,7 +2,7 @@ import { describe, expect, spyOn, test } from "bun:test";
 
 import type { Codec } from "../../src/index.ts";
 import { utf8Codec } from "../../src/index.ts";
-import { errorCode, harness, note } from "../helpers.ts";
+import { errorOf, errorCode, harness, note } from "../helpers.ts";
 
 const off = { preconditions: { requireRead: "off" } } as const;
 
@@ -15,7 +15,7 @@ describe("load (section 5.2)", () => {
     const open = spyOn(fs, "open");
     const result = await write({ path: "/big.txt", content: "x" });
     expect(errorCode(result)).toBe("TOO_LARGE");
-    expect(result.error?.phase).toBe("load");
+    expect(errorOf(result)?.phase).toBe("load");
     expect(open).not.toHaveBeenCalled();
   });
 
@@ -26,7 +26,7 @@ describe("load (section 5.2)", () => {
     });
     const result = await write({ path: "/x.bin", content: "text" });
     expect(errorCode(result)).toBe("NOT_TEXT");
-    expect(result.error?.data?.code).toBe("BINARY");
+    expect(errorOf(result)?.data?.code).toBe("BINARY");
     expect(fs.peek("/x.bin")?.bytes).toEqual(Uint8Array.of(0, 1, 2, 0, 3));
   });
 
@@ -40,7 +40,7 @@ describe("load (section 5.2)", () => {
     const { write } = harness({ files: { "/a.txt": "a \n" }, deps: { ...off, codecs: [lossy] } });
     const result = await write({ path: "/a.txt", content: "b" });
     expect(errorCode(result)).toBe("NOT_TEXT");
-    expect(result.error?.data?.code).toBe("ROUND_TRIP");
+    expect(errorOf(result)?.data?.code).toBe("ROUND_TRIP");
     expect(note(result, "not-text")?.message).toContain("same bytes");
   });
 
@@ -54,7 +54,7 @@ describe("load (section 5.2)", () => {
     for (const codec of [refuses, failing]) {
       const { write } = harness({ files: { "/a.txt": "a" }, deps: { ...off, codecs: [codec] } });
       const result = await write({ path: "/a.txt", content: "b" });
-      expect(result.error?.data?.code).toBe("UNKNOWN_ENCODING");
+      expect(errorOf(result)?.data?.code).toBe("UNKNOWN_ENCODING");
     }
   });
 
@@ -68,7 +68,8 @@ describe("load (section 5.2)", () => {
     };
     const { write } = harness({ files: { "/a.txt": "a" }, deps: { ...off, codecs: [codec] } });
     const result = await write({ path: "/a.txt", content: "b" });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "EXTENSION_FAILED",
       phase: "load",
       data: { extension: "codecs", phase: "load", id: "boom" },
@@ -92,7 +93,7 @@ describe("load (section 5.2)", () => {
     });
     const result = await write({ path: "/a.txt", content: "b" });
     expect(errorCode(result)).toBe("STALE");
-    expect(result.error?.phase).toBe("load");
+    expect(errorOf(result)?.phase).toBe("load");
   });
 
   test("verify reporting a change is STALE, and the handle is closed", async () => {
@@ -145,7 +146,7 @@ describe("load (section 5.2)", () => {
     });
     const result = await write({ path: "/a.txt", content: "b" });
     expect(errorCode(result)).toBe("IO_ERROR");
-    expect(result.error?.data).toEqual({ detail: "disk gone" });
+    expect(errorOf(result)?.data).toEqual({ detail: "disk gone" });
   });
 });
 
@@ -179,7 +180,7 @@ describe("load and abort", () => {
       };
     });
     const result = await write({ path: "/a.txt", content: "b" }, { signal: controller.signal });
-    expect(result.error).toMatchObject({ code: "ABORTED", phase: "load" });
+    expect(errorOf(result)).toMatchObject({ code: "ABORTED", phase: "load" });
     release();
     await new Promise((resolve) => setTimeout(resolve, 1));
     expect(closed).toBe(true);

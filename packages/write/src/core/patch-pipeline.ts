@@ -136,7 +136,6 @@ async function patchStages<THost>(
     return {
       tool: scope.tool,
       status: "ok",
-      error: null,
       changes: committed.map((file) => file.change),
       unchanged: [],
       notes: [...scope.notes],
@@ -270,7 +269,7 @@ async function loadAll<THost>(
       try {
         pre = await checkPrecondition(scope, fs, stat, loaded, main.requestedPath);
       } catch (error) {
-        const code = error instanceof WriteStop ? error.report.error?.code : null;
+        const code = error instanceof WriteStop ? error.report.error.code : null;
         if (code !== "NOT_READ" && code !== "STALE") throw error;
         failures.push({ path: main.requestedPath, stop: error as WriteStop });
       }
@@ -289,12 +288,12 @@ function preconditionFailure<THost>(
 ): WriteStop {
   const [first] = failures;
   if (first === undefined || failures.length === 1) return (first as (typeof failures)[0]).stop;
-  const code = first.stop.report.error?.code ?? "STALE";
-  const message = failures.map(({ stop }) => stop.report.notes[0]?.message ?? "").join("\n");
+  const code = first.stop.report.error.code;
+  const message = failures.map(({ stop }) => stop.report.error.message).join("\n");
   const listed = failures.map(({ path, stop }) => ({
     path,
-    code: stop.report.error?.code ?? code,
-    ...stop.report.error?.data,
+    code: stop.report.error.code,
+    ...stop.report.error.data,
   }));
   scope.enter("precondition");
   return scope.stop(code, message, { failures: listed });

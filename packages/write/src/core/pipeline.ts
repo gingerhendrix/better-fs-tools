@@ -162,7 +162,6 @@ async function singleFileStages<THost>(
     return {
       tool: scope.tool,
       status: "ok",
-      error: null,
       changes: committed.map((file) => file.change),
       unchanged: [],
       notes: [...scope.notes],
@@ -187,7 +186,6 @@ export function noChange<THost>(
   return {
     tool: scope.tool,
     status: "no-change",
-    error: null,
     changes: [],
     unchanged: [...paths],
     notes: [...scope.notes],

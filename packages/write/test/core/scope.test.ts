@@ -11,7 +11,7 @@ import {
   defaultWriteFormatter,
   memoryLocks,
 } from "../../src/index.ts";
-import { errorCode, harness, testDigest } from "../helpers.ts";
+import { errorOf, errorCode, harness, testDigest } from "../helpers.ts";
 
 interface Host {
   readonly secret: string;
@@ -315,7 +315,8 @@ describe("call scope (section 5.1)", () => {
       },
     });
     const result = await write({ path: "/a.txt" } as never);
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "INVALID_INPUT",
       phase: "input",
       data: { path: "/a.txt" },
@@ -335,7 +336,8 @@ describe("call scope (section 5.1)", () => {
   ])("an fs factory that %s is EXTENSION_FAILED", async (_name, factory) => {
     const write = createWriteTool({ fs: factory as never });
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "EXTENSION_FAILED",
       phase: "resolve",
       data: { extension: "fs", phase: "resolve" },
@@ -364,14 +366,19 @@ describe("call scope (section 5.1)", () => {
       },
     });
     const result = await failing({ path: "/b.txt", content: "x" });
-    expect(result.error).toMatchObject({ code: "EXTENSION_FAILED", phase: "precondition" });
+    expect(errorOf(result)).toMatchObject({ code: "EXTENSION_FAILED", phase: "precondition" });
     expect(fs.peek("/b.txt")).toBeNull();
   });
 
   test("an aborted signal before the call is ABORTED", async () => {
     const { fs, write } = harness();
     const result = await write({ path: "/a.txt", content: "x" }, { signal: AbortSignal.abort() });
-    expect(result.error).toEqual({ code: "ABORTED", phase: "resolve", data: { phase: "resolve" } });
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
+      code: "ABORTED",
+      phase: "resolve",
+      data: { phase: "resolve" },
+    });
     expect(fs.peek("/a.txt")).toBeNull();
   });
 
@@ -393,7 +400,7 @@ describe("call scope (section 5.1)", () => {
       ],
     });
     const result = await hanging({ path: "/a.txt", content: "x" }, { signal: controller.signal });
-    expect(result.error).toMatchObject({ code: "ABORTED", phase: "guards" });
+    expect(errorOf(result)).toMatchObject({ code: "ABORTED", phase: "guards" });
     const next = createWriteTool({ fs, locks });
     expect((await next({ path: "/a.txt", content: "y" })).status).toBe("ok");
   });
@@ -413,7 +420,11 @@ describe("call scope (section 5.1)", () => {
     const held = await locks.acquire(["/a.txt"], {});
     const write = createWriteTool({ fs, locks });
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toEqual({ code: "LOCK_TIMEOUT", phase: "lock" });
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
+      code: "LOCK_TIMEOUT",
+      phase: "lock",
+    });
     expect(result.notes[0]?.message).toBe(
       "Another change to /a.txt is still running. Retry when it has finished.",
     );
@@ -428,7 +439,7 @@ describe("call scope (section 5.1)", () => {
     const write = createWriteTool({ fs, locks });
     const pending = write({ path: "/a.txt", content: "x" }, { signal: controller.signal });
     setTimeout(() => controller.abort(), 1);
-    expect((await pending).error).toMatchObject({ code: "ABORTED", phase: "lock" });
+    expect(errorOf(await pending)).toMatchObject({ code: "ABORTED", phase: "lock" });
     if (held.ok) held.release();
     expect((await write({ path: "/a.txt", content: "x" })).status).toBe("ok");
   });
@@ -445,7 +456,7 @@ describe("call scope (section 5.1)", () => {
         locks: { id: "bad", acquire: acquire as never },
       });
       const result = await write({ path: "/a.txt", content: "x" });
-      expect(result.error).toMatchObject({
+      expect(errorOf(result)).toMatchObject({
         code: "EXTENSION_FAILED",
         phase: "lock",
         data: { extension: "locks", id: "bad" },

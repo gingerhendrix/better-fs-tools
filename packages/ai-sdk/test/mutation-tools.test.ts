@@ -26,7 +26,7 @@ import {
 } from "../src/index.ts";
 import type { AiSdkMutationTool } from "../src/index.ts";
 import { toStrictSchema } from "../src/strict.ts";
-import { CLOCK, executeOptions } from "./helpers.ts";
+import { errorOf, CLOCK, executeOptions } from "./helpers.ts";
 
 type Host = ToolExecutionOptions<Record<string, unknown>>;
 
@@ -168,7 +168,7 @@ describe("ai sdk mutation tools: execute", () => {
       { path: "/a.txt", old_string: "beta", new_string: "B" },
       options,
     );
-    expect(before.error?.code).toBe("NOT_READ");
+    expect(errorOf(before)?.code).toBe("NOT_READ");
 
     await read({ path: "/a.txt" });
     const edited = await edit.execute(

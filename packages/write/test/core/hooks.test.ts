@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { FileChange, WriteHook } from "../../src/index.ts";
-import { codes, harness, note, text } from "../helpers.ts";
+import { errorOf, codes, harness, note, text } from "../helpers.ts";
 
 describe("after-write hooks (section 5.10)", () => {
   test("hooks run in order after the commit and see the change and the call's fs", async () => {
@@ -71,7 +71,7 @@ describe("after-write hooks (section 5.10)", () => {
     // The model has not seen the hook's bytes: the record says so.
     expect(record?.wholeFileVisible).toBe(false);
     const again = await write({ path: "/a.txt", content: "again" });
-    expect(again.error).toMatchObject({ code: "NOT_READ", data: { wholeFile: true } });
+    expect(errorOf(again)).toMatchObject({ code: "NOT_READ", data: { wholeFile: true } });
   });
 
   test("a rewrite the core cannot read back deletes the record", async () => {
@@ -147,7 +147,7 @@ describe("newFileMode", () => {
   ])("%s gives EXTENSION_FAILED before anything is written", async (_name, mode) => {
     const { fs, write } = harness({ deps: { hooks: [modeHook("bad", mode)] } });
     const result = await write({ path: "/a.txt", content: "a" });
-    expect(result.error).toMatchObject({
+    expect(errorOf(result)).toMatchObject({
       code: "EXTENSION_FAILED",
       phase: "commit",
       data: { extension: "hooks", id: "bad" },

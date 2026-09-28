@@ -6,7 +6,7 @@ import {
   indentationMatcher,
   lineTrimmedMatcher,
 } from "../../src/index.ts";
-import { codes, errorCode, harness, note, text } from "../helpers.ts";
+import { errorOf, codes, errorCode, harness, note, text } from "../helpers.ts";
 
 const BOM = Uint8Array.of(0xef, 0xbb, 0xbf);
 
@@ -45,7 +45,8 @@ describe("edit planning (section 5.4)", () => {
   test("an old text found twice without replaceAll is ambiguous and lists the lines", async () => {
     const { edit, fs } = await readFile("x = 1\ny = 2\nx = 1\n");
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "x = 1", newText: "x = 3" }] });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "AMBIGUOUS_MATCH",
       phase: "plan",
       data: { index: 0, lines: [1, 3], total: 2 },
@@ -61,7 +62,7 @@ describe("edit planning (section 5.4)", () => {
       deps: { limits: { maxListedMatches: 3 } },
     });
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "t", newText: "u" }] });
-    expect(result.error?.data).toEqual({ index: 0, lines: [1, 2, 3], total: 30 });
+    expect(errorOf(result)?.data).toEqual({ index: 0, lines: [1, 2, 3], total: 30 });
     expect(note(result, "ambiguous-match")?.message).toContain("(lines 1, 2, 3, …)");
   });
 
@@ -94,7 +95,7 @@ describe("edit planning (section 5.4)", () => {
       path: "/f.ts",
       edits: [{ oldText: "a - b", newText: "c", replaceAll: true }],
     });
-    expect(result.error).toMatchObject({
+    expect(errorOf(result)).toMatchObject({
       code: "MATCH_REFUSED",
       data: { index: 0, matcher: "normalized", reason: "fuzzy-replace-all" },
     });
@@ -111,7 +112,7 @@ describe("edit planning (section 5.4)", () => {
         { oldText: "two three", newText: "2 3" },
       ],
     });
-    expect(result.error).toMatchObject({ code: "OVERLAP", data: { first: 1, second: 2 } });
+    expect(errorOf(result)).toMatchObject({ code: "OVERLAP", data: { first: 1, second: 2 } });
     expect(note(result, "overlap")?.message).toBe(
       "Edits 2 and 3 change overlapping text in /f.ts. Merge them into one edit.",
     );
@@ -152,7 +153,7 @@ describe("edit planning (section 5.4)", () => {
   test("a result equal to the file gives NO_CHANGE", async () => {
     const { edit } = await readFile("same\n");
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "same", newText: "same" }] });
-    expect(result.error).toMatchObject({ code: "NO_CHANGE", phase: "plan" });
+    expect(errorOf(result)).toMatchObject({ code: "NO_CHANGE", phase: "plan" });
     expect(note(result, "no-change")?.message).toBe(
       "The edits leave /f.ts as it is. Check the newText values, or do not send the edit.",
     );
@@ -215,7 +216,7 @@ describe("edit planning (section 5.4)", () => {
       path: "/f.ts",
       edits: [{ oldText: "start() {\n  step5();\n}", newText: "x" }],
     });
-    expect(result.error).toMatchObject({
+    expect(errorOf(result)).toMatchObject({
       code: "MATCH_REFUSED",
       data: { matcher: "block-anchor", reason: "span" },
     });
@@ -227,7 +228,7 @@ describe("edit planning (section 5.4)", () => {
       path: "/f.ts",
       edits: [{ oldText: "ine(x);", newText: "ine(y);" }],
     });
-    expect(result.error).toMatchObject({ code: "MATCH_REFUSED", data: { reason: "boundary" } });
+    expect(errorOf(result)).toMatchObject({ code: "MATCH_REFUSED", data: { reason: "boundary" } });
     expect(note(result, "match-refused")?.message).toBe(
       "Edit 1: the normalized matcher found the oldText in /f.ts, but the match was refused (the match starts or ends inside normalized text). Copy the oldText exactly from the file.",
     );
@@ -240,7 +241,7 @@ describe("edit planning (section 5.4)", () => {
       path: "/f.ts",
       edits: [{ oldText: 'print("hi")', newText: 'print("hi\\n")' }],
     });
-    expect(drift.error).toMatchObject({ code: "MATCH_REFUSED", data: { reason: "escape" } });
+    expect(errorOf(drift)).toMatchObject({ code: "MATCH_REFUSED", data: { reason: "escape" } });
     const exact = await readFile('print("hi")\n');
     const allowed = await exact.edit({
       path: "/f.ts",
@@ -266,7 +267,7 @@ describe("edit planning (section 5.4)", () => {
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "b();", newText: "c();" }] });
     expect(errorCode(result)).toBe("NO_MATCH");
     const found = await edit({ path: "/f.ts", edits: [{ oldText: "a();", newText: "c();" }] });
-    expect(found.error).toMatchObject({ code: "AMBIGUOUS_MATCH", data: { lines: [1, 2] } });
+    expect(errorOf(found)).toMatchObject({ code: "AMBIGUOUS_MATCH", data: { lines: [1, 2] } });
   });
 });
 
@@ -368,7 +369,7 @@ describe("failure help (section 5.5)", () => {
       path: "/f.ts",
       edits: [{ oldText: "last line\n", newText: "end\n" }],
     });
-    expect(result.error).toMatchObject({
+    expect(errorOf(result)).toMatchObject({
       code: "NO_MATCH",
       data: { index: 0, trailingNewline: "extra" },
     });
@@ -383,7 +384,8 @@ describe("failure help (section 5.5)", () => {
       path: "/f.ts",
       edits: [{ oldText: "function b() {\n  return 3;\n}", newText: "x" }],
     });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "NO_MATCH",
       phase: "plan",
       data: { index: 0, closest: [4, 7] },
@@ -434,7 +436,7 @@ describe("edit targets and records", () => {
   test("a missing file gives NOT_FOUND that points to write", async () => {
     const { edit } = harness();
     const result = await edit({ path: "/new.ts", edits: [{ oldText: "a", newText: "b" }] });
-    expect(result.error).toMatchObject({ code: "NOT_FOUND", phase: "stat" });
+    expect(errorOf(result)).toMatchObject({ code: "NOT_FOUND", phase: "stat" });
     expect(note(result, "not-found")?.message).toBe(
       "/new.ts does not exist. Use the write tool to create it.",
     );
@@ -443,7 +445,7 @@ describe("edit targets and records", () => {
   test("an unread file gives NOT_READ", async () => {
     const { edit } = harness({ files: { "/f.ts": "a\n" } });
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "a", newText: "b" }] });
-    expect(result.error).toMatchObject({ code: "NOT_READ", phase: "precondition" });
+    expect(errorOf(result)).toMatchObject({ code: "NOT_READ", phase: "precondition" });
   });
 
   test("a partial read is enough for edit", async () => {
@@ -471,7 +473,7 @@ describe("edit targets and records", () => {
     await read({ path: "/f.ts", limit: 1 });
     await edit({ path: "/f.ts", edits: [{ oldText: "a", newText: "A" }] });
     expect((await state.get("/f.ts"))?.wholeFileVisible).toBe(false);
-    expect((await write({ path: "/f.ts", content: "x" })).error).toMatchObject({
+    expect(errorOf(await write({ path: "/f.ts", content: "x" }))).toMatchObject({
       code: "NOT_READ",
       data: { wholeFile: true },
     });
@@ -506,7 +508,7 @@ describe("W4: edit on a stale record", () => {
     const { edit, fs } = await readFile("a \u2014 b\n");
     fs.setFile("/f.ts", "x\na \u2014 b\n");
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "a - b", newText: "c" }] });
-    expect(result.error).toMatchObject({
+    expect(errorOf(result)).toMatchObject({
       code: "STALE",
       phase: "precondition",
       data: { index: 0 },
@@ -548,8 +550,8 @@ describe("W4: edit on a stale record", () => {
     });
     fs.setFile("/f.ts", "one\ntwo\n");
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "one", newText: "1" }] });
-    expect(result.error).toMatchObject({ code: "STALE", phase: "precondition" });
-    expect(result.error?.data).toBeUndefined();
+    expect(errorOf(result)).toMatchObject({ code: "STALE", phase: "precondition" });
+    expect(errorOf(result)?.data).toBeUndefined();
   });
 
   test("after a rematch the record is not whole: write needs a read, edit does not", async () => {
@@ -557,7 +559,7 @@ describe("W4: edit on a stale record", () => {
     fs.setFile("/f.ts", "one\nsomeone else's line\n");
     await edit({ path: "/f.ts", edits: [{ oldText: "one\n", newText: "1\n" }] });
     expect((await state.get("/f.ts"))?.wholeFileVisible).toBe(false);
-    expect((await write({ path: "/f.ts", content: "mine\n" })).error).toMatchObject({
+    expect(errorOf(await write({ path: "/f.ts", content: "mine\n" }))).toMatchObject({
       code: "NOT_READ",
       data: { wholeFile: true },
     });

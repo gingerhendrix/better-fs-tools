@@ -40,16 +40,17 @@ const match = (overrides: Partial<MatchInfo>): MatchInfo => ({
   ...overrides,
 });
 
-const report = (overrides: Partial<MutationReport>): MutationReport => ({
-  tool: "write",
-  status: "ok",
-  error: null,
-  changes: [],
-  unchanged: [],
-  notes: [],
-  commit: null,
-  ...overrides,
-});
+/** A report fixture. A test that sets status "error" also sets error. */
+const report = (overrides: Record<string, unknown>): MutationReport =>
+  ({
+    tool: "write",
+    status: "ok",
+    changes: [],
+    unchanged: [],
+    notes: [],
+    commit: null,
+    ...overrides,
+  }) as MutationReport;
 
 describe("defaultWriteFormatter", () => {
   const formatter = defaultWriteFormatter();
@@ -84,7 +85,7 @@ describe("defaultWriteFormatter", () => {
   test("an error prints the note lines only", () => {
     const failed = report({
       status: "error",
-      error: { code: "NOT_READ", phase: "precondition" },
+      error: { code: "NOT_READ", phase: "precondition", message: "Read it first." },
       notes: [{ code: "not-read", severity: "warning", message: "Read it first." }],
     });
     expect(formatter.format(failed, ctx())).toBe("[write:not-read] Read it first.");
@@ -116,6 +117,7 @@ describe("defaultWriteFormatter", () => {
     const custom = defaultWriteFormatter({ noteLine: (note, tool) => `${tool}/${note.code}` });
     const failed = report({
       status: "error",
+      error: { code: "STALE", phase: "precondition", message: "x" },
       notes: [{ code: "stale", severity: "warning", message: "x" }],
     });
     expect(custom.format(failed, ctx())).toBe("write/stale");

@@ -328,7 +328,7 @@ export const presets = [
 
 ## The result
 
-Every call returns a `MutationResult`: `status` (`ok`, `no-change`, or `error`), `error` with a stable `code` and the `phase` that stopped the call, `changes` with one `FileChange` for each committed file, `notes`, `commit` for a failed patch commit, and `content` for the model. [docs/result-schema.md](docs/result-schema.md) lists every field, code, and note.
+Every call returns a `MutationResult`: `tool`, `status` (`ok`, `no-change`, or `error`), `error` on an error result only, with a stable `code`, the `phase` that stopped the call, and the error note's `message`, `changes` with one `FileChange` for each committed file, `notes`, `commit` for a failed patch commit, and `content` for the model. [docs/result-schema.md](docs/result-schema.md) lists every field, code, and note.
 
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
@@ -347,7 +347,7 @@ const result: MutationResult = await edit({
 
 if (result.status === "error") {
   // A stable code, the stage that stopped the call, and the data of the error note.
-  console.log(result.error?.code, result.error?.phase, result.error?.data);
+  console.log(result.error.code, result.error.phase, result.error.data);
 } else {
   for (const change of result.changes) {
     console.log(change.kind, change.path, `+${change.linesAdded} -${change.linesRemoved}`);

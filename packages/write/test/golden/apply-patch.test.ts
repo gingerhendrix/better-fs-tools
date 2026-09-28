@@ -4,13 +4,13 @@ import type { MutationError } from "@better-fs-tools/fs";
 
 import { defaultWriteFormatter, textOf } from "../../src/index.ts";
 import type { MutationResult } from "../../src/index.ts";
-import { harness, patchText } from "../helpers.ts";
+import { errorOf, harness, patchText } from "../helpers.ts";
 
 /** The model text and the fields a host reads, for one call. */
 function shown(result: MutationResult) {
   return {
     status: result.status,
-    error: result.error,
+    error: errorOf(result),
     commit: result.commit,
     text: textOf(result),
   };

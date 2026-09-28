@@ -8,7 +8,7 @@ import type {
   WriteAuthorizer,
   WriteAuthorizeTarget,
 } from "../../src/index.ts";
-import { codes, errorCode, harness, note, text } from "../helpers.ts";
+import { errorOf, codes, errorCode, harness, note, text } from "../helpers.ts";
 
 function recording(
   decide: (target: WriteAuthorizeTarget) => ReturnType<WriteAuthorizer<unknown>["authorize"]>,
@@ -34,7 +34,11 @@ describe("authorize (sections 5.2 and 5.8)", () => {
     await read({ path: "/a.txt" });
     const open = spyOn(fs, "open");
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toEqual({ code: "DENIED", phase: "authorize" });
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
+      code: "DENIED",
+      phase: "authorize",
+    });
     expect(note(result, "denied")?.message).toBe("/a.txt was refused by policy.");
     expect(open).not.toHaveBeenCalled();
     expect(targets).toEqual([
@@ -90,7 +94,8 @@ describe("authorize (sections 5.2 and 5.8)", () => {
     );
     const { fs, write } = harness({ deps: { authorize: authorizer } });
     const result = await write({ path: "/n.txt", content: "x" });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "DENIED",
       phase: "authorize",
       data: { source: "policy" },
@@ -153,7 +158,7 @@ describe("authorize (sections 5.2 and 5.8)", () => {
     const { fs, write } = harness({ deps: { authorize: authorizer, guards: [guard] } });
     const result = await write({ path: "/n.txt", content: "plain" });
     expect(seen).toEqual(["plain", "a secret"]);
-    expect(result.error).toMatchObject({ code: "GUARD_REFUSED", phase: "guards" });
+    expect(errorOf(result)).toMatchObject({ code: "GUARD_REFUSED", phase: "guards" });
     expect(text(fs, "/n.txt")).toBeNull();
   });
 
@@ -200,14 +205,15 @@ describe("authorize (sections 5.2 and 5.8)", () => {
     });
     await read({ path: "/a.txt" });
     const result = await edit({ path: "/a.txt", edits: [{ oldText: "one", newText: "two" }] });
-    expect(result.error).toMatchObject({ code: "NO_CHANGE", phase: "encode" });
+    expect(errorOf(result)).toMatchObject({ code: "NO_CHANGE", phase: "encode" });
   });
 
   test("content in the access stage is EXTENSION_FAILED", async () => {
     const { authorizer } = recording(() => ({ allow: true, content: "x" }));
     const { write } = harness({ deps: { authorize: authorizer } });
     const result = await write({ path: "/n.txt", content: "y" });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "EXTENSION_FAILED",
       phase: "authorize",
       data: { extension: "authorize", phase: "authorize", id: "recording" },
@@ -229,7 +235,7 @@ describe("authorize (sections 5.2 and 5.8)", () => {
       deps: { authorize: { id: "bad", authorize: decide as never } },
     });
     const result = await write({ path: "/n.txt", content: "y" });
-    expect(result.error?.code).toBe("EXTENSION_FAILED");
-    expect(result.error?.data).toMatchObject({ extension: "authorize", id: "bad" });
+    expect(errorOf(result)?.code).toBe("EXTENSION_FAILED");
+    expect(errorOf(result)?.data).toMatchObject({ extension: "authorize", id: "bad" });
   });
 });

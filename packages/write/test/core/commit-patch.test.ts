@@ -8,7 +8,7 @@ import type {
 } from "@better-fs-tools/fs";
 import { textOf } from "@better-fs-tools/read";
 
-import { codes, harness, patchText, text } from "../helpers.ts";
+import { errorOf, codes, harness, patchText, text } from "../helpers.ts";
 
 type Operation = "write" | "stage" | "publish" | "remove";
 
@@ -117,7 +117,8 @@ describe.each([
     const { applyPatch, fs, plan, before } = await setup({ stage });
     plan.fail(publish, "/new/n.ts");
     const result = await applyPatch({ patch: PATCH });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "IO_ERROR",
       phase: "commit",
       data: { path: "/new/n.ts", rolledBack: true },
@@ -169,7 +170,7 @@ describe.each([
         "*** Delete File: /c.ts",
       ),
     });
-    expect(result.error).toMatchObject({ code: "IO_ERROR", phase: "commit" });
+    expect(errorOf(result)).toMatchObject({ code: "IO_ERROR", phase: "commit" });
     expect(result.commit).toEqual({
       rolledBack: true,
       files: [
@@ -189,7 +190,8 @@ describe.each([
     // The rollback of /a.ts is a write. Without stage() the publish was write number 1.
     plan.fail("write", "/a.ts", stage ? 1 : 2);
     const result = await applyPatch({ patch: PATCH });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "PARTIAL_COMMIT",
       phase: "commit",
       data: { path: "/b.ts", cause: "IO_ERROR", rolledBack: false },
@@ -230,7 +232,7 @@ describe.each([
     });
     plan.fail(publish, "/b.ts");
     const result = await applyPatch({ patch: PATCH });
-    expect(result.error?.code).toBe("PARTIAL_COMMIT");
+    expect(errorOf(result)?.code).toBe("PARTIAL_COMMIT");
     expect(result.commit?.files[0]).toEqual({
       path: "/a.ts",
       state: "rollback-failed",
@@ -245,7 +247,7 @@ describe("the stage step", () => {
     const { applyPatch, fs, plan, before } = await setup({ stage: true });
     plan.fail("stage", "/b.ts", 1, { reason: "no-space" });
     const result = await applyPatch({ patch: PATCH });
-    expect(result.error).toMatchObject({ code: "NO_SPACE", phase: "commit" });
+    expect(errorOf(result)).toMatchObject({ code: "NO_SPACE", phase: "commit" });
     expect(result.commit).toBeNull();
     expect(snapshot(fs)).toEqual(before);
     expect(plan.log.some((entry) => entry.startsWith("publish"))).toBe(false);
@@ -294,7 +296,7 @@ describe("a backend without compare-and-swap", () => {
     });
     for (const path of Object.keys(FILES)) await tools.read({ path });
     const result = await tools.applyPatch({ patch: PATCH });
-    expect(result.error).toMatchObject({ code: "STALE", phase: "commit" });
+    expect(errorOf(result)).toMatchObject({ code: "STALE", phase: "commit" });
     expect(result.commit?.rolledBack).toBe(true);
     expect(text(tools.fs, "/a.ts")).toBe("a\n");
     expect(tools.fs.peek("/new/n.ts")).toBeNull();
@@ -331,7 +333,7 @@ describe("abort", () => {
     for (const path of Object.keys(FILES)) await tools.read({ path });
     const before = snapshot(tools.fs);
     const result = await tools.applyPatch({ patch: PATCH }, { signal: controller.signal });
-    expect(result.error?.code).toBe("ABORTED");
+    expect(errorOf(result)?.code).toBe("ABORTED");
     expect(snapshot(tools.fs)).toEqual(before);
   });
 

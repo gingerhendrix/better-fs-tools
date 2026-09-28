@@ -1,17 +1,37 @@
-import type { ContentPart, JsonObject, Note } from "@better-fs-tools/read";
+import type { ContentPart, Note, ToolError } from "@better-fs-tools/read";
 
 import type { WriteToolName } from "./context.ts";
 
-export interface MutationReport {
+/**
+ * One variant for each status. `status` narrows the union: only the "error"
+ * variant has `error`, and it is never null there.
+ */
+export type MutationReport = MutationOk | MutationNoChange | MutationFailure;
+
+/** The fields every variant has. */
+interface MutationFields {
   readonly tool: WriteToolName;
-  /** "no-change": nothing to write (already applied, or the same content). Not an error. */
-  readonly status: "ok" | "no-change" | "error";
-  readonly error: WriteError | null;
-  /** Committed changes. Empty on an error, except a failed commit that left files changed. */
+  /** Committed changes. Empty unless status is "ok", except a failed commit that left files changed. */
   readonly changes: readonly FileChange[];
   /** Display paths of the files a "no-change" result left as they were. Empty otherwise. */
   readonly unchanged: readonly string[];
   readonly notes: readonly Note[];
+}
+
+export interface MutationOk extends MutationFields {
+  readonly status: "ok";
+  readonly commit: null;
+}
+
+/** Nothing to write (already applied, or the same content). Not an error. */
+export interface MutationNoChange extends MutationFields {
+  readonly status: "no-change";
+  readonly commit: null;
+}
+
+export interface MutationFailure extends MutationFields {
+  readonly status: "error";
+  readonly error: WriteError;
   /** Set when an apply_patch commit failed after its first publish step. */
   readonly commit: CommitReport | null;
 }
@@ -19,12 +39,8 @@ export interface MutationReport {
 /** The report plus the formatter's model-facing content. */
 export type MutationResult = MutationReport & { readonly content: readonly ContentPart[] };
 
-export interface WriteError {
-  readonly code: WriteErrorCode;
-  readonly phase: WritePhase;
-  /** The data of the error note, when it has any. */
-  readonly data?: JsonObject;
-}
+/** The error of a failed call. Same shape as the read and shell errors. */
+export type WriteError = ToolError<WriteErrorCode, WritePhase>;
 
 export type WritePhase =
   | "input"
@@ -41,6 +57,7 @@ export type WritePhase =
   | "hooks"
   | "record";
 
+/** UPPER_SNAKE, like every tool's error codes. The error note's code is the kebab-case form. */
 export type WriteErrorCode =
   | "INVALID_INPUT"
   | "NOT_FOUND"

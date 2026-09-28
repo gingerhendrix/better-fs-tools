@@ -141,7 +141,7 @@ describe("createNodeFsTools bash", () => {
     const ran = await tools.bash({ command: "printf 'two\\n' > a.txt; pwd" });
     expect(ran.output?.head).toBe(cwd);
     const edit = await tools.edit({ path: "a.txt", edits: [{ oldText: "two", newText: "three" }] });
-    expect(edit.error?.code).toBe("NOT_READ");
+    expect(errorOf(edit)?.code).toBe("NOT_READ");
   });
 
   test("an explicit cwd applies to a given runner, which has its own default cwd", async () => {
@@ -165,3 +165,10 @@ describe("createNodeFsTools bash", () => {
     expect((await tools.bash({ command: "pwd" })).output?.head).toBe(other);
   });
 });
+
+/** The error of a result, or null when its status is not "error". */
+function errorOf<T extends { readonly status: string }>(
+  result: T,
+): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {
+  return result.status === "error" ? (result as unknown as { readonly error: never }).error : null;
+}

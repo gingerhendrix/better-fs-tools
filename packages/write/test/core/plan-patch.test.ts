@@ -4,7 +4,7 @@ import { textOf } from "@better-fs-tools/read";
 
 import { executableShebang, lineTrimmedMatcher } from "../../src/index.ts";
 import type { PatchParser, WriteAuthorizeTarget } from "../../src/index.ts";
-import { codes, errorCode, harness, note, patchText, text } from "../helpers.ts";
+import { errorOf, codes, errorCode, harness, note, patchText, text } from "../helpers.ts";
 
 const BOM = Uint8Array.of(0xef, 0xbb, 0xbf);
 const ENCODER = new TextEncoder();
@@ -81,7 +81,7 @@ describe("hunk verification (section 5.7 step 3)", () => {
         "*** Delete File: /c.ts",
       ),
     });
-    expect(result.error).toMatchObject({ code: "PATCH_VERIFY", phase: "plan" });
+    expect(errorOf(result)).toMatchObject({ code: "PATCH_VERIFY", phase: "plan" });
     expect(note(result, "patch-verify")?.message).toBe(
       [
         "Patch validation failed (no files were modified):",
@@ -89,7 +89,7 @@ describe("hunk verification (section 5.7 step 3)", () => {
         "    missing",
       ].join("\n"),
     );
-    expect(result.error?.data).toEqual({
+    expect(errorOf(result)?.data).toEqual({
       problems: [{ path: "/b.ts", reason: "lines-not-found", hunk: 2 }],
     });
     expect(result.changes).toEqual([]);
@@ -151,7 +151,7 @@ describe("hunk verification (section 5.7 step 3)", () => {
     expect(note(result, "patch-verify")?.message).toBe(
       'Patch validation failed (no files were modified):\n- /a.ts: hunk 1: failed to find the context line "class Missing".',
     );
-    expect(result.error?.data).toEqual({
+    expect(errorOf(result)?.data).toEqual({
       problems: [{ path: "/a.ts", reason: "context-not-found", hunk: 0 }],
     });
   });
@@ -322,7 +322,7 @@ describe("existence problems (section 5.7 step 2)", () => {
         "- /taken.ts already exists, so /src.ts cannot move there. Choose another path, or delete /taken.ts first.",
       ].join("\n"),
     );
-    expect(result.error?.data).toEqual({
+    expect(errorOf(result)?.data).toEqual({
       problems: [
         { path: "/missing.ts", reason: "not-found" },
         { path: "/gone.ts", reason: "not-found" },
@@ -363,7 +363,7 @@ describe("existence problems (section 5.7 step 2)", () => {
     const result = await applyPatch({
       patch: patchText("*** Delete File: /a.ts", "*** Update File: /b.ts", "*** Move to: /c.ts"),
     });
-    expect(result.error?.data).toEqual({
+    expect(errorOf(result)?.data).toEqual({
       problems: [
         { path: "/a.ts", reason: "unsupported" },
         { path: "/b.ts", reason: "unsupported" },
@@ -387,7 +387,7 @@ describe("existence problems (section 5.7 step 2)", () => {
       ),
     });
     expect(note(result, "patch-verify")?.message.split("\n")).toHaveLength(3);
-    expect(result.error?.data?.problems).toHaveLength(2);
+    expect(errorOf(result)?.data?.problems).toHaveLength(2);
   });
 });
 
@@ -472,7 +472,8 @@ describe("preconditions (section 5.3, D24)", () => {
         "*** Delete File: /b.ts",
       ),
     });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "NOT_READ",
       phase: "precondition",
       data: {
@@ -516,7 +517,8 @@ describe("preconditions (section 5.3, D24)", () => {
     const result = await setup.applyPatch({
       patch: patchText("*** Update File: /a.ts", "@@", "-a", "+A"),
     });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "STALE",
       phase: "precondition",
       data: { path: "/a.ts", hunk: 0 },
@@ -543,7 +545,7 @@ describe("preconditions (section 5.3, D24)", () => {
     const result = await setup.applyPatch({
       patch: patchText("*** Update File: /a.ts", "@@", "-a", "+A"),
     });
-    expect(result.error).toMatchObject({ code: "STALE", phase: "precondition" });
+    expect(errorOf(result)).toMatchObject({ code: "STALE", phase: "precondition" });
   });
 });
 
@@ -583,7 +585,7 @@ describe("guards, authorize, and hooks", () => {
       ),
     });
     expect(seen).toEqual(["create /n.ts", "update /a.ts", "delete /b.ts"]);
-    expect(result.error).toMatchObject({ code: "GUARD_REFUSED", phase: "guards" });
+    expect(errorOf(result)).toMatchObject({ code: "GUARD_REFUSED", phase: "guards" });
     expect(setup.fs.peek("/n.ts")).toBeNull();
     expect(text(setup.fs, "/a.ts")).toBe("a\n");
   });
@@ -593,7 +595,7 @@ describe("guards, authorize, and hooks", () => {
     const result = await applyPatch({
       patch: patchText("*** Update File: /a.ts", "@@", "-a", "-b", "+1|a", "+2|b"),
     });
-    expect(result.error).toMatchObject({ code: "GUARD_REFUSED" });
+    expect(errorOf(result)).toMatchObject({ code: "GUARD_REFUSED" });
     expect(text(fs, "/a.ts")).toBe("a\nb\n");
   });
 
@@ -655,7 +657,8 @@ describe("guards, authorize, and hooks", () => {
     const result = await setup.applyPatch({
       patch: patchText("*** Update File: /a.ts", "@@", "-a", "+A"),
     });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "EXTENSION_FAILED",
       phase: "authorize",
       data: { extension: "authorize", phase: "authorize", id: "rewriter" },
@@ -735,7 +738,8 @@ describe("parse, limits, and the parser extension", () => {
     const result = await applyPatch({
       patch: "*** Begin Patch\n*** Environment ID: x\n*** End Patch",
     });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "PATCH_PARSE",
       phase: "input",
       data: { line: 2, detail: "*** Environment ID is not supported. Remove the line." },
@@ -750,7 +754,8 @@ describe("parse, limits, and the parser extension", () => {
     const result = await applyPatch({
       patch: patchText("*** Delete File: a", "*** Delete File: b", "*** Delete File: c"),
     });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "TOO_LARGE",
       phase: "input",
       data: { limit: 2, operations: 3 },
@@ -779,7 +784,8 @@ describe("parse, limits, and the parser extension", () => {
         },
       },
     });
-    expect((await throwing.applyPatch({ patch: "x" })).error).toEqual({
+    expect(errorOf(await throwing.applyPatch({ patch: "x" }))).toEqual({
+      message: expect.any(String),
       code: "EXTENSION_FAILED",
       phase: "input",
       data: { extension: "patchParser", phase: "input", id: "boom" },

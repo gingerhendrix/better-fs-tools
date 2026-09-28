@@ -5,7 +5,7 @@ import type { ReadStateStore } from "@better-fs-tools/read";
 
 import { createEditTool, createWriteTool } from "../../src/index.ts";
 import type { WriteAuthorizer, WriteHook } from "../../src/index.ts";
-import { FIXED_DATE, errorCode, harness, testDigest, text } from "../helpers.ts";
+import { errorOf, FIXED_DATE, errorCode, harness, testDigest, text } from "../helpers.ts";
 
 describe("record (section 5.10)", () => {
   test("a commit stores a schema 2 write record", async () => {
@@ -134,7 +134,7 @@ describe("records for bytes the model has not seen (batch 3 follow-up)", () => {
 
       const plainWrite = createWriteTool({ fs, state, digest: testDigest() });
       const replaced = await plainWrite({ path: "/a.txt", content: "again\n" });
-      expect(replaced.error).toMatchObject({ code: "NOT_READ", data: { wholeFile: true } });
+      expect(errorOf(replaced)).toMatchObject({ code: "NOT_READ", data: { wholeFile: true } });
       expect(text(fs, "/a.txt")).toBe("edited\n");
     },
   );

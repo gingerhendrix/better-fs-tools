@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { nonTextGuard } from "../../src/index.ts";
-import { errorCode, harness, text } from "../helpers.ts";
+import { errorOf, errorCode, harness, text } from "../helpers.ts";
 import { change, guardContext, verdict } from "./helpers.ts";
 
 const NOTEBOOK = JSON.stringify({ cells: [], metadata: {}, nbformat: 4, nbformat_minor: 5 });
@@ -51,7 +51,7 @@ describe("nonTextGuard", () => {
     const { fs, write } = harness();
     const result = await write({ path: "/n.ipynb", content: NOTEBOOK });
     expect(errorCode(result)).toBe("GUARD_REFUSED");
-    expect(result.error?.data).toMatchObject({ guard: "non-text", code: "NOTEBOOK" });
+    expect(errorOf(result)?.data).toMatchObject({ guard: "non-text", code: "NOTEBOOK" });
     expect(text(fs, "/n.ipynb")).toBeNull();
   });
 });

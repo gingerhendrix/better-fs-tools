@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { escapeDrift, tooWide } from "../../src/core/match.ts";
 import { exactMatcher } from "../../src/index.ts";
 import type { Matcher, MatchContext } from "../../src/index.ts";
-import { harness, text } from "../helpers.ts";
+import { errorOf, harness, text } from "../helpers.ts";
 
 function matcher(find: Matcher["find"], extra: Partial<Matcher> = {}): Matcher {
   return { id: "custom", fuzzy: false, describe: "custom", find, ...extra };
@@ -39,7 +39,8 @@ describe("matcher chain rules (section 5.4)", () => {
       }),
     ]);
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "abc", newText: "x" }] });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "EXTENSION_FAILED",
       phase: "plan",
       data: { extension: "matchers", phase: "plan", id: "custom" },
@@ -70,7 +71,7 @@ describe("matcher chain rules (section 5.4)", () => {
   ])("a malformed result (%s) gives EXTENSION_FAILED", async (_name, find) => {
     const { edit } = await editWith([matcher(find as never)]);
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "abc", newText: "x" }] });
-    expect(result.error).toMatchObject({
+    expect(errorOf(result)).toMatchObject({
       code: "EXTENSION_FAILED",
       data: { extension: "matchers" },
     });
@@ -85,8 +86,8 @@ describe("matcher chain rules (section 5.4)", () => {
     );
     const { edit } = await editWith([many], "x".repeat(200));
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "x", newText: "y" }] });
-    expect(result.error).toMatchObject({ code: "AMBIGUOUS_MATCH", data: { total: 200 } });
-    expect(result.error?.data?.["lines"]).toHaveLength(10);
+    expect(errorOf(result)).toMatchObject({ code: "AMBIGUOUS_MATCH", data: { total: 200 } });
+    expect(errorOf(result)?.data?.["lines"]).toHaveLength(10);
   });
 
   test("adapt that throws or returns a non-string gives EXTENSION_FAILED", async () => {
@@ -100,7 +101,7 @@ describe("matcher chain rules (section 5.4)", () => {
     ]) {
       const { edit } = await editWith([matcher(find, { adapt })]);
       const result = await edit({ path: "/f.ts", edits: [{ oldText: "abc abc", newText: "x" }] });
-      expect(result.error).toMatchObject({ code: "EXTENSION_FAILED", data: { id: "custom" } });
+      expect(errorOf(result)).toMatchObject({ code: "EXTENSION_FAILED", data: { id: "custom" } });
     }
   });
 
@@ -126,7 +127,7 @@ describe("matcher chain rules (section 5.4)", () => {
   test("a boundary refusal applies to any matcher, fuzzy or not", async () => {
     const { edit } = await editWith([matcher(() => [{ start: 0, end: 3, refused: "boundary" }])]);
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "abc", newText: "x" }] });
-    expect(result.error).toMatchObject({ code: "MATCH_REFUSED", data: { reason: "boundary" } });
+    expect(errorOf(result)).toMatchObject({ code: "MATCH_REFUSED", data: { reason: "boundary" } });
   });
 
   test("span and escape guards apply to fuzzy matchers only", async () => {
@@ -138,7 +139,7 @@ describe("matcher chain rules (section 5.4)", () => {
     ).toBe("ok");
     const fuzzy = await editWith([matcher(wide, { fuzzy: true })], file);
     const result = await fuzzy.edit({ path: "/f.ts", edits: [{ oldText: "x", newText: "y" }] });
-    expect(result.error).toMatchObject({ code: "MATCH_REFUSED", data: { reason: "span" } });
+    expect(errorOf(result)).toMatchObject({ code: "MATCH_REFUSED", data: { reason: "span" } });
   });
 
   test("more than 100 000 hits under replaceAll are refused", async () => {
@@ -147,7 +148,7 @@ describe("matcher chain rules (section 5.4)", () => {
       path: "/f.ts",
       edits: [{ oldText: "x", newText: "y", replaceAll: true }],
     });
-    expect(result.error).toMatchObject({ code: "MATCH_REFUSED", data: { reason: "too-many" } });
+    expect(errorOf(result)).toMatchObject({ code: "MATCH_REFUSED", data: { reason: "too-many" } });
     expect(text(fs, "/f.ts")).toBe("x".repeat(100_001));
   });
 });

@@ -3,15 +3,15 @@ import type { JsonObject, JsonValue, Note } from "@better-fs-tools/read";
 
 import type { WriteToolName } from "../contract/context.ts";
 import type { WriteMessageCatalog } from "../contract/messages.ts";
-import type { MutationReport, WriteErrorCode, WritePhase } from "../contract/result.ts";
+import type { MutationFailure, WriteErrorCode, WritePhase } from "../contract/result.ts";
 import { isRecord } from "./input.ts";
 
 type Messages = Readonly<WriteMessageCatalog>;
 
 /** Thrown by a stage to end the call with a finished error report. Internal. */
 export class WriteStop extends Error {
-  constructor(readonly report: MutationReport) {
-    super(`write stopped with ${report.error?.code ?? report.status}`);
+  constructor(readonly report: MutationFailure) {
+    super(`write stopped with ${report.error.code}`);
   }
 }
 
@@ -43,13 +43,18 @@ export function hostErrorNote(code: WriteErrorCode, note: Note, data: JsonObject
   );
 }
 
-/** An error report with one note. WriteError.data is the note's data. */
-export function failure(tool: WriteToolName, phase: WritePhase, note: Note): MutationReport {
+/** An error report with one note. `error.message` and `error.data` come from the note. */
+export function failure(tool: WriteToolName, phase: WritePhase, note: Note): MutationFailure {
   const code = codeOfNote(note);
   return {
     tool,
     status: "error",
-    error: { code, phase, ...(note.data === undefined ? {} : { data: note.data }) },
+    error: {
+      code,
+      phase,
+      message: note.message,
+      ...(note.data === undefined ? {} : { data: note.data }),
+    },
     changes: [],
     unchanged: [],
     notes: [note],

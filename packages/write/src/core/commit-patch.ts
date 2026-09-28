@@ -278,8 +278,7 @@ async function attempt<THost>(
     try {
       await checkBeforeCommit(scope, fs, target, precondition);
     } catch (error) {
-      if (error instanceof WriteStop)
-        return { ok: false, code: error.report.error?.code ?? "IO_ERROR" };
+      if (error instanceof WriteStop) return { ok: false, code: error.report.error.code };
       return { ok: false, code: "IO_ERROR" };
     }
   }

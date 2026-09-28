@@ -3,7 +3,7 @@ import { describe, expect, spyOn, test } from "bun:test";
 import { expandHome, unicodeRepair } from "@better-fs-tools/read";
 
 import type { WriteToolDeps } from "../../src/index.ts";
-import { codes, errorCode, harness, text } from "../helpers.ts";
+import { errorOf, codes, errorCode, harness, text } from "../helpers.ts";
 
 type Resolver = NonNullable<WriteToolDeps["resolve"]>;
 
@@ -55,7 +55,11 @@ describe("resolve (section 5.2)", () => {
     };
     const { write } = harness({ deps: { resolve: resolver } });
     const result = await write({ path: "@alias", content: "x" });
-    expect(result.error).toEqual({ code: "NOT_FOUND", phase: "resolve" });
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
+      code: "NOT_FOUND",
+      phase: "resolve",
+    });
     expect(codes(result)).toEqual(["not-found", "why"]);
   });
 
@@ -71,7 +75,8 @@ describe("resolve (section 5.2)", () => {
   ])("%s is EXTENSION_FAILED", async (_name, resolve) => {
     const { write } = harness({ deps: { resolve: { id: "bad", resolve: resolve as never } } });
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "EXTENSION_FAILED",
       phase: "resolve",
       data: { extension: "resolve", phase: "resolve", id: "bad" },
@@ -83,7 +88,8 @@ describe("stat (section 5.2)", () => {
   test("a directory target is NOT_A_FILE", async () => {
     const { write } = harness({ fsOptions: { directories: ["/dir"] } });
     const result = await write({ path: "/dir", content: "x" });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "NOT_A_FILE",
       phase: "stat",
       data: { kind: "directory" },
@@ -93,8 +99,8 @@ describe("stat (section 5.2)", () => {
   test("a deny root is DANGEROUS_PATH at stat", async () => {
     const { write } = harness({ fsOptions: { denyRoots: ["/secret"] } });
     const result = await write({ path: "/secret/a.txt", content: "x" });
-    expect(result.error?.code).toBe("DANGEROUS_PATH");
-    expect(result.error?.phase).toBe("stat");
+    expect(errorOf(result)?.code).toBe("DANGEROUS_PATH");
+    expect(errorOf(result)?.phase).toBe("stat");
   });
 
   test("a parent that is a file is NOT_FOUND", async () => {
@@ -113,7 +119,7 @@ describe("stat (section 5.2)", () => {
       return { ok: true, stat: { ...outcome.stat, resolvedPath: "/elsewhere.txt" } };
     });
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toEqual({ code: "STALE", phase: "stat" });
+    expect(errorOf(result)).toEqual({ message: expect.any(String), code: "STALE", phase: "stat" });
   });
 
   test("a file that appears between the two stats is judged by the second", async () => {

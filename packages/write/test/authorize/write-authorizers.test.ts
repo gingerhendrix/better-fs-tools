@@ -4,7 +4,7 @@ import { denyPaths } from "@better-fs-tools/read";
 
 import { writeAuthorizers } from "../../src/index.ts";
 import type { WriteAuthorizer, WriteAuthorizeTarget, WriteHookContext } from "../../src/index.ts";
-import { errorCode, harness, text } from "../helpers.ts";
+import { errorOf, errorCode, harness, text } from "../helpers.ts";
 
 const target: WriteAuthorizeTarget = {
   action: "create",
@@ -84,7 +84,7 @@ describe("writeAuthorizers", () => {
         deps: { authorize: writeAuthorizers(allow("ok"), bad as never) },
       });
       const result = await write({ path: "/a.txt", content: "x" });
-      expect(result.error?.data).toEqual({
+      expect(errorOf(result)?.data).toEqual({
         extension: "authorize",
         phase: "authorize",
         id: "thrower",

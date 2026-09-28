@@ -105,7 +105,7 @@ export function codes(result: { readonly notes: readonly Note[] }): string[] {
 }
 
 export function errorCode(result: MutationResult): string | null {
-  return result.error?.code ?? null;
+  return errorOf(result)?.code ?? null;
 }
 
 /**
@@ -138,4 +138,11 @@ export function deferred(): { promise: Promise<void>; resolve: () => void } {
 /** Codex patch text: the Begin and End lines around the given lines. */
 export function patchText(...lines: string[]): string {
   return ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
+}
+
+/** The error of a result, or null when its status is not "error". */
+export function errorOf<T extends { readonly status: string }>(
+  result: T,
+): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {
+  return result.status === "error" ? (result as unknown as { readonly error: never }).error : null;
 }

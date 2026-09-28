@@ -21,7 +21,7 @@ describe("formatter failure", () => {
     const result = await write({ path: "/new.txt", content: "already committed\n" });
 
     expect(result.status).toBe("ok");
-    expect(result.error).toBeNull();
+    expect(errorOf(result)).toBeNull();
     expect(result.changes.map((change) => [change.kind, change.path])).toEqual([
       ["create", "/new.txt"],
     ]);
@@ -51,3 +51,10 @@ describe("formatter failure", () => {
     expect(textOf(result)).not.toBe("");
   });
 });
+
+/** The error of a result, or null when its status is not "error". */
+function errorOf<T extends { readonly status: string }>(
+  result: T,
+): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {
+  return result.status === "error" ? (result as unknown as { readonly error: never }).error : null;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { codes, errorCode, harness, note, text } from "../helpers.ts";
+import { errorOf, codes, errorCode, harness, note, text } from "../helpers.ts";
 
 const BOM = [0xef, 0xbb, 0xbf];
 const encode = (value: string) => new TextEncoder().encode(value);
@@ -89,7 +89,7 @@ describe("write planning (section 5.6)", () => {
     });
     const create = await write({ path: "/new.txt", content: "12345" });
     expect(errorCode(create)).toBe("TOO_LARGE");
-    expect(create.error?.phase).toBe("encode");
+    expect(errorOf(create)?.phase).toBe("encode");
     expect(note(create, "too-large")?.message).not.toContain("edit tool");
     await read({ path: "/big.txt" });
     const replace = await write({ path: "/big.txt", content: "12345" });

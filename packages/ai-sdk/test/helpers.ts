@@ -69,3 +69,10 @@ export function stallingFileSystem(
     },
   };
 }
+
+/** The error of a result, or null when its status is not "error". */
+export function errorOf<T extends { readonly status: string }>(
+  result: T,
+): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {
+  return result.status === "error" ? (result as unknown as { readonly error: never }).error : null;
+}

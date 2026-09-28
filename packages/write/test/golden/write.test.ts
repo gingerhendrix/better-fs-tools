@@ -4,13 +4,13 @@ import { denyPaths } from "@better-fs-tools/read";
 
 import { createWriteTool, defaultWriteFormatter, textOf } from "../../src/index.ts";
 import type { MutationResult } from "../../src/index.ts";
-import { harness, withoutCompareAndSwap } from "../helpers.ts";
+import { errorOf, harness, withoutCompareAndSwap } from "../helpers.ts";
 
 /** The model text and the fields a host reads, for one call. */
 function shown(result: MutationResult) {
   return {
     status: result.status,
-    error: result.error,
+    error: errorOf(result),
     text: textOf(result),
   };
 }

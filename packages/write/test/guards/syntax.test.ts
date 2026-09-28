@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { syntaxGuard } from "../../src/index.ts";
-import { errorCode, harness, text } from "../helpers.ts";
+import { errorOf, errorCode, harness, text } from "../helpers.ts";
 import { change, guardContext, verdict } from "./helpers.ts";
 
 function check(path: string, before: string | null, after: string, guard = syntaxGuard()) {
@@ -69,7 +69,7 @@ describe("syntaxGuard", () => {
     await read({ path: "/p.json" });
     const result = await edit({ path: "/p.json", edits: [{ oldText: "1}", newText: "1,}" }] });
     expect(errorCode(result)).toBe("GUARD_REFUSED");
-    expect(result.error?.data).toMatchObject({ guard: "syntax", language: "JSON" });
+    expect(errorOf(result)?.data).toMatchObject({ guard: "syntax", language: "JSON" });
     expect(text(fs, "/p.json")).toBe('{"a": 1}\n');
   });
 });

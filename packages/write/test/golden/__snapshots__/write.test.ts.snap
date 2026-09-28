@@ -41,6 +41,7 @@ exports[`golden write output refusals 1`] = `
   {
     "error": {
       "code": "NOT_READ",
+      "message": "Read /src/app.ts with the read tool before changing it.",
       "phase": "precondition",
     },
     "status": "error",
@@ -52,6 +53,7 @@ exports[`golden write output refusals 1`] = `
       "data": {
         "wholeFile": true,
       },
+      "message": "Read all of /src/app.ts before replacing it. A partial read is not enough for write.",
       "phase": "precondition",
     },
     "status": "error",
@@ -60,6 +62,7 @@ exports[`golden write output refusals 1`] = `
   {
     "error": {
       "code": "STALE",
+      "message": "/src/old.ts changed since it was last read. Read it again, then retry.",
       "phase": "precondition",
     },
     "status": "error",
@@ -72,6 +75,7 @@ exports[`golden write output refusals 1`] = `
         "classifier": "binary",
         "code": "BINARY",
       },
+      "message": "/img.bin is not a text file (BINARY), so it cannot be changed with this tool.",
       "phase": "load",
     },
     "status": "error",
@@ -83,6 +87,7 @@ exports[`golden write output refusals 1`] = `
       "data": {
         "kind": "directory",
       },
+      "message": "/dir is a directory. Only regular files can be changed.",
       "phase": "stat",
     },
     "status": "error",
@@ -95,6 +100,7 @@ exports[`golden write output refusals 1`] = `
         "bytes": 65,
         "limit": 64,
       },
+      "message": "The new content for /big.txt is larger than the 64-byte write limit. Change the file in smaller steps with the edit tool.",
       "phase": "encode",
     },
     "status": "error",
@@ -103,6 +109,7 @@ exports[`golden write output refusals 1`] = `
   {
     "error": {
       "code": "INVALID_INPUT",
+      "message": "The write input was rejected: path must be a non-empty string without NUL",
       "phase": "input",
     },
     "status": "error",
@@ -119,6 +126,7 @@ exports[`golden write output host policy 1`] = `
       "data": {
         "pattern": "**/.env",
       },
+      "message": "/app/.env was refused by policy (the path matches a denied pattern).",
       "phase": "authorize",
     },
     "status": "error",
@@ -132,6 +140,7 @@ exports[`golden write output host policy 1`] = `
         "path": "/a.ts",
         "source": "todo",
       },
+      "message": "Finish the TODO first.",
       "phase": "guards",
     },
     "status": "error",

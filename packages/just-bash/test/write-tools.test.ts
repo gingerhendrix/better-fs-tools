@@ -12,7 +12,7 @@ import type { MutationResult } from "@better-fs-tools/write";
 import { InMemoryFs } from "just-bash";
 
 import { writable } from "./backend.ts";
-import { testDigest } from "./helpers.ts";
+import { errorOf, testDigest } from "./helpers.ts";
 
 /** The read tool and the three write tools over one just-bash adapter, store, digest and lock manager. */
 function toolsFor(files: Record<string, string>) {
@@ -68,7 +68,7 @@ describe("just-bash through the write tools", () => {
     expect(await tools.backend.readFile("/workspace/docs/guide/intro.md")).toBe("# Intro\n");
     expect(codes(created)).toContain("directories-created");
 
-    expect((await tools.write({ path: "README.md", content: "new\n" })).error?.code).toBe(
+    expect(errorOf(await tools.write({ path: "README.md", content: "new\n" }))?.code).toBe(
       "NOT_READ",
     );
     await tools.read({ path: "README.md" });
@@ -83,7 +83,7 @@ describe("just-bash through the write tools", () => {
     await tools.backend.utimes("/workspace/a.txt", mtime, mtime);
 
     const result = await tools.write({ path: "a.txt", content: "three\n" });
-    expect(result.error?.code).toBe("STALE");
+    expect(errorOf(result)?.code).toBe("STALE");
     expect(await tools.backend.readFile("/workspace/a.txt")).toBe("two\n");
   });
 
@@ -92,7 +92,7 @@ describe("just-bash through the write tools", () => {
     await tools.backend.symlink("/workspace/real.txt", "/workspace/link.txt");
 
     const result = await tools.write({ path: "link.txt", content: "through the link\n" });
-    expect(result.error?.code).toBe("DENIED");
+    expect(errorOf(result)?.code).toBe("DENIED");
     expect(await tools.backend.readFile("/workspace/real.txt")).toBe("real\n");
     expect((await tools.backend.lstat("/workspace/link.txt")).isSymbolicLink).toBe(true);
   });

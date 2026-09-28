@@ -11,7 +11,7 @@ import {
   snakeCaseWriteSignature,
   writeSignatureMessages,
 } from "../../src/signature/index.ts";
-import { harness } from "../helpers.ts";
+import { errorOf, harness } from "../helpers.ts";
 
 const FILE = "one\ntwo\none\nthree\n";
 
@@ -72,7 +72,7 @@ describe("messages use the host parameter names", () => {
       old_string: "one",
       new_string: "1",
     });
-    expect(result.error?.code).toBe("AMBIGUOUS_MATCH");
+    expect(errorOf(result)?.code).toBe("AMBIGUOUS_MATCH");
     expect(textOf(result)).toContain("the old_string matches 2 places");
     expect(textOf(result)).toContain("or set replace_all.");
   });
@@ -83,7 +83,7 @@ describe("messages use the host parameter names", () => {
       oldString: "four",
       newString: "4",
     });
-    expect(result.error?.code).toBe("NO_MATCH");
+    expect(errorOf(result)?.code).toBe("NO_MATCH");
     expect(textOf(result)).toContain("Edit 1: the oldString was not found in /a.txt.");
   });
 
@@ -92,7 +92,7 @@ describe("messages use the host parameter names", () => {
       path: "/a.txt",
       edits: [{ oldText: "one", newText: "1" }],
     });
-    expect(result.error?.code).toBe("AMBIGUOUS_MATCH");
+    expect(errorOf(result)?.code).toBe("AMBIGUOUS_MATCH");
     expect(textOf(result)).toContain("Add surrounding lines to make it unique.");
     expect(textOf(result)).not.toContain("replace");
   });
@@ -103,7 +103,7 @@ describe("messages use the host parameter names", () => {
       old_string: "three\n",
       new_string: "1|one\n2|two\n3|three\n4|four\n",
     });
-    expect(result.error?.code).toBe("GUARD_REFUSED");
+    expect(errorOf(result)?.code).toBe("GUARD_REFUSED");
     expect(textOf(result)).toContain("new_string");
   });
 

@@ -87,6 +87,7 @@ exports[`golden edit output no change and failure help 1`] = `
   {
     "error": {
       "code": "NO_CHANGE",
+      "message": "The edits leave /src/app.ts as it is. Check the newText values, or do not send the edit.",
       "phase": "plan",
     },
     "status": "error",
@@ -102,6 +103,14 @@ exports[`golden edit output no change and failure help 1`] = `
         ],
         "index": 0,
       },
+      "message": 
+"Edit 1: the oldText was not found in /src/app.ts.
+The closest region is:
+13|
+14|function two() {
+15|  return 2;
+16|}"
+,
       "phase": "plan",
     },
     "status": "error",
@@ -124,6 +133,14 @@ The closest region is:
         ],
         "index": 0,
       },
+      "message": 
+"Edit 1: the oldText was not found in /src/app.ts.
+The closest region is:
+13|
+14|function two() {
+15|  return 2;
+16|}"
+,
       "phase": "plan",
     },
     "status": "error",
@@ -146,6 +163,14 @@ The closest region is:
         ],
         "index": 0,
       },
+      "message": 
+"Edit 1: the oldText was not found in /src/app.ts.
+The closest region is:
+13|
+14|function two() {
+15|  return 2;
+16|}"
+,
       "phase": "plan",
     },
     "status": "error",
@@ -171,6 +196,7 @@ The closest region is:
         ],
         "total": 3,
       },
+      "message": "Edit 1: the oldText matches 3 places in /src/app.ts (lines 1, 12, 16). Add surrounding lines to make it unique, or set replaceAll.",
       "phase": "plan",
     },
     "status": "error",
@@ -183,6 +209,7 @@ The closest region is:
         "first": 0,
         "second": 1,
       },
+      "message": "Edits 1 and 2 change overlapping text in /src/app.ts. Merge them into one edit.",
       "phase": "plan",
     },
     "status": "error",
@@ -199,6 +226,12 @@ The closest region is:
         "index": 0,
         "trailingNewline": "extra",
       },
+      "message": 
+"Edit 1: the oldText was not found in /src/tail.ts.
+It differs only by a trailing newline.
+The closest region is:
+1|last line"
+,
       "phase": "plan",
     },
     "status": "error",
@@ -222,6 +255,7 @@ exports[`golden edit output refusals and preconditions 1`] = `
         "matcher": "normalized",
         "reason": "boundary",
       },
+      "message": "Edit 1: the normalized matcher found the oldText in /src/lig.ts, but the match was refused (the match starts or ends inside normalized text). Copy the oldText exactly from the file.",
       "phase": "plan",
     },
     "status": "error",
@@ -235,6 +269,7 @@ exports[`golden edit output refusals and preconditions 1`] = `
         "matcher": "normalized",
         "reason": "fuzzy-replace-all",
       },
+      "message": "Edit 1: the normalized matcher found the oldText in /src/dash.ts, but the match was refused (a loose match cannot replace every occurrence). Copy the oldText exactly from the file.",
       "phase": "plan",
     },
     "status": "error",
@@ -243,6 +278,7 @@ exports[`golden edit output refusals and preconditions 1`] = `
   {
     "error": {
       "code": "NOT_FOUND",
+      "message": "/src/missing.ts does not exist. Use the write tool to create it.",
       "phase": "stat",
     },
     "status": "error",
@@ -268,6 +304,7 @@ exports[`golden edit output refusals and preconditions 1`] = `
       "data": {
         "index": 0,
       },
+      "message": "/src/app.ts changed since it was last read. Read it again, then retry.",
       "phase": "precondition",
     },
     "status": "error",
@@ -279,6 +316,7 @@ exports[`golden edit output refusals and preconditions 1`] = `
       "data": {
         "path": "/src/app.ts",
       },
+      "message": "The edit input was rejected: edits must be a non-empty array",
       "phase": "input",
     },
     "status": "error",

@@ -14,7 +14,7 @@ const result: MutationResult = await edit({
 
 if (result.status === "error") {
   // A stable code, the stage that stopped the call, and the data of the error note.
-  console.log(result.error?.code, result.error?.phase, result.error?.data);
+  console.log(result.error.code, result.error.phase, result.error.data);
 } else {
   for (const change of result.changes) {
     console.log(change.kind, change.path, `+${change.linesAdded} -${change.linesRemoved}`);

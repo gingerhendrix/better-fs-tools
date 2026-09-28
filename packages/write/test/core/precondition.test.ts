@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type { ReadRecord, ReadStateStore } from "@better-fs-tools/read";
 
 import { createWriteTool } from "../../src/index.ts";
-import { codes, errorCode, harness, note, testDigest, text } from "../helpers.ts";
+import { errorOf, codes, errorCode, harness, note, testDigest, text } from "../helpers.ts";
 
 const FILE = { "/a.txt": "one\ntwo\nthree\n" };
 
@@ -49,7 +49,11 @@ describe("precondition table for write (section 5.3)", () => {
   test("row 4: no record is NOT_READ and nothing is opened or written", async () => {
     const { fs, write } = harness({ files: FILE });
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toEqual({ code: "NOT_READ", phase: "precondition" });
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
+      code: "NOT_READ",
+      phase: "precondition",
+    });
     expect(textOfNotes(result)).toEqual([
       "[not-read] Read /a.txt with the read tool before changing it.",
     ]);
@@ -60,7 +64,8 @@ describe("precondition table for write (section 5.3)", () => {
     const { fs, read, write } = harness({ files: FILE });
     await read({ path: "/a.txt", offset: 2, limit: 1 });
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "NOT_READ",
       phase: "precondition",
       data: { wholeFile: true },
@@ -107,7 +112,11 @@ describe("precondition table for write (section 5.3)", () => {
     await read({ path: "/a.txt" });
     fs.setFile("/a.txt", "someone else\n");
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toEqual({ code: "STALE", phase: "precondition" });
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
+      code: "STALE",
+      phase: "precondition",
+    });
     expect(note(result, "stale")?.message).toBe(
       "/a.txt changed since it was last read. Read it again, then retry.",
     );

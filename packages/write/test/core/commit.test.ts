@@ -6,6 +6,7 @@ import type { MemoryFileSystem } from "@better-fs-tools/fs";
 import { createWriteTool, memoryLocks } from "../../src/index.ts";
 import type { Guard } from "../../src/index.ts";
 import {
+  errorOf,
   codes,
   deferred,
   errorCode,
@@ -38,7 +39,7 @@ describe("commit (section 5.9)", () => {
       guards: [sneakyWriter(fs, "/a.txt", "theirs\n")],
     });
     const result = await write({ path: "/a.txt", content: "mine\n" });
-    expect(result.error).toMatchObject({ code: "STALE", phase: "commit" });
+    expect(errorOf(result)).toMatchObject({ code: "STALE", phase: "commit" });
     expect(text(fs, "/a.txt")).toBe("theirs\n");
   });
 
@@ -53,7 +54,7 @@ describe("commit (section 5.9)", () => {
       guards: [sneakyWriter(fs, "/a.txt", "theirs\n")],
     });
     const result = await write({ path: "/a.txt", content: "mine\n" });
-    expect(result.error).toMatchObject({ code: "STALE", phase: "commit" });
+    expect(errorOf(result)).toMatchObject({ code: "STALE", phase: "commit" });
     expect(text(fs, "/a.txt")).toBe("theirs\n");
   });
 
@@ -101,7 +102,7 @@ describe("commit (section 5.9)", () => {
       guards: [sneakyWriter(fs, "/new.txt", "theirs")],
     });
     const result = await write({ path: "/new.txt", content: "mine" });
-    expect(result.error).toMatchObject({ code: "EXISTS", phase: "commit" });
+    expect(errorOf(result)).toMatchObject({ code: "EXISTS", phase: "commit" });
     expect(text(fs, "/new.txt")).toBe("theirs");
   });
 
@@ -151,7 +152,7 @@ describe("commit (section 5.9)", () => {
       fsOptions: { faults: (operation) => (operation === "write" ? { reason } : null) },
     });
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toMatchObject({ code, phase: "commit" });
+    expect(errorOf(result)).toMatchObject({ code, phase: "commit" });
     expect(result.notes).toHaveLength(1);
     expect(result.notes[0]?.code).toBe(code.toLowerCase().replaceAll("_", "-"));
   });
@@ -167,7 +168,12 @@ describe("commit (section 5.9)", () => {
       throw new Error("kaput");
     });
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toEqual({ code: "IO_ERROR", phase: "commit", data: { detail: "kaput" } });
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
+      code: "IO_ERROR",
+      phase: "commit",
+      data: { detail: "kaput" },
+    });
   });
 
   test("an abort after the commit starts is ignored, and the record is stored", async () => {

@@ -33,7 +33,7 @@ describe("createNode*Tool defaults", () => {
       await createNodeEditTool()({ path: outside, edits: [{ oldText: "x", newText: "y" }] }),
       await createNodeApplyPatchTool()({ patch: PATCH(outside) }),
     ];
-    for (const result of results) expect(result.error?.code).toBe("OUTSIDE_ALLOWED_ROOTS");
+    for (const result of results) expect(errorOf(result)?.code).toBe("OUTSIDE_ALLOWED_ROOTS");
   });
 
   test("state stays null: a write and an edit need no read, and say so", async () => {
@@ -105,3 +105,10 @@ describe("createNode*Tool defaults", () => {
     expect(result.changes[0]?.resolvedPath).toBe(join(root, "c.txt"));
   });
 });
+
+/** The error of a result, or null when its status is not "error". */
+function errorOf<T extends { readonly status: string }>(
+  result: T,
+): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {
+  return result.status === "error" ? (result as unknown as { readonly error: never }).error : null;
+}

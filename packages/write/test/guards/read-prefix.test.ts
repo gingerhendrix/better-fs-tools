@@ -6,7 +6,7 @@ import type { Digest, Formatter } from "@better-fs-tools/read";
 import { hashlineFormat, hermesFormat, opencodeFormat } from "@better-fs-tools/read/formats";
 
 import { readPrefixGuard } from "../../src/index.ts";
-import { errorCode, harness, testDigest, text } from "../helpers.ts";
+import { errorOf, errorCode, harness, testDigest, text } from "../helpers.ts";
 import { change, guardContext, numbered, verdict } from "./helpers.ts";
 
 const SOURCE = [
@@ -180,7 +180,7 @@ describe("readPrefixGuard", () => {
       edits: [{ oldText: "const b = 2;", newText: "2|const b = 3;\n3|const c = 4;" }],
     });
     expect(errorCode(result)).toBe("GUARD_REFUSED");
-    expect(result.error?.data).toMatchObject({ guard: "read-prefix", source: "read-prefix" });
+    expect(errorOf(result)?.data).toMatchObject({ guard: "read-prefix", source: "read-prefix" });
     expect(text(fs, "/a.ts")).toBe("const a = 1;\nconst b = 2;\n");
   });
 });

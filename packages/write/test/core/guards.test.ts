@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import type { Guard } from "../../src/index.ts";
-import { codes, errorCode, harness, text } from "../helpers.ts";
+import { errorOf, codes, errorCode, harness, text } from "../helpers.ts";
 
 describe("guards (section 5.8)", () => {
   test("the default guards are on, and guards: [] turns them off", async () => {
@@ -53,7 +53,8 @@ describe("guards (section 5.8)", () => {
       },
     });
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "GUARD_REFUSED",
       phase: "guards",
       data: { guard: "refuse", path: "/a.txt", source: "placeholder" },
@@ -94,7 +95,8 @@ describe("guards (section 5.8)", () => {
   ])("%s is EXTENSION_FAILED with the guard id", async (_name, check) => {
     const { write } = harness({ deps: { guards: [{ id: "bad", check: check as never }] } });
     const result = await write({ path: "/a.txt", content: "x" });
-    expect(result.error).toEqual({
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
       code: "EXTENSION_FAILED",
       phase: "guards",
       data: { extension: "guards", phase: "guards", id: "bad" },

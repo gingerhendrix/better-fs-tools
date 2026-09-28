@@ -11,7 +11,7 @@ import {
 import type { MutationResult } from "@better-fs-tools/write";
 
 import { fsFor } from "./fake-computer.ts";
-import { testDigest } from "./helpers.ts";
+import { errorOf, testDigest } from "./helpers.ts";
 
 const DECODER = new TextDecoder();
 
@@ -67,7 +67,7 @@ describe("cloudflare computer through the write tools", () => {
       expect.arrayContaining(["no-compare-and-swap", "directories-created"]),
     );
 
-    expect((await tools.write({ path: "README.md", content: "new\n" })).error?.code).toBe(
+    expect(errorOf(await tools.write({ path: "README.md", content: "new\n" }))?.code).toBe(
       "NOT_READ",
     );
     await tools.read({ path: "README.md" });
@@ -83,7 +83,7 @@ describe("cloudflare computer through the write tools", () => {
     entry.bytes = new TextEncoder().encode("two\n");
 
     const result = await tools.write({ path: "a.txt", content: "three\n" });
-    expect(result.error?.code).toBe("STALE");
+    expect(errorOf(result)?.code).toBe("STALE");
     expect(tools.text("/workspace/a.txt")).toBe("two\n");
   });
 
@@ -92,7 +92,7 @@ describe("cloudflare computer through the write tools", () => {
     tools.backend.link("/workspace/link.txt", "/workspace/real.txt");
 
     const result = await tools.write({ path: "link.txt", content: "through the link\n" });
-    expect(result.error?.code).toBe("DENIED");
+    expect(errorOf(result)?.code).toBe("DENIED");
     expect(tools.text("/workspace/real.txt")).toBe("real\n");
     expect(tools.backend.calls.some((call) => call.startsWith("writeFile:"))).toBe(false);
   });

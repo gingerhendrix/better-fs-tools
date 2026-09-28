@@ -9,10 +9,10 @@ import {
   textOf,
 } from "../../src/index.ts";
 import type { MutationResult } from "../../src/index.ts";
-import { harness } from "../helpers.ts";
+import { errorOf, harness } from "../helpers.ts";
 
 function shown(result: MutationResult) {
-  return { status: result.status, error: result.error, text: textOf(result) };
+  return { status: result.status, error: errorOf(result), text: textOf(result) };
 }
 
 const NOTEBOOK = JSON.stringify({ cells: [], metadata: {}, nbformat: 4, nbformat_minor: 5 });

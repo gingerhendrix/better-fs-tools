@@ -49,6 +49,13 @@ exports[`golden apply_patch output (plan section 6) verify failure, parse failur
           },
         ],
       },
+      "message": 
+"Patch validation failed (no files were modified):
+- /src/app.ts: hunk 1: failed to find the expected lines:
+    const a = 1;
+    const b = 2;
+- /src/a.ts already exists. Use *** Update File, or the write tool to replace it."
+,
       "phase": "plan",
     },
     "status": "error",
@@ -68,6 +75,7 @@ exports[`golden apply_patch output (plan section 6) verify failure, parse failur
         "detail": "the last line must be "*** End Patch"",
         "line": 2,
       },
+      "message": "The patch could not be parsed at line 2: the last line must be "*** End Patch"",
       "phase": "input",
     },
     "status": "error",
@@ -77,6 +85,7 @@ exports[`golden apply_patch output (plan section 6) verify failure, parse failur
     "commit": null,
     "error": {
       "code": "NOT_READ",
+      "message": "Read /src/a.ts with the read tool before changing it.",
       "phase": "precondition",
     },
     "status": "error",
@@ -122,6 +131,7 @@ exports[`golden apply_patch output (plan section 6) commit failure: rolled back,
         "path": "/src/b.ts",
         "rolledBack": true,
       },
+      "message": "Patch commit failed at /src/b.ts (STALE). The patch was rolled back. No files are changed.",
       "phase": "commit",
     },
     "status": "error",
@@ -158,6 +168,13 @@ exports[`golden apply_patch output (plan section 6) commit failure: rolled back,
         "path": "/src/d.ts",
         "rolledBack": false,
       },
+      "message": 
+"Patch commit failed at /src/d.ts (IO_ERROR). Rollback failed, so these files are in a mixed state:
+restored /src/a.ts
+restored /src/b.ts
+rollback-failed /src/c.ts
+unchanged /src/d.ts"
+,
       "phase": "commit",
     },
     "status": "error",
