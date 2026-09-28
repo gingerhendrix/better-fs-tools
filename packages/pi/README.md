@@ -82,6 +82,22 @@ export default function readExtension(pi: ExtensionAPI): void {
 - A tool error becomes Pi content text. The tool does not throw for a tool error.
 - Pi's `edit` guideline says the old text must match exactly. The tool also accepts close matches, and the result says when it used one.
 
+## Bash tool
+
+`createPiBashTool()` is a `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell) with Pi's own shape: `{ command, timeout }` with the timeout in seconds, and Pi's prompt snippet. It runs in `ctx.cwd` on every call. The extension entry does not register it, so Pi's own `bash` stays unless you register this one:
+
+```ts
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createPiBashTool } from "@better-fs-tools/pi";
+
+// Replaces Pi's own bash: same name, { command, timeout } in seconds, run in ctx.cwd.
+export default function bashExtension(pi: ExtensionAPI): void {
+  pi.registerTool(createPiBashTool());
+}
+```
+
+Pi's own `bash` also sets `PI_*` session variables. This tool does not. Add them with the `env` option when you need them.
+
 ## Links
 
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option, the signature builders, and the format presets. Its README has a full Pi host example.

@@ -98,6 +98,37 @@ A write goes to a `0o600` temp file next to the target. The bytes are written an
 - A process that dies between `stage()` and `publish()` leaves a `.<name>.<random>.tmp` file next to the target. Nothing removes it later. An `apply_patch` call stages every file first, so a process killed during its commit can leave several.
 - A create links the temp file to the target, then removes the temp name. For those two system calls the new file has two links.
 
+## Bash tool
+
+`createNodeBashTool()` is the zero-config local `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell). It uses `nodeCommandRunner()`: `bash -c` in its own process group, stdin on `/dev/null`, SIGTERM to the group on a stop, and SIGKILL after the grace time. The environment is `process.env`, read on each call, with the pager and colour defaults over it. `createNodeFsTools()` adds the same tool as `bash`, in the same cwd.
+
+```ts
+import { createNodeFsTools, nodeCommandRunner } from "@better-fs-tools/node";
+
+// The four file tools and bash in one cwd. The hook makes the next edit of a
+// file that a command may have changed need a read first.
+let tools: ReturnType<typeof createNodeFsTools> | undefined;
+tools = createNodeFsTools({
+  cwd: "/srv/project",
+  bash: {
+    runner: nodeCommandRunner({ cwd: "/srv/project", shell: "/bin/bash" }),
+    afterRun: [
+      {
+        id: "invalidate-package-json",
+        afterRun: async (outcome) => {
+          await tools?.invalidate("package.json");
+          return outcome;
+        },
+      },
+    ],
+  },
+});
+
+export const { read, edit, bash } = tools;
+```
+
+The allowed roots do not limit what a command touches. The runner is POSIX only.
+
 ## Links
 
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option

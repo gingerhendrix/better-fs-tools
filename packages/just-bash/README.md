@@ -87,6 +87,32 @@ console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;
 - There is no `stage()`. `apply_patch` writes each file in turn, and undoes them on a failure.
 - `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` gives `no-space`.
 
+## Bash runner
+
+`justBashCommandRunner(bash)` runs the `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell) in a just-bash `Bash`. Nothing starts a process. stdin is empty, the tool's environment replaces the shell's own, and the cwd is set for the call only.
+
+```ts
+import { Bash } from "just-bash";
+import { justBashCommandRunner } from "@better-fs-tools/just-bash";
+import { createBashTool, textOf } from "@better-fs-tools/shell";
+
+// An emulated shell over an in-memory filesystem. Nothing starts a process.
+// executionLimits stop a busy loop, because no timer fires while one runs.
+const shell = new Bash({
+  files: { "/workspace/notes.txt": "one\ntwo\n" },
+  cwd: "/workspace",
+  executionLimits: { maxCommandCount: 100_000 },
+});
+
+const bash = createBashTool({ runner: justBashCommandRunner(shell) });
+
+console.log(textOf(await bash({ command: "wc -l notes.txt" })));
+// Exit code 0 · 0 s
+// 2 notes.txt
+```
+
+just-bash buffers output, so stdout arrives whole before stderr, after the command ends. A stop aborts at the next statement boundary. A busy loop does not yield to the event loop, so no timer fires while it runs: set `executionLimits` as the backstop. Under Bun, just-bash 3.4.2 cannot apply its defense-in-depth patches and throws on `exec()`. Pass `defenseInDepth: false` there. Node runs the default.
+
 ## Links
 
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option

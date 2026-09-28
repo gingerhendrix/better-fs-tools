@@ -32,7 +32,8 @@ export async function prepareConsumer(repository: string, consumer: string): Pro
  * Imports every export under Node, not Bun, then reads through the Node tool,
  * the memory filesystem, the AI SDK tool, just-bash, and the Pi extension entry
  * that `pi.extensions` names. It also creates and edits files on disk with
- * `createNodeFsTools()`, and edits one through `justBashFileSystem()`.
+ * `createNodeFsTools()`, and edits one through `justBashFileSystem()`. It
+ * runs bash through `createNodeFsTools()` and `justBashCommandRunner()`.
  */
 export function runNodeConsumer(
   consumer: string,
@@ -93,6 +94,16 @@ const writableBash = justBashFileSystem(bashBackend, {
 const bashEdit = createEditTool({ fs: writableBash, preconditions: { requireRead: "off" } });
 expect("just-bash edit", (await bashEdit({ path: "b.txt", edits: [{ oldText: "y", newText: "z" }] })).status, "ok");
 expect("just-bash bytes", await bashBackend.readFile("/w/b.txt"), "z\\n");
+
+const { createBashTool } = await import("${SCOPE}/shell");
+const { justBashCommandRunner } = await import("${SCOPE}/just-bash");
+const { Bash } = await import("just-bash");
+const ran = await fsTools.bash({ command: "cat fixture.txt; exit 3" });
+expect("node bash status", ran.status, "failed");
+expect("node bash output", ran.output.head, "alpha\\ngamma");
+const emulated = new Bash({ files: { "/w/c.txt": "c\\n" }, cwd: "/w" });
+const virtualBash = createBashTool({ runner: justBashCommandRunner(emulated) });
+expect("just-bash bash", (await virtualBash({ command: "cat c.txt" })).output.head, "c");
 
 const { pathToFileURL } = await import("node:url");
 const entry = new URL(${JSON.stringify(piExtension)}, pathToFileURL(process.cwd() + "/node_modules/${SCOPE}/pi/"));

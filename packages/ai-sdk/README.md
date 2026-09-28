@@ -104,6 +104,34 @@ export async function change(model: LanguageModel, prompt: string): Promise<stri
 - `execute` passes the `ToolExecutionOptions` object as `ctx.call.host`, and returns the whole `MutationResult`. `toModelOutput` gives the model the formatter's text.
 - AI SDK tools take JSON only. A signature with a grammar, such as `freeformPatchSignature()`, still works, but the grammar is not sent.
 
+## Bash tool
+
+`createAiSdkBashTool({ runner })` adapts the `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell). This package starts no process, so the runner is required. The default signature takes the timeout in milliseconds and names the runner in the description.
+
+```ts
+import { generateText, isStepCount } from "ai";
+import type { LanguageModel } from "ai";
+import { createAiSdkBashTool } from "@better-fs-tools/ai-sdk";
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { shellEnv } from "@better-fs-tools/shell";
+
+// The AI SDK package starts no process. Give it a runner.
+const bash = createAiSdkBashTool({
+  runner: nodeCommandRunner(),
+  env: shellEnv(() => process.env),
+});
+
+export async function run(model: LanguageModel, prompt: string): Promise<string> {
+  const result = await generateText({
+    model,
+    prompt,
+    tools: { [bash.name]: bash },
+    stopWhen: isStepCount(5),
+  });
+  return result.text;
+}
+```
+
 ## Links
 
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option, and the signature builders
