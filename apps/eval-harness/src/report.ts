@@ -1,4 +1,5 @@
 import { totalErrors } from "./metrics.ts";
+import { COMMAND_CODE_RATE_CARD, runCostUsd } from "./pricing.ts";
 import type { CellResult } from "./run.ts";
 
 export interface GroupSummary {
@@ -16,6 +17,8 @@ export interface GroupSummary {
   readonly meanOutputTokens: number;
   readonly meanToolInputChars: number;
   readonly meanWallMs: number;
+  /** Estimated USD for all runs in the group. null when the model has no rate. */
+  readonly totalCostUsd: number | null;
   readonly errorCodes: Record<string, number>;
 }
 
@@ -35,6 +38,10 @@ export function summarise(results: readonly CellResult[]): GroupSummary[] {
           errorCodes[code] = (errorCodes[code] ?? 0) + count;
         }
       }
+      const costs = rs.map((r) => runCostUsd(r.model, r.metrics));
+      const totalCostUsd = costs.includes(null)
+        ? null
+        : costs.reduce<number>((a, c) => a + (c ?? 0), 0);
       return {
         model: rs[0]!.model,
         arm: rs[0]!.arm,
@@ -50,6 +57,7 @@ export function summarise(results: readonly CellResult[]): GroupSummary[] {
         meanOutputTokens: mean((r) => r.metrics.outputTokens),
         meanToolInputChars: mean((r) => r.metrics.toolInputChars),
         meanWallMs: mean((r) => r.wallMs),
+        totalCostUsd,
         errorCodes,
       };
     })
@@ -59,8 +67,8 @@ export function summarise(results: readonly CellResult[]): GroupSummary[] {
 export function markdownReport(results: readonly CellResult[]): string {
   const rows = summarise(results);
   const lines = [
-    "| Model | Arm | Runs | Pass | Provider err (HTTP) | Max steps | Steps | Tool err / run | Runs with tool err | Input tok | Output tok | Tool input chars | Wall s |",
-    "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+    "| Model | Arm | Runs | Pass | Provider err (HTTP) | Max steps | Steps | Tool err / run | Runs with tool err | Input tok | Output tok | Tool input chars | Wall s | $ / run | $ / pass | $ total |",
+    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ...rows
       .map((s) =>
         [
@@ -77,9 +85,14 @@ export function markdownReport(results: readonly CellResult[]): string {
           Math.round(s.meanOutputTokens),
           Math.round(s.meanToolInputChars),
           (s.meanWallMs / 1000).toFixed(1),
+          usd(s.totalCostUsd === null ? null : s.totalCostUsd / s.runs),
+          usd(s.totalCostUsd === null || s.passed === 0 ? null : s.totalCostUsd / s.passed),
+          usd(s.totalCostUsd),
         ].join(" | "),
       )
       .map((row) => `| ${row} |`),
+    "",
+    `Cost is estimated from tokens with Command Code rates as of ${COMMAND_CODE_RATE_CARD.asOf} (${COMMAND_CODE_RATE_CARD.source}). $ / pass is the group total divided by passed runs, so failed runs count against it. "-" means no rate for the model, or no passed runs.`,
     "",
     "Tool error codes:",
     "",
@@ -94,6 +107,10 @@ export function markdownReport(results: readonly CellResult[]): string {
     ),
   ];
   return `${lines.join("\n")}\n`;
+}
+
+function usd(value: number | null): string {
+  return value === null ? "-" : value.toFixed(4);
 }
 
 function pct(a: number, b: number): string {

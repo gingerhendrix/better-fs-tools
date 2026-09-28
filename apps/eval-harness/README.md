@@ -58,3 +58,7 @@ Each arm gets a fresh memory store, so read-before-write is on.
 Tool errors come from the result objects, with no log parsing. A Better FS Tools failure gives `<tool>:<CODE>`, for example `edit:NO_MATCH` or `apply_patch:PATCH_PARSE`. A call that never reached the tool gives `<tool>:bad-json`, `<tool>:schema`, or `<tool>:unknown-tool`.
 
 The verifier is a port of the Oh My Pi verifier. It formats both files with Prettier and ignores blank-line count and whitespace-only line changes.
+
+## Cost
+
+`report.md` shows estimated USD per run, per passed run, and in total. `src/pricing.ts` holds a Command Code rate card, keyed by exact API model id. It uses the same rate fields as the StreamOS rate card. Cost is worked out from the tokens in `result.json`, so `report` can price old runs again. A model with no rate shows `-`. To add a model, copy its input, cache-read, and output prices from the [Command Code pricing page](https://commandcode.ai/docs/resources/pricing-limits) and update `asOf`.

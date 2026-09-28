@@ -15,6 +15,7 @@ import type { Cell, CellResult } from "./run.ts";
 import { SUITES } from "./suites.ts";
 import { loadTasks } from "./tasks.ts";
 import { totalErrors } from "./metrics.ts";
+import { runCostUsd } from "./pricing.ts";
 
 const DEFAULT_MODELS = ["xiaomi/mimo-v2.6-flash", "nvidia/nemotron-3-ultra-550b-a55b"];
 
@@ -96,7 +97,7 @@ const results = await runMatrix(
     done++;
     const mark = r.passed ? "PASS" : "FAIL";
     console.log(
-      `[${done}/${cells.length}] ${mark} ${r.model} ${r.arm} ${r.task} a${r.attempt} end=${r.end} steps=${r.metrics.steps} toolErr=${totalErrors(r.metrics)} in=${r.metrics.inputTokens} out=${r.metrics.outputTokens}${skipped ? " (saved)" : ""}${r.loopError ? ` err=${r.loopError.slice(0, 120)}` : ""}`,
+      `[${done}/${cells.length}] ${mark} ${r.model} ${r.arm} ${r.task} a${r.attempt} end=${r.end} steps=${r.metrics.steps} toolErr=${totalErrors(r.metrics)} in=${r.metrics.inputTokens} out=${r.metrics.outputTokens} usd=${runCostUsd(r.model, r.metrics)?.toFixed(4) ?? "-"}${skipped ? " (saved)" : ""}${r.loopError ? ` err=${r.loopError.slice(0, 120)}` : ""}`,
     );
   },
 );
