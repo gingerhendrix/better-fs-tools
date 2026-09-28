@@ -60,10 +60,13 @@ describe("shared root options", () => {
     expect(shared.ok && shared.file.info.displayPath).toBe("/shared/b.txt");
     if (shared.ok) await shared.file.close();
 
-    expectFsError(await fs.open("/shared/private/c.txt", {}), "denied");
+    // A deny root is dangerous-path in every adapter, with the root as the detail.
+    const denied = await fs.open("/shared/private/c.txt", {});
+    expectFsError(denied, "dangerous-path");
+    expect(denied.ok ? null : denied.error.detail).toBe("/shared/private");
     expectFsError(await fs.open("/other/d.txt", {}), "outside-allowed-roots");
     const stat = await fs.stat("/shared/private/c.txt", {});
-    expect(stat.ok ? null : stat.error.reason).toBe("denied");
+    expect(stat.ok ? null : stat.error.reason).toBe("dangerous-path");
   });
 
   test("cwd defaults to the first allowed root", () => {

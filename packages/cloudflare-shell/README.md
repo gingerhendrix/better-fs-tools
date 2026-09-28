@@ -53,7 +53,7 @@ export function workspaceTools(workspace: Workspace) {
 
 ## What the filesystem does
 
-- `cloudflareShellFileSystem(workspace, options)` takes the shared `FileSystemRootOptions` and `maxBufferedBytes` from `@better-fs-tools/fs`: `allowedRoots` (required), `denyRoots`, `cwd`, `id`, `symlinks`, and `identity`. It refuses every path outside the allowed roots, or inside a deny root, before it calls the Workspace. A deny root gives `denied`.
+- `cloudflareShellFileSystem(workspace, options)` takes the shared `FileSystemRootOptions` and `maxBufferedBytes` from `@better-fs-tools/fs`: `allowedRoots` (required), `denyRoots`, `cwd`, `id`, `symlinks`, and `identity`. It refuses every path outside the allowed roots, or inside a deny root, before it calls the Workspace. A deny root gives `dangerous-path`, as in every adapter.
 - `cwd` must be absolute and defaults to the first allowed root. Relative paths and relative roots resolve against it. Display paths are relative to `cwd`, and absolute outside it. `id` defaults to `"cloudflare-shell"`.
 - `symlinks` can only be `"reject"` and `identity` only `"none"`. It walks each path with `lstat` from its root, so a symlinked root, parent, or file is refused before any byte is read.
 - The filesystem exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, `identity`, and `maxBufferedBytes`.

@@ -49,7 +49,7 @@ export function computerTools(workspace: Workspace) {
 
 ## What the filesystem does
 
-- `cloudflareComputerFileSystem(workspace.fs, options)` takes the shared `FileSystemRootOptions` from `@better-fs-tools/fs`: `allowedRoots` (required), `denyRoots`, `cwd`, `id`, `symlinks`, and `identity`. It refuses every path outside the allowed roots, or inside a deny root, before it calls the workspace. A deny root gives `denied`.
+- `cloudflareComputerFileSystem(workspace.fs, options)` takes the shared `FileSystemRootOptions` from `@better-fs-tools/fs`: `allowedRoots` (required), `denyRoots`, `cwd`, `id`, `symlinks`, and `identity`. It refuses every path outside the allowed roots, or inside a deny root, before it calls the workspace. A deny root gives `dangerous-path`, as in every adapter.
 - `cwd` must be absolute and defaults to the first allowed root. Relative paths and relative roots resolve against it. Display paths are relative to `cwd`, and absolute outside it. `id` defaults to `"cloudflare-computer"`. `symlinks` can only be `"reject"` and `identity` only `"none"`. Reads stream, so there is no `maxBufferedBytes`.
 - The filesystem exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, and `identity`.
 - It walks each path with `lstat`, so symlinks are refused before any byte is read.

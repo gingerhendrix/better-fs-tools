@@ -202,10 +202,9 @@ describe("justBashFileSystem", () => {
       identity: "required",
     });
     expectFsError(await wrapped.open("/workspace/a.txt", {}), "outside-allowed-roots");
-    expectFsError(
-      await adapter(fs, { denyRoots: ["private"] }).open("private/a.txt", {}),
-      "denied",
-    );
+    const denied = await adapter(fs, { denyRoots: ["private"] }).open("private/a.txt", {});
+    expectFsError(denied, "dangerous-path");
+    expect(denied.ok ? null : denied.error.detail).toBe("/workspace/private");
     expectFsError(await adapter(fs).open("link.txt", {}), "denied");
     expectFsError(await adapter(fs).open("a\0.txt", {}), "dangerous-path");
 

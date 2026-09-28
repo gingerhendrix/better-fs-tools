@@ -132,7 +132,7 @@ describe("just-bash writes: stat", () => {
     const fs = new InMemoryFs({ "/workspace/a.txt": "a\n", "/workspace/secret/k.txt": "k\n" });
     const wrapped = writable(fs, { denyRoots: ["/workspace/secret"] });
     expectMutationError(await wrapped.stat("/outside.txt", {}), "outside-allowed-roots");
-    expectMutationError(await wrapped.stat("secret/new.txt", {}), "denied");
+    expectMutationError(await wrapped.stat("secret/new.txt", {}), "dangerous-path");
     expectMutationError(await wrapped.stat("a.txt/x", {}), "not-found");
     expect(await wrapped.stat("secret", {})).toMatchObject({ ok: false });
     await fs.mkdir("/workspace/dir");

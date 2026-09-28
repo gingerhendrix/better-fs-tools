@@ -95,9 +95,9 @@ export function authorize(
     throw refuse({ reason: "dangerous-path", detail: "the path contains NUL" });
   }
   const target = resolvePosix(roots.cwd, requested);
-  if (roots.denyRoots.some((root) => containsPosix(root, target))) {
-    throw refuse({ reason: "denied", detail: "the path is inside a deny root" });
-  }
+  // A deny root is dangerous-path in every adapter, with the root as the detail.
+  const denied = roots.denyRoots.find((root) => containsPosix(root, target));
+  if (denied !== undefined) throw refuse({ reason: "dangerous-path", detail: denied });
   let root: string | null = null;
   for (const candidate of roots.allowedRoots) {
     if (containsPosix(candidate, target) && (root === null || candidate.length > root.length)) {

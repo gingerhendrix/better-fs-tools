@@ -148,9 +148,9 @@ export function authorizeCanonical(
   allowedRoots: readonly string[],
   denyRoots: readonly string[],
 ): void {
-  if (denyRoots.some((root) => containsPosix(root, target))) {
-    throw refuse({ reason: "denied", detail: "the path is inside a denied virtual root" });
-  }
+  // A deny root is dangerous-path in every adapter, with the root as the detail.
+  const denied = denyRoots.find((root) => containsPosix(root, target));
+  if (denied !== undefined) throw refuse({ reason: "dangerous-path", detail: denied });
   if (!allowedRoots.some((root) => containsPosix(root, target))) {
     throw refuse({ reason: "outside-allowed-roots" });
   }

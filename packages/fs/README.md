@@ -98,7 +98,7 @@ Every filesystem adapter takes `FileSystemRootOptions` for the same ideas, with 
 | Option             | Meaning                                                                                                                                     |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `allowedRoots`     | Required, at least one. A path outside every root gives `outside-allowed-roots`                                                             |
-| `denyRoots`        | Refused even inside an allowed root                                                                                                         |
+| `denyRoots`        | Refused even inside an allowed root, with reason `dangerous-path` in every adapter                                                          |
 | `cwd`              | Relative requests and relative roots resolve against it                                                                                     |
 | `symlinks`         | `"reject"` refuses a link in any component of the path. `"follow-within-roots"` follows links, and the real path must stay inside the roots |
 | `identity`         | `"required"`: a stable identity, and versions that trust it. `"none"`: no identity, and weak versions                                       |

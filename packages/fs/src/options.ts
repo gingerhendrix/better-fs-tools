@@ -38,7 +38,10 @@ export interface FileSystemRootOptions<
   readonly cwd?: string;
   /** At least one. A path outside every root is refused as `outside-allowed-roots`. */
   readonly allowedRoots: readonly string[];
-  /** Refused even inside an allowed root. */
+  /**
+   * Refused even inside an allowed root, with reason `dangerous-path` and the
+   * deny root as the detail. The same reason in every adapter.
+   */
   readonly denyRoots?: readonly string[];
   readonly symlinks?: TSymlinks;
   readonly identity?: TIdentity;
