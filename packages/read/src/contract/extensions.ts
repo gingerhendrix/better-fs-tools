@@ -50,10 +50,11 @@ export interface SuggestContext<THost = undefined> {
 
 export interface ReadAuthorizer<THost = undefined> {
   readonly id: string;
-  authorize(
+  /** A function property, so a read authorizer does not fit a write or shell tool. */
+  readonly authorize: (
     target: ReadAuthorizeTarget,
     ctx: ReadHookContext<THost>,
-  ): ReadAuthorizeDecision | Promise<ReadAuthorizeDecision>;
+  ) => ReadAuthorizeDecision | Promise<ReadAuthorizeDecision>;
 }
 
 export interface ReadAuthorizeTarget extends AccessTarget {

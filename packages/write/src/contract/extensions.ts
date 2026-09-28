@@ -76,10 +76,11 @@ export type WriteAuthorizeDecision =
 /** Runs twice: once for each target before any content byte is read, then once for each planned change. */
 export interface WriteAuthorizer<THost = undefined> {
   readonly id: string;
-  authorize(
+  /** A function property, so a write authorizer does not fit a read or shell tool. */
+  readonly authorize: (
     target: WriteAuthorizeTarget,
     ctx: WriteHookContext<THost>,
-  ): WriteAuthorizeDecision | Promise<WriteAuthorizeDecision>;
+  ) => WriteAuthorizeDecision | Promise<WriteAuthorizeDecision>;
 }
 
 /* Guards */

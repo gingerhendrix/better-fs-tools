@@ -195,7 +195,7 @@ const fs = memoryFileSystem({ directories: ["/repo"] });
 const write = createWriteTool({
   fs,
   authorize: writeAuthorizers(
-    // A read authorizer works here too. It runs before any content byte is read.
+    // A tool-neutral authorizer from read works here too. It runs before any content byte is read.
     denyPaths(["**/.env", "**/.env.*"]),
     // AGENTS.md, CLAUDE.md, and .git/** are refused unless `ask` says yes.
     protectPaths(),

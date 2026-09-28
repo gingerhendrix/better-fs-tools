@@ -39,10 +39,11 @@ export interface ShellAuthorizeTarget extends AccessTarget {
  */
 export interface ShellAuthorizer<THost = undefined> {
   readonly id: string;
-  authorize(
+  /** A function property, so a shell authorizer does not fit a read or write tool. */
+  readonly authorize: (
     target: ShellAuthorizeTarget,
     ctx: ShellHookContext<THost>,
-  ): AccessDecision | Promise<AccessDecision>;
+  ) => AccessDecision | Promise<AccessDecision>;
 }
 
 /* Before run */

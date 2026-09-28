@@ -92,10 +92,11 @@ export type AccessDecision =
 /** An authorizer that works for every tool. It sees only the fields every target has. */
 export interface ToolAuthorizer<THost = undefined> {
   readonly id: string;
-  authorize(
+  /** A function property, not a method, so TypeScript checks the target type strictly. */
+  readonly authorize: (
     target: AccessTarget,
     ctx: ToolHookContext<THost>,
-  ): AccessDecision | Promise<AccessDecision>;
+  ) => AccessDecision | Promise<AccessDecision>;
 }
 
 /**
