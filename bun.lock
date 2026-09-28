@@ -99,6 +99,20 @@
         "@cloudflare/shell": "catalog:",
       },
     },
+    "packages/eval-harness": {
+      "name": "@better-fs-tools/eval-harness",
+      "version": "0.0.0",
+      "dependencies": {
+        "@ai-sdk/openai-compatible": "3.0.57",
+        "@better-fs-tools/ai-sdk": "workspace:^",
+        "@better-fs-tools/node": "workspace:^",
+        "@better-fs-tools/read": "workspace:^",
+        "@better-fs-tools/write": "workspace:^",
+        "ai": "catalog:",
+        "diff": "^8.0.2",
+        "prettier": "^3.6.2",
+      },
+    },
     "packages/fs": {
       "name": "@better-fs-tools/fs",
       "version": "0.0.0",
@@ -179,6 +193,8 @@
   },
   "packages": {
     "@ai-sdk/gateway": ["@ai-sdk/gateway@4.0.94", "", { "dependencies": { "@ai-sdk/provider": "4.0.18", "@ai-sdk/provider-utils": "5.0.49", "@vercel/oidc": "3.2.0" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-hcp7GLnMynH6NfMnemgvW9acn7j3WsUe/dHFzX3/fhPit08xhm1aYmDGHMiIT6YwsXVBxkit9TriKb2SGAOg+Q=="],
+
+    "@ai-sdk/openai-compatible": ["@ai-sdk/openai-compatible@3.0.57", "", { "dependencies": { "@ai-sdk/provider": "4.0.18", "@ai-sdk/provider-utils": "5.0.49" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-TEY5Ng/bTJXrYy9wpdxK70gABdYejYedaKbmPCZLhBkPe21rmLzkGxAGkfPYgAfCKPaoAO9THrEhmwUZ4Xhg2Q=="],
 
     "@ai-sdk/provider": ["@ai-sdk/provider@4.0.18", "", { "dependencies": { "json-schema": "^0.4.0" } }, "sha512-+GZJIgz1jk86pwEbb3f1BD2bdoSKyWE4Jg4YUc7NMnMozbWemSKYZcw2F4nMaO5qwsL5A8RmioAKW81YktRpIQ=="],
 
@@ -289,6 +305,8 @@
     "@better-fs-tools/cloudflare-shell": ["@better-fs-tools/cloudflare-shell@workspace:packages/cloudflare-shell"],
 
     "@better-fs-tools/docs": ["@better-fs-tools/docs@workspace:apps/docs"],
+
+    "@better-fs-tools/eval-harness": ["@better-fs-tools/eval-harness@workspace:packages/eval-harness"],
 
     "@better-fs-tools/examples": ["@better-fs-tools/examples@workspace:examples"],
 

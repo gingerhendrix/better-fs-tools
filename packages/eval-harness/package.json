@@ -1,0 +1,20 @@
+{
+  "name": "@better-fs-tools/eval-harness",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Proof-of-concept eval harness: Oh My Pi edit benchmark fixtures, an AI SDK loop, and Command Code models.",
+  "type": "module",
+  "scripts": {
+    "eval": "bun run src/cli.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "3.0.57",
+    "@better-fs-tools/ai-sdk": "workspace:^",
+    "@better-fs-tools/node": "workspace:^",
+    "@better-fs-tools/read": "workspace:^",
+    "@better-fs-tools/write": "workspace:^",
+    "ai": "catalog:",
+    "diff": "^8.0.2",
+    "prettier": "^3.6.2"
+  }
+}
