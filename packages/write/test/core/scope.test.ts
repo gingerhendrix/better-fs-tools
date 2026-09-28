@@ -61,6 +61,10 @@ describe("call scope (section 5.1)", () => {
       hooks: [
         {
           id: "spy",
+          newFileMode: (_change, ctx) => {
+            saw("hooks:newFileMode", ctx.call);
+            return null;
+          },
           afterWrite: (_change, ctx) => {
             saw("hooks", ctx.call);
             return {};
@@ -85,6 +89,7 @@ describe("call scope (section 5.1)", () => {
       "fs",
       "guards",
       "hooks",
+      "hooks:newFileMode",
       "resolve",
       "state",
     ]);

@@ -1,9 +1,10 @@
 import type { MutatedFile, OpenFile, WritableFileSystem } from "@better-fs-tools/fs";
 import type { Note } from "@better-fs-tools/read";
 
-import type { AfterWriteContext, WriteHook } from "../contract/extensions.ts";
+import type { AfterWriteContext, PlannedChange, WriteHook } from "../contract/extensions.ts";
 import type { FileChange } from "../contract/result.ts";
 import { hashBytes } from "./bytes.ts";
+import { extensionId } from "./extension-error.ts";
 import { isRecord } from "./input.ts";
 import { readCapped } from "./load.ts";
 import { isNoteList } from "./outcomes.ts";
@@ -29,6 +30,32 @@ export function committedFile<THost>(
 ): Committed {
   const identity = scope.fileSystem().capabilities.identity ? file.identity : null;
   return { planned, change, identity, known: true, rewritten: false };
+}
+
+/**
+ * The mode the first hook with `newFileMode` asks for, or null. Runs just
+ * before a create's commit. A throw, or a value that is not null or an
+ * integer from 0 to 0o7777, gives EXTENSION_FAILED: nothing is written yet.
+ */
+export function newFileMode<THost>(
+  scope: MutationScope<THost>,
+  change: PlannedChange,
+): number | null {
+  for (const hook of scope.deps.hooks) {
+    if (hook.newFileMode === undefined) continue;
+    let mode: unknown;
+    try {
+      mode = hook.newFileMode(change, scope.hookContext());
+    } catch (error) {
+      throw scope.extensionFailure("hooks", extensionId(hook, error));
+    }
+    if (mode === null) continue;
+    if (!Number.isInteger(mode) || (mode as number) < 0 || (mode as number) > 0o7777) {
+      throw scope.extensionFailure("hooks", extensionId(hook));
+    }
+    return mode as number;
+  }
+  return null;
 }
 
 /**

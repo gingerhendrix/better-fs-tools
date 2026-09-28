@@ -220,5 +220,10 @@ function isGuard(value: unknown): value is Guard<unknown> {
 }
 
 function isHook(value: unknown): value is WriteHook<unknown> {
-  return isRecord(value) && typeof value.id === "string" && typeof value.afterWrite === "function";
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.afterWrite === "function" &&
+    (value.newFileMode === undefined || typeof value.newFileMode === "function")
+  );
 }

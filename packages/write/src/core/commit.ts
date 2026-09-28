@@ -3,6 +3,7 @@ import type { Note } from "@better-fs-tools/read";
 
 import type { FileChange } from "../contract/result.ts";
 import { hashBytes } from "./bytes.ts";
+import { newFileMode } from "./hooks.ts";
 import { isRecord } from "./input.ts";
 import { isBackendError, messageOf } from "./outcomes.ts";
 import type { Planned } from "./planned.ts";
@@ -10,7 +11,8 @@ import type { MutationScope } from "./scope.ts";
 import { ioFailure, statTarget } from "./target.ts";
 
 /**
- * One fs.write with the planned precondition. When the backend cannot compare
+ * One fs.write with the planned precondition, and for a create the first
+ * mode a hook asks for. When the backend cannot compare
  * and swap, the core first checks the precondition itself with a fresh stat.
  * From the fs.write call on, the signal is ignored: a started commit
  * finishes. `changed` gives STALE and `exists` gives EXISTS (section 5.11).
@@ -25,10 +27,15 @@ export async function commitOne<THost>(
   scope.checkAbort();
   const { target, precondition, createParents } = planned;
   if (!fs.writeCapabilities.compareAndSwap) await checkBeforeCommit(scope, fs, planned);
+  const mode = planned.loaded === null ? newFileMode(scope, planned.change) : null;
   scope.startCommit();
   let outcome: unknown;
   try {
-    outcome = await fs.write(target.resolvedPath, bytes, { precondition, createParents });
+    outcome = await fs.write(target.resolvedPath, bytes, {
+      precondition,
+      createParents,
+      ...(mode === null ? {} : { mode }),
+    });
   } catch (error) {
     throw ioFailure(scope, target.requestedPath, messageOf(error));
   }

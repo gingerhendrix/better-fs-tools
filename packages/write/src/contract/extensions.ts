@@ -113,6 +113,12 @@ export interface WriteHookResult {
 
 export interface WriteHook<THost = undefined> {
   readonly id: string;
+  /**
+   * Mode bits for a file the call creates, asked just before its commit. The
+   * first hook that returns a number wins. null keeps the backend's new-file
+   * mode. A replace always keeps the file's mode.
+   */
+  newFileMode?(change: PlannedChange, ctx: WriteHookContext<THost>): number | null;
   afterWrite(
     change: FileChange,
     ctx: AfterWriteContext<THost>,

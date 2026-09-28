@@ -81,6 +81,11 @@ describe("write tool dependencies (section 4.4)", () => {
     ["an empty codec list", { fs, codecs: [] }, "codecs"],
     ["a malformed codec", { fs, codecs: [{ id: "x" }] }, "codecs"],
     ["a malformed guard", { fs, guards: [{ id: "g" }] }, "guards"],
+    [
+      "a hook with a newFileMode that is not a function",
+      { fs, hooks: [{ id: "h", afterWrite: () => ({}), newFileMode: 1 }] },
+      "hooks",
+    ],
     ["a malformed hook", { fs, hooks: [{ id: "h" }] }, "hooks"],
     ["a malformed lock manager", { fs, locks: {} }, "locks"],
     ["a malformed authorizer", { fs, authorize: {} }, "authorize"],

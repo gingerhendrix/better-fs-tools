@@ -84,6 +84,7 @@ export {
   truncationNoticeGuard,
 } from "./guards/index.ts";
 export { askBeforeWrite, protectPaths, writeAuthorizers } from "./authorize/index.ts";
+export { executableShebang, verifyWrite } from "./hooks/index.ts";
 export { defaultWriteFormatter } from "./formatters/index.ts";
 export type { WriteFormatterOptions } from "./formatters/index.ts";
 export { createInvalidator } from "./state/index.ts";

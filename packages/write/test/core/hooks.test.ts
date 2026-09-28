@@ -96,3 +96,62 @@ describe("after-write hooks (section 5.10)", () => {
     expect(await state.get("/a.txt")).toBeNull();
   });
 });
+
+describe("newFileMode", () => {
+  const modeHook = (id: string, mode: () => unknown, seen: string[] = []): WriteHook<unknown> => ({
+    id,
+    newFileMode: (change) => {
+      seen.push(`${id}:${change.kind}`);
+      return mode() as number | null;
+    },
+    afterWrite: () => ({}),
+  });
+
+  test("the first hook that returns a number sets the mode of a create", async () => {
+    const seen: string[] = [];
+    const { fs, write } = harness({
+      deps: {
+        hooks: [
+          modeHook("none", () => null, seen),
+          modeHook("first", () => 0o600, seen),
+          modeHook("second", () => 0o777, seen),
+        ],
+      },
+    });
+    expect((await write({ path: "/a.txt", content: "a" })).status).toBe("ok");
+    expect(fs.peek("/a.txt")?.mode).toBe(0o600);
+    expect(seen).toEqual(["none:create", "first:create"]);
+  });
+
+  test("a replace and an edit do not ask", async () => {
+    const seen: string[] = [];
+    const { read, write, edit } = harness({
+      files: { "/a.txt": "a\n" },
+      deps: { hooks: [modeHook("h", () => 0o600, seen)] },
+    });
+    await read({ path: "/a.txt" });
+    await write({ path: "/a.txt", content: "b\n" });
+    await edit({ path: "/a.txt", edits: [{ oldText: "b", newText: "c" }] });
+    expect(seen).toEqual([]);
+  });
+
+  test.each([
+    [
+      "a throw",
+      () => {
+        throw new Error("boom");
+      },
+    ],
+    ["a value out of range", () => 0o10000],
+    ["a string", () => "755"],
+  ])("%s gives EXTENSION_FAILED before anything is written", async (_name, mode) => {
+    const { fs, write } = harness({ deps: { hooks: [modeHook("bad", mode)] } });
+    const result = await write({ path: "/a.txt", content: "a" });
+    expect(result.error).toMatchObject({
+      code: "EXTENSION_FAILED",
+      phase: "commit",
+      data: { extension: "hooks", id: "bad" },
+    });
+    expect(text(fs, "/a.txt")).toBeNull();
+  });
+});
