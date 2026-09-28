@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import type { ReadRecord } from "../../src/index.ts";
-import { createMemoryStore } from "../../src/state/index.ts";
+import { memoryFileSystem } from "@better-fs-tools/fs";
+
+import { createMemoryStore, createReadTool } from "../../src/index.ts";
+import type { Clock, ReadRecord } from "../../src/index.ts";
 
 function record(overrides: Partial<ReadRecord> = {}): ReadRecord {
   return {
@@ -39,12 +41,33 @@ describe("memory store", () => {
 
   test("entries expire on the supplied clock", async () => {
     let now = 1_000;
-    const store = createMemoryStore({ ttlMs: 50, clock: () => now });
+    const store = createMemoryStore({ ttlMs: 50, clock: () => new Date(now) });
     await store.put("/a.txt", record());
     now = 1_040;
     expect(await store.get("/a.txt")).not.toBeNull();
     now = 1_060;
     expect(await store.get("/a.txt")).toBeNull();
+  });
+
+  test("the store and the tools take the same clock", async () => {
+    const clock: Clock = () => new Date(0);
+    const state = createMemoryStore({ clock });
+    const digest = { id: "d", create: () => ({ update() {}, digest: () => "x" }), hash: () => "x" };
+    const read = createReadTool({
+      fs: memoryFileSystem({ files: { "/a.txt": "a\n" } }),
+      state,
+      digest,
+      clock,
+    });
+    await read({ path: "/a.txt" });
+    expect((await state.get("/a.txt"))?.observedAt).toBe("1970-01-01T00:00:00.000Z");
+  });
+
+  test("a clock that returns no valid Date is refused when the store is used", async () => {
+    const store = createMemoryStore({ clock: (() => 5) as never });
+    await expect(store.get("/a.txt")).rejects.toThrow("clock must return a valid Date");
+    const invalid = createMemoryStore({ clock: () => new Date(Number.NaN) });
+    await expect(invalid.get("/a.txt")).rejects.toThrow("clock must return a valid Date");
   });
 
   test("the entry cap evicts the least recently used key", async () => {

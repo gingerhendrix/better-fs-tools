@@ -37,7 +37,7 @@ import {
 } from "@better-fs-tools/ai-sdk";
 import { shellWorkspaceFileSystem } from "@better-fs-tools/cloudflare-shell";
 import type { Digest } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
+import { createMemoryStore } from "@better-fs-tools/read";
 import { memoryLocks } from "@better-fs-tools/write";
 
 // A Digest is synchronous, and a Worker has no node:crypto: pass a pure JavaScript hash.

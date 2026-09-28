@@ -5,9 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { jsonFormatter, textOf } from "@better-fs-tools/read";
+import { createMemoryStore, jsonFormatter, textOf } from "@better-fs-tools/read";
 import type { ReadContext, ReadStateStore } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
 
 import { createNodeReadTool, nodeFileSystem } from "../src/index.ts";
 

@@ -1,3 +1,4 @@
+import type { Clock } from "../contract/digest.ts";
 import type { ReadRecord, ReadStateStore } from "../contract/state.ts";
 
 const DEFAULT_MAX_ENTRIES = 1_000;
@@ -8,8 +9,8 @@ export interface MemoryStoreOptions {
   readonly maxEntries?: number;
   /** Default 30 minutes. */
   readonly ttlMs?: number;
-  /** Milliseconds. Default Date.now. */
-  readonly clock?: () => number;
+  /** The same clock type as the tools' `clock` dependency. Default the time now. */
+  readonly clock?: Clock;
 }
 
 /**
@@ -24,17 +25,16 @@ export function createMemoryStore(options: MemoryStoreOptions = {}): ReadStateSt
   }
   const maxEntries = positiveInteger(options.maxEntries ?? DEFAULT_MAX_ENTRIES, "maxEntries");
   const ttlMs = positiveInteger(options.ttlMs ?? DEFAULT_TTL_MS, "ttlMs");
-  const clock = options.clock ?? Date.now;
+  const clock = options.clock ?? (() => new Date());
   if (typeof clock !== "function") throw new TypeError("clock must be a function");
 
   const entries = new Map<string, { record: ReadRecord; expiresAt: number }>();
 
   const now = (): number => {
     const value = clock();
-    if (!Number.isFinite(value)) {
-      throw new TypeError("clock must return a finite millisecond timestamp");
-    }
-    return value;
+    const time = value instanceof Date ? value.getTime() : Number.NaN;
+    if (!Number.isFinite(time)) throw new TypeError("clock must return a valid Date");
+    return time;
   };
 
   const prune = (time: number): void => {

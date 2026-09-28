@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { ToolCallContext } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
+import { createMemoryStore } from "@better-fs-tools/read";
 
 import {
   createApplyPatchTool,

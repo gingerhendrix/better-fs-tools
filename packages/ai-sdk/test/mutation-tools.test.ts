@@ -5,9 +5,8 @@ import type { JSONSchema7, ToolExecutionOptions } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { createReadTool, textOf } from "@better-fs-tools/read";
+import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
 import type { ToolCallContext } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
 import { exactMatcher } from "@better-fs-tools/write";
 import type { MutationResult } from "@better-fs-tools/write";
 import {

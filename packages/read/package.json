@@ -12,8 +12,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./formats": "./src/formats/index.ts",
-    "./signature": "./src/signature/index.ts",
-    "./state": "./src/state/index.ts"
+    "./signature": "./src/signature/index.ts"
   },
   "publishConfig": {
     "exports": {
@@ -28,10 +27,6 @@
       "./signature": {
         "types": "./dist/signature/index.d.ts",
         "import": "./dist/signature/index.js"
-      },
-      "./state": {
-        "types": "./dist/state/index.d.ts",
-        "import": "./dist/state/index.js"
       }
     },
     "access": "public"

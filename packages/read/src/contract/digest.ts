@@ -11,4 +11,5 @@ export interface DigestStream {
   digest(): string;
 }
 
+/** The time now. Every tool and `createMemoryStore` take this one clock type. */
 export type Clock = () => Date;

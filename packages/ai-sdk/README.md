@@ -65,7 +65,7 @@ import {
   createAiSdkWriteTool,
 } from "@better-fs-tools/ai-sdk";
 import { nodeDigest, nodeFileSystem } from "@better-fs-tools/node";
-import { createMemoryStore } from "@better-fs-tools/read/state";
+import { createMemoryStore } from "@better-fs-tools/read";
 import { memoryLocks } from "@better-fs-tools/write";
 
 const cwd = process.cwd();

@@ -1,7 +1,6 @@
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { nodeDigest } from "@better-fs-tools/node";
-import { createReadTool, textOf } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
+import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
 import { createEditTool, createWriteTool, memoryLocks } from "@better-fs-tools/write";
 
 const fs = memoryFileSystem({ files: { "/src/app.ts": "export const a = 1;\n" } });

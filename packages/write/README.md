@@ -23,8 +23,7 @@ On Node, `createNodeFsTools()` from [`@better-fs-tools/node`](https://www.npmjs.
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { nodeDigest } from "@better-fs-tools/node";
-import { createReadTool, textOf } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
+import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
 import { createEditTool, createWriteTool, memoryLocks } from "@better-fs-tools/write";
 
 const fs = memoryFileSystem({ files: { "/src/app.ts": "export const a = 1;\n" } });
@@ -84,8 +83,7 @@ When a pair does not match, the error shows the closest region of the file with 
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { nodeDigest } from "@better-fs-tools/node";
-import { createReadTool, textOf } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
+import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
 import { createApplyPatchTool } from "@better-fs-tools/write";
 
 const fs = memoryFileSystem({

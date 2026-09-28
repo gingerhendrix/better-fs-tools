@@ -82,6 +82,8 @@ export { parseReadInput } from "./core/input.ts";
 export { defaultReadLimits, resolveReadLimits } from "./core/limits.ts";
 export { defaultReadMessages, resolveReadMessages } from "./core/messages.ts";
 export { textOf } from "./core/format.ts";
+export { createMemoryStore } from "./state/index.ts";
+export type { MemoryStoreOptions } from "./state/index.ts";
 export {
   binaryClassifier,
   defaultClassifiers,

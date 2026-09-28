@@ -1,6 +1,6 @@
 import { nodeDigest } from "@better-fs-tools/node";
 import type { ReadStateStore } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
+import { createMemoryStore } from "@better-fs-tools/read";
 import { memoryLocks } from "@better-fs-tools/write";
 
 import { buildPiApplyPatchTool, buildPiEditTool, buildPiWriteTool } from "./mutation-tools.ts";

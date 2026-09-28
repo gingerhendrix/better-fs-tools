@@ -5,7 +5,7 @@ import type {
   WritableFileSystem,
   WriteOptions,
 } from "@better-fs-tools/fs";
-import { createReadTool } from "@better-fs-tools/read";
+import { createMemoryStore, createReadTool } from "@better-fs-tools/read";
 import type {
   Digest,
   Note,
@@ -13,7 +13,6 @@ import type {
   ReadTool,
   StateNeedsDigest,
 } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
 
 import { createApplyPatchTool, createEditTool, createWriteTool } from "../src/index.ts";
 import type {

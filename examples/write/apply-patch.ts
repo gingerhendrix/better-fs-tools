@@ -1,7 +1,6 @@
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { nodeDigest } from "@better-fs-tools/node";
-import { createReadTool, textOf } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
+import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
 import { createApplyPatchTool } from "@better-fs-tools/write";
 
 const fs = memoryFileSystem({

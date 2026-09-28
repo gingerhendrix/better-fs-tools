@@ -5,9 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { textOf } from "@better-fs-tools/read";
+import { createMemoryStore, textOf } from "@better-fs-tools/read";
 import type { ToolCallContext } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
 
 import {
   createNodeApplyPatchTool,

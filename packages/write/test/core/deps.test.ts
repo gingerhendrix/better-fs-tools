@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { createMemoryStore } from "@better-fs-tools/read/state";
+import { createMemoryStore } from "@better-fs-tools/read";
 
 import {
   resolveApplyPatchDependencies,

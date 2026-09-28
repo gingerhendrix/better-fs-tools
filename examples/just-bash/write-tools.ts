@@ -1,8 +1,7 @@
 import { InMemoryFs } from "just-bash";
 import { justBashFileSystem } from "@better-fs-tools/just-bash";
 import { nodeDigest } from "@better-fs-tools/node";
-import { createReadTool, textOf } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read/state";
+import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
 import { createEditTool, memoryLocks } from "@better-fs-tools/write";
 
 const bash = new InMemoryFs({ "/workspace/src/index.ts": "const a = 1;\n" });
