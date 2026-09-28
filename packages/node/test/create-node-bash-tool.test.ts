@@ -38,7 +38,8 @@ describe("createNodeBashTool", () => {
     const result = await bash({ command: "pwd; echo err >&2; exit 3" });
     expect(result.status).toBe("failed");
     expect(result.run?.exitCode).toBe(3);
-    expect(result.output?.head).toBe(`${cwd}\nerr`);
+    // stdout and stderr are two pipes merged in arrival order, so either line may come first.
+    expect(result.output?.head.split("\n").sort()).toEqual([cwd, "err"].sort());
   });
 
   test("a timeout kills a grandchild: no process is left", async () => {
