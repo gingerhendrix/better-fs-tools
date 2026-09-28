@@ -8,7 +8,12 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import type { JsonObject } from "@better-fs-tools/read";
 
-import type { PiReadTool, PiReadToolResult } from "../src/index.ts";
+import type {
+  PiMutationTool,
+  PiMutationToolResult,
+  PiReadTool,
+  PiReadToolResult,
+} from "../src/index.ts";
 
 /**
  * Call once at the top of each test file. Returns a function that makes a
@@ -49,6 +54,16 @@ export function execute(
   return tool.execute("pi-read-call", input, signal, undefined, piContext(cwd));
 }
 
-export function textOf(result: PiReadToolResult): string {
+/** One Pi execution of a write tool. */
+export function run(
+  tool: PiMutationTool,
+  input: JsonObject,
+  cwd: string,
+  signal?: AbortSignal,
+): Promise<PiMutationToolResult> {
+  return tool.execute(`pi-${tool.name}-call`, input, signal, undefined, piContext(cwd));
+}
+
+export function textOf(result: PiReadToolResult | PiMutationToolResult): string {
   return result.content.map((part) => (part.type === "text" ? part.text : "")).join("\n");
 }

@@ -1,7 +1,7 @@
 {
   "name": "@better-fs-tools/pi",
   "version": "0.0.0",
-  "description": "The Better Read tool and extension for the Pi coding agent.",
+  "description": "The Better FS Tools read, edit, write, and apply_patch tools and extension for the Pi coding agent.",
   "license": "MIT",
   "files": [
     "dist"
@@ -32,9 +32,11 @@
   },
   "dependencies": {
     "@better-fs-tools/node": "workspace:^",
-    "@better-fs-tools/read": "workspace:^"
+    "@better-fs-tools/read": "workspace:^",
+    "@better-fs-tools/write": "workspace:^"
   },
   "devDependencies": {
+    "@better-fs-tools/fs": "workspace:^",
     "@earendil-works/pi-coding-agent": "catalog:",
     "typebox": "catalog:"
   },

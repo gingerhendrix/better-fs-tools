@@ -12,6 +12,7 @@
     "@better-fs-tools/node": "workspace:^",
     "@better-fs-tools/pi": "workspace:^",
     "@better-fs-tools/read": "workspace:^",
+    "@better-fs-tools/write": "workspace:^",
     "@cloudflare/computer": "catalog:",
     "@cloudflare/shell": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",

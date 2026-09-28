@@ -76,7 +76,7 @@ const { pathToFileURL } = await import("node:url");
 const entry = new URL(${JSON.stringify(piExtension)}, pathToFileURL(process.cwd() + "/node_modules/${SCOPE}/pi/"));
 const tools = [];
 (await import(entry.href)).default({ registerTool: (tool) => tools.push(tool) });
-expect("pi extension", tools.map((tool) => tool.name).join(), "read");
+expect("pi extension", tools.map((tool) => tool.name).join(), "read,edit,write,apply_patch");
 `;
   const run = spawnSync("node", ["--input-type=module", "-e", source], {
     cwd: consumer,

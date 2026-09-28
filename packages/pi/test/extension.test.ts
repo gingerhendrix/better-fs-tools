@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 import { discoverAndLoadExtensions } from "@earendil-works/pi-coding-agent";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import readToolExtension from "../src/extension.ts";
-import type { PiReadTool } from "../src/index.ts";
+import fsToolsExtension from "../src/extension.ts";
+import type { PiMutationTool, PiReadTool } from "../src/index.ts";
 import { fixtures } from "./helpers.ts";
 
 const fixture = fixtures();
@@ -17,14 +17,41 @@ const PACKAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), ".."
 const EXTENSION_SOURCE = path.join(PACKAGE_DIR, "src", "extension.ts");
 
 describe("pi extension", () => {
-  test("registers exactly one stateless read tool", () => {
-    const registered: PiReadTool[] = [];
-    readToolExtension({ registerTool: (tool) => registered.push(tool) });
+  test("registers read, edit, write, and apply_patch, with no renderers", () => {
+    const registered: (PiReadTool | PiMutationTool)[] = [];
+    fsToolsExtension({
+      registerTool: (tool: PiReadTool | PiMutationTool) => registered.push(tool),
+    });
 
-    expect(registered).toHaveLength(1);
-    expect(registered[0]?.name).toBe("read");
-    expect(Object.hasOwn(registered[0] as PiReadTool, "renderCall")).toBe(false);
-    expect(Object.hasOwn(registered[0] as PiReadTool, "renderResult")).toBe(false);
+    expect(registered.map((tool) => tool.name)).toEqual(["read", "edit", "write", "apply_patch"]);
+    for (const tool of registered) {
+      expect(Object.hasOwn(tool, "renderCall")).toBe(false);
+      expect(Object.hasOwn(tool, "renderResult")).toBe(false);
+    }
+    // Pi's own edit shape (D17) and the freeform patch grammar (D18).
+    const edit = registered[1]?.parameters as { properties?: object } | undefined;
+    expect(Object.keys(edit?.properties ?? {})).toEqual(["path", "edits"]);
+    expect((registered[3] as PiMutationTool).constrainedSampling?.type).toBe("grammar");
+  });
+
+  test("the registered tools share one store: edit needs a read first", async () => {
+    const registered: (PiReadTool | PiMutationTool)[] = [];
+    fsToolsExtension({
+      registerTool: (tool: PiReadTool | PiMutationTool) => registered.push(tool),
+    });
+    const [read, edit] = registered as [PiReadTool, PiMutationTool];
+    const cwd = await fixture({ "a.txt": "one\n" });
+    const context = { cwd } as ExtensionContext;
+    const input = { path: "a.txt", edits: [{ oldText: "one", newText: "two" }] };
+
+    const first = await edit.execute("e1", input, undefined, undefined, context);
+    expect(first.content).toEqual([
+      { type: "text", text: "[edit:not-read] Read a.txt with the read tool before changing it." },
+    ]);
+    await read.execute("r1", { path: "a.txt" }, undefined, undefined, context);
+    const second = await edit.execute("e2", input, undefined, undefined, context);
+    expect(second.details?.diff).toBe("-1 one\n+1 two");
+    expect(await readFile(path.join(cwd, "a.txt"), "utf8")).toBe("two\n");
   });
 
   test("the package manifest points pi.extensions at the entry", async () => {
@@ -70,7 +97,7 @@ describe("pi extension", () => {
         expect(loaded.extensions).toHaveLength(1);
 
         const tools = loaded.extensions[0]?.tools;
-        expect(tools?.size).toBe(1);
+        expect([...(tools?.keys() ?? [])]).toEqual(["read", "edit", "write", "apply_patch"]);
         const definition = tools?.get("read")?.definition;
         if (definition === undefined) throw new Error("the read tool was not registered");
 
@@ -101,6 +128,18 @@ describe("pi extension", () => {
         expect((outside.content[0] as { text: string }).text).toMatch(
           /^\[read:outside-allowed-roots\]/u,
         );
+
+        const write = tools?.get("write")?.definition;
+        if (write === undefined) throw new Error("the write tool was not registered");
+        const created = await write.execute(
+          "probe",
+          { path: "made.txt", content: "made\n" },
+          undefined,
+          undefined,
+          context,
+        );
+        expect(created.content).toEqual([{ type: "text", text: "Created made.txt (1 line)." }]);
+        expect(await readFile(path.join(project, "made.txt"), "utf8")).toBe("made\n");
       } finally {
         if (previous.home === undefined) delete process.env.HOME;
         else process.env.HOME = previous.home;
