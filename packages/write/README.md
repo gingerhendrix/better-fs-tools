@@ -2,7 +2,7 @@
 
 Edit, write, and apply_patch tools for TypeScript agents.
 
-This package is in progress. It has the shared mutation core, the `write`, `edit`, and `apply_patch` tools, and the built-in guards and hooks. The signatures come in a later batch of the write tools build.
+This package is in progress. It has the shared mutation core, the `write`, `edit`, and `apply_patch` tools, the built-in guards and hooks, and the signatures. The host adapters are in `@better-fs-tools/node`, `@better-fs-tools/ai-sdk`, and `@better-fs-tools/pi`.
 
 `createWriteTool({ fs })` takes a `WritableFileSystem` from `@better-fs-tools/fs`. It creates a missing file, or replaces an existing one. With the read tool's `state` store and a `digest`, an existing file must be read in full first, and a file that changed since the read is refused as `STALE`. A replace keeps the file's BOM and CRLF line endings. Same content gives `no-change` and writes nothing.
 
@@ -27,8 +27,8 @@ npm install @better-fs-tools/write @better-fs-tools/read @better-fs-tools/fs
 | Entry                              | Contents                                                                                                                                                                                                                                                                                                                                   |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `@better-fs-tools/write`           | `createWriteTool`, `createEditTool`, `createApplyPatchTool`, the matchers, the guards and `defaultGuards`, the mutation core's types, `utf8Codec`, `memoryLocks`, `askBeforeWrite`, `writeAuthorizers`, `protectPaths`, `executableShebang`, `verifyWrite`, `defaultWriteFormatter`, `createInvalidator`, `parsePatch`, `codexPatchParser` |
-| `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, and the patch types                                                                                                                                                                                                                                                                                      |
-| `@better-fs-tools/write/signature` | Empty for now                                                                                                                                                                                                                                                                                                                              |
+| `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, `CODEX_PATCH_GRAMMAR`, and the patch types                                                                                                                                                                                                                                                               |
+| `@better-fs-tools/write/signature` | `defaultEditSignature`, `multiEditSignature`, `camelCaseEditSignature`, `defaultWriteSignature`, `snakeCaseWriteSignature`, `defaultPatchSignature`, `freeformPatchSignature`, `writeSignatureMessages`, and `CODEX_PATCH_GRAMMAR`                                                                                                         |
 
 The package imports no `node:` module. It builds on the tool-neutral base types in `@better-fs-tools/read`, such as `ToolCallContext`, `PathResolver`, and `ToolAuthorizer`. An authorizer or resolver typed on them works for the read tool and for the write tools:
 

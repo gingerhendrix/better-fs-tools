@@ -10,7 +10,7 @@ npm install @better-fs-tools/pi @better-fs-tools/read @earendil-works/pi-coding-
 
 `@earendil-works/pi-coding-agent` (`^0.84.2`) and `typebox` (`^1.3.16`) are required peers. The package needs Node 24 or later.
 
-The package has a `pi.extensions` entry. When Pi loads the package, the entry registers one `read` tool with the default options. It keeps no state and writes no file.
+The package has a `pi.extensions` entry. When Pi loads the package, the entry registers `read`, `edit`, `write`, and `apply_patch` from `createPiFsTools()`. The four tools share one in-memory read store, so `edit` and `write` need a read first. Writes stay inside `ctx.cwd`. The entry writes no settings or session file.
 
 ## Example
 
