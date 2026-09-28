@@ -22,7 +22,7 @@ export interface Roots {
 /**
  * The shared root options, checked. Relative roots resolve against `cwd`, or
  * against `/` when there is no `cwd`. `cwd` defaults to the first allowed
- * root, so one root doubles as the working directory, as before.
+ * root, so one root doubles as the working directory.
  */
 export function resolveRoots(options: FileSystemRootOptions<"reject", "none">): Roots {
   const base = options.cwd === undefined ? "/" : absolutePath(options.cwd, "cwd");
