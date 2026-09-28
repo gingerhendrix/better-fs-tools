@@ -57,9 +57,13 @@ export type { WriteFormatContext, WriteFormatter } from "./contract/format.ts";
 export type { WriteLimits } from "./contract/limits.ts";
 export type { CanonicalParam, WriteMessageCatalog } from "./contract/messages.ts";
 
+export { createWriteTool } from "./core/create-tools.ts";
 export { parseApplyPatchInput, parseEditInput, parseWriteInput } from "./core/input.ts";
 export { defaultWriteLimits, resolveWriteLimits } from "./core/limits.ts";
 export { defaultWriteMessages, resolveWriteMessages } from "./core/messages.ts";
 export { defaultPreconditions } from "./contract/preconditions.ts";
 export { utf8Codec } from "./codecs/index.ts";
 export { memoryLocks } from "./locks/index.ts";
+export { defaultWriteFormatter } from "./formatters/index.ts";
+export type { WriteFormatterOptions } from "./formatters/index.ts";
+export { textOf } from "@better-fs-tools/read";
