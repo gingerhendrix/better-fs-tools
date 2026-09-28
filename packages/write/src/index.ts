@@ -62,6 +62,16 @@ export { parseApplyPatchInput, parseEditInput, parseWriteInput } from "./core/in
 export { defaultWriteLimits, resolveWriteLimits } from "./core/limits.ts";
 export { defaultWriteMessages, resolveWriteMessages } from "./core/messages.ts";
 export { defaultPreconditions } from "./contract/preconditions.ts";
+export {
+  blockAnchorMatcher,
+  defaultEditMatchers,
+  defaultPatchMatchers,
+  escapeMatcher,
+  exactMatcher,
+  indentationMatcher,
+  lineTrimmedMatcher,
+  normalizedMatcher,
+} from "./matchers/index.ts";
 export { utf8Codec } from "./codecs/index.ts";
 export { memoryLocks } from "./locks/index.ts";
 export { askBeforeWrite, writeAuthorizers } from "./authorize/index.ts";

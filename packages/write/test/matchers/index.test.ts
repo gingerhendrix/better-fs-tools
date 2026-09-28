@@ -1,0 +1,25 @@
+import { describe, expect, test } from "bun:test";
+
+import { defaultEditMatchers, defaultPatchMatchers } from "../../src/index.ts";
+
+describe("default matcher chains", () => {
+  test("edit: exact, normalized, escape (W7)", () => {
+    expect(defaultEditMatchers().map((matcher) => matcher.id)).toEqual([
+      "exact",
+      "normalized",
+      "escape",
+    ]);
+  });
+
+  test("patch: exact, normalized, line-trimmed (plan D12)", () => {
+    expect(defaultPatchMatchers().map((matcher) => matcher.id)).toEqual([
+      "exact",
+      "normalized",
+      "line-trimmed",
+    ]);
+  });
+
+  test("each call gives new instances", () => {
+    expect(defaultEditMatchers()[1]).not.toBe(defaultEditMatchers()[1]);
+  });
+});
