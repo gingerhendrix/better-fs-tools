@@ -32,3 +32,8 @@ export const presets = [
   multiEditSignature(), // edit({ path, edits: [{ oldText, newText }] }), Pi's shape
   freeformPatchSignature(), // apply_patch({ patch }) plus a Lark grammar for grammar-tool hosts
 ];
+
+// Every preset takes names. The keys are the preset's own parameter names.
+export const renamed = defaultEditSignature({
+  names: { path: "file", old_string: "find", new_string: "replace" },
+}); // edit({ file, find, replace, replace_all? })

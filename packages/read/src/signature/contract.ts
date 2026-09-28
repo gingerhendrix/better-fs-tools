@@ -1,27 +1,23 @@
-import type { JsonObject } from "../contract/json.ts";
+import type { ToolSignature } from "../contract/base.ts";
 import type { ReadInput } from "../contract/input.ts";
+import type { JsonObject } from "../contract/json.ts";
 
-/** Adapter level. The core never sees it. */
-export interface ReadSignature<TModel extends JsonObject = JsonObject> {
-  /** Pi uses it as name and label. AI SDK hosts use it as the ToolSet key. */
-  readonly name: string;
-  readonly description: string;
-  /** Plain JSON Schema with a description on each parameter. */
-  readonly schema: JsonObject;
-  /** Validates model input and maps it to canonical input. Pure. Throws TypeError naming host parameters. */
-  toRead(input: unknown): ReadInput;
+/**
+ * The read tool's signature. Adapter level. The core never sees it. It adds
+ * `fromInput` to the shared base, so notes can tell the model how to continue.
+ */
+export interface ReadSignature<TModel extends JsonObject = JsonObject> extends ToolSignature<
+  ReadInput,
+  ReadParam
+> {
   /** Maps a canonical retry to the object the model sends next. Pure. */
-  fromRead(retry: ReadInput): TModel;
+  fromInput(retry: ReadInput): TModel;
 }
 
+/** The canonical read parameters, and the parameter names of `defaultReadSignature`. */
 export type ReadParam = "path" | "offset" | "limit";
+/** The parameter names of `lineRangeSignature`. */
 export type LineRangeParam = "path" | "start" | "end";
-
-export interface SignatureDocs<TParam extends string> {
-  readonly name?: string;
-  readonly description?: string;
-  readonly describe?: Partial<Record<TParam, string>>;
-}
 
 /**
  * A type alias, not an interface: TypeScript refuses an optional property next

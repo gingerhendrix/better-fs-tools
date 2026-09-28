@@ -1,7 +1,9 @@
+import type { SignatureDocs } from "@better-fs-tools/read";
+
 import type { EditInput, EditPair } from "../contract/input.ts";
 import type { Matcher } from "../contract/matcher.ts";
 import type { WriteCanonicalParam } from "../contract/messages.ts";
-import type { EditSignature, MutationSignatureDocs } from "./contract.ts";
+import type { EditSignature } from "./contract.ts";
 import { checkMatchers, matchingSentence } from "./matching.ts";
 import {
   booleanSchema,
@@ -27,8 +29,7 @@ type MatcherOption = { readonly matchers?: readonly Matcher[] };
 
 /** edit({ path, old_string, new_string, replace_all? }). Name "edit". */
 export function defaultEditSignature(
-  options: MutationSignatureDocs<"path" | "old_string" | "new_string" | "replace_all"> &
-    MatcherOption = {},
+  options: SignatureDocs<"path" | "old_string" | "new_string" | "replace_all"> & MatcherOption = {},
 ): EditSignature {
   return singleEditSignature(options, "defaultEditSignature", {
     path: "path",
@@ -38,9 +39,12 @@ export function defaultEditSignature(
   });
 }
 
-/** edit({ filePath, oldString, newString, replaceAll? }). OpenCode and Kilo Code. */
+/**
+ * edit({ filePath, oldString, newString, replaceAll? }). OpenCode and Kilo Code.
+ * The same as defaultEditSignature with camel-case names.
+ */
 export function camelCaseEditSignature(
-  options: MutationSignatureDocs<"filePath" | "oldString" | "newString" | "replaceAll"> &
+  options: SignatureDocs<"filePath" | "oldString" | "newString" | "replaceAll"> &
     MatcherOption = {},
 ): EditSignature {
   return singleEditSignature(options, "camelCaseEditSignature", {
@@ -58,22 +62,31 @@ interface SingleNames {
   readonly all: string;
 }
 
+/** `own` holds the preset's parameter names. `describe` and `names` use them as keys. */
 function singleEditSignature(
-  options: MutationSignatureDocs<string> & MatcherOption,
+  options: SignatureDocs<string> & MatcherOption,
   label: string,
-  names: SingleNames,
+  own: SingleNames,
 ): EditSignature {
+  const checked = checkDocs(options, label, [own.path, own.old, own.new, own.all]);
+  const { describe } = checked;
+  const rename = (param: string): string => checked.names[param] ?? param;
+  const names: SingleNames = {
+    path: rename(own.path),
+    old: rename(own.old),
+    new: rename(own.new),
+    all: rename(own.all),
+  };
   const keys = [names.path, names.old, names.new, names.all];
-  const describe = checkDocs(options, label, keys);
   const matchers = checkMatchers(options.matchers);
   const schema = deepFreeze(
     objectSchema(
       [
-        [names.path, pathSchema(describe[names.path] ?? PATH_TEXT)],
+        [names.path, pathSchema(describe[own.path] ?? PATH_TEXT)],
         [
           names.old,
           stringSchema(
-            describe[names.old] ??
+            describe[own.old] ??
               `Text to replace. It must match one place in the file unless ${names.all} is true.`,
             true,
           ),
@@ -81,13 +94,13 @@ function singleEditSignature(
         [
           names.new,
           stringSchema(
-            describe[names.new] ?? `Replacement text. Send an empty string to delete ${names.old}.`,
+            describe[own.new] ?? `Replacement text. Send an empty string to delete ${names.old}.`,
           ),
         ],
         [
           names.all,
           booleanSchema(
-            describe[names.all] ?? `Replace every place ${names.old} matches. Default false.`,
+            describe[own.all] ?? `Replace every place ${names.old} matches. Default false.`,
           ),
         ],
       ],
@@ -129,16 +142,21 @@ function singleEditSignature(
  * No replaceAll: param("replaceAll") is "", so no message suggests it.
  */
 export function multiEditSignature(
-  options: MutationSignatureDocs<"path" | "edits" | "oldText" | "newText"> & MatcherOption = {},
+  options: SignatureDocs<"path" | "edits" | "oldText" | "newText"> & MatcherOption = {},
 ): EditSignature {
-  const keys = ["path", "edits"];
-  const pairKeys = ["oldText", "newText"];
-  const describe = checkDocs(options, "multiEditSignature", ["path", "edits", ...pairKeys]);
+  const { describe, names } = checkDocs(options, "multiEditSignature", [
+    "path",
+    "edits",
+    "oldText",
+    "newText",
+  ]);
+  const keys = [names.path, names.edits];
+  const pairKeys = [names.oldText, names.newText];
   const matchers = checkMatchers(options.matchers);
   const pair = objectSchema(
     [
       [
-        "oldText",
+        names.oldText,
         stringSchema(
           describe.oldText ??
             "Text for one replacement. It must match one place in the original file and must not overlap another edit.",
@@ -146,9 +164,9 @@ export function multiEditSignature(
         ),
       ],
       [
-        "newText",
+        names.newText,
         stringSchema(
-          describe.newText ?? "Replacement text. Send an empty string to delete oldText.",
+          describe.newText ?? `Replacement text. Send an empty string to delete ${names.oldText}.`,
         ),
       ],
     ],
@@ -157,9 +175,9 @@ export function multiEditSignature(
   const schema = deepFreeze(
     objectSchema(
       [
-        ["path", pathSchema(describe.path ?? PATH_TEXT)],
+        [names.path, pathSchema(describe.path ?? PATH_TEXT)],
         [
-          "edits",
+          names.edits,
           {
             type: "array",
             minItems: 1,
@@ -173,36 +191,38 @@ export function multiEditSignature(
       keys,
     ),
   );
+  const old = `${names.edits}[].${names.oldText}`;
 
   return Object.freeze<EditSignature>({
     name: options.name ?? NAME,
     description:
       options.description ??
-      "Edit a text file with one or more replacements in one call. Each `edits[].oldText` " +
+      `Edit a text file with one or more replacements in one call. Each \`${old}\` ` +
         "must match exactly one place in the original file. Edits must not overlap or nest: " +
-        `merge nearby changes into one edit. ${matchingSentence(matchers, "edits[].oldText")} ` +
+        `merge nearby changes into one edit. ${matchingSentence(matchers, old)} ` +
         `${NO_PREFIX} ${READ_FIRST} After an edit, the same file can be edited again without ` +
         `another read. ${USE_WRITE}`,
     schema,
     toInput(input): EditInput {
       const record = readObject(input, "edit input", keys, keys);
-      const path = readPath(record.path, "path");
-      const edits = record.edits;
+      const path = readPath(record[names.path], names.path);
+      const edits = record[names.edits];
       if (!Array.isArray(edits) || edits.length === 0) {
-        throw new TypeError("edits must be a non-empty array");
+        throw new TypeError(`${names.edits} must be a non-empty array`);
       }
       return {
         path,
         edits: edits.map((entry, index) => {
-          const label = `edits[${index}]`;
+          const label = `${names.edits}[${index}]`;
           const item = readObject(entry, label, pairKeys, pairKeys, `${label}.`);
           return {
-            oldText: readString(item.oldText, `${label}.oldText`, true),
-            newText: readString(item.newText, `${label}.newText`),
+            oldText: readString(item[names.oldText], `${label}.${names.oldText}`, true),
+            newText: readString(item[names.newText], `${label}.${names.newText}`),
           };
         }),
       };
     },
-    param: (name) => (name === "replaceAll" ? "" : name),
+    param: (name) =>
+      name === "replaceAll" ? "" : ((names as Readonly<Record<string, string>>)[name] ?? name),
   });
 }

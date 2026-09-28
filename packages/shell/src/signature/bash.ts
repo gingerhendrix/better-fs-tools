@@ -1,4 +1,4 @@
-import type { JsonObject } from "@better-fs-tools/read";
+import type { JsonObject, SignatureDocs, ToolSignature } from "@better-fs-tools/read";
 
 import type { BashInput } from "../contract/input.ts";
 import type { ShellLimits } from "../contract/limits.ts";
@@ -6,27 +6,19 @@ import type { ShellCanonicalParam, ShellMessageCatalog } from "../contract/messa
 import { resolveShellLimits } from "../core/limits.ts";
 import { formatDuration } from "../core/messages.ts";
 
-/** Adapter level. The core never sees it. */
-export interface BashSignature {
-  /** Pi name and label. AI SDK ToolSet key. */
-  readonly name: string;
-  readonly description: string;
-  /** Plain JSON Schema with a description on each parameter. */
-  readonly schema: JsonObject;
-  /** Validates model input and maps it to canonical input. Pure. Throws TypeError that names host parameters. */
-  toInput(input: unknown): BashInput;
-  /** Host name for a canonical parameter. An empty string means the signature has no such parameter. */
-  param(name: ShellCanonicalParam): string;
+/**
+ * The bash tool's signature. Adapter level. The core never sees it. It adds
+ * `duration` to the shared base, for the unit of the timeout parameter.
+ */
+export interface BashSignature extends ToolSignature<BashInput, ShellCanonicalParam> {
   /** A duration in the unit of the timeout parameter, for messages. */
   duration(ms: number): string;
 }
 
-type Param = "command" | "timeout" | "cwd";
+/** The parameter names of `defaultBashSignature`. */
+export type BashParam = "command" | "timeout" | "cwd";
 
-export interface BashSignatureOptions {
-  readonly name?: string;
-  readonly description?: string;
-  readonly describe?: Partial<Record<Param, string>>;
+export interface BashSignatureOptions extends SignatureDocs<BashParam> {
   /** Unit of the timeout parameter. Default "ms" (S2). */
   readonly timeoutUnit?: "ms" | "s";
   /** Add the cwd parameter. Default true. */
@@ -45,7 +37,14 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("defaultBashSignature options must be an object");
   }
-  const { name = "bash", describe = {}, timeoutUnit = "ms", cwd: withCwd = true, runner } = options;
+  const {
+    name = "bash",
+    describe = {},
+    names = {},
+    timeoutUnit = "ms",
+    cwd: withCwd = true,
+    runner,
+  } = options;
   if (typeof name !== "string" || name.trim() === "") {
     throw new TypeError("defaultBashSignature name must be a non-blank string");
   }
@@ -60,16 +59,21 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
   if (options.description !== undefined && typeof options.description !== "string") {
     throw new TypeError("defaultBashSignature description must be a string");
   }
-  const params: readonly Param[] = withCwd ? ["command", "timeout", "cwd"] : ["command", "timeout"];
-  if (describe === null || typeof describe !== "object" || Array.isArray(describe)) {
-    throw new TypeError("defaultBashSignature describe must be an object");
-  }
-  for (const [key, value] of Object.entries(describe)) {
-    if (!(params as readonly string[]).includes(key)) {
-      throw new TypeError(`Unknown parameter in describe: ${key}. Expected ${params.join(", ")}`);
+  const own: readonly BashParam[] = withCwd
+    ? ["command", "timeout", "cwd"]
+    : ["command", "timeout"];
+  checkKeys(describe, "describe", own);
+  checkKeys(names, "names", own);
+  const host = {} as Record<BashParam, string>;
+  for (const param of own) {
+    const value = names[param] ?? param;
+    if (value.trim() === "") throw new TypeError(`names.${param} must be a non-blank string`);
+    if (Object.values(host).includes(value)) {
+      throw new TypeError(`Parameter name ${value} is used twice`);
     }
-    if (typeof value !== "string") throw new TypeError(`describe.${key} must be a string`);
+    host[param] = value;
   }
+  const params = own.map((param) => host[param]);
   const limits = resolveShellLimits(options.limits);
   const scale = timeoutUnit === "s" ? 1_000 : 1;
   const unitWord = timeoutUnit === "s" ? "seconds" : "milliseconds";
@@ -77,7 +81,7 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
 
   const properties: [string, JsonObject][] = [
     [
-      "command",
+      host.command,
       {
         type: "string",
         minLength: 1,
@@ -85,7 +89,7 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
       },
     ],
     [
-      "timeout",
+      host.timeout,
       {
         type: "number",
         exclusiveMinimum: 0,
@@ -97,7 +101,7 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
   ];
   if (withCwd) {
     properties.push([
-      "cwd",
+      host.cwd,
       {
         type: "string",
         minLength: 1,
@@ -111,7 +115,7 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
     type: "object",
     additionalProperties: false,
     properties: Object.fromEntries(properties),
-    required: ["command"],
+    required: [host.command],
   });
 
   const description =
@@ -126,10 +130,10 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
       ...(runner === undefined ? [] : [`Commands run in: ${runner}.`]),
     ].join(" ");
 
-  const names: Record<ShellCanonicalParam, string> = {
-    command: "command",
-    timeoutMs: "timeout",
-    cwd: withCwd ? "cwd" : "",
+  const canonical: Record<ShellCanonicalParam, string> = {
+    command: host.command,
+    timeoutMs: host.timeout,
+    cwd: withCwd ? host.cwd : "",
   };
 
   return Object.freeze<BashSignature>({
@@ -146,18 +150,20 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
           throw new TypeError(`Unknown bash input key: ${key}. Expected ${params.join(", ")}`);
         }
       }
-      const { command, timeout, cwd } = record;
+      const command = record[host.command];
+      const timeout = record[host.timeout];
+      const cwd = withCwd ? record[host.cwd] : undefined;
       if (typeof command !== "string" || command.trim() === "") {
-        throw new TypeError("command must be a non-blank string");
+        throw new TypeError(`${host.command} must be a non-blank string`);
       }
       if (
         timeout !== undefined &&
         (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout <= 0)
       ) {
-        throw new TypeError("timeout must be a positive number");
+        throw new TypeError(`${host.timeout} must be a positive number`);
       }
       if (cwd !== undefined && (typeof cwd !== "string" || cwd.trim() === "")) {
-        throw new TypeError("cwd must be a non-blank string");
+        throw new TypeError(`${host.cwd} must be a non-blank string`);
       }
       return {
         command,
@@ -165,7 +171,7 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
         ...(cwd === undefined ? {} : { cwd: cwd as string }),
       };
     },
-    param: (canonical) => names[canonical],
+    param: (name) => canonical[name],
     duration: inUnit,
   });
 }
@@ -175,6 +181,22 @@ export function bashSignatureMessages(
   signature: BashSignature,
 ): Pick<ShellMessageCatalog, "param" | "duration"> {
   return { param: signature.param, duration: signature.duration };
+}
+
+function checkKeys(
+  map: unknown,
+  key: string,
+  params: readonly string[],
+): asserts map is Readonly<Record<string, string>> {
+  if (map === null || typeof map !== "object" || Array.isArray(map)) {
+    throw new TypeError(`defaultBashSignature ${key} must be an object`);
+  }
+  for (const [param, value] of Object.entries(map)) {
+    if (!params.includes(param)) {
+      throw new TypeError(`Unknown parameter in ${key}: ${param}. Expected ${params.join(", ")}`);
+    }
+    if (typeof value !== "string") throw new TypeError(`${key}.${param} must be a string`);
+  }
 }
 
 function deepFreeze<T>(value: T): T {

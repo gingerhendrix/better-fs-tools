@@ -68,6 +68,48 @@ describe("defaultBashSignature", () => {
     expect(() => signature.toInput(null)).toThrow(TypeError);
   });
 
+  test("names renames each parameter in the schema, toInput, param, and errors", () => {
+    const signature = defaultBashSignature({
+      timeoutUnit: "s",
+      names: { command: "script", timeout: "timeout_seconds", cwd: "dir" },
+      describe: { command: "The script." },
+    });
+    expect(Object.keys(signature.schema.properties as object)).toEqual([
+      "script",
+      "timeout_seconds",
+      "dir",
+    ]);
+    expect(signature.schema).toMatchObject({
+      required: ["script"],
+      properties: { script: { description: "The script." } },
+    });
+    expect(signature.toInput({ script: "ls", timeout_seconds: 2, dir: "src" })).toEqual({
+      command: "ls",
+      timeoutMs: 2_000,
+      cwd: "src",
+    });
+    expect(signature.param("command")).toBe("script");
+    expect(signature.param("timeoutMs")).toBe("timeout_seconds");
+    expect(signature.param("cwd")).toBe("dir");
+    expect(() => signature.toInput({ command: "ls" })).toThrow("Unknown bash input key: command");
+    expect(() => signature.toInput({ script: " " })).toThrow("script must be a non-blank string");
+    expect(() => signature.toInput({ script: "x", timeout_seconds: 0 })).toThrow(
+      "timeout_seconds must be a positive number",
+    );
+  });
+
+  test("bad names are TypeErrors", () => {
+    expect(() => defaultBashSignature({ names: { command: "" } })).toThrow(
+      "names.command must be a non-blank string",
+    );
+    expect(() => defaultBashSignature({ names: { timeout: "command" } })).toThrow(
+      "Parameter name command is used twice",
+    );
+    expect(() => defaultBashSignature({ cwd: false, names: { cwd: "dir" } })).toThrow(
+      "Unknown parameter in names: cwd",
+    );
+  });
+
   test("option errors are TypeErrors", () => {
     expect(() => defaultBashSignature({ timeoutUnit: "min" as never })).toThrow(TypeError);
     expect(() => defaultBashSignature({ describe: { nope: "x" } as never })).toThrow(TypeError);

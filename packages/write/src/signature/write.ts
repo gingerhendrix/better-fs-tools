@@ -1,6 +1,8 @@
+import type { SignatureDocs } from "@better-fs-tools/read";
+
 import type { WriteInput } from "../contract/input.ts";
 import type { WriteCanonicalParam } from "../contract/messages.ts";
-import type { MutationSignatureDocs, WriteSignature } from "./contract.ts";
+import type { WriteSignature } from "./contract.ts";
 import {
   checkDocs,
   deepFreeze,
@@ -14,38 +16,45 @@ import {
 
 /** write({ path, content }). */
 export function defaultWriteSignature(
-  options: MutationSignatureDocs<"path" | "content"> = {},
+  options: SignatureDocs<"path" | "content"> = {},
 ): WriteSignature {
   return writeSignature(options, "defaultWriteSignature", "write", "path");
 }
 
-/** write_file({ file_path, content }). */
+/**
+ * write_file({ file_path, content }). Claude Code. The same as
+ * defaultWriteSignature with another tool name and path name.
+ */
 export function snakeCaseWriteSignature(
-  options: MutationSignatureDocs<"file_path" | "content"> = {},
+  options: SignatureDocs<"file_path" | "content"> = {},
 ): WriteSignature {
   return writeSignature(options, "snakeCaseWriteSignature", "write_file", "file_path");
 }
 
+/** `ownPath` is the preset's path name. `describe` and `names` use it as the key. */
 function writeSignature(
-  options: MutationSignatureDocs<string>,
+  options: SignatureDocs<string>,
   label: string,
   name: string,
-  pathName: string,
+  ownPath: string,
 ): WriteSignature {
-  const keys = [pathName, "content"];
-  const describe = checkDocs(options, label, keys);
+  const checked = checkDocs(options, label, [ownPath, "content"]);
+  const { describe } = checked;
+  const pathName = checked.names[ownPath] ?? ownPath;
+  const contentName = checked.names.content ?? "content";
+  const keys = [pathName, contentName];
   const schema = deepFreeze(
     objectSchema(
       [
         [
           pathName,
           pathSchema(
-            describe[pathName] ??
+            describe[ownPath] ??
               "Path of the file to create or replace, relative to the working directory or absolute within an allowed root.",
           ),
         ],
         [
-          "content",
+          contentName,
           stringSchema(
             describe.content ??
               "The complete new content of the file. Nothing of the old content is kept.",
@@ -55,7 +64,10 @@ function writeSignature(
       keys,
     ),
   );
-  const params: Partial<Record<WriteCanonicalParam, string>> = { path: pathName };
+  const params: Partial<Record<WriteCanonicalParam, string>> = {
+    path: pathName,
+    content: contentName,
+  };
 
   return Object.freeze<WriteSignature>({
     name: options.name ?? name,
@@ -70,7 +82,7 @@ function writeSignature(
       const record = readObject(input, "write input", keys, keys);
       return {
         path: readPath(record[pathName], pathName),
-        content: readString(record.content, "content"),
+        content: readString(record[contentName], contentName),
       };
     },
     param: (canonical) => params[canonical] ?? canonical,

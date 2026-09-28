@@ -28,9 +28,9 @@ export interface AiSdkReadTool<C = unknown> {
   readonly name: string;
   readonly description: string;
   readonly strict: true;
-  /** jsonSchema(toStrictSchema(signature.schema), { validate }). validate maps null to absent first. validate runs toRead and parseReadInput. */
+  /** jsonSchema(toStrictSchema(signature.schema), { validate }). validate maps null to absent first. validate runs toInput and parseReadInput. */
   readonly inputSchema: Schema<JsonObject>;
-  /** read(signature.toRead(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
+  /** read(signature.toInput(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ReadResult>;
   toModelOutput(options: { output: ReadResult }): AiSdkReadOutput;
 }
@@ -60,7 +60,7 @@ export function createAiSdkReadTool<C = unknown>(
         try {
           const value = fromStrictInput(signature.schema, model);
           // The core parse checks the canonical input the signature produced.
-          parseReadInput(signature.toRead(value), limits);
+          parseReadInput(signature.toInput(value), limits);
           return { success: true, value: value as JsonObject };
         } catch (error) {
           return {
@@ -77,7 +77,7 @@ export function createAiSdkReadTool<C = unknown>(
         callId: execution.toolCallId,
         host: execution,
       };
-      return read(signature.toRead(fromStrictInput(signature.schema, input)), call);
+      return read(signature.toInput(fromStrictInput(signature.schema, input)), call);
     },
     toModelOutput: ({ output }) => toAiSdkOutput(output),
   });

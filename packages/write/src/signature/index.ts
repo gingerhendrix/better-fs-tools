@@ -2,7 +2,6 @@
 export type {
   EditSignature,
   MutationSignature,
-  MutationSignatureDocs,
   PatchSignature,
   WriteSignature,
 } from "./contract.ts";

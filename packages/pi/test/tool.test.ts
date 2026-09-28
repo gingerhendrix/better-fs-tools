@@ -133,7 +133,7 @@ describe("pi model-facing output", () => {
     expect(statuses).toEqual(["ok", "ok", "unsupported", "error", "error"]);
   });
 
-  test("toRead refusals throw TypeError that names host parameters", async () => {
+  test("toInput refusals throw TypeError that names host parameters", async () => {
     const root = await fixture({ "a.txt": "alpha" });
     await expect(execute(createPiReadTool(), { file_path: "a.txt" }, root)).rejects.toThrow(
       "Unknown read input key: file_path. Expected path, offset, limit",

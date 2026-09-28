@@ -114,7 +114,7 @@ export function buildPiReadTool(
         callId: toolCallId,
         host: ctx,
       };
-      const result = await read(signature.toRead(input), call);
+      const result = await read(signature.toInput(input), call);
       return {
         content: result.content.map((part) => toPiPart(part, "read")),
         details: toPiReadDetails(

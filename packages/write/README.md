@@ -289,7 +289,9 @@ console.log(textOf(await write({ path: "/repo/run.sh", content: "#!/bin/sh\necho
 
 ## Signatures
 
-A signature is what the model sees: a name, a description, and a JSON Schema. `toInput` checks model input and maps it to the core's canonical input. The host adapters take a `signature` option.
+A signature is what the model sees: a name, a description, and a JSON Schema. `toInput` checks model input and maps it to the core's canonical input, and `param(name)` gives the host name of a canonical parameter for messages. Every write signature is a `ToolSignature` from `@better-fs-tools/read`, the base that the read and bash signatures share. The host adapters take a `signature` option.
+
+Every preset takes the shared `SignatureDocs` options: `name`, `description`, `describe`, and `names`. `describe` and `names` use the preset's own parameter names as keys, so `camelCaseEditSignature` takes `oldString` and `defaultEditSignature` takes `old_string`. `camelCaseEditSignature` and `snakeCaseWriteSignature` are the default presets with the names two popular hosts use.
 
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
@@ -326,6 +328,11 @@ export const presets = [
   multiEditSignature(), // edit({ path, edits: [{ oldText, newText }] }), Pi's shape
   freeformPatchSignature(), // apply_patch({ patch }) plus a Lark grammar for grammar-tool hosts
 ];
+
+// Every preset takes names. The keys are the preset's own parameter names.
+export const renamed = defaultEditSignature({
+  names: { path: "file", old_string: "find", new_string: "replace" },
+}); // edit({ file, find, replace, replace_all? })
 ```
 
 `freeformPatchSignature()` adds `grammar.lark`, the Codex patch grammar. The Pi adapter sends it as a grammar tool to models that support one. The AI SDK adapter ignores it and sends the JSON schema.

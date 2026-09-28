@@ -98,12 +98,22 @@ export function readFlag(value: unknown, name: string): boolean | undefined {
   return value;
 }
 
-/** Checks the docs options every preset takes. Returns the describe map. */
+/** The checked docs options: the describe map and the final parameter names. */
+export interface CheckedDocs<TParam extends string> {
+  readonly describe: Partial<Record<TParam, string>>;
+  readonly names: Readonly<Record<TParam, string>>;
+}
+
+/**
+ * Checks the docs options every preset takes. `params` are the preset's own
+ * parameter names. Returns the describe map and each parameter's final name,
+ * after `names`. Throws TypeError on a blank or repeated name.
+ */
 export function checkDocs<TParam extends string>(
   options: unknown,
   label: string,
   params: readonly TParam[],
-): Partial<Record<TParam, string>> {
+): CheckedDocs<TParam> {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError(`${label} options must be an object`);
   }
@@ -111,10 +121,12 @@ export function checkDocs<TParam extends string>(
     name,
     description,
     describe = {},
+    names = {},
   } = options as {
     name?: unknown;
     description?: unknown;
     describe?: unknown;
+    names?: unknown;
   };
   if (name !== undefined && (typeof name !== "string" || name.trim() === "")) {
     throw new TypeError(`${label} name must be a non-blank string`);
@@ -122,16 +134,38 @@ export function checkDocs<TParam extends string>(
   if (description !== undefined && typeof description !== "string") {
     throw new TypeError(`${label} description must be a string`);
   }
-  if (describe === null || typeof describe !== "object" || Array.isArray(describe)) {
-    throw new TypeError(`${label} describe must be an object`);
+  checkKeys(describe, "describe", label, params);
+  checkKeys(names, "names", label, params);
+  const resolved = {} as Record<TParam, string>;
+  const seen = new Set<string>();
+  for (const param of params) {
+    const value = (names as Partial<Record<TParam, string>>)[param] ?? param;
+    if (value.trim() === "") throw new TypeError(`names.${param} must be a non-blank string`);
+    if (seen.has(value)) throw new TypeError(`Parameter name ${value} is used twice`);
+    seen.add(value);
+    resolved[param] = value;
   }
-  for (const [key, value] of Object.entries(describe)) {
-    if (!(params as readonly string[]).includes(key)) {
-      throw new TypeError(`Unknown parameter in describe: ${key}. Expected ${params.join(", ")}`);
+  return {
+    describe: describe as Partial<Record<TParam, string>>,
+    names: Object.freeze(resolved),
+  };
+}
+
+function checkKeys(
+  map: unknown,
+  key: string,
+  label: string,
+  params: readonly string[],
+): asserts map is Record<string, string> {
+  if (map === null || typeof map !== "object" || Array.isArray(map)) {
+    throw new TypeError(`${label} ${key} must be an object`);
+  }
+  for (const [param, value] of Object.entries(map)) {
+    if (!params.includes(param)) {
+      throw new TypeError(`Unknown parameter in ${key}: ${param}. Expected ${params.join(", ")}`);
     }
-    if (typeof value !== "string") throw new TypeError(`describe.${key} must be a string`);
+    if (typeof value !== "string") throw new TypeError(`${key}.${param} must be a string`);
   }
-  return describe as Partial<Record<TParam, string>>;
 }
 
 export function deepFreeze<T>(value: T): T {

@@ -4,7 +4,6 @@ import { textOf } from "../../src/index.ts";
 import {
   defaultReadSignature,
   lineRangeSignature,
-  renamedSignature,
   readSignatureMessages,
 } from "../../src/signature/index.ts";
 import { expectOk, harness, note } from "../helpers.ts";
@@ -34,7 +33,7 @@ describe("readSignatureMessages", () => {
       files: { "/a.txt": "one\ntwo\nthree\nfour\n" },
       deps: { messages: readSignatureMessages(range) },
     });
-    const result = expectOk(await read(range.toRead({ file_path: "/a.txt", end_line: 2 })));
+    const result = expectOk(await read(range.toInput({ file_path: "/a.txt", end_line: 2 })));
 
     expect(result.continuation.next).toEqual({ path: "/a.txt", offset: 3, limit: 2 });
     expect(result.request).toMatchObject({ path: "/a.txt", offset: 1, limit: 2 });
@@ -45,7 +44,9 @@ describe("readSignatureMessages", () => {
   });
 
   test("every retry note in a renamed tool prints host names", async () => {
-    const renamed = renamedSignature({ names: { path: "file", offset: "from", limit: "count" } });
+    const renamed = defaultReadSignature({
+      names: { path: "file", offset: "from", limit: "count" },
+    });
     const { read } = harness({
       files: { "/a.txt": "one\ntwo\n", "/long.txt": `${"x".repeat(40)}\nshort\n` },
       limits: { maxViewBytes: 8 },

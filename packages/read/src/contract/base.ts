@@ -97,3 +97,39 @@ export interface ToolAuthorizer<THost = undefined> {
     ctx: ToolHookContext<THost>,
   ): AccessDecision | Promise<AccessDecision>;
 }
+
+/**
+ * The model-facing side of a tool: its name, description, JSON Schema, and the
+ * map from model input to the tool's canonical input. Adapter level: the core
+ * never sees it. `TParam` is the tool's canonical parameter names.
+ */
+export interface ToolSignature<TInput, TParam extends string = string> {
+  /** Pi uses it as name and label. AI SDK hosts use it as the ToolSet key. */
+  readonly name: string;
+  readonly description: string;
+  /** Plain JSON Schema with a description on each parameter. */
+  readonly schema: JsonObject;
+  /** Validates model input and maps it to canonical input. Pure. Throws TypeError that names host parameters. */
+  toInput(input: unknown): TInput;
+  /**
+   * Host name for a canonical parameter, for messages. An empty string means
+   * the signature has no such parameter, and messages leave out the advice
+   * that names it.
+   */
+  param(name: TParam): string;
+  /** Set on freeform signatures. Hosts that support grammar tools use it. */
+  readonly grammar?: { readonly lark: string };
+}
+
+/**
+ * The options every signature preset takes. `TParam` is the preset's own
+ * parameter names. `names` gives a parameter another name in the schema, and
+ * `describe` replaces its description. Both are keyed by the preset's names.
+ */
+export interface SignatureDocs<TParam extends string> {
+  /** The tool name. */
+  readonly name?: string;
+  readonly description?: string;
+  readonly describe?: Partial<Record<TParam, string>>;
+  readonly names?: Partial<Record<TParam, string>>;
+}

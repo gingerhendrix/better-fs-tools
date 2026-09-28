@@ -212,6 +212,117 @@ describe("signature options", () => {
     expect(properties.file_path?.description).toBe("Where.");
   });
 
+  test("every preset takes names, keyed by its own parameter names", () => {
+    const cases: [MutationSignature<unknown>, unknown, unknown][] = [
+      [
+        defaultEditSignature({ names: { old_string: "find", new_string: "replace" } }),
+        { path: "a.ts", find: "x", replace: "y" },
+        { path: "a.ts", edits: [{ oldText: "x", newText: "y" }] },
+      ],
+      [
+        camelCaseEditSignature({ names: { filePath: "file" } }),
+        { file: "a.ts", oldString: "x", newString: "y", replaceAll: true },
+        { path: "a.ts", edits: [{ oldText: "x", newText: "y", replaceAll: true }] },
+      ],
+      [
+        multiEditSignature({ names: { edits: "changes", oldText: "from", newText: "to" } }),
+        { path: "a.ts", changes: [{ from: "x", to: "y" }] },
+        { path: "a.ts", edits: [{ oldText: "x", newText: "y" }] },
+      ],
+      [
+        defaultWriteSignature({ names: { path: "file", content: "text" } }),
+        { file: "a.ts", text: "x" },
+        { path: "a.ts", content: "x" },
+      ],
+      [
+        snakeCaseWriteSignature({ names: { file_path: "target" } }),
+        { target: "a.ts", content: "x" },
+        { path: "a.ts", content: "x" },
+      ],
+      [
+        freeformPatchSignature({ names: { patch: "input" } }),
+        { input: "*** Begin Patch" },
+        { patch: "*** Begin Patch" },
+      ],
+    ];
+    for (const [signature, model, canonical] of cases) {
+      expect(signature.toInput(model)).toEqual(canonical);
+      expect(Object.keys(signature.schema.properties as object)).toEqual(
+        expect.arrayContaining(Object.keys(model as object)),
+      );
+    }
+  });
+
+  test("renamed presets name the host parameters in param, errors, and descriptions", () => {
+    const edit = defaultEditSignature({
+      names: { old_string: "find", replace_all: "all" },
+      describe: { old_string: "What to find." },
+    });
+    expect(edit.param("oldText")).toBe("find");
+    expect(edit.param("replaceAll")).toBe("all");
+    expect(edit.description).toContain("`find`");
+    expect(edit.description).not.toContain("old_string");
+    const properties = edit.schema.properties as Record<string, { description: string }>;
+    expect(properties.find?.description).toBe("What to find.");
+    expect(() => edit.toInput({ path: "a", find: "", new_string: "y" })).toThrow(
+      "find must not be empty",
+    );
+
+    const multi = multiEditSignature({ names: { edits: "changes", oldText: "from" } });
+    expect(multi.param("oldText")).toBe("from");
+    expect(multi.param("edits")).toBe("changes");
+    expect(multi.param("replaceAll")).toBe("");
+    expect(() => multi.toInput({ path: "a", changes: [{ from: 1, newText: "y" }] })).toThrow(
+      "changes[0].from must be a string",
+    );
+
+    const patch = defaultPatchSignature({ names: { patch: "diff" } });
+    expect(patch.param("patch")).toBe("diff");
+    expect(patch.description).toContain("(the `diff` parameter)");
+    expect(patch.schema.required).toEqual(["diff"]);
+  });
+
+  test("renamed presets accept exactly what their schema accepts", () => {
+    const cases: [MutationSignature<unknown>, readonly string[], NestedKeys?][] = [
+      [
+        defaultEditSignature({ names: { path: "file", old_string: "find" } }),
+        ["file", "find", "new_string", "replace_all"],
+      ],
+      [
+        multiEditSignature({ names: { edits: "changes", newText: "to" } }),
+        ["path", "changes"],
+        { changes: ["oldText", "to"] },
+      ],
+      [defaultWriteSignature({ names: { content: "text" } }), ["path", "text"]],
+    ];
+    for (const [signature, keys, nested] of cases) {
+      for (const input of generatedInputs(keys, 1000, nested)) {
+        const bySchema = schemaAccepts(signature, input);
+        if (toInputAccepts(signature, input) !== bySchema) {
+          throw new Error(`schema ${bySchema}, toInput ${!bySchema}: ${JSON.stringify(input)}`);
+        }
+      }
+    }
+  });
+
+  test("bad names throw TypeError", () => {
+    expect(() => defaultEditSignature({ names: { path: " " } })).toThrow(
+      "names.path must be a non-blank string",
+    );
+    expect(() => defaultEditSignature({ names: { old_string: "new_string" } })).toThrow(
+      "Parameter name new_string is used twice",
+    );
+    expect(() => defaultWriteSignature({ names: { file_path: "x" } } as never)).toThrow(
+      /Unknown parameter in names: file_path/u,
+    );
+    expect(() => defaultPatchSignature({ names: { patch: 1 } } as never)).toThrow(
+      "names.patch must be a string",
+    );
+    expect(() => multiEditSignature({ names: [] as never })).toThrow(
+      "multiEditSignature names must be an object",
+    );
+  });
+
   test("bad docs throw TypeError", () => {
     expect(() => defaultWriteSignature({ describe: { file_path: "x" } } as never)).toThrow(
       /Unknown parameter in describe: file_path/u,

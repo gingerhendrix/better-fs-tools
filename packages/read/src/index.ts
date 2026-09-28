@@ -11,6 +11,7 @@ export type {
   AccessDecision,
   AccessTarget,
   Note,
+  SignatureDocs,
   ToolAuthorizer,
   ToolCallContext,
   ToolError,
@@ -18,6 +19,7 @@ export type {
   ToolMessages,
   ToolName,
   ToolResolveContext,
+  ToolSignature,
 } from "./contract/base.ts";
 export type { ReadContext, ReadTool } from "./contract/context.ts";
 export type { ReadDependencies, ReadToolDeps, StateNeedsDigest } from "./contract/deps.ts";

@@ -13,7 +13,7 @@ function schemaAccepts(signature: ReadSignature, input: unknown): boolean {
 
 function toReadAccepts(signature: ReadSignature, input: unknown): boolean {
   try {
-    signature.toRead(input);
+    signature.toInput(input);
     return true;
   } catch (error) {
     expect(error).toBeInstanceOf(TypeError);
@@ -49,7 +49,7 @@ describe("defaultReadSignature", () => {
     expect(Object.isFrozen(signature.schema.properties)).toBe(true);
   });
 
-  test("toRead and fromRead are the identity on canonical input", () => {
+  test("toInput and fromInput are the identity on canonical input", () => {
     const signature = defaultReadSignature();
     for (const input of [
       { path: "a.txt" },
@@ -57,12 +57,12 @@ describe("defaultReadSignature", () => {
       { path: "a.txt", limit: 3 },
       { path: "a.txt", offset: 2, limit: 3 },
     ]) {
-      expect(signature.toRead(input)).toEqual(input);
-      expect(signature.fromRead(input)).toEqual(input);
+      expect(signature.toInput(input)).toEqual(input);
+      expect(signature.fromInput(input)).toEqual(input);
     }
   });
 
-  test("toRead refuses aliases, strings for numbers, zero, fractions, and blank paths", () => {
+  test("toInput refuses aliases, strings for numbers, zero, fractions, and blank paths", () => {
     const signature = defaultReadSignature();
     const rejected: unknown[] = [
       { file_path: "a.txt" },
@@ -81,21 +81,21 @@ describe("defaultReadSignature", () => {
       null,
       ["a.txt"],
     ];
-    for (const input of rejected) expect(() => signature.toRead(input)).toThrow(TypeError);
+    for (const input of rejected) expect(() => signature.toInput(input)).toThrow(TypeError);
   });
 
-  test("toRead error messages name the parameter", () => {
+  test("toInput error messages name the parameter", () => {
     const signature = defaultReadSignature();
-    expect(() => signature.toRead({})).toThrow("path is required");
-    expect(() => signature.toRead({ path: "a", offset: 0 })).toThrow(
+    expect(() => signature.toInput({})).toThrow("path is required");
+    expect(() => signature.toInput({ path: "a", offset: 0 })).toThrow(
       "offset must be a positive integer",
     );
-    expect(() => signature.toRead({ path: "a", extra: 1 })).toThrow(
+    expect(() => signature.toInput({ path: "a", extra: 1 })).toThrow(
       "Unknown read input key: extra. Expected path, offset, limit",
     );
   });
 
-  test("toRead rejects exactly what the schema rejects on generated inputs", () => {
+  test("toInput rejects exactly what the schema rejects on generated inputs", () => {
     const signature = defaultReadSignature();
     const inputs = generatedInputs(["path", "offset", "limit"], 3_000);
     let accepted = 0;

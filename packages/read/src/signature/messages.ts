@@ -6,9 +6,9 @@ export function readSignatureMessages(signature: ReadSignature): Pick<ReadMessag
   if (
     signature === null ||
     typeof signature !== "object" ||
-    typeof signature.fromRead !== "function"
+    typeof signature.fromInput !== "function"
   ) {
     throw new TypeError("readSignatureMessages needs a ReadSignature");
   }
-  return Object.freeze({ retry: (next) => JSON.stringify(signature.fromRead(next)) });
+  return Object.freeze({ retry: (next) => JSON.stringify(signature.fromInput(next)) });
 }

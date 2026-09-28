@@ -1,5 +1,6 @@
 import type { JsonObject } from "../contract/json.ts";
-import type { LineRangeParam, ReadSignature, SignatureDocs } from "./contract.ts";
+import type { SignatureDocs } from "../contract/base.ts";
+import type { LineRangeParam, ReadSignature } from "./contract.ts";
 import { canonical } from "./offset-limit.ts";
 import {
   DEFAULT_NAME,
@@ -14,12 +15,12 @@ import {
 
 const PARAMS: readonly LineRangeParam[] = ["path", "start", "end"];
 
-/** Inclusive start and end. toRead: limit = end - start + 1. fromRead: end = offset + limit - 1. */
-export function lineRangeSignature(
-  options: SignatureDocs<LineRangeParam> & {
-    readonly names?: Partial<Record<LineRangeParam, string>>;
-  } = {},
-): ReadSignature {
+/**
+ * read({ path, start?, end? }). Inclusive start and end. toInput: limit = end -
+ * start + 1. fromInput: end = offset + limit - 1. param("limit") is "": no
+ * parameter holds a line count.
+ */
+export function lineRangeSignature(options: SignatureDocs<LineRangeParam> = {}): ReadSignature {
   if (options === null || typeof options !== "object") {
     throw new TypeError("lineRangeSignature options must be an object");
   }
@@ -56,7 +57,7 @@ export function lineRangeSignature(
         "reports truncation, follow the continuation it returns instead of guessing the next " +
         "range. Paths outside the allowed roots, binary content, and special files are refused.",
     schema,
-    toRead(input) {
+    toInput(input) {
       const record = readObject(input, keys);
       const path = readPath(record[name.path], name.path);
       const start = readLine(record[name.start], name.start);
@@ -68,7 +69,9 @@ export function lineRangeSignature(
       }
       return canonical(path, start, end - first + 1);
     },
-    fromRead(retry) {
+    param: (canonical) =>
+      canonical === "path" ? name.path : canonical === "offset" ? name.start : "",
+    fromInput(retry) {
       const model: Record<string, string | number> = { [name.path]: retry.path };
       if (retry.offset !== undefined) model[name.start] = retry.offset;
       if (retry.limit !== undefined) model[name.end] = (retry.offset ?? 1) + retry.limit - 1;

@@ -166,19 +166,16 @@ export const read = createNodeReadTool({
 
 The model sees a tool name, a description, a parameter schema, and parameter descriptions. These belong to the adapter, and you set them with a `ReadSignature` from `@better-fs-tools/read/signature`. The core never sees the names that the model uses.
 
-A signature is a JSON Schema plus two pure functions:
+`ReadSignature` extends the `ToolSignature` base that the write and bash signatures share. A signature is a JSON Schema plus pure functions:
 
-- `toRead(input)` checks the model input and maps it to `{ path, offset, limit }`. It throws `TypeError` with the host's parameter names.
-- `fromRead(retry)` maps a canonical retry back to the model's names. Notes use it when they tell the model how to continue.
+- `toInput(input)` checks the model input and maps it to `{ path, offset, limit }`. It throws `TypeError` with the host's parameter names.
+- `param(name)` gives the host name of a canonical parameter, or `""` when the signature has none.
+- `fromInput(retry)` maps a canonical retry back to the model's names. Notes use it when they tell the model how to continue. Only the read signature has it.
 
-Three builders cover the common cases:
+Two builders cover the common cases. Both take the shared `SignatureDocs` options: `name`, `description`, `describe`, and `names`. `describe` and `names` use the builder's own parameter names as keys.
 
 ```ts
-import {
-  defaultReadSignature,
-  lineRangeSignature,
-  renamedSignature,
-} from "@better-fs-tools/read/signature";
+import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
 
 // The default schema, with your own descriptions.
 export const documented = defaultReadSignature({
@@ -187,7 +184,7 @@ export const documented = defaultReadSignature({
 });
 
 // The same range model with other names.
-export const renamed = renamedSignature({
+export const renamed = defaultReadSignature({
   name: "read_file",
   names: { path: "file_path", offset: "start", limit: "max_lines" },
 });
@@ -203,7 +200,7 @@ With `lineRangeSignature`, a truncated read tells the model to continue with `{"
 
 `createAiSdkReadTool()` and `createPiReadTool()` wire the retry wording for you with `readSignatureMessages(signature)`. If you call the core yourself behind a signature, pass `messages: readSignatureMessages(signature)`. Otherwise the retry text uses `path`, `offset`, and `limit`.
 
-The core has no alias repair. The default signature refuses `file_path` or `start_line`. To accept those names, choose a signature that uses them. For another shape, write your own `ReadSignature`. Keep `toRead` pure and synchronous. The core still validates what `toRead` returns, so a signature cannot skip the path checks or the `maxLines` clamp.
+The core has no alias repair. The default signature refuses `file_path` or `start_line`. To accept those names, choose a signature that uses them. For another shape, write your own `ReadSignature`. Keep `toInput` pure and synchronous. The core still validates what `toInput` returns, so a signature cannot skip the path checks or the `maxLines` clamp.
 
 The tool reads one path for each call. For multi-file reads or globs, call the core `read()` from your own tool.
 
@@ -709,13 +706,13 @@ Cloudflare Agents hosts use `@better-fs-tools/ai-sdk` with `shellWorkspaceFileSy
 | Entry                             | Contents                                                                                                                                                                   |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@better-fs-tools/read`           | `createReadTool`, `textOf`, `parseReadInput`, limits, messages, classifiers, resolvers, suggestions, authorizers, converters, hooks, the budget, formatters, and the types |
-| `@better-fs-tools/read/signature` | `defaultReadSignature`, `renamedSignature`, `lineRangeSignature`, `readSignatureMessages`, and the signature types                                                         |
+| `@better-fs-tools/read/signature` | `defaultReadSignature`, `lineRangeSignature`, `readSignatureMessages`, and the read signature types                                                                        |
 | `@better-fs-tools/read/formats`   | `opencodeFormat`, `deepAgentsFormat`, `hashlineFormat`, `hermesFormat`                                                                                                     |
 | `@better-fs-tools/read/state`     | `createMemoryStore`                                                                                                                                                        |
 
 The package has no peers and imports no `node:` module, so it runs in Node, Bun, browsers, and Cloudflare Workers. It does not re-export the `fs` types. Import `FileSystem` and the other filesystem types from `@better-fs-tools/fs`. `ReadStateStore` and `ReadRecord` come from `@better-fs-tools/read`.
 
-The root entry also exports the tool-neutral base types that `@better-fs-tools/write` builds on: `ToolCallContext`, `ToolName`, `Note`, `ToolMessages`, `ToolHookContext`, `ToolResolveContext`, `AccessTarget`, `AccessDecision`, and `ToolAuthorizer`. `ReadContext` extends `ToolCallContext`, `ReadNote` extends `Note`, and `ReadMessageCatalog` extends `ToolMessages`.
+The root entry also exports the tool-neutral base types that `@better-fs-tools/write` builds on: `ToolCallContext`, `ToolName`, `Note`, `ToolError`, `ToolMessages`, `ToolHookContext`, `ToolResolveContext`, `AccessTarget`, `AccessDecision`, `ToolAuthorizer`, `ToolSignature`, and `SignatureDocs`. `ReadContext` extends `ToolCallContext`, `ReadNote` extends `Note`, `ReadMessageCatalog` extends `ToolMessages`, and `ReadSignature` extends `ToolSignature`.
 
 ## A host that changes everything
 

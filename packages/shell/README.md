@@ -245,7 +245,7 @@ The runner's `id` goes into the tool description, so the model can see, for exam
 
 ## Signatures
 
-`defaultBashSignature()` from `@better-fs-tools/shell/signature` gives the model `bash({ command, timeout?, cwd? })` with the timeout in milliseconds. `timeoutUnit: "s"` takes seconds, and `cwd: false` leaves out the cwd parameter. `bashSignatureMessages(signature)` gives the messages the same parameter names and unit.
+`defaultBashSignature()` from `@better-fs-tools/shell/signature` gives the model `bash({ command, timeout?, cwd? })` with the timeout in milliseconds. `timeoutUnit: "s"` takes seconds, and `cwd: false` leaves out the cwd parameter. `names` renames a parameter, for example `names: { timeout: "timeout_seconds" }`, and `describe` replaces a parameter's description. Both take the preset's own names as keys, as in the read and write presets. `BashSignature` extends the `ToolSignature` base from `@better-fs-tools/read` with `duration(ms)`, the timeout in the signature's unit. `bashSignatureMessages(signature)` gives the messages the same parameter names and unit.
 
 ## Parse helper
 

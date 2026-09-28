@@ -6,11 +6,7 @@ import { MockLanguageModelV4 } from "ai/test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { ReadResult } from "@better-fs-tools/read";
-import {
-  defaultReadSignature,
-  lineRangeSignature,
-  renamedSignature,
-} from "@better-fs-tools/read/signature";
+import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
 import type { CommandRunner, RunExit } from "@better-fs-tools/shell";
 import { defaultBashSignature } from "@better-fs-tools/shell/signature";
 import {
@@ -57,7 +53,7 @@ function allTools() {
     read: createAiSdkReadTool({ fs }),
     read_renamed: createAiSdkReadTool({
       fs,
-      signature: renamedSignature({ name: "read_renamed", names: { path: "file_path" } }),
+      signature: defaultReadSignature({ name: "read_renamed", names: { path: "file_path" } }),
     }),
     read_range: createAiSdkReadTool({
       fs,

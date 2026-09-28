@@ -12,19 +12,19 @@ const names = { path: "file_path", start: "start_line", end: "end_line" } as con
 describe("lineRangeSignature", () => {
   test("maps an inclusive range to offset and limit", () => {
     const signature = lineRangeSignature();
-    expect(signature.toRead({ path: "a.txt", start: 3, end: 4 })).toEqual({
+    expect(signature.toInput({ path: "a.txt", start: 3, end: 4 })).toEqual({
       path: "a.txt",
       offset: 3,
       limit: 2,
     });
-    expect(signature.toRead({ path: "a.txt", start: 5, end: 5 })).toEqual({
+    expect(signature.toInput({ path: "a.txt", start: 5, end: 5 })).toEqual({
       path: "a.txt",
       offset: 5,
       limit: 1,
     });
-    expect(signature.toRead({ path: "a.txt", end: 7 })).toEqual({ path: "a.txt", limit: 7 });
-    expect(signature.toRead({ path: "a.txt", start: 2 })).toEqual({ path: "a.txt", offset: 2 });
-    expect(signature.toRead({ path: "a.txt" })).toEqual({ path: "a.txt" });
+    expect(signature.toInput({ path: "a.txt", end: 7 })).toEqual({ path: "a.txt", limit: 7 });
+    expect(signature.toInput({ path: "a.txt", start: 2 })).toEqual({ path: "a.txt", offset: 2 });
+    expect(signature.toInput({ path: "a.txt" })).toEqual({ path: "a.txt" });
   });
 
   test("round trip from canonical input", () => {
@@ -39,9 +39,9 @@ describe("lineRangeSignature", () => {
       { path: "a.txt", offset: Number.MAX_SAFE_INTEGER, limit: 1 },
     ];
     for (const input of canonical) {
-      expect(signature.toRead(signature.fromRead(input))).toEqual(input);
+      expect(signature.toInput(signature.fromInput(input))).toEqual(input);
     }
-    expect(signature.fromRead({ path: "a.txt", offset: 3, limit: 2 })).toEqual({
+    expect(signature.fromInput({ path: "a.txt", offset: 3, limit: 2 })).toEqual({
       file_path: "a.txt",
       start_line: 3,
       end_line: 4,
@@ -57,33 +57,33 @@ describe("lineRangeSignature", () => {
       { file_path: "a.txt", start_line: 2, end_line: 6 },
     ];
     for (const model of models) {
-      expect(signature.fromRead(signature.toRead(model))).toEqual(model);
+      expect(signature.fromInput(signature.toInput(model))).toEqual(model);
     }
   });
 
   test("end < start fails with host names", () => {
     const signature = lineRangeSignature({ names });
-    expect(() => signature.toRead({ file_path: "a.txt", start_line: 5, end_line: 4 })).toThrow(
+    expect(() => signature.toInput({ file_path: "a.txt", start_line: 5, end_line: 4 })).toThrow(
       new TypeError("end_line (4) must not be less than start_line (5)"),
     );
-    expect(() => lineRangeSignature().toRead({ path: "a.txt", start: 2, end: 1 })).toThrow(
+    expect(() => lineRangeSignature().toInput({ path: "a.txt", start: 2, end: 1 })).toThrow(
       "end (1) must not be less than start (2)",
     );
   });
 
-  test("toRead rejects what the schema rejects on generated inputs", () => {
+  test("toInput rejects what the schema rejects on generated inputs", () => {
     const signature = lineRangeSignature({ names });
     const schema = Type.Unsafe(signature.schema);
     let rangeOnly = 0;
     for (const input of generatedInputs(["file_path", "start_line", "end_line"], 2_000, 11)) {
       let accepted = true;
       try {
-        signature.toRead(input);
+        signature.toInput(input);
       } catch {
         accepted = false;
       }
       const valid = Value.Check(schema, input);
-      if (!valid && accepted) throw new Error(`toRead accepts ${JSON.stringify(input)}`);
+      if (!valid && accepted) throw new Error(`toInput accepts ${JSON.stringify(input)}`);
       if (valid && !accepted) {
         // The one rule a JSON Schema cannot express.
         const record = input as { start_line?: number; end_line: number };
