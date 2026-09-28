@@ -126,6 +126,33 @@ describe("format presets", () => {
   });
 });
 
+describe("hermesFormat truncated flag", () => {
+  test("a line clamped at EOF reports truncated: true with no next_offset", async () => {
+    const read = createReadTool({
+      fs: memoryFileSystem({ files: { "/long": "abcdefghijk" } }),
+      limits: { maxCharsPerLine: 3 },
+      formatter: hermesFormat(),
+    });
+    const result = await read({ path: "/long" });
+    const body = JSON.parse(render(result.content)) as Record<string, unknown>;
+    expect(body.content).toBe("1|abc... [truncated]");
+    expect(body.truncated).toBe(true);
+    expect("next_offset" in body).toBe(false);
+  });
+
+  test("a whole file reports truncated: false", async () => {
+    const read = createReadTool({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\ntwo\n" } }),
+      formatter: hermesFormat(),
+    });
+    const body = JSON.parse(render((await read({ path: "/a.txt" })).content)) as Record<
+      string,
+      unknown
+    >;
+    expect(body.truncated).toBe(false);
+  });
+});
+
 describe("hashlineFormat ids", () => {
   test("are stable across reads and change after an edit", async () => {
     const { read, fs } = harness({

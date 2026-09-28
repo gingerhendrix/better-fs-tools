@@ -238,7 +238,7 @@ exports[`format presets hermes truncated 1`] = `
 
 exports[`format presets hermes clamped 1`] = `
 "ok
-{"content":"1|short\\n2|wwwwwwwwwwwwwwwwwwwwwwwwwwwwww... [truncated]","total_lines":2,"file_size":47,"truncated":false,"hint":"Source line 2 exceeded 30 characters and was clamped."}"
+{"content":"1|short\\n2|wwwwwwwwwwwwwwwwwwwwwwwwwwwwww... [truncated]","total_lines":2,"file_size":47,"truncated":true,"hint":"Source line 2 exceeded 30 characters and was clamped."}"
 `;
 
 exports[`format presets hermes empty 1`] = `
