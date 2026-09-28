@@ -453,7 +453,7 @@ describe("call scope (section 5.1)", () => {
     }
   });
 
-  test("a formatter exception propagates", async () => {
+  test("a formatter exception does not reject the call", async () => {
     const write = createWriteTool({
       fs: memoryFileSystem(),
       formatter: {
@@ -463,6 +463,8 @@ describe("call scope (section 5.1)", () => {
         },
       },
     });
-    await expect(write({ path: "/a.txt", content: "x" })).rejects.toThrow("format");
+    const result = await write({ path: "/a.txt", content: "x" });
+    expect(result.status).toBe("ok");
+    expect(result.notes.map((note) => note.code)).toContain("extension-failed");
   });
 });

@@ -155,6 +155,7 @@ Notes on a successful call:
 | `no-compare-and-swap`              | info     | `writeCapabilities.compareAndSwap` false             | none                                                                |
 | `mode-not-kept`                    | info     | `writeCapabilities.preserveMode` false, on a replace | none                                                                |
 | `hook-failed`                      | warning  | a hook threw after the commit                        | `{ hook }`                                                          |
+| `extension-failed`                 | warning  | the formatter failed; the default formatter ran      | `{ extension: "formatter", id? }`                                   |
 | `hook-rewrote`                     | warning  | a hook returned `rewrote: true`                      | `{ hook }`                                                          |
 | `executable`                       | info     | `executableShebang()`                                | `{ mode }`                                                          |
 | `verify-mismatch`, `verify-failed` | warning  | `verifyWrite()`                                      | none                                                                |

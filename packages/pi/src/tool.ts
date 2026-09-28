@@ -125,7 +125,11 @@ export function buildPiReadTool(
   });
 }
 
-/** The body in "view" mode, with the same call object. null for parts or a non-ok result. */
+/**
+ * The body in "view" mode, with the same call object. null for parts, a
+ * non-ok result, or a formatter that throws: the core already fell back and
+ * noted it in "model" mode.
+ */
 function viewOf(
   formatter: Formatter<ExtensionContext>,
   result: ReadResult,
@@ -133,6 +137,10 @@ function viewOf(
 ): string | null {
   if (result.status !== "ok") return null;
   const { content: _content, ...outcome } = result;
-  const view = formatter.format(outcome, ctx);
-  return typeof view === "string" ? view : null;
+  try {
+    const view = formatter.format(outcome, ctx);
+    return typeof view === "string" ? view : null;
+  } catch {
+    return null;
+  }
 }

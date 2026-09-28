@@ -1,28 +1,52 @@
 import type { ReadContext } from "../contract/context.ts";
 import type { Dependencies } from "../contract/deps.ts";
+import type { FormatContext } from "../contract/format.ts";
 import type { ContentPart, ReadOutcome, ReadResult } from "../contract/result.ts";
+import { lineNumberFormatter } from "../formatters/index.ts";
+import { extensionId } from "./extension-error.ts";
 
 /**
  * Runs the formatter last, in "model" mode. A string becomes one text part.
- * A formatter exception propagates: the core cannot format a failure without it.
+ * A formatter that throws or returns something else gives an extension-failed
+ * warning, and the default formatter formats the outcome. The status stays.
  */
 export function formatResult<THost>(
   deps: Dependencies<THost>,
   call: ReadContext<THost>,
   outcome: ReadOutcome,
 ): ReadResult {
-  const output = deps.formatter.format(outcome, {
+  const ctx: FormatContext<THost> = {
     digest: deps.digest,
     limits: deps.limits,
     mode: "model",
     call,
-  });
-  if (typeof output === "string") return { ...outcome, content: [{ type: "text", text: output }] };
-  if (!Array.isArray(output)) {
-    throw new TypeError(`formatter ${deps.formatter.id} must return a string or an array`);
+  };
+  let content: readonly ContentPart[] | null = null;
+  try {
+    content = toContent(deps.formatter.format(outcome, ctx));
+  } catch {
+    // Falls through to the default formatter.
   }
-  const content: readonly ContentPart[] = [...output];
-  return { ...outcome, content };
+  if (content !== null) return { ...outcome, content };
+  const id = extensionId(deps.formatter);
+  const failed: ReadOutcome = {
+    ...outcome,
+    notes: [
+      ...outcome.notes,
+      {
+        code: "extension-failed",
+        severity: "warning",
+        message: deps.messages.formatterFailed({ formatter: id ?? "formatter" }),
+        data: id === null ? { extension: "formatter" } : { extension: "formatter", id },
+      },
+    ],
+  };
+  return { ...failed, content: toContent(lineNumberFormatter().format(failed, ctx)) ?? [] };
+}
+
+function toContent(output: unknown): readonly ContentPart[] | null {
+  if (typeof output === "string") return [{ type: "text", text: output }];
+  return Array.isArray(output) ? [...(output as ContentPart[])] : null;
 }
 
 /** Joins the text parts of `result.content` with "\n". Works on any tool's result. */

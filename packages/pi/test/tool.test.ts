@@ -347,6 +347,24 @@ describe("pi custom formatter", () => {
     expect(result.details.truncation?.truncatedBy).toBe("lines");
   });
 
+  test("a formatter that throws still returns the file, with a warning", async () => {
+    const root = await fixture({ "a.txt": "one\ntwo\nthree\n" });
+    const formatter: Formatter<unknown> = {
+      id: "broken",
+      format: () => {
+        throw new Error("format failed");
+      },
+    };
+    const result = await execute(
+      createPiReadTool({ formatter }),
+      { path: "a.txt", limit: 2 },
+      root,
+    );
+
+    expect(textOf(result)).toContain("1|one");
+    expect(textOf(result)).toContain("[read:extension-failed]");
+  });
+
   test("a formatter that returns parts gives {} details", async () => {
     const root = await fixture({ "a.txt": "one\ntwo\nthree\n" });
     const formatter: Formatter<unknown> = {

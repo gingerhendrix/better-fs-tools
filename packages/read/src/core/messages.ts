@@ -57,6 +57,8 @@ const catalog: MessageCatalog = {
     `The ${backend} backend has no stable identity, so this observation cannot back a write precondition.`,
   bufferedBackend: ({ backend }) =>
     `The ${backend} backend buffers whole objects instead of streaming them.`,
+  formatterFailed: ({ formatter }) =>
+    `The ${formatter} formatter failed, so the default formatter formatted this result.`,
 };
 
 export const defaultMessages: Readonly<MessageCatalog> = Object.freeze(catalog);

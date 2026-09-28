@@ -48,4 +48,6 @@ export interface MessageCatalog extends ToolMessages {
   viewModified(c: { hook: string }): string;
   weakIdentity(c: { backend: string }): string;
   bufferedBackend(c: { backend: string }): string;
+  /** The formatter threw or returned neither a string nor an array. */
+  formatterFailed(c: { formatter: string }): string;
 }

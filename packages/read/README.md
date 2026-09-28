@@ -566,7 +566,7 @@ import { opencodeFormat } from "@better-fs-tools/read/formats";
 export const read = createNodeReadTool({ formatter: opencodeFormat() });
 ```
 
-A custom formatter implements `format(outcome, ctx)`. It is synchronous and pure over the outcome. `ctx` has the `digest`, the `limits`, the `call`, and a `mode`. The mode is `"model"` for model output and `"view"` for the body only, with no notes, header, or footer. The Pi adapter uses `"view"` for its truncation details. If your formatter returns parts in `"view"` mode, Pi leaves those details out. A formatter sees only the finished outcome. It cannot read the file. An exception from the formatter reaches your code, because the core cannot format a failure without it.
+A custom formatter implements `format(outcome, ctx)`. It is synchronous and pure over the outcome. `ctx` has the `digest`, the `limits`, the `call`, and a `mode`. The mode is `"model"` for model output and `"view"` for the body only, with no notes, header, or footer. The Pi adapter uses `"view"` for its truncation details. If your formatter returns parts in `"view"` mode, Pi leaves those details out. A formatter sees only the finished outcome. It cannot read the file. If the formatter throws or returns neither a string nor an array, the call still succeeds: the core adds an `extension-failed` warning and formats the result with `lineNumberFormatter()`.
 
 ## Messages and notes
 

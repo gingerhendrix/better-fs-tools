@@ -141,6 +141,8 @@ function catalogFor(param: Param): WriteMessageCatalog {
       `The ${hook} hook rewrote ${path} after the write. Read it again before relying on its text.`,
     hookFailed: ({ hook, path }) =>
       `The ${hook} hook failed after ${path} was written. The file is changed.`,
+    formatterFailed: ({ formatter }) =>
+      `The ${formatter} formatter failed, so the default formatter formatted this result.`,
   };
 }
 
