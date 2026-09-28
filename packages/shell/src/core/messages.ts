@@ -60,6 +60,12 @@ function catalogFor(param: Param, duration: Duration): ShellMessageCatalog {
     abortedBeforeStart: () => "The call was aborted before the command started.",
     spillFailed: ({ sink }) =>
       `The ${sink} spill sink failed, so the full output was not saved. The command was not affected.`,
+    outputIncomplete: ({ detail, skippedChunks }) =>
+      `The output may be incomplete: ${
+        detail === null
+          ? `the runner gave ${skippedChunks} malformed output ${skippedChunks === 1 ? "chunk" : "chunks"}, which ${skippedChunks === 1 ? "was" : "were"} skipped`
+          : `the output stream failed (${detail})`
+      }. The exit status is still the command's.`,
     noOutput: () => "(no output)",
     omitted: ({ lines, bytes, spill }) =>
       `[… ${lines} lines (${formatBytes(bytes)}) not shown]${spill === null ? "" : ` Full output: ${spill}`}`,

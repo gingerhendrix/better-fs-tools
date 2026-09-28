@@ -78,19 +78,26 @@ export async function execute<THost>(
 
   const capture = new OutputCapture(limits);
   const iterator = handle.output[Symbol.asyncIterator]();
+  let skippedChunks = 0;
+  let streamFailed: string | null = null;
   const drain = (async () => {
     try {
       for (;;) {
         const next = await iterator.next();
         if (next.done === true) return;
         const chunk = validChunk(next.value);
-        if (chunk === null) continue;
+        if (chunk === null) {
+          skippedChunks += 1;
+          continue;
+        }
         capture.push(chunk);
         spill?.write(chunk.bytes);
         if (capture.totalBytes > limits.maxCaptureBytes) stop("output-cap");
       }
-    } catch {
-      // A failing output stream ends the output. The exit still decides the status.
+    } catch (error) {
+      // A failing output stream ends the output. The exit still decides the
+      // status, and an OUTPUT_INCOMPLETE warning says the output is partial.
+      streamFailed = messageOf(error);
     }
   })();
 
@@ -123,6 +130,17 @@ export async function execute<THost>(
     scope.notes.push(warning("OUTPUT_CAP", messages.outputCap({ limit: limits.maxCaptureBytes })));
   }
   if (exit === null) scope.notes.push(warning("UNCONFIRMED_STOP", messages.unconfirmedStop()));
+  // After a stop, the runner may end its stream with an error: that is not lost output.
+  const failed = reason === null ? (streamFailed as string | null) : null;
+  if (failed !== null || skippedChunks > 0) {
+    scope.notes.push(
+      warning(
+        "OUTPUT_INCOMPLETE",
+        messages.outputIncomplete({ detail: failed, skippedChunks }),
+        failed === null ? { skippedChunks } : { skippedChunks, detail: failed },
+      ),
+    );
+  }
   return {
     run: {
       command: planned.command,

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { createBashTool, defaultShellEnv } from "@better-fs-tools/shell";
-import type { RunOutcome } from "@better-fs-tools/shell";
+import type { CommandRunner, OutputChunk, RunOutcome } from "@better-fs-tools/shell";
 
 import { err, out, scriptedRunner, text } from "../helpers.ts";
 
@@ -391,6 +391,67 @@ describe("hooks", () => {
     expect(result.status).toBe("ok");
     expect(result.output?.spill).toBeNull();
     expect(result.notes.map((note) => note.code)).toEqual(["SPILL_FAILED"]);
+  });
+});
+
+describe("output stream failures", () => {
+  function runnerWith(output: AsyncIterable<unknown>): CommandRunner {
+    return {
+      id: "broken",
+      cwd: "/work",
+      run: () => ({
+        output: output as AsyncIterable<OutputChunk>,
+        exit: Promise.resolve({ code: 0, signal: null }),
+      }),
+    };
+  }
+
+  test("an output stream that throws gives an OUTPUT_INCOMPLETE warning", async () => {
+    const runner = runnerWith({
+      async *[Symbol.asyncIterator]() {
+        yield out("partial\n");
+        throw new Error("lost output");
+      },
+    });
+    const result = await createBashTool({ runner })({ command: "x" });
+    expect(result.status).toBe("ok");
+    expect(result.output?.head).toBe("partial");
+    expect(result.notes).toEqual([
+      {
+        code: "OUTPUT_INCOMPLETE",
+        severity: "warning",
+        message:
+          "The output may be incomplete: the output stream failed (lost output). The exit status is still the command's.",
+        data: { skippedChunks: 0, detail: "lost output" },
+      },
+    ]);
+    expect(text(result)).toContain("[bash:OUTPUT_INCOMPLETE]");
+  });
+
+  test("an output stream that throws before any chunk does not read as clean empty output", async () => {
+    const runner = runnerWith({
+      // oxlint-disable-next-line require-yield
+      async *[Symbol.asyncIterator]() {
+        throw new Error("lost output");
+      },
+    });
+    const result = await createBashTool({ runner })({ command: "x" });
+    expect(result.notes.map((note) => note.code)).toEqual(["OUTPUT_INCOMPLETE"]);
+  });
+
+  test("malformed chunks are skipped and counted", async () => {
+    const runner = runnerWith({
+      async *[Symbol.asyncIterator]() {
+        yield out("a\n");
+        yield { stream: "stdout", bytes: "not bytes" };
+        yield null;
+        yield out("b\n");
+      },
+    });
+    const result = await createBashTool({ runner })({ command: "x" });
+    expect(result.output?.head).toBe("a\nb");
+    expect(result.notes).toMatchObject([{ code: "OUTPUT_INCOMPLETE", data: { skippedChunks: 2 } }]);
+    expect(result.notes[0]?.message).toContain("2 malformed output chunks, which were skipped");
   });
 });
 
