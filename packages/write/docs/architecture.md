@@ -89,7 +89,7 @@ An allow decision in the change stage may carry `content` for `edit` and `write`
 
 The lock key is the real path, and only `stat` knows it. So the core stats, authorizes access, locks every real path of the call in sorted order, and stats again. The second stat decides: a file that appeared or vanished between the two stats is judged by it, and a real path that changed gives `STALE`.
 
-`memoryLocks()` orders writers inside one process. The read tool takes no lock: it detects a change with `verify()`, and each write replaces the file in one step on a backend that can. `createNodeFsTools()` and `createPiFsTools()` share one lock manager across the three write tools.
+`memoryLocks()` orders writers inside one process. The read tool takes no lock: it detects a change with `verify()`, and each write replaces the file in one step on a backend that can. `createFsTools()`, and the bundles that wrap it (`createNodeFsTools()`, `createPiFsTools()`, and `createAiSdkFsTools()`), share one lock manager across the three write tools.
 
 ## Load
 

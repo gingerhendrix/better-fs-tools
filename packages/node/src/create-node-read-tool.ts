@@ -1,8 +1,12 @@
 import { createReadTool } from "@better-fs-tools/read";
-import type { ReadTool, ReadToolDeps, StateNeedsDigest } from "@better-fs-tools/read";
+import type { ReadTool, ReadToolDeps, StateNeedsDigestOrDefault } from "@better-fs-tools/read";
 
 import { nodeDigest } from "./digest.ts";
 import { nodeFileSystem } from "./filesystem.ts";
+
+/** The read tool's dependencies, all optional. A state needs a digest that is not null. */
+export type CreateNodeReadToolOptions<THost = undefined> = Partial<ReadToolDeps<THost>> &
+  StateNeedsDigestOrDefault;
 
 /**
  * The zero-config local reader. `fs` defaults to nodeFileSystem rooted at
@@ -10,18 +14,15 @@ import { nodeFileSystem } from "./filesystem.ts";
  * observations off. Every other dependency keeps the core default.
  */
 export function createNodeReadTool<THost = undefined>(
-  deps: Partial<ReadToolDeps<THost>> = {},
+  deps: CreateNodeReadToolOptions<THost> = {},
 ): ReadTool<THost> {
   if (deps === null || typeof deps !== "object" || Array.isArray(deps)) {
     throw new TypeError("read tool dependencies must be an object");
   }
-  const { fs, digest, ...rest } = deps;
-  // digest defaults to nodeDigest(). The core checks at run time that a state comes with a digest.
-  return createReadTool<THost>({
-    ...rest,
-    fs: fs ?? defaultFileSystem(),
-    digest: digest === undefined ? nodeDigest() : digest,
-  } as ReadToolDeps<THost> & StateNeedsDigest);
+  const fs = deps.fs ?? defaultFileSystem();
+  // digest: null narrows the options to the branch without a state.
+  if (deps.digest === null) return createReadTool<THost>({ ...deps, fs, digest: null });
+  return createReadTool<THost>({ ...deps, fs, digest: deps.digest ?? nodeDigest() });
 }
 
 function defaultFileSystem() {

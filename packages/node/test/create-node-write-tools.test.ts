@@ -65,9 +65,12 @@ describe("createNode*Tool defaults", () => {
   });
 
   test("a state without a digest is refused, as in the core", () => {
+    // @ts-expect-error: StateNeedsDigestOrDefault refuses a state with digest null.
     expect(() => createNodeEditTool({ state: createMemoryStore(), digest: null })).toThrow(
       TypeError,
     );
+    // Without digest, the default nodeDigest() pairs with the state.
+    expect(() => createNodeEditTool({ state: createMemoryStore() })).not.toThrow();
   });
 
   test("other dependencies pass through with the same call object", async () => {

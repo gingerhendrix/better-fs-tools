@@ -50,6 +50,15 @@ export interface ReadDependencies<THost = undefined> {
  */
 export type StateNeedsDigest = { readonly state?: null } | { readonly digest: Digest };
 
+/**
+ * The same pairing for a factory with its own default digest, such as the
+ * Node and Pi factories. Leave `digest` out to get the default. `digest: null`
+ * turns it off, and then `state` must be left out or null.
+ */
+export type StateNeedsDigestOrDefault =
+  | { readonly state?: null; readonly digest: null }
+  | { readonly digest?: Digest };
+
 export type ReadToolDeps<THost = undefined> = {
   readonly fs: ReadDependencies<THost>["fs"];
   readonly limits?: Partial<ReadLimits>;

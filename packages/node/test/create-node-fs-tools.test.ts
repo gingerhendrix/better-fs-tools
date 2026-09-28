@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 
-import { link, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { link, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -222,6 +222,33 @@ describe("createNodeFsTools sharing", () => {
       "Unknown createNodeFsTools option: bogus",
     );
     expect(() => createNodeFsTools({ allowedRoot: ["/tmp"] } as never)).toThrow(TypeError);
+  });
+
+  test("newFileMode and newDirectoryMode reach the filesystem (Q5)", async () => {
+    const cwd = await workspace();
+    const tools = createNodeFsTools({
+      cwd,
+      state: null,
+      newFileMode: 0o600,
+      newDirectoryMode: 0o700,
+    });
+    expect((await tools.write({ path: "d/a.txt", content: "a\n" })).status).toBe("ok");
+    expect((await stat(join(cwd, "d"))).mode & 0o7777).toBe(0o700);
+    expect((await stat(join(cwd, "d", "a.txt"))).mode & 0o7777).toBe(0o600);
+  });
+
+  test("one clock for every tool; a tool cannot set its own", async () => {
+    const cwd = await workspace({ "app.ts": "x\n" });
+    const now = new Date("2026-09-29T00:00:00.000Z");
+    const tools = createNodeFsTools({ cwd, clock: () => now });
+    await tools.read({ path: "app.ts" });
+    expect((await tools.state?.get(join(cwd, "app.ts")))?.observedAt).toBe(now.toISOString());
+    expect(() => createNodeFsTools({ read: { clock: () => now } } as never)).toThrow(
+      "createNodeFsTools read options cannot set clock: set it once at the top level",
+    );
+    expect(() => createNodeFsTools({ bash: { digest: null } } as never)).toThrow(
+      "createNodeFsTools bash options cannot set digest: set it once at the top level",
+    );
   });
 
   test("a per-tool object that sets a shared dependency throws TypeError", () => {

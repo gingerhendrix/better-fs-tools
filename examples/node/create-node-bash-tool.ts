@@ -1,8 +1,10 @@
 import { createNodeFsTools, nodeCommandRunner } from "@better-fs-tools/node";
+import type { NodeFsToolsWithBash } from "@better-fs-tools/node";
 
-// The four file tools and bash in one cwd. The hook makes the next edit of a
-// file that a command may have changed need a read first.
-let tools: ReturnType<typeof createNodeFsTools> | undefined;
+// The four file tools and bash in one cwd. Bash is there only because the
+// options ask for it. The hook makes the next edit of a file that a command
+// may have changed need a read first.
+let tools: NodeFsToolsWithBash | undefined;
 tools = createNodeFsTools({
   cwd: "/srv/project",
   bash: {

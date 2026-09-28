@@ -77,7 +77,8 @@ const bash = readOnlyFileSystem(justBashFileSystem(new InMemoryFs({ "/w/a.txt": 
 }));
 expect("just-bash", textOf(await createReadTool({ fs: bash })({ path: "a.txt" })).split("\\n")[0], "1|x");
 
-const fsTools = createNodeFsTools();
+const fsTools = createNodeFsTools({ bash: true });
+expect("node bash off by default", createNodeFsTools().bash, null);
 expect("node create", (await fsTools.write({ path: "made/new.txt", content: "one\\n" })).status, "ok");
 const editNew = { path: "made/new.txt", edits: [{ oldText: "one", newText: "two" }] };
 expect("node edit after create", (await fsTools.edit(editNew)).status, "ok");

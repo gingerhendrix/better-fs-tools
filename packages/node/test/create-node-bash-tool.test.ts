@@ -10,6 +10,7 @@ import {
   nodeCommandRunner,
   nodeFileSystem,
 } from "@better-fs-tools/node";
+import type { NodeFsToolsWithBash } from "@better-fs-tools/node";
 import { textOf } from "@better-fs-tools/shell";
 
 async function workdir(): Promise<string> {
@@ -142,10 +143,40 @@ describe("createNodeBashTool", () => {
 });
 
 describe("createNodeFsTools bash", () => {
+  test("is off by default: the bundle has no bash tool and starts no process (Q3)", () => {
+    expect(createNodeFsTools().bash).toBeNull();
+    expect(createNodeFsTools({ bash: false }).bash).toBeNull();
+  });
+
+  test("bash: true runs in cwd with process.env, and gets the shared digest and clock", async () => {
+    const cwd = await workdir();
+    const now = new Date("2026-09-29T00:00:00.000Z");
+    const plain = createNodeFsTools({ cwd, bash: true });
+    const ran = await plain.bash({ command: 'pwd; printf "%s" "$HOME"' });
+    expect(ran.output?.head).toBe(`${cwd}\n${process.env.HOME}`);
+    const seen: unknown[] = [];
+    const tools = createNodeFsTools({
+      cwd,
+      clock: () => now,
+      bash: {
+        authorize: {
+          id: "spy",
+          authorize: (_target, ctx) => {
+            seen.push(ctx.digest, ctx.clock());
+            return { allow: true };
+          },
+        },
+      },
+    });
+    await tools.bash({ command: "true" });
+    expect(seen).toEqual([tools.digest, now]);
+    expect(tools.digest.id).toBe("sha256");
+  });
+
   test("runs in the shared cwd, and an afterRun hook can invalidate a read record", async () => {
     const cwd = await workdir();
     await writeFile(join(cwd, "a.txt"), "one\n");
-    let tools: ReturnType<typeof createNodeFsTools> | undefined;
+    let tools: NodeFsToolsWithBash | undefined;
     tools = createNodeFsTools({
       cwd,
       bash: {
