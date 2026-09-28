@@ -169,7 +169,7 @@ describe("node stat", () => {
 });
 
 describe("node write: replace and create", () => {
-  test("a replace keeps the mode and a new file is 0o644 whatever the umask", async () => {
+  test("a replace keeps the mode, and a new file gets 0o666 without the umask (Q5)", async () => {
     const root = await freshRoot();
     const fs = fsAt(root);
     await writeFile(join(root, "kept.txt"), "old\n");
@@ -187,7 +187,28 @@ describe("node write: replace and create", () => {
     });
     expect(await modeOf(join(root, "kept.txt"))).toBe(0o640);
     expect(await readFile(join(root, "kept.txt"), "utf8")).toBe("new\n");
-    expect(await modeOf(join(root, "new.txt"))).toBe(0o644);
+    expect(await modeOf(join(root, "new.txt"))).toBe(0o600);
+    // The umask is read at each create, not when the filesystem is built.
+    await withUmask(0o002, async () =>
+      expectOk(await fs.write("shared.txt", encode("x\n"), options({ precondition: ABSENT }))),
+    );
+    expect(await modeOf(join(root, "shared.txt"))).toBe(0o664);
+  });
+
+  test("an explicit newFileMode is exact: the umask does not apply to it", async () => {
+    const root = await freshRoot();
+    const fs = fsAt(root, { newFileMode: 0o644, newDirectoryMode: 0o755 });
+    await withUmask(0o077, async () =>
+      expectOk(
+        await fs.write(
+          "d/a.txt",
+          encode("a\n"),
+          options({ precondition: ABSENT, createParents: true }),
+        ),
+      ),
+    );
+    expect(await modeOf(join(root, "d"))).toBe(0o755);
+    expect(await modeOf(join(root, "d", "a.txt"))).toBe(0o644);
   });
 
   test("newFileMode and options.mode set the mode of a new file", async () => {
@@ -530,7 +551,7 @@ describe("node write: special files and parents", () => {
     expectReason(await fsAt(root).write("dir", encode("x\n"), options()), "not-a-file");
   });
 
-  test("createParents creates 0o755 directories whatever the umask", async () => {
+  test("createParents creates 0o777 directories without the umask (Q5)", async () => {
     const root = await freshRoot();
     const file = await withUmask(0o077, async () =>
       expectOk(
@@ -538,8 +559,8 @@ describe("node write: special files and parents", () => {
       ),
     );
     expect(file.createdDirectories).toEqual([join(root, "one"), join(root, "one", "two")]);
-    expect(await modeOf(join(root, "one"))).toBe(0o755);
-    expect(await modeOf(join(root, "one", "two"))).toBe(0o755);
+    expect(await modeOf(join(root, "one"))).toBe(0o700);
+    expect(await modeOf(join(root, "one", "two"))).toBe(0o700);
     expect(await readFile(join(root, "one", "two", "a.txt"), "utf8")).toBe("x\n");
   });
 

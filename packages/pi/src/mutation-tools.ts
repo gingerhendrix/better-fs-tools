@@ -28,7 +28,7 @@ import { toPiMutationDetails } from "./mutation-details.ts";
 import type { PiMutationDetails } from "./mutation-details.ts";
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
-import { checkPiContext, checkPiOptions, piFileSystems } from "./roots.ts";
+import { checkPiContext, checkPiOptions, piFileSystems, splitPiRootOptions } from "./roots.ts";
 import type { PiFileSystems, PiRootOptions } from "./roots.ts";
 
 /** Pi 0.84.4's editToolSystemPromptContribution, so the system prompt is unchanged. */
@@ -106,15 +106,15 @@ type Core = (input: never, ctx: ToolCallContext<ExtensionContext>) => Promise<Mu
  */
 export function createPiEditTool(options: CreatePiEditToolOptions = {}): PiMutationTool {
   checkPiOptions(options, "edit");
-  const { denyRoots, symlinks, hardLinks, ...rest } = options;
-  return buildPiEditTool(rest, piFileSystems({ denyRoots, symlinks, hardLinks }));
+  const [roots, rest] = splitPiRootOptions(options);
+  return buildPiEditTool(rest, piFileSystems(roots));
 }
 
 /** As createPiEditTool. `details` is always undefined, as for Pi's own write. */
 export function createPiWriteTool(options: CreatePiWriteToolOptions = {}): PiMutationTool {
   checkPiOptions(options, "write");
-  const { denyRoots, symlinks, hardLinks, ...rest } = options;
-  return buildPiWriteTool(rest, piFileSystems({ denyRoots, symlinks, hardLinks }));
+  const [roots, rest] = splitPiRootOptions(options);
+  return buildPiWriteTool(rest, piFileSystems(roots));
 }
 
 /** As createPiEditTool. A grammar signature sets constrainedSampling. */
@@ -122,8 +122,8 @@ export function createPiApplyPatchTool(
   options: CreatePiApplyPatchToolOptions = {},
 ): PiMutationTool {
   checkPiOptions(options, "apply_patch");
-  const { denyRoots, symlinks, hardLinks, ...rest } = options;
-  return buildPiApplyPatchTool(rest, piFileSystems({ denyRoots, symlinks, hardLinks }));
+  const [roots, rest] = splitPiRootOptions(options);
+  return buildPiApplyPatchTool(rest, piFileSystems(roots));
 }
 
 /** createPiEditTool over a given fs factory, so createPiFsTools can share one root cache. */

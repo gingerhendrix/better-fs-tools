@@ -19,6 +19,32 @@ export interface PiRootOptions {
   readonly symlinks?: NodeFileSystemOptions["symlinks"];
   /** A replace of a file with more than one hard link. Default "refuse" (W12). */
   readonly hardLinks?: "refuse" | "in-place";
+  /** Mode of a new file, exactly. Default 0o666 less the process umask. */
+  readonly newFileMode?: number;
+  /** Mode of a directory that createParents makes, exactly. Default 0o777 less the umask. */
+  readonly newDirectoryMode?: number;
+}
+
+/** The keys of PiRootOptions, which every Pi file tool and bundle takes. */
+export const PI_ROOT_KEYS = [
+  "denyRoots",
+  "symlinks",
+  "hardLinks",
+  "newFileMode",
+  "newDirectoryMode",
+] as const satisfies readonly (keyof PiRootOptions)[];
+
+/** The root options, and the rest of the options without them. */
+export function splitPiRootOptions<T extends PiRootOptions>(
+  options: T,
+): [PiRootOptions, Omit<T, keyof PiRootOptions>] {
+  const roots: Record<string, unknown> = {};
+  const rest = { ...options } as Record<string, unknown>;
+  for (const key of PI_ROOT_KEYS) {
+    if (rest[key] !== undefined) roots[key] = rest[key];
+    delete rest[key];
+  }
+  return [roots as PiRootOptions, rest as Omit<T, keyof PiRootOptions>];
 }
 
 /** The fs factory every Pi tool uses: one Node filesystem for each ctx.cwd. */
@@ -55,7 +81,7 @@ export function checkPiContext(ctx: unknown, tool: string): void {
  * nodeFileSystem({ cwd: root, allowedRoots: [root] }) and the given policy.
  */
 export function piFileSystems(options: PiRootOptions): PiFileSystems {
-  const { denyRoots, symlinks, hardLinks } = options;
+  const { denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode } = options;
   const fileSystemFor = rootCache((root) =>
     nodeFileSystem({
       cwd: root,
@@ -63,6 +89,8 @@ export function piFileSystems(options: PiRootOptions): PiFileSystems {
       ...(denyRoots === undefined ? {} : { denyRoots }),
       ...(symlinks === undefined ? {} : { symlinks }),
       ...(hardLinks === undefined ? {} : { hardLinks }),
+      ...(newFileMode === undefined ? {} : { newFileMode }),
+      ...(newDirectoryMode === undefined ? {} : { newDirectoryMode }),
     }),
   );
   return (call) => fileSystemFor(path.resolve(call.host.cwd));

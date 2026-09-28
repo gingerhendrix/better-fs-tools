@@ -17,7 +17,15 @@ import type {
   WriteOptions,
 } from "@better-fs-tools/fs";
 
-import { errorCode, fail, isMode, mapError, nodeIdentity, notAFile } from "./policy.ts";
+import {
+  createModes,
+  errorCode,
+  fail,
+  isMode,
+  mapError,
+  nodeIdentity,
+  notAFile,
+} from "./policy.ts";
 import type { NodeContext, TargetPaths } from "./policy.ts";
 import { nodeStat } from "./stat.ts";
 
@@ -57,7 +65,7 @@ export interface NodeWrites {
  *
  * stage() checks the path like open(), creates missing parents, and writes the
  * bytes to a 0o600 temp file next to the target: write, chmod to the old mode
- * or the new-file mode, then fsync. publish() takes an in-process lock for
+ * or the new-file mode (see createModes), then fsync. publish() takes an in-process lock for
  * the real path, checks the precondition against a fresh lstat, and publishes:
  * link() for a create, so a concurrent creator makes it fail with exists, and
  * rename() for a replace. Any failure removes the temp file and the
@@ -123,7 +131,7 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
       await handle.chmod(
         current.exists && current.mode !== null
           ? current.mode
-          : (options.mode ?? config.newFileMode),
+          : (options.mode ?? createModes(config).file),
       );
       await handle.sync();
       if (options.signal?.aborted) {
@@ -146,12 +154,13 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
     directories: readonly string[],
     created: string[],
   ): Promise<MutationError | null> => {
+    const mode = createModes(config).directory;
     for (const directory of directories) {
       try {
-        await io.mkdir(directory, config.newDirectoryMode);
+        await io.mkdir(directory, mode);
         created.push(directory);
-        // mkdir applies the umask. The configured mode is the rule.
-        await io.chmod(directory, config.newDirectoryMode);
+        // mkdir applies the umask. A configured mode is exact, so set it again.
+        await io.chmod(directory, mode);
       } catch (error) {
         if (errorCode(error) !== "EEXIST") return mapMutationError(error, "create-parent");
       }

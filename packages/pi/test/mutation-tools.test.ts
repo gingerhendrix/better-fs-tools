@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { readFile, symlink } from "node:fs/promises";
+import { readFile, stat, symlink } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -174,6 +174,14 @@ describe("pi write tools: execute", () => {
     await run(write, { path: "x.txt", content: "B\n" }, path.join(parent, "b"));
     expect(await readFile(path.join(parent, "a", "x.txt"), "utf8")).toBe("A\n");
     expect(await readFile(path.join(parent, "b", "x.txt"), "utf8")).toBe("B\n");
+  });
+
+  test("newFileMode and newDirectoryMode reach the filesystem of each root (Q5)", async () => {
+    const cwd = await fixture();
+    const write = createPiWriteTool({ newFileMode: 0o600, newDirectoryMode: 0o700 });
+    await run(write, { path: "d/x.txt", content: "x\n" }, cwd);
+    expect((await stat(path.join(cwd, "d"))).mode & 0o7777).toBe(0o700);
+    expect((await stat(path.join(cwd, "d", "x.txt"))).mode & 0o7777).toBe(0o600);
   });
 
   test("Pi's ctx object is the host, with the signal and tool call id", async () => {

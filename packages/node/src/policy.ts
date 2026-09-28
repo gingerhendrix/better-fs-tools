@@ -21,9 +21,16 @@ const DEFAULT_DENY_ROOTS = Object.freeze(["/dev", "/proc", "/sys"]);
 export interface NodeFileSystemOptions extends FileSystemRootOptions<SymlinkPolicy, "required"> {
   /** A replace of a file with more than one hard link. Default "refuse" (W12). "in-place" truncates and writes, not atomic. */
   readonly hardLinks?: "refuse" | "in-place";
-  /** Mode of a new file. The umask does not apply. Default 0o644. */
+  /**
+   * Mode of a new file, exactly: the umask does not apply to a mode you set.
+   * Default 0o666 with the process umask cleared from it, as open(2) does
+   * (0o644 under the usual umask 0o022).
+   */
   readonly newFileMode?: number;
-  /** Mode of a directory that createParents makes. The umask does not apply. Default 0o755. */
+  /**
+   * Mode of a directory that createParents makes, exactly. Default 0o777 with
+   * the process umask cleared from it, as mkdir(2) does (0o755 under 0o022).
+   */
   readonly newDirectoryMode?: number;
 }
 
@@ -34,8 +41,10 @@ export interface NodeConfig {
   readonly denyRoots: readonly string[];
   readonly symlinks: SymlinkPolicy;
   readonly hardLinks: "refuse" | "in-place";
-  readonly newFileMode: number;
-  readonly newDirectoryMode: number;
+  /** null: 0o666 without the umask, read when the file is made. */
+  readonly newFileMode: number | null;
+  /** null: 0o777 without the umask, read when the directory is made. */
+  readonly newDirectoryMode: number | null;
 }
 
 export interface Roots {
@@ -141,10 +150,12 @@ function resolveOptions(options: NodeFileSystemOptions): NodeConfig {
   if (hardLinks !== "refuse" && hardLinks !== "in-place") {
     throw new TypeError('hardLinks must be "refuse" or "in-place"');
   }
-  const newFileMode = options.newFileMode ?? 0o644;
-  const newDirectoryMode = options.newDirectoryMode ?? 0o755;
-  if (!isMode(newFileMode)) throw new TypeError("newFileMode must be an integer from 0 to 0o7777");
-  if (!isMode(newDirectoryMode)) {
+  const newFileMode = options.newFileMode ?? null;
+  const newDirectoryMode = options.newDirectoryMode ?? null;
+  if (newFileMode !== null && !isMode(newFileMode)) {
+    throw new TypeError("newFileMode must be an integer from 0 to 0o7777");
+  }
+  if (newDirectoryMode !== null && !isMode(newDirectoryMode)) {
     throw new TypeError("newDirectoryMode must be an integer from 0 to 0o7777");
   }
   const id = options.id ?? "node";
@@ -161,6 +172,25 @@ function resolveOptions(options: NodeFileSystemOptions): NodeConfig {
     hardLinks,
     newFileMode,
     newDirectoryMode,
+  };
+}
+
+/**
+ * The mode of a new file and of a new directory. A configured mode is exact.
+ * The defaults, 0o666 and 0o777, lose the bits of the process umask as it is
+ * now, which is what open(2) and mkdir(2) do.
+ */
+export function createModes(config: NodeConfig): {
+  readonly file: number;
+  readonly directory: number;
+} {
+  if (config.newFileMode !== null && config.newDirectoryMode !== null) {
+    return { file: config.newFileMode, directory: config.newDirectoryMode };
+  }
+  const umask = process.umask();
+  return {
+    file: config.newFileMode ?? 0o666 & ~umask,
+    directory: config.newDirectoryMode ?? 0o777 & ~umask,
   };
 }
 

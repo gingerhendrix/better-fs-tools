@@ -81,8 +81,8 @@ export async function afterShell(path: string): Promise<boolean> {
 | `identity`         | `"required"`            | The only value: Node always reports device and inode                                                   |
 | `id`               | `"node"`                | Appears in `result.file.backend`                                                                       |
 | `hardLinks`        | `"refuse"`              | A replace of a file with more than one hard link. `"in-place"` writes through the link, not atomically |
-| `newFileMode`      | `0o644`                 | Mode of a new file. The umask does not apply                                                           |
-| `newDirectoryMode` | `0o755`                 | Mode of a directory that `createParents` makes. The umask does not apply                               |
+| `newFileMode`      | `0o666` less the umask  | Mode of a new file. A mode you set is exact: the umask does not apply to it                            |
+| `newDirectoryMode` | `0o777` less the umask  | Mode of a directory that `createParents` makes. A mode you set is exact                                |
 
 ## How it opens a file
 
