@@ -4,7 +4,8 @@
  * 1. Builds dist/ with `bun run build:packages`.
  * 2. Packs each package with `bun pm pack`, applying publishConfig.
  * 3. Checks each tarball: manifest rules from plan section 3, exact files,
- *    export and pi.extensions paths, rewritten ranges, and every import.
+ *    export and pi.extensions paths, rewritten ranges, every import, and
+ *    every relative Markdown link.
  * 4. Installs the tarballs into a throwaway consumer, imports and reads under
  *    Node, and type-checks the published declarations.
  *
@@ -19,7 +20,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { prepareConsumer, runNodeConsumer, runTypeConsumers } from "./package-check/consumer.ts";
-import { checkFiles, checkImports } from "./package-check/files.ts";
+import { checkFiles, checkImports, checkLinks } from "./package-check/files.ts";
 import { packPackage } from "./package-check/pack.ts";
 import { RULES, SCOPE, checkManifest } from "./package-check/rules.ts";
 import type { Manifest } from "./package-check/rules.ts";
@@ -68,6 +69,7 @@ try {
     failures.push(...checkManifest(folder, manifest, source, version));
     failures.push(...(await checkFiles(folder, manifest, unpacked, sourceDir)));
     failures.push(...(await checkImports(folder, manifest, unpacked, exportsOf)));
+    failures.push(...(await checkLinks(manifest, unpacked)));
   }
 
   if (failures.length === 0) {

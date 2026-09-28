@@ -130,3 +130,39 @@ function checkSpecifier(
     ? null
     : "not a declared peer or dependency";
 }
+
+const LINK = /\]\(([^)\s]+)\)/gu;
+
+/**
+ * The relative link targets in one Markdown file, without their anchors.
+ * URLs, mail links, and same-page anchors are left out.
+ */
+export function relativeLinks(markdown: string): string[] {
+  const targets: string[] = [];
+  for (const match of markdown.matchAll(LINK)) {
+    const target = (match[1] ?? "").split("#")[0] ?? "";
+    if (target === "" || /^[a-z][a-z0-9+.-]*:/iu.test(target)) continue;
+    targets.push(target);
+  }
+  return targets;
+}
+
+/**
+ * Checks that every relative link in a shipped Markdown file names a file in
+ * the tarball, so an installed README never points at a missing guide.
+ */
+export async function checkLinks(packed: Manifest, unpacked: string): Promise<string[]> {
+  const failures: string[] = [];
+  const present = new Set(await listFiles(unpacked));
+  for (const file of present) {
+    if (!file.endsWith(".md")) continue;
+    const text = await readFile(join(unpacked, file), "utf8");
+    for (const target of relativeLinks(text)) {
+      const resolved = posix.normalize(posix.join(posix.dirname(file), target));
+      if (!present.has(resolved)) {
+        failures.push(`${packed.name}: ${file} links to ${target}, which is not in the tarball`);
+      }
+    }
+  }
+  return failures;
+}
