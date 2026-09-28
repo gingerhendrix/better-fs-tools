@@ -18,7 +18,7 @@ export const SCOPE = "@better-fs-tools";
 export const RULES: Readonly<Record<string, PackageRule>> = {
   fs: { dependencies: [], peers: {}, node: false, extraFiles: [] },
   read: { dependencies: ["fs"], peers: {}, node: false, extraFiles: ["docs"] },
-  write: { dependencies: ["fs", "read"], peers: {}, node: false, extraFiles: [] },
+  write: { dependencies: ["fs", "read"], peers: {}, node: false, extraFiles: ["docs"] },
   node: { dependencies: ["fs", "read", "write"], peers: {}, node: true, extraFiles: [] },
   "ai-sdk": {
     dependencies: ["read", "write"],

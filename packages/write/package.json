@@ -4,7 +4,8 @@
   "description": "Edit, write, and apply_patch tools for TypeScript agents.",
   "license": "MIT",
   "files": [
-    "dist"
+    "dist",
+    "docs"
   ],
   "type": "module",
   "sideEffects": false,
