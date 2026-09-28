@@ -110,6 +110,8 @@ export class OutputCapture {
  * newline when the budget holds one, else at a UTF-8 character boundary.
  */
 function headCut(head: Uint8Array, bytes: number, lines: number): number {
+  // A zero line budget shows no head, not the first line.
+  if (lines <= 0) return 0;
   const limit = Math.min(bytes, head.byteLength);
   let seen = 0;
   let lastNewline = -1;
@@ -120,7 +122,6 @@ function headCut(head: Uint8Array, bytes: number, lines: number): number {
     if (seen >= lines) break;
   }
   if (lastNewline >= 0) return lastNewline + 1;
-  if (lines === 0) return 0;
   return charBoundaryBack(head, limit);
 }
 

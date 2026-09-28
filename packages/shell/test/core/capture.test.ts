@@ -52,6 +52,29 @@ describe("OutputCapture", () => {
     expect(view.omittedBytes).toBe(view.totalBytes - (375 + 1_500) * 16);
   });
 
+  test("small line budgets never show more lines than the budget", () => {
+    const source = "one\ntwo\nthree\nfour\nfive\nsix\nseven\n";
+    for (const headPercent of [1, 20, 50, 99, 100]) {
+      for (let maxOutputLines = 1; maxOutputLines <= 5; maxOutputLines += 1) {
+        const view = capture([source], { maxOutputLines, headPercent });
+        const shown = [view.head, view.tail ?? ""].filter((part) => part !== "");
+        const count = shown.join("\n").split("\n").length;
+        expect({ headPercent, maxOutputLines, count }).toEqual({
+          headPercent,
+          maxOutputLines,
+          count: Math.min(maxOutputLines, 7),
+        });
+        expect(view.omittedLines).toBe(7 - count);
+      }
+    }
+  });
+
+  test("maxOutputLines 1 with the default head percent shows only the last line", () => {
+    const view = capture(["one\ntwo\nthree\n"], { maxOutputLines: 1 });
+    expect(view.head).toBe("");
+    expect(view.tail).toBe("three");
+  });
+
   test("the line budget splits 20 / 80 when bytes fit", () => {
     const view = capture([lines(3_000)]);
     expect(view.head.split("\n")).toHaveLength(400);
