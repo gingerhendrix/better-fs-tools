@@ -31,7 +31,8 @@ export async function prepareConsumer(repository: string, consumer: string): Pro
 /**
  * Imports every export under Node, not Bun, then reads through the Node tool,
  * the memory filesystem, the AI SDK tool, just-bash, and the Pi extension entry
- * that `pi.extensions` names.
+ * that `pi.extensions` names. It also creates and edits files on disk with
+ * `createNodeFsTools()`, and edits one through `justBashFileSystem()`.
  */
 export function runNodeConsumer(
   consumer: string,
@@ -56,7 +57,10 @@ const { memoryFileSystem } = await import("${SCOPE}/fs");
 const { createReadTool, textOf } = await import("${SCOPE}/read");
 const { createNodeReadTool } = await import("${SCOPE}/node");
 const { createAiSdkReadTool } = await import("${SCOPE}/ai-sdk");
-const { justBashReadFileSystem } = await import("${SCOPE}/just-bash");
+const { createNodeFsTools } = await import("${SCOPE}/node");
+const { justBashFileSystem, justBashReadFileSystem } = await import("${SCOPE}/just-bash");
+const { createEditTool } = await import("${SCOPE}/write");
+const { readFile } = await import("node:fs/promises");
 const { InMemoryFs } = await import("just-bash");
 const expect = (label, actual, wanted) => {
   if (actual !== wanted) throw new Error(label + ": " + JSON.stringify(actual));
@@ -71,6 +75,24 @@ const bash = justBashReadFileSystem(new InMemoryFs({ "/w/a.txt": "x\\n" }), {
   id: "bash", cwd: "/w", allowedRoots: ["/w"], maxBufferedBytes: 1024,
 });
 expect("just-bash", textOf(await createReadTool({ fs: bash })({ path: "a.txt" })).split("\\n")[0], "1|x");
+
+const fsTools = createNodeFsTools();
+expect("node create", (await fsTools.write({ path: "made/new.txt", content: "one\\n" })).status, "ok");
+const editNew = { path: "made/new.txt", edits: [{ oldText: "one", newText: "two" }] };
+expect("node edit after create", (await fsTools.edit(editNew)).status, "ok");
+expect("node created bytes", await readFile("made/new.txt", "utf8"), "two\\n");
+const editFixture = { path: "fixture.txt", edits: [{ oldText: "beta", newText: "gamma" }] };
+expect("node edit before read", (await fsTools.edit(editFixture)).error?.code, "NOT_READ");
+await fsTools.read({ path: "fixture.txt" });
+expect("node edit", (await fsTools.edit(editFixture)).status, "ok");
+expect("node edited bytes", await readFile("fixture.txt", "utf8"), "alpha\\ngamma\\n");
+const bashBackend = new InMemoryFs({ "/w/b.txt": "y\\n" });
+const writableBash = justBashFileSystem(bashBackend, {
+  id: "bash", cwd: "/w", allowedRoots: ["/w"], maxBufferedBytes: 1024,
+});
+const bashEdit = createEditTool({ fs: writableBash, preconditions: { requireRead: "off" } });
+expect("just-bash edit", (await bashEdit({ path: "b.txt", edits: [{ oldText: "y", newText: "z" }] })).status, "ok");
+expect("just-bash bytes", await bashBackend.readFile("/w/b.txt"), "z\\n");
 
 const { pathToFileURL } = await import("node:url");
 const entry = new URL(${JSON.stringify(piExtension)}, pathToFileURL(process.cwd() + "/node_modules/${SCOPE}/pi/"));
