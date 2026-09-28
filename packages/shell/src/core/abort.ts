@@ -1,6 +1,8 @@
-/** Thrown when the caller's signal aborted before the command started. */
+import type { ShellPhase } from "../contract/result.ts";
+
+/** Thrown when the caller's signal aborted before the command started. `phase` names the stage. */
 export class AbortStop extends Error {
-  constructor() {
+  constructor(readonly phase: ShellPhase = "run") {
     super("aborted");
   }
 }

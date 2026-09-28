@@ -10,27 +10,27 @@ const allowPrefixes: ShellAuthorizer = {
       ? { allow: true }
       : {
           allow: false,
-          note: { code: "NOT_ALLOWED", severity: "warning", message: "Ask the user first." },
+          note: { code: "not-allowed", severity: "warning", message: "Ask the user first." },
         },
 };
 
-// A reusable guard: refuse programs that need a terminal.
+// A reusable guard: refuse programs that need a terminal. It runs before
+// authorize, so allowPrefixes sees any rewritten command.
 const noInteractive: BeforeRunHook = {
   id: "no-interactive",
   beforeRun: (run) =>
     /^(vim|less|top)\b/u.test(run.command)
       ? {
-          kind: "refuse",
-          note: { code: "INTERACTIVE", severity: "warning", message: "stdin is closed." },
+          allow: false,
+          note: { code: "interactive", severity: "warning", message: "stdin is closed." },
         }
-      : { kind: "continue" },
+      : { allow: true },
 };
 
-// Mask a secret in the model view.
+// Mask a secret in the model view. The hook returns only what it changes.
 const maskTokens: AfterRunHook = {
   id: "mask-tokens",
   afterRun: (outcome) => ({
-    ...outcome,
     output: {
       ...outcome.output,
       head: outcome.output.head.replaceAll(/ghp_\w+/gu, "ghp_***"),

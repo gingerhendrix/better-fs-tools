@@ -1,16 +1,27 @@
 import { describe, expect, test } from "bun:test";
 
-import { createBashTool, defaultShellEnv } from "@better-fs-tools/shell";
-import type { CommandRunner, OutputChunk, RunOutcome } from "@better-fs-tools/shell";
+import { createBashTool, defaultShellEnv, parseBashInput } from "@better-fs-tools/shell";
+import type {
+  CommandRunner,
+  OutputChunk,
+  RunOutcome,
+  ShellHookContext,
+} from "@better-fs-tools/shell";
 
-import { err, out, scriptedRunner, text } from "../helpers.ts";
+import { resolveShellLimits } from "@better-fs-tools/shell";
+
+import { err, errorOf, out, scriptedRunner, text } from "../helpers.ts";
+
+const createLimits = () => resolveShellLimits();
+
+const anyMessage = expect.any(String) as unknown as string;
 
 describe("statuses", () => {
   test("exit 0 is ok, with the exit code first in the text", async () => {
     const bash = createBashTool({ runner: scriptedRunner({ steps: [out("hello\n")] }) });
     const result = await bash({ command: "echo hello" });
     expect(result.status).toBe("ok");
-    expect(result.error).toBeNull();
+    expect("error" in result).toBe(false);
     expect(result.run?.exitCode).toBe(0);
     expect(text(result)).toMatch(/^Exit code 0 · \d+(\.\d)? s\nhello$/u);
   });
@@ -19,7 +30,7 @@ describe("statuses", () => {
     const runner = scriptedRunner({ steps: [err("boom\n")], exit: { code: 2, signal: null } });
     const result = await createBashTool({ runner })({ command: "false" });
     expect(result.status).toBe("failed");
-    expect(result.error).toBeNull();
+    expect("error" in result).toBe(false);
     expect(text(result).split("\n")[0]).toStartWith("Exit code 2 ·");
     expect(text(result)).toContain("boom");
   });
@@ -55,7 +66,7 @@ describe("statuses", () => {
     );
   });
 
-  test("the caller's abort stops the run and returns aborted with the output so far", async () => {
+  test("the caller's abort stops the run and returns ABORTED with the output so far", async () => {
     const runner = scriptedRunner({ steps: [out("so far\n")], hang: true });
     const controller = new AbortController();
     setTimeout(() => controller.abort(), 30);
@@ -63,9 +74,11 @@ describe("statuses", () => {
       { command: "sleep" },
       { signal: controller.signal },
     );
-    expect(result.status).toBe("aborted");
+    expect(result.status).toBe("error");
+    expect(errorOf(result)).toEqual({ code: "ABORTED", phase: "run", message: anyMessage });
+    expect(result.run?.stoppedBy).toBe("abort");
     expect(result.output?.head).toBe("so far");
-    expect(text(result)).toStartWith("Aborted after");
+    expect(text(result)).toContain("[bash:aborted] Aborted after");
   });
 
   test("an abort before the start never calls the runner", async () => {
@@ -76,7 +89,10 @@ describe("statuses", () => {
       { command: "x" },
       { signal: controller.signal },
     );
-    expect(result.status).toBe("aborted");
+    expect(result.status).toBe("error");
+    // The default env is the first host call, and it sees the abort.
+    expect(errorOf(result)).toEqual({ code: "ABORTED", phase: "env", message: anyMessage });
+    expect(result.notes.map((note) => note.code)).toEqual(["aborted"]);
     expect(result.run).toBeNull();
     expect(runner.requests).toHaveLength(0);
   });
@@ -89,7 +105,7 @@ describe("statuses", () => {
     expect(Date.now() - started).toBeLessThan(3_000);
     expect(result.status).toBe("timeout");
     expect(result.run?.unconfirmedStop).toBe(true);
-    expect(result.notes.map((note) => note.code)).toContain("UNCONFIRMED_STOP");
+    expect(result.notes.map((note) => note.code)).toContain("unconfirmed-stop");
   });
 
   test("past maxCaptureBytes the core stops the command with OUTPUT_CAP", async () => {
@@ -101,9 +117,9 @@ describe("statuses", () => {
     const bash = createBashTool({ runner, limits: { maxCaptureBytes: 10_000 } });
     const result = await bash({ command: "yes" });
     expect(result.status).toBe("error");
-    expect(result.error).toEqual({ code: "OUTPUT_CAP", phase: "run" });
+    expect(errorOf(result)).toEqual({ code: "OUTPUT_CAP", phase: "run", message: anyMessage });
     expect(result.run?.stoppedBy).toBe("output-cap");
-    expect(text(result)).toContain("[bash:OUTPUT_CAP]");
+    expect(text(result)).toContain("[bash:output-cap]");
   });
 });
 
@@ -111,22 +127,49 @@ describe("input", () => {
   test("a blank command is INVALID_INPUT", async () => {
     const result = await createBashTool({ runner: scriptedRunner() })({ command: "  " });
     expect(result.status).toBe("error");
-    expect(result.error).toEqual({ code: "INVALID_INPUT", phase: "input" });
+    expect(errorOf(result)).toEqual({ code: "INVALID_INPUT", phase: "input", message: anyMessage });
+    expect(result.notes.map((note) => note.code)).toEqual(["invalid-input"]);
     expect(result.request).toBeNull();
   });
 
   test("an unknown key is INVALID_INPUT", async () => {
     const bash = createBashTool({ runner: scriptedRunner() });
     const result = await bash({ command: "x", extra: 1 } as never);
-    expect(result.error?.code).toBe("INVALID_INPUT");
+    expect(errorOf(result)?.code).toBe("INVALID_INPUT");
   });
 
-  test("a timeout over the maximum is cut, with a note", async () => {
+  test("a timeout over the maximum is cut, with a clamped info note", async () => {
     const runner = scriptedRunner();
     const bash = createBashTool({ runner, limits: { maxTimeoutMs: 1_000, defaultTimeoutMs: 500 } });
     const result = await bash({ command: "x", timeoutMs: 5_000 });
     expect(result.request?.timeoutMs).toBe(1_000);
-    expect(result.notes[0]?.code).toBe("TIMEOUT_CLAMPED");
+    expect(result.notes[0]).toEqual({
+      code: "clamped",
+      severity: "info",
+      message: "The requested timeout of 5 s is over the maximum, so 1 s was used.",
+      data: { param: "timeoutMs", requested: 5_000, max: 1_000 },
+    });
+  });
+
+  test("a timeout at the maximum gives no note", async () => {
+    const bash = createBashTool({
+      runner: scriptedRunner(),
+      limits: { maxTimeoutMs: 1_000, defaultTimeoutMs: 500 },
+    });
+    const result = await bash({ command: "x", timeoutMs: 999.5 });
+    expect(result.request?.timeoutMs).toBe(1_000);
+    expect(result.notes).toEqual([]);
+  });
+
+  test("parseBashInput returns the request and throws TypeError, like the other parse helpers", () => {
+    const limits = { ...createLimits(), maxTimeoutMs: 1_000 };
+    expect(parseBashInput({ command: "ls", timeoutMs: 5_000 }, limits)).toEqual({
+      command: "ls",
+      timeoutMs: 1_000,
+      cwd: null,
+    });
+    expect(() => parseBashInput({ command: " " }, limits)).toThrow(TypeError);
+    expect(() => parseBashInput({ command: "ls", extra: 1 }, limits)).toThrow(TypeError);
   });
 
   test("the default timeout applies when none is given", async () => {
@@ -169,7 +212,11 @@ describe("cwd", () => {
       resolve: { id: "none", resolve: () => ({ kind: "not-found" }) },
     });
     const result = await bash({ command: "x", cwd: "gone" });
-    expect(result.error).toEqual({ code: "CWD_NOT_FOUND", phase: "resolve" });
+    expect(errorOf(result)).toEqual({
+      code: "CWD_NOT_FOUND",
+      phase: "resolve",
+      message: anyMessage,
+    });
   });
 
   test("a runner start error maps to CWD_NOT_A_DIRECTORY", async () => {
@@ -177,7 +224,11 @@ describe("cwd", () => {
       exit: { code: null, signal: null, error: { reason: "cwd-not-a-directory" } },
     });
     const result = await createBashTool({ runner })({ command: "x", cwd: "file.txt" });
-    expect(result.error).toEqual({ code: "CWD_NOT_A_DIRECTORY", phase: "run" });
+    expect(errorOf(result)).toEqual({
+      code: "CWD_NOT_A_DIRECTORY",
+      phase: "run",
+      message: anyMessage,
+    });
     expect(result.run).toBeNull();
   });
 
@@ -190,7 +241,7 @@ describe("cwd", () => {
       },
     };
     const result = await createBashTool({ runner })({ command: "x" });
-    expect(result.error).toEqual({ code: "SPAWN_FAILED", phase: "run" });
+    expect(errorOf(result)).toEqual({ code: "SPAWN_FAILED", phase: "run", message: anyMessage });
     expect(text(result)).toContain("no shell");
   });
 });
@@ -204,19 +255,34 @@ describe("hooks", () => {
         id: "no-rm",
         authorize: (target) =>
           target.command.startsWith("rm")
-            ? { allow: false, note: { code: "NO_RM", severity: "warning", message: "No rm." } }
+            ? { allow: false, note: { code: "no-rm", severity: "warning", message: "No rm." } }
             : { allow: true },
       },
     });
     const denied = await bash({ command: "rm -rf x" });
-    expect(denied.status).toBe("refused");
-    expect(denied.error).toEqual({ code: "DENIED", phase: "authorize" });
-    expect(text(denied)).toBe("[bash:NO_RM] No rm.");
+    expect(denied.status).toBe("error");
+    expect(errorOf(denied)).toEqual({ code: "DENIED", phase: "authorize", message: "No rm." });
+    expect(text(denied)).toBe("[bash:no-rm] No rm.");
     expect(runner.requests).toHaveLength(0);
     expect((await bash({ command: "ls" })).status).toBe("ok");
   });
 
-  test("authorize sees the cwd as the path fields", async () => {
+  test("authorize without a note gives a denied note", async () => {
+    const bash = createBashTool({
+      runner: scriptedRunner({}, "/work"),
+      authorize: { id: "no", authorize: () => ({ allow: false }) },
+    });
+    const result = await bash({ command: "ls" });
+    expect(result.notes).toEqual([
+      {
+        code: "denied",
+        severity: "warning",
+        message: "The command in /work was refused by policy.",
+      },
+    ]);
+  });
+
+  test("authorize sees the cwd as the path fields, with a relative display path", async () => {
     const seen: unknown[] = [];
     const bash = createBashTool({
       runner: scriptedRunner({}, "/work"),
@@ -234,12 +300,30 @@ describe("hooks", () => {
         action: "run",
         requestedPath: "src",
         resolvedPath: "/work/src",
-        displayPath: "/work/src",
+        displayPath: "src",
         command: "ls",
         cwd: "/work/src",
         timeoutMs: 120_000,
       },
     ]);
+  });
+
+  test("the display path is . for the default cwd, and ../ outside it", async () => {
+    const seen: string[] = [];
+    const bash = createBashTool({
+      runner: scriptedRunner({}, "/work/app"),
+      authorize: {
+        id: "spy",
+        authorize: (target) => {
+          seen.push(target.displayPath);
+          return { allow: true };
+        },
+      },
+    });
+    await bash({ command: "ls" });
+    await bash({ command: "ls", cwd: "/work/lib/x" });
+    await bash({ command: "ls", cwd: "/" });
+    expect(seen).toEqual([".", "../lib/x", "../.."]);
   });
 
   test("beforeRun can refuse", async () => {
@@ -250,16 +334,78 @@ describe("hooks", () => {
         {
           id: "no-vim",
           beforeRun: () => ({
-            kind: "refuse",
-            note: { code: "INTERACTIVE", severity: "warning", message: "vim needs a terminal." },
+            allow: false,
+            note: { code: "interactive", severity: "warning", message: "vim needs a terminal." },
           }),
         },
       ],
     });
     const result = await bash({ command: "vim" });
-    expect(result.status).toBe("refused");
-    expect(result.error).toEqual({ code: "REFUSED", phase: "beforeRun" });
+    expect(result.status).toBe("error");
+    expect(errorOf(result)).toEqual({
+      code: "REFUSED",
+      phase: "beforeRun",
+      message: "vim needs a terminal.",
+    });
     expect(runner.requests).toHaveLength(0);
+  });
+
+  test("a beforeRun refusal without a note gets a refused note", async () => {
+    const bash = createBashTool({
+      runner: scriptedRunner(),
+      beforeRun: [{ id: "no", beforeRun: () => ({ allow: false }) }],
+    });
+    const result = await bash({ command: "x" });
+    expect(result.notes).toEqual([
+      { code: "refused", severity: "warning", message: "The command was refused by the no check." },
+    ]);
+  });
+
+  test("authorize runs after beforeRun and sees the rewritten command", async () => {
+    const order: string[] = [];
+    const runner = scriptedRunner();
+    const bash = createBashTool({
+      runner,
+      beforeRun: [
+        {
+          id: "wrap",
+          beforeRun: (run) => {
+            order.push("beforeRun");
+            return { allow: true, command: `timeout 5 ${run.command}` };
+          },
+        },
+      ],
+      authorize: {
+        id: "spy",
+        authorize: (target) => {
+          order.push(`authorize ${target.command}`);
+          return target.command.startsWith("timeout 5 ")
+            ? { allow: true }
+            : { allow: false, note: { code: "no", severity: "warning", message: "no" } };
+        },
+      },
+    });
+    const result = await bash({ command: "make" });
+    expect(order).toEqual(["beforeRun", "authorize timeout 5 make"]);
+    expect(result.status).toBe("ok");
+    expect(runner.requests[0]?.command).toBe("timeout 5 make");
+  });
+
+  test("a beforeRun refusal stops the call before authorize", async () => {
+    let authorized = false;
+    const bash = createBashTool({
+      runner: scriptedRunner(),
+      beforeRun: [{ id: "no", beforeRun: () => ({ allow: false }) }],
+      authorize: {
+        id: "spy",
+        authorize: () => {
+          authorized = true;
+          return { allow: true };
+        },
+      },
+    });
+    expect(errorOf(await bash({ command: "x" }))?.code).toBe("REFUSED");
+    expect(authorized).toBe(false);
   });
 
   test("beforeRun rewrites feed the next hook and the runner", async () => {
@@ -268,12 +414,12 @@ describe("hooks", () => {
     const bash = createBashTool({
       runner,
       beforeRun: [
-        { id: "a", beforeRun: (run) => ({ kind: "continue", command: `${run.command} | head` }) },
+        { id: "a", beforeRun: (run) => ({ allow: true, command: `${run.command} | head` }) },
         {
           id: "b",
           beforeRun: (run) => {
             seen.push(run.command);
-            return { kind: "continue", notes: [{ code: "B", severity: "info", message: "b" }] };
+            return { allow: true, notes: [{ code: "b", severity: "info", message: "b" }] };
           },
         },
       ],
@@ -282,7 +428,7 @@ describe("hooks", () => {
     expect(seen).toEqual(["cat x | head"]);
     expect(runner.requests[0]?.command).toBe("cat x | head");
     expect(result.run?.command).toBe("cat x | head");
-    expect(result.notes.map((note) => note.code)).toEqual(["B"]);
+    expect(result.notes.map((note) => note.code)).toEqual(["b"]);
   });
 
   test("the default env is defaultShellEnv only; env replaces it", async () => {
@@ -293,26 +439,112 @@ describe("hooks", () => {
     expect(runner.requests[1]?.env).toEqual({ A: "1" });
   });
 
-  test("afterRun may change the output and add notes, but not the status", async () => {
+  test("afterRun returns the output and the notes; the status stays", async () => {
     const runner = scriptedRunner({ steps: [out("token=abc\n")], exit: { code: 1, signal: null } });
+    const seen: RunOutcome["status"][] = [];
     const bash = createBashTool({
       runner,
       afterRun: [
         {
           id: "mask",
-          afterRun: (outcome: RunOutcome): RunOutcome => ({
-            ...outcome,
-            status: "ok",
-            output: { ...outcome.output, head: outcome.output.head.replace("abc", "***") },
-            notes: [...outcome.notes, { code: "MASKED", severity: "info", message: "Masked." }],
-          }),
+          afterRun: (outcome) => {
+            seen.push(outcome.status);
+            return {
+              output: { ...outcome.output, head: outcome.output.head.replace("abc", "***") },
+              notes: [...outcome.notes, { code: "masked", severity: "info", message: "Masked." }],
+            };
+          },
         },
       ],
     });
     const result = await bash({ command: "env" });
+    expect(seen).toEqual(["failed"]);
     expect(result.status).toBe("failed");
     expect(result.output?.head).toBe("token=***");
-    expect(text(result)).toContain("[bash:MASKED] Masked.");
+    expect(text(result)).toContain("[bash:masked] Masked.");
+  });
+
+  test("an afterRun field left out keeps its value", async () => {
+    const runner = scriptedRunner({ steps: [out("kept\n")] });
+    const bash = createBashTool({
+      runner,
+      afterRun: [
+        { id: "none", afterRun: () => ({}) },
+        {
+          id: "notes",
+          afterRun: (outcome) => ({
+            notes: [...outcome.notes, { code: "seen", severity: "info", message: "seen" }],
+          }),
+        },
+      ],
+    });
+    const result = await bash({ command: "x" });
+    expect(result.status).toBe("ok");
+    expect(result.output?.head).toBe("kept");
+    expect(result.notes.map((note) => note.code)).toEqual(["seen"]);
+  });
+
+  test("afterRun sees the error of a run the core stopped", async () => {
+    const seen: unknown[] = [];
+    const runner = scriptedRunner({
+      steps: Array.from({ length: 5 }, () => out("x".repeat(50))),
+      hang: true,
+    });
+    const bash = createBashTool({
+      runner,
+      limits: { maxCaptureBytes: 100 },
+      afterRun: [
+        {
+          id: "spy",
+          afterRun: (outcome) => {
+            seen.push(outcome.status === "error" ? outcome.error.code : outcome.status);
+            return {};
+          },
+        },
+      ],
+    });
+    const result = await bash({ command: "yes" });
+    expect(seen).toEqual(["OUTPUT_CAP"]);
+    expect(errorOf(result)?.code).toBe("OUTPUT_CAP");
+  });
+
+  test("host functions get the digest and the clock from the dependencies", async () => {
+    const digest = { id: "d", create: () => ({ update() {}, digest: () => "" }), hash: () => "h" };
+    const at = new Date("2026-09-28T00:00:00.000Z");
+    const seen: Pick<ShellHookContext, "digest" | "clock">[] = [];
+    const bash = createBashTool({
+      runner: scriptedRunner(),
+      digest,
+      clock: () => at,
+      authorize: {
+        id: "spy",
+        authorize: (_target, ctx) => {
+          seen.push({ digest: ctx.digest, clock: ctx.clock });
+          return { allow: true };
+        },
+      },
+    });
+    await bash({ command: "x" });
+    expect(seen[0]?.digest).toBe(digest);
+    expect(seen[0]?.clock()).toBe(at);
+  });
+
+  test("the default digest is null and the default clock is the time now", async () => {
+    let ctx: ShellHookContext | null = null;
+    await createBashTool({
+      runner: scriptedRunner(),
+      beforeRun: [
+        {
+          id: "spy",
+          beforeRun: (_run, hookCtx) => {
+            ctx = hookCtx;
+            return { allow: true };
+          },
+        },
+      ],
+    })({ command: "x" });
+    expect((ctx as ShellHookContext | null)?.digest).toBeNull();
+    expect((ctx as ShellHookContext | null)?.clock()).toBeInstanceOf(Date);
   });
 
   test("a throwing hook gives EXTENSION_FAILED at its phase", async () => {
@@ -325,15 +557,43 @@ describe("hooks", () => {
       [{ beforeRun: [{ id: "before", beforeRun: boom }] }, "beforeRun"],
       [{ env: boom }, "env"],
       [{ afterRun: [{ id: "after", afterRun: boom }] }, "afterRun"],
-      [{ formatter: { id: "fmt", format: boom } }, "format"],
       [{ spill: { id: "spill", open: async () => boom() } }, "spill"],
       [{ resolve: { id: "res", resolve: boom } }, "resolve"],
     ] as const;
     for (const [deps, phase] of cases) {
       const result = await createBashTool({ runner, ...deps })({ command: "x", cwd: "." });
       expect(result.status).toBe("error");
-      expect(result.error).toEqual({ code: "EXTENSION_FAILED", phase });
-      expect(text(result)).toContain("[bash:EXTENSION_FAILED]");
+      expect(errorOf(result)).toEqual({ code: "EXTENSION_FAILED", phase, message: anyMessage });
+      expect(text(result)).toContain("[bash:extension-failed]");
+    }
+  });
+
+  test("a formatter that fails keeps the status and adds an extension-failed warning", async () => {
+    const runner = scriptedRunner({ steps: [out("kept\n")] });
+    const cases = [
+      () => {
+        throw new Error("boom");
+      },
+      () => 42 as never,
+    ];
+    for (const format of cases) {
+      const result = await createBashTool({ runner, formatter: { id: "fmt", format } })({
+        command: "x",
+      });
+      expect(result.status).toBe("ok");
+      expect("error" in result).toBe(false);
+      expect(result.notes).toEqual([
+        {
+          code: "extension-failed",
+          severity: "warning",
+          message:
+            "The fmt extension failed during the format phase. This is a host problem, not a problem with the command.",
+          data: { extension: "formatter", id: "fmt" },
+        },
+      ]);
+      expect(text(result)).toStartWith("Exit code 0");
+      expect(text(result)).toContain("kept");
+      expect(text(result)).toContain("[bash:extension-failed]");
     }
   });
 
@@ -341,7 +601,7 @@ describe("hooks", () => {
     const runner = scriptedRunner({ steps: [out("kept\n")] });
     const bash = createBashTool({
       runner,
-      afterRun: [{ id: "after", afterRun: () => ({}) as never }],
+      afterRun: [{ id: "after", afterRun: () => ({ output: "not a view" }) as never }],
     });
     const result = await bash({ command: "x" });
     expect(result.run?.exitCode).toBe(0);
@@ -390,7 +650,7 @@ describe("hooks", () => {
     const result = await bash({ command: "x" });
     expect(result.status).toBe("ok");
     expect(result.output?.spill).toBeNull();
-    expect(result.notes.map((note) => note.code)).toEqual(["SPILL_FAILED"]);
+    expect(result.notes.map((note) => note.code)).toEqual(["spill-failed"]);
   });
 });
 
@@ -406,7 +666,7 @@ describe("output stream failures", () => {
     };
   }
 
-  test("an output stream that throws gives an OUTPUT_INCOMPLETE warning", async () => {
+  test("an output stream that throws gives an output-incomplete warning", async () => {
     const runner = runnerWith({
       async *[Symbol.asyncIterator]() {
         yield out("partial\n");
@@ -418,14 +678,14 @@ describe("output stream failures", () => {
     expect(result.output?.head).toBe("partial");
     expect(result.notes).toEqual([
       {
-        code: "OUTPUT_INCOMPLETE",
+        code: "output-incomplete",
         severity: "warning",
         message:
           "The output may be incomplete: the output stream failed (lost output). The exit status is still the command's.",
         data: { skippedChunks: 0, detail: "lost output" },
       },
     ]);
-    expect(text(result)).toContain("[bash:OUTPUT_INCOMPLETE]");
+    expect(text(result)).toContain("[bash:output-incomplete]");
   });
 
   test("an output stream that throws before any chunk does not read as clean empty output", async () => {
@@ -436,7 +696,7 @@ describe("output stream failures", () => {
       },
     });
     const result = await createBashTool({ runner })({ command: "x" });
-    expect(result.notes.map((note) => note.code)).toEqual(["OUTPUT_INCOMPLETE"]);
+    expect(result.notes.map((note) => note.code)).toEqual(["output-incomplete"]);
   });
 
   test("malformed chunks are skipped and counted", async () => {
@@ -450,7 +710,7 @@ describe("output stream failures", () => {
     });
     const result = await createBashTool({ runner })({ command: "x" });
     expect(result.output?.head).toBe("a\nb");
-    expect(result.notes).toMatchObject([{ code: "OUTPUT_INCOMPLETE", data: { skippedChunks: 2 } }]);
+    expect(result.notes).toMatchObject([{ code: "output-incomplete", data: { skippedChunks: 2 } }]);
     expect(result.notes[0]?.message).toContain("2 malformed output chunks, which were skipped");
   });
 });

@@ -5,16 +5,18 @@ import type { RunOutcome, ShellHookContext } from "../contract/extensions.ts";
 import type { BashRequest } from "../contract/input.ts";
 import type {
   ShellError,
+  ShellFailure,
   ShellOutput,
   ShellReport,
   ShellResult,
   ShellRun,
-  ShellStatus,
+  ShellRunReport,
 } from "../contract/result.ts";
 import { defaultShellFormatter } from "../formatters/default.ts";
 import { AbortStop } from "./abort.ts";
 import { execute } from "./execute.ts";
-import { InputError, isRecord, parseBashInput } from "./input.ts";
+import type { Executed } from "./execute.ts";
+import { clampedTimeout, isRecord, parseBashInput } from "./input.ts";
 import {
   authorize,
   baseCwd,
@@ -25,12 +27,13 @@ import {
   runnerFor,
 } from "./stages.ts";
 import type { CallScope } from "./stages.ts";
-import { StageStop, info, isNoteList, warning } from "./stop.ts";
+import { StageStop, errorNote, extensionId, info, isNoteList, messageOf, warning } from "./stop.ts";
 
 /**
- * input → runner and cwd → authorize → beforeRun → env → run and capture →
- * afterRun → format. Every expected failure is a result. Only a formatter
- * that throws twice propagates.
+ * input → runner and cwd → beforeRun → authorize → env → run and capture →
+ * afterRun → format. authorize sees the command after every beforeRun
+ * rewrite. Every expected failure is a result. Only a default formatter that
+ * throws propagates.
  */
 export async function runBash<THost>(
   deps: ShellDependencies<THost>,
@@ -42,23 +45,16 @@ export async function runBash<THost>(
 
   let request: BashRequest;
   try {
-    const parsed = parseBashInput(input, limits);
-    request = parsed.request;
-    if (parsed.clampedFrom !== null) {
-      const message = messages.timeoutClamped({
-        requestedMs: parsed.clampedFrom,
-        maxMs: limits.maxTimeoutMs,
-      });
-      notes.push(info("TIMEOUT_CLAMPED", message));
-    }
+    request = parseBashInput(input, limits);
   } catch (error) {
-    if (!(error instanceof InputError)) throw error;
-    const note = warning("INVALID_INPUT", messages.invalidInput({ detail: error.message }));
-    return finish(
-      deps,
-      call,
-      stopped(null, new StageStop("error", "INVALID_INPUT", "input", note), notes),
-    );
+    const note = errorNote("INVALID_INPUT", messages.invalidInput({ detail: messageOf(error) }));
+    return finish(deps, call, stopped(null, new StageStop("INVALID_INPUT", "input", note), notes));
+  }
+  const requested = clampedTimeout(input, request);
+  if (requested !== null) {
+    const max = limits.maxTimeoutMs;
+    const message = messages.timeoutClamped({ requestedMs: requested, maxMs: max });
+    notes.push(info("clamped", message, { param: "timeoutMs", requested, max }));
   }
 
   const ctx: ShellHookContext<THost> = {
@@ -66,90 +62,92 @@ export async function runBash<THost>(
     request,
     limits,
     messages,
-    digest: null,
-    clock: () => new Date(),
+    digest: deps.digest,
+    clock: deps.clock,
     call,
   };
   const scope: CallScope<THost> = { deps, call, notes, ctx };
 
   try {
     const runner = runnerFor(deps, call);
-    const cwd = await resolveCwd(scope, baseCwd(deps, call, runner), request.cwd);
-    const planned = { command: request.command, cwd, timeoutMs: request.timeoutMs };
-    await authorize(scope, planned);
-    const run = await beforeRun(scope, planned);
-    const env = await environment(scope, run);
-    if (call.signal?.aborted === true) throw new AbortStop();
-    const executed = await execute(scope, runner, run, env);
-    const outcome = await afterRun(scope, {
-      status: statusOf(executed.run),
-      run: executed.run,
-      output: executed.output,
-      notes: [...notes],
+    const base = baseCwd(deps, call, runner);
+    const cwd = await resolveCwd(scope, base, request.cwd);
+    const run = await beforeRun(scope, {
+      command: request.command,
+      cwd,
+      timeoutMs: request.timeoutMs,
     });
-    return finish(deps, call, outcome);
+    await authorize(scope, run, base);
+    const env = await environment(scope, run);
+    if (call.signal?.aborted === true) throw new AbortStop("run");
+    const executed = await execute(scope, runner, run, env);
+    return finish(deps, call, await afterRun(scope, executed));
   } catch (error) {
     if (error instanceof AbortStop) {
-      notes.push(warning("ABORTED", messages.abortedBeforeStart()));
-      return finish(deps, call, report(request, "aborted", null, null, null, notes));
+      const note = errorNote("ABORTED", messages.abortedBeforeStart());
+      return finish(
+        deps,
+        call,
+        stopped(request, new StageStop("ABORTED", error.phase, note), notes),
+      );
     }
     if (error instanceof StageStop) return finish(deps, call, stopped(request, error, notes));
     throw error;
   }
 }
 
-function statusOf(run: ShellRun): ShellStatus {
+/** The status of a run that ended by itself or by its timeout. */
+function statusOf(run: ShellRun): ShellRunReport["status"] {
   if (run.stoppedBy === "timeout") return "timeout";
-  if (run.stoppedBy === "abort") return "aborted";
-  if (run.stoppedBy === "output-cap") return "error";
   return run.exitCode === 0 ? "ok" : "failed";
 }
 
-type Pending = RunOutcome & { readonly error?: ShellError; readonly request: BashRequest };
-
 /**
- * Each hook may change the output view and the notes. status and run stay as
- * the core set them. A hook that throws or returns a malformed outcome gives
- * EXTENSION_FAILED with the run and the output so far.
+ * Each hook may replace the output view and the notes. status, error, and run
+ * stay as the core set them. A hook that throws or returns a malformed update
+ * gives EXTENSION_FAILED with the run, and the output and notes so far.
  */
-async function afterRun<THost>(scope: CallScope<THost>, first: RunOutcome): Promise<ShellReport> {
-  let outcome = first;
+async function afterRun<THost>(scope: CallScope<THost>, executed: Executed): Promise<ShellReport> {
+  const { run, stop } = executed;
   const request = scope.ctx.request;
-  const base: Pending =
-    first.run.stoppedBy === "output-cap"
-      ? { ...first, request, error: { code: "OUTPUT_CAP", phase: "run" } }
-      : { ...first, request };
+  const error = stop === null ? null : errorOf(stop);
+  let output = executed.output;
+  let notes: readonly Note[] = stop === null ? [...scope.notes] : [...scope.notes, stop.note];
+  const outcome = (): RunOutcome =>
+    error === null
+      ? { status: statusOf(run), run, output, notes }
+      : { status: "error", error, run, output, notes };
+
   for (const hook of scope.deps.afterRun) {
-    const current = outcome;
     let next: unknown;
     try {
-      next = await hook.afterRun(current, scope.ctx);
+      next = await hook.afterRun(outcome(), scope.ctx);
     } catch {
-      return failedHook(scope, base, outcome, hook);
+      return failedHook(scope, run, output, notes, hook);
     }
-    if (!isRecord(next) || !isOutput(next.output) || !isNoteList(next.notes)) {
-      return failedHook(scope, base, outcome, hook);
+    if (!isRecord(next)) return failedHook(scope, run, output, notes, hook);
+    const nextOutput = next.output ?? output;
+    const nextNotes = next.notes ?? notes;
+    if (!isOutput(nextOutput) || !isNoteList(nextNotes)) {
+      return failedHook(scope, run, output, notes, hook);
     }
-    outcome = { status: first.status, run: first.run, output: next.output, notes: next.notes };
+    output = nextOutput;
+    notes = nextNotes;
   }
-  return report(request, base.status, base.error ?? null, first.run, outcome.output, outcome.notes);
+  return error === null
+    ? ranReport(request, statusOf(run), run, output, notes)
+    : failureReport(request, error, run, output, notes);
 }
 
 function failedHook<THost>(
   scope: CallScope<THost>,
-  base: Pending,
-  outcome: RunOutcome,
+  run: ShellRun,
+  output: ShellOutput,
+  notes: readonly Note[],
   hook: unknown,
 ): ShellReport {
   const failure = extensionFailure(scope, hook, "afterRun");
-  return report(
-    base.request,
-    "error",
-    { code: "EXTENSION_FAILED", phase: "afterRun" },
-    base.run,
-    outcome.output,
-    [...outcome.notes, failure.note],
-  );
+  return failureReport(scope.ctx.request, errorOf(failure), run, output, [...notes, failure.note]);
 }
 
 function isOutput(value: unknown): value is ShellOutput {
@@ -170,28 +168,53 @@ function isOutput(value: unknown): value is ShellOutput {
   );
 }
 
+/** The error of a stop. `message` and `data` come from its note. */
+function errorOf(stop: StageStop): ShellError {
+  const { note } = stop;
+  return {
+    code: stop.code,
+    phase: stop.phase,
+    message: note.message,
+    ...(note.data === undefined ? {} : { data: note.data }),
+  };
+}
+
+/** An error before the command started. The error note comes last. */
 function stopped(
   request: BashRequest | null,
   stop: StageStop,
   notes: readonly Note[],
-): ShellReport {
-  return report(request, stop.status, { code: stop.code, phase: stop.phase }, null, null, [
-    ...notes,
-    stop.note,
-  ]);
+): ShellFailure {
+  return failureReport(request, errorOf(stop), null, null, [...notes, stop.note]);
 }
 
-function report(
-  request: BashRequest | null,
-  status: ShellStatus,
-  error: ShellError | null,
-  run: ShellRun | null,
-  output: ShellOutput | null,
+function ranReport(
+  request: BashRequest,
+  status: ShellRunReport["status"],
+  run: ShellRun,
+  output: ShellOutput,
   notes: readonly Note[],
-): ShellReport {
+): ShellRunReport {
   return Object.freeze({
     tool: "bash",
     status,
+    request,
+    run,
+    output,
+    notes: Object.freeze([...notes]),
+  });
+}
+
+function failureReport(
+  request: BashRequest | null,
+  error: ShellError,
+  run: ShellRun | null,
+  output: ShellOutput | null,
+  notes: readonly Note[],
+): ShellFailure {
+  return Object.freeze({
+    tool: "bash",
+    status: "error",
     error,
     request,
     run,
@@ -201,8 +224,9 @@ function report(
 }
 
 /**
- * Formats the report. A formatter that throws or returns something else gives
- * EXTENSION_FAILED, formatted by the default formatter.
+ * Formats the report. A formatter that throws or returns something else adds
+ * an extension-failed warning, and the default formatter formats the report.
+ * The status stays, as in the read and write tools.
  */
 function finish<THost>(
   deps: ShellDependencies<THost>,
@@ -210,23 +234,27 @@ function finish<THost>(
   done: ShellReport,
 ): ShellResult {
   const context = { limits: deps.limits, messages: deps.messages, mode: "model" as const, call };
+  let content: readonly ContentPart[] | null = null;
   try {
-    const content = toContent(deps.formatter.format(done, context));
-    if (content !== null) return Object.freeze({ ...done, content });
+    content = toContent(deps.formatter.format(done, context));
   } catch {
     // Falls through to the default formatter.
   }
-  const failure = extensionFailure({ deps }, deps.formatter, "format");
-  const failed = report(
-    done.request,
-    "error",
-    { code: "EXTENSION_FAILED", phase: "format" },
-    done.run,
-    done.output,
-    [...done.notes, failure.note],
+  if (content !== null) return Object.freeze({ ...done, content });
+  const id = extensionId(deps.formatter);
+  const note = warning(
+    "extension-failed",
+    deps.messages.extensionFailed({ extension: id, phase: "format" }),
+    { extension: "formatter", id },
   );
-  const content = toContent(defaultShellFormatter().format(failed, context)) ?? [];
-  return Object.freeze({ ...failed, content });
+  const kept: ShellReport = Object.freeze({
+    ...done,
+    notes: Object.freeze([...done.notes, note]),
+  });
+  return Object.freeze({
+    ...kept,
+    content: toContent(defaultShellFormatter().format(kept, context)) ?? [],
+  });
 }
 
 function toContent(value: unknown): readonly ContentPart[] | null {

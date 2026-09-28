@@ -19,6 +19,8 @@ const KNOWN: ReadonlySet<string> = new Set([
   "spill",
   "afterRun",
   "formatter",
+  "digest",
+  "clock",
 ]);
 
 /**
@@ -67,6 +69,15 @@ export function resolveShellDependencies<THost>(
   if (!isRecord(formatter) || typeof formatter.format !== "function") {
     throw new TypeError("formatter must have a format function");
   }
+  const digest = deps.digest ?? null;
+  if (
+    digest !== null &&
+    (!isRecord(digest) || typeof digest.create !== "function" || typeof digest.hash !== "function")
+  ) {
+    throw new TypeError("digest must be a digest with create and hash, or null");
+  }
+  const clock = deps.clock ?? (() => new Date());
+  if (typeof clock !== "function") throw new TypeError("clock must be a function");
 
   return Object.freeze<ShellDependencies<THost>>({
     runner,
@@ -80,6 +91,8 @@ export function resolveShellDependencies<THost>(
     spill,
     afterRun: Object.freeze([...afterRun]),
     formatter,
+    digest,
+    clock,
   });
 }
 

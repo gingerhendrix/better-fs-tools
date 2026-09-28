@@ -14,6 +14,10 @@ export interface ShellFormatContext<THost = undefined> {
 
 export interface ShellFormatter<THost = undefined> {
   readonly id: string;
-  /** Sync and pure. A string becomes one text part. A throw gives EXTENSION_FAILED. */
+  /**
+   * Sync and pure. A string becomes one text part. A throw, or a return that
+   * is neither a string nor an array, adds an extension-failed warning, and the
+   * default formatter formats the report. The status stays.
+   */
   format(report: ShellReport, ctx: ShellFormatContext<THost>): string | readonly ContentPart[];
 }

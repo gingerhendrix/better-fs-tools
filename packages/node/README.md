@@ -115,9 +115,10 @@ tools = createNodeFsTools({
     afterRun: [
       {
         id: "invalidate-package-json",
-        afterRun: async (outcome) => {
+        afterRun: async () => {
           await tools?.invalidate("package.json");
-          return outcome;
+          // An empty update keeps the output and the notes.
+          return {};
         },
       },
     ],

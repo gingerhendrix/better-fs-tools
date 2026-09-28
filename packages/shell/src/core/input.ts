@@ -1,58 +1,49 @@
 import type { BashRequest } from "../contract/input.ts";
 import type { ShellLimits } from "../contract/limits.ts";
 
-/** The input could not be used. The message goes into the INVALID_INPUT note. */
-export class InputError extends Error {}
-
-export interface ParsedInput {
-  readonly request: BashRequest;
-  /** The requested timeout, when it was over the maximum and was cut. */
-  readonly clampedFrom: number | null;
-}
+const KEYS: ReadonlySet<string> = new Set(["command", "timeoutMs", "cwd"]);
 
 /**
- * Checks canonical input and fills defaults. `command` must hold a
- * non-whitespace character and no NUL. `timeoutMs` must be a positive finite
- * number. It is rounded up to a whole millisecond and cut to maxTimeoutMs.
+ * Checks canonical input and fills defaults. Throws TypeError, like the other
+ * parse helpers. `command` must hold a non-whitespace character and no NUL.
+ * `timeoutMs` must be a positive finite number. It is rounded up to a whole
+ * millisecond and clamped to maxTimeoutMs; the tool adds a clamped note.
  * `cwd` must be a non-blank string without NUL.
  */
-export function parseBashInput(input: unknown, limits: Readonly<ShellLimits>): ParsedInput {
-  if (!isRecord(input)) throw new InputError("the input must be an object with a command");
+export function parseBashInput(input: unknown, limits: Readonly<ShellLimits>): BashRequest {
+  if (!isRecord(input)) throw new TypeError("the input must be an object with a command");
   for (const key of Object.keys(input)) {
-    if (key !== "command" && key !== "timeoutMs" && key !== "cwd") {
-      throw new InputError(`unknown key ${key}. Expected command, timeoutMs, cwd`);
-    }
+    if (!KEYS.has(key)) throw new TypeError(`unknown key ${key}. Expected command, timeoutMs, cwd`);
   }
   const { command, timeoutMs, cwd } = input;
   if (typeof command !== "string" || command.trim() === "") {
-    throw new InputError("command must be a non-blank string");
+    throw new TypeError("command must be a non-blank string");
   }
-  if (command.includes("\u0000")) throw new InputError("command must not hold a NUL character");
+  if (command.includes("\u0000")) throw new TypeError("command must not hold a NUL character");
 
   let timeout = limits.defaultTimeoutMs;
-  let clampedFrom: number | null = null;
   if (timeoutMs !== undefined) {
     if (typeof timeoutMs !== "number" || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-      throw new InputError("timeoutMs must be a positive number");
+      throw new TypeError("timeoutMs must be a positive number");
     }
-    timeout = Math.ceil(timeoutMs);
-    if (timeout > limits.maxTimeoutMs) {
-      clampedFrom = timeout;
-      timeout = limits.maxTimeoutMs;
-    }
+    timeout = Math.min(Math.ceil(timeoutMs), limits.maxTimeoutMs);
   }
 
   let requestedCwd: string | null = null;
   if (cwd !== undefined) {
     if (typeof cwd !== "string" || cwd.trim() === "" || cwd.includes("\u0000")) {
-      throw new InputError("cwd must be a non-blank string without NUL");
+      throw new TypeError("cwd must be a non-blank string without NUL");
     }
     requestedCwd = cwd;
   }
-  return {
-    request: Object.freeze({ command, timeoutMs: timeout, cwd: requestedCwd }),
-    clampedFrom,
-  };
+  return Object.freeze({ command, timeoutMs: timeout, cwd: requestedCwd });
+}
+
+/** The requested timeout when parse clamped it, else null. `input` passed parseBashInput. */
+export function clampedTimeout(input: unknown, request: BashRequest): number | null {
+  if (!isRecord(input) || typeof input.timeoutMs !== "number") return null;
+  const requested = Math.ceil(input.timeoutMs);
+  return requested > request.timeoutMs ? requested : null;
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

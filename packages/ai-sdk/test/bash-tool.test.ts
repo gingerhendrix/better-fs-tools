@@ -73,7 +73,8 @@ describe("createAiSdkBashTool", () => {
     controller.abort();
     const tool = createAiSdkBashTool({ runner });
     const result = await tool.execute({ command: "x" }, executeOptions(controller.signal));
-    expect(result.status).toBe("aborted");
+    expect(result.status).toBe("error");
+    expect(result.status === "error" ? result.error.code : null).toBe("ABORTED");
     expect(runner.commands).toEqual([]);
   });
 

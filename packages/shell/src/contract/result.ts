@@ -1,19 +1,27 @@
-import type { ContentPart, Note } from "@better-fs-tools/read";
+import type { ContentPart, Note, ToolError } from "@better-fs-tools/read";
 
 import type { BashRequest } from "./input.ts";
 
 /**
- * "failed": the command ran and exited with a code other than 0. It is a
- * normal result, not a tool error (S4).
+ * "ok", "failed", and "timeout" describe a command that ran. "failed": it
+ * exited with a code other than 0. It is a normal result, not a tool error
+ * (S4). "error": the call stopped, or the core stopped the command for a
+ * reason other than its timeout. `error.code` says why.
  */
-export type ShellStatus = "ok" | "failed" | "timeout" | "aborted" | "refused" | "error";
+export type ShellStatus = "ok" | "failed" | "timeout" | "error";
 
+/**
+ * UPPER_SNAKE, like every tool's error codes. The error note's code is the
+ * kebab-case form. DENIED: the authorizer refused. REFUSED: a beforeRun hook
+ * refused. ABORTED: the caller's signal fired.
+ */
 export type ShellErrorCode =
   | "INVALID_INPUT"
   | "CWD_NOT_FOUND"
   | "CWD_NOT_A_DIRECTORY"
   | "DENIED"
   | "REFUSED"
+  | "ABORTED"
   | "SPAWN_FAILED"
   | "OUTPUT_CAP"
   | "EXTENSION_FAILED";
@@ -29,12 +37,10 @@ export type ShellPhase =
   | "afterRun"
   | "format";
 
-export interface ShellError {
-  readonly code: ShellErrorCode;
-  readonly phase: ShellPhase;
-}
+/** The error of a failed call. Same shape as the read and write errors. */
+export type ShellError = ToolError<ShellErrorCode, ShellPhase>;
 
-/** Facts about one run. null in the report when the command did not start. */
+/** Facts about one run. null in an error report when the command did not start. */
 export interface ShellRun {
   /** As run, after any beforeRun rewrite. */
   readonly command: string;
@@ -67,13 +73,29 @@ export interface ShellOutput {
   readonly spill: string | null;
 }
 
-export interface ShellReport {
+/**
+ * One variant for a command that ran to its own end or its timeout, and one
+ * for an error. `status` narrows the union: only the "error" variant has
+ * `error`, and it is never null there.
+ */
+export type ShellReport = ShellRunReport | ShellFailure;
+
+export interface ShellRunReport {
   readonly tool: "bash";
-  readonly status: ShellStatus;
-  /** null unless status is "refused" or "error". */
-  readonly error: ShellError | null;
+  readonly status: "ok" | "failed" | "timeout";
+  readonly request: BashRequest;
+  readonly run: ShellRun;
+  readonly output: ShellOutput;
+  readonly notes: readonly Note[];
+}
+
+export interface ShellFailure {
+  readonly tool: "bash";
+  readonly status: "error";
+  readonly error: ShellError;
   /** null when parse failed. */
   readonly request: BashRequest | null;
+  /** Set when the command started: an abort, the capture cap, or a failed afterRun hook. */
   readonly run: ShellRun | null;
   readonly output: ShellOutput | null;
   readonly notes: readonly Note[];

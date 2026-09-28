@@ -1,4 +1,4 @@
-import type { PathResolver, ToolCallContext } from "@better-fs-tools/read";
+import type { Clock, Digest, PathResolver, ToolCallContext } from "@better-fs-tools/read";
 
 import type {
   AfterRunHook,
@@ -21,15 +21,20 @@ export interface ShellDependencies<THost = undefined> {
   readonly messages: Readonly<ShellMessageCatalog>;
   /** Changes the requested cwd string, as for the read tool. null is identity. */
   readonly resolve: PathResolver<THost> | null;
-  /** Host policy. null allows. */
-  readonly authorize: ShellAuthorizer<THost> | null;
+  /** Checks and rewrites, in order, before authorize. */
   readonly beforeRun: readonly BeforeRunHook<THost>[];
+  /** Host policy on the final command. null allows. */
+  readonly authorize: ShellAuthorizer<THost> | null;
   /** Default: defaultShellEnv only. The Node factories add process.env. */
   readonly env: ShellEnv<THost>;
   /** null turns spill off. */
   readonly spill: SpillSink<THost> | null;
   readonly afterRun: readonly AfterRunHook<THost>[];
   readonly formatter: ShellFormatter<THost>;
+  /** Given to host functions as ctx.digest. The bash tool hashes nothing itself. Default null. */
+  readonly digest: Digest | null;
+  /** Given to host functions as ctx.clock. Default () => new Date(). */
+  readonly clock: Clock;
 }
 
 /**

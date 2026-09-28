@@ -12,7 +12,7 @@ import { OutputCapture } from "./capture.ts";
 import { isRecord } from "./input.ts";
 import type { CallScope } from "./stages.ts";
 import { extensionFailure } from "./stages.ts";
-import { StageStop, messageOf, warning } from "./stop.ts";
+import { StageStop, errorNote, messageOf, warning } from "./stop.ts";
 
 /** How long the core reads output after the exit, before it lets go of the stream. */
 const DRAIN_MS = 1_000;
@@ -24,6 +24,8 @@ type StopReason = NonNullable<ShellRun["stoppedBy"]>;
 export interface Executed {
   readonly run: ShellRun;
   readonly output: ShellOutput;
+  /** ABORTED or OUTPUT_CAP when the core stopped the command for one of them. Not thrown. */
+  readonly stop: StageStop | null;
 }
 
 /**
@@ -96,7 +98,7 @@ export async function execute<THost>(
       }
     } catch (error) {
       // A failing output stream ends the output. The exit still decides the
-      // status, and an OUTPUT_INCOMPLETE warning says the output is partial.
+      // status, and an output-incomplete warning says the output is partial.
       streamFailed = messageOf(error);
     }
   })();
@@ -122,20 +124,17 @@ export async function execute<THost>(
   const spillRef = await (spill?.close() ?? Promise.resolve(null));
   if (spill?.failed === true) {
     scope.notes.push(
-      warning("SPILL_FAILED", messages.spillFailed({ sink: deps.spill?.id ?? "unknown" })),
+      warning("spill-failed", messages.spillFailed({ sink: deps.spill?.id ?? "unknown" })),
     );
   }
   const reason = stoppedBy as StopReason | null;
-  if (reason === "output-cap") {
-    scope.notes.push(warning("OUTPUT_CAP", messages.outputCap({ limit: limits.maxCaptureBytes })));
-  }
-  if (exit === null) scope.notes.push(warning("UNCONFIRMED_STOP", messages.unconfirmedStop()));
+  if (exit === null) scope.notes.push(warning("unconfirmed-stop", messages.unconfirmedStop()));
   // After a stop, the runner may end its stream with an error: that is not lost output.
   const failed = reason === null ? (streamFailed as string | null) : null;
   if (failed !== null || skippedChunks > 0) {
     scope.notes.push(
       warning(
-        "OUTPUT_INCOMPLETE",
+        "output-incomplete",
         messages.outputIncomplete({ detail: failed, skippedChunks }),
         failed === null ? { skippedChunks } : { skippedChunks, detail: failed },
       ),
@@ -153,7 +152,25 @@ export async function execute<THost>(
       unconfirmedStop: exit === null,
     },
     output: capture.view(limits, spillRef),
+    stop: runStop(scope, reason, durationMs),
   };
+}
+
+/** The error of a run the core stopped for an abort or the capture cap. null otherwise. */
+function runStop<THost>(
+  scope: CallScope<THost>,
+  reason: StopReason | null,
+  durationMs: number,
+): StageStop | null {
+  const { messages, limits } = scope.deps;
+  if (reason === "abort") {
+    return new StageStop("ABORTED", "run", errorNote("ABORTED", messages.aborted({ durationMs })));
+  }
+  if (reason === "output-cap") {
+    const message = messages.outputCap({ limit: limits.maxCaptureBytes });
+    return new StageStop("OUTPUT_CAP", "run", errorNote("OUTPUT_CAP", message));
+  }
+  return null;
 }
 
 function startRun(runner: CommandRunner, request: RunRequest): RunHandle {
@@ -225,7 +242,7 @@ function validChunk(value: unknown): OutputChunk | null {
 
 function startFailure<THost>(scope: CallScope<THost>, detail: string | null): StageStop {
   const message = scope.deps.messages.spawnFailed({ detail });
-  return new StageStop("error", "SPAWN_FAILED", "run", warning("SPAWN_FAILED", message));
+  return new StageStop("SPAWN_FAILED", "run", errorNote("SPAWN_FAILED", message));
 }
 
 function startError<THost>(
@@ -237,16 +254,11 @@ function startError<THost>(
   const { messages } = scope.deps;
   if (reason === "cwd-not-found") {
     const message = messages.cwdNotFound({ cwd });
-    return new StageStop("error", "CWD_NOT_FOUND", "run", warning("CWD_NOT_FOUND", message));
+    return new StageStop("CWD_NOT_FOUND", "run", errorNote("CWD_NOT_FOUND", message));
   }
   if (reason === "cwd-not-a-directory") {
     const message = messages.cwdNotADirectory({ cwd });
-    return new StageStop(
-      "error",
-      "CWD_NOT_A_DIRECTORY",
-      "run",
-      warning("CWD_NOT_A_DIRECTORY", message),
-    );
+    return new StageStop("CWD_NOT_A_DIRECTORY", "run", errorNote("CWD_NOT_A_DIRECTORY", message));
   }
   return startFailure(scope, detail);
 }

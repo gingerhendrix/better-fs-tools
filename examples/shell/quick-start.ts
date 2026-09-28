@@ -11,7 +11,7 @@ console.log(textOf(listed));
 // package.json
 
 const failed = await bash({ command: "grep -q nothing-here package.json" });
-console.log(failed.status, failed.run?.exitCode); // failed 1
+if (failed.status === "failed") console.log(failed.run.exitCode); // 1
 
 const slow = await bash({ command: "sleep 5", timeoutMs: 100 });
 console.log(textOf(slow));

@@ -36,7 +36,7 @@ console.log(textOf(listed));
 // package.json
 
 const failed = await bash({ command: "grep -q nothing-here package.json" });
-console.log(failed.status, failed.run?.exitCode); // failed 1
+if (failed.status === "failed") console.log(failed.run.exitCode); // 1
 
 const slow = await bash({ command: "sleep 5", timeoutMs: 100 });
 console.log(textOf(slow));
@@ -59,16 +59,31 @@ Each call starts a new shell. A `cd` or an `export` does not carry to the next c
 
 ## Results
 
-| Status    | When                                                                                                          |
-| --------- | ------------------------------------------------------------------------------------------------------------- |
-| `ok`      | The command exited with code 0.                                                                               |
-| `failed`  | The command exited with another code, or a signal ended it. This is a normal result, not a tool error.        |
-| `timeout` | The timeout stopped the command. The output so far is kept.                                                   |
-| `aborted` | The caller's signal stopped the command, or aborted the call before the start.                                |
-| `refused` | `authorize` (`DENIED`) or a `beforeRun` hook (`REFUSED`) refused the command.                                 |
-| `error`   | `INVALID_INPUT`, `CWD_NOT_FOUND`, `CWD_NOT_A_DIRECTORY`, `SPAWN_FAILED`, `OUTPUT_CAP`, or `EXTENSION_FAILED`. |
+| Status    | When                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------ |
+| `ok`      | The command exited with code 0.                                                                        |
+| `failed`  | The command exited with another code, or a signal ended it. This is a normal result, not a tool error. |
+| `timeout` | The timeout stopped the command. The output so far is kept.                                            |
+| `error`   | The call stopped, or the core stopped the command. `error.code` says why.                              |
 
-The result has `status`, `error` (`{ code, phase }` or null), `request`, `run` (command as run, cwd, exit code, signal, duration, and what stopped it), `output` (the view, byte and line counts, and the spill reference), `notes`, and `content` for the model.
+The error codes are `INVALID_INPUT`, `CWD_NOT_FOUND`, `CWD_NOT_A_DIRECTORY`, `DENIED` (the authorizer refused), `REFUSED` (a `beforeRun` hook refused), `ABORTED` (the caller's signal fired, before or during the run), `SPAWN_FAILED`, `OUTPUT_CAP`, and `EXTENSION_FAILED`. Read and write use the same codes for a denial and an abort.
+
+The result is a union on `status`. Every result has `tool: "bash"`, `status`, `request`, `run` (command as run, cwd, exit code, signal, duration, and what stopped it), `output` (the view, byte and line counts, and the spill reference), `notes`, and `content` for the model. Only the `error` variant has `error: { code, phase, message, data? }`, the same shape as the read and write errors. For `ok`, `failed`, and `timeout`, `run` and `output` are never null. For `error` they are set only when the command started: an abort during the run, `OUTPUT_CAP`, or a failed `afterRun` hook.
+
+```ts
+import { createNodeBashTool } from "@better-fs-tools/node";
+
+const bash = createNodeBashTool();
+const result = await bash({ command: "ls" });
+
+if (result.status === "error") {
+  console.log(result.error.code, result.error.phase); // only the error variant has `error`
+} else {
+  console.log(result.run.exitCode, result.output.totalBytes); // never null here
+}
+```
+
+Note codes are kebab case, as in read and write: `clamped`, `output-incomplete`, `spill-failed`, `unconfirmed-stop`, `extension-failed`, and the error note of an error result, whose code is the error code in kebab case (`denied`, `aborted`, `output-cap`, and so on).
 
 The model text starts with the status line:
 
@@ -89,7 +104,7 @@ Timed out after 2 min. The process tree was stopped.
 | Limit              | Default    | Meaning                                                                                          |
 | ------------------ | ---------- | ------------------------------------------------------------------------------------------------ |
 | `defaultTimeoutMs` | 120 000    | Used when the input has no timeout.                                                              |
-| `maxTimeoutMs`     | 600 000    | A larger input timeout is cut to this, with a `TIMEOUT_CLAMPED` note.                            |
+| `maxTimeoutMs`     | 600 000    | A larger input timeout is cut to this, with a `clamped` info note.                               |
 | `killGraceMs`      | 2 000      | Time between SIGTERM and SIGKILL. The core waits this long plus one second for the exit.         |
 | `maxOutputBytes`   | 30 000     | Bytes in the model view.                                                                         |
 | `maxOutputLines`   | 2 000      | Lines in the model view.                                                                         |
@@ -109,13 +124,19 @@ Only `runner` is required. `limits` and `messages` merge key by key. Every other
 | `runner`    | required                  | Node, just-bash, a sandbox wrapper, a remote runner. A factory gets the call.                    |
 | `cwd`       | the runner's `cwd`        | Another default directory, or one for each call.                                                 |
 | `resolve`   | none                      | A read tool resolver changes the requested cwd string.                                           |
-| `authorize` | none (allow)              | Approval prompts, prefix rules, deny lists, plan mode. A read `ToolAuthorizer` works on the cwd. |
 | `beforeRun` | `[]`                      | Guards and command rewrites. A rewrite feeds the next hook.                                      |
+| `authorize` | none (allow)              | Approval prompts, prefix rules, deny lists, plan mode. A read `ToolAuthorizer` works on the cwd. |
 | `env`       | `defaultShellEnv`         | Allow lists and secret scrubbing.                                                                |
 | `spill`     | none                      | Every output byte saved to a file or a store.                                                    |
 | `afterRun`  | `[]`                      | Secret masking, output filters, exit-code meanings, read-record invalidation.                    |
 | `formatter` | `defaultShellFormatter()` | Another layout of the model text.                                                                |
 | `messages`  | `defaultShellMessages`    | Wording. A signature sets the parameter names and the timeout unit.                              |
+| `digest`    | null                      | Passed to host functions as `ctx.digest`. The bash tool hashes nothing itself.                   |
+| `clock`     | `() => new Date()`        | Passed to host functions as `ctx.clock`.                                                         |
+
+The stages run in this order: input, cwd, `beforeRun`, `authorize`, `env`, the run, `afterRun`, and the formatter. `authorize` sees the command after every `beforeRun` rewrite, so an approval prompt shows the command that runs. Its target has the cwd as `resolvedPath`, and a `displayPath` relative to the default cwd (`.` for the default cwd itself), as the file tools show paths.
+
+A `beforeRun` hook returns `{ allow: true, command?, notes? }` or `{ allow: false, note? }`, the same `{ allow }` shape as an authorize decision. A refusal without a note gets a default `refused` note. An `afterRun` hook returns `{ output?, notes? }`: only the parts the core keeps. A field left out keeps its value.
 
 ```ts
 import { createNodeBashTool } from "@better-fs-tools/node";
@@ -130,27 +151,27 @@ const allowPrefixes: ShellAuthorizer = {
       ? { allow: true }
       : {
           allow: false,
-          note: { code: "NOT_ALLOWED", severity: "warning", message: "Ask the user first." },
+          note: { code: "not-allowed", severity: "warning", message: "Ask the user first." },
         },
 };
 
-// A reusable guard: refuse programs that need a terminal.
+// A reusable guard: refuse programs that need a terminal. It runs before
+// authorize, so allowPrefixes sees any rewritten command.
 const noInteractive: BeforeRunHook = {
   id: "no-interactive",
   beforeRun: (run) =>
     /^(vim|less|top)\b/u.test(run.command)
       ? {
-          kind: "refuse",
-          note: { code: "INTERACTIVE", severity: "warning", message: "stdin is closed." },
+          allow: false,
+          note: { code: "interactive", severity: "warning", message: "stdin is closed." },
         }
-      : { kind: "continue" },
+      : { allow: true },
 };
 
-// Mask a secret in the model view.
+// Mask a secret in the model view. The hook returns only what it changes.
 const maskTokens: AfterRunHook = {
   id: "mask-tokens",
   afterRun: (outcome) => ({
-    ...outcome,
     output: {
       ...outcome.output,
       head: outcome.output.head.replaceAll(/ghp_\w+/gu, "ghp_***"),
@@ -206,6 +227,8 @@ export const bash = createNodeBashTool({ spill: fileSpill });
 ```
 
 A hook that throws, or returns a malformed value, gives `EXTENSION_FAILED` with its phase. After the run, the result keeps the run and the output.
+
+A formatter that throws, or returns neither a string nor an array, does not change the status. The core adds an `extension-failed` warning and formats with `defaultShellFormatter()`, as the read and write tools do.
 
 ## Runners
 

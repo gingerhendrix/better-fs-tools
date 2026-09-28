@@ -60,7 +60,7 @@ describe("createNodeBashTool", () => {
     const pending = bash({ command: `echo started; ${marker}` }, { signal: controller.signal });
     setTimeout(() => controller.abort(), 300);
     const result = await pending;
-    expect(result.status).toBe("aborted");
+    expect(result.status === "error" ? result.error.code : result.status).toBe("ABORTED");
     expect(result.output?.head).toBe("started");
     expect(await waitUntil(() => !running(marker), 2_000)).toBe(true);
   });
@@ -105,8 +105,8 @@ describe("createNodeBashTool", () => {
     const cwd = await workdir();
     await writeFile(join(cwd, "file.txt"), "x");
     const bash = createNodeBashTool({ runner: nodeCommandRunner({ cwd }) });
-    expect((await bash({ command: "ls", cwd: "missing" })).error?.code).toBe("CWD_NOT_FOUND");
-    expect((await bash({ command: "ls", cwd: "file.txt" })).error?.code).toBe(
+    expect(errorOf(await bash({ command: "ls", cwd: "missing" }))?.code).toBe("CWD_NOT_FOUND");
+    expect(errorOf(await bash({ command: "ls", cwd: "file.txt" }))?.code).toBe(
       "CWD_NOT_A_DIRECTORY",
     );
   });
@@ -114,7 +114,7 @@ describe("createNodeBashTool", () => {
   test("a missing shell is SPAWN_FAILED", async () => {
     const runner = nodeCommandRunner({ shell: "/no/such/shell" });
     const result = await createNodeBashTool({ runner })({ command: "true" });
-    expect(result.error?.code).toBe("SPAWN_FAILED");
+    expect(errorOf(result)?.code).toBe("SPAWN_FAILED");
   });
 });
 
@@ -129,9 +129,9 @@ describe("createNodeFsTools bash", () => {
         afterRun: [
           {
             id: "invalidate",
-            afterRun: async (outcome) => {
+            afterRun: async () => {
               await tools?.invalidate("a.txt");
-              return outcome;
+              return {};
             },
           },
         ],

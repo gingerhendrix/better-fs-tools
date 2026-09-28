@@ -9,7 +9,7 @@ import type {
 import type { BashRequest } from "./input.ts";
 import type { ShellLimits } from "./limits.ts";
 import type { ShellMessageCatalog } from "./messages.ts";
-import type { ShellOutput, ShellRun, ShellStatus } from "./result.ts";
+import type { ShellError, ShellOutput, ShellRun } from "./result.ts";
 
 /** Given to every shell host function. One object for each call. */
 export interface ShellHookContext<THost = undefined> extends ToolHookContext<THost> {
@@ -33,7 +33,10 @@ export interface ShellAuthorizeTarget extends AccessTarget {
   readonly timeoutMs: number;
 }
 
-/** Host policy. The package ships no authorizers. A ToolAuthorizer from read fits here. */
+/**
+ * Host policy. Runs after the beforeRun hooks, so it sees the command that
+ * will run. The package ships no authorizers. A ToolAuthorizer from read fits here.
+ */
 export interface ShellAuthorizer<THost = undefined> {
   readonly id: string;
   authorize(
@@ -50,11 +53,18 @@ export interface PlannedRun {
   readonly timeoutMs: number;
 }
 
+/**
+ * The same `{ allow }` shape as an authorize decision. `command` rewrites the
+ * command. A refusal gives REFUSED, with `note` or a default refused note.
+ */
 export type BeforeRunDecision =
-  | { readonly kind: "continue"; readonly command?: string; readonly notes?: readonly Note[] }
-  | { readonly kind: "refuse"; readonly note: Note };
+  | { readonly allow: true; readonly command?: string; readonly notes?: readonly Note[] }
+  | { readonly allow: false; readonly note?: Note };
 
-/** A reusable check or rewrite. Runs in order after authorize. A rewrite feeds the next hook. */
+/**
+ * A reusable check or rewrite. Runs in order before authorize, so the
+ * authorizer sees the final command. A rewrite feeds the next hook.
+ */
 export interface BeforeRunHook<THost = undefined> {
   readonly id: string;
   beforeRun(
@@ -87,19 +97,36 @@ export interface SpillSink<THost = undefined> {
 
 /* After run */
 
-/** What afterRun hooks see and may change. */
-export interface RunOutcome {
-  readonly status: ShellStatus;
-  readonly run: ShellRun;
-  readonly output: ShellOutput;
-  readonly notes: readonly Note[];
+/** What afterRun hooks see: a run that started, with its status. */
+export type RunOutcome =
+  | {
+      readonly status: "ok" | "failed" | "timeout";
+      readonly run: ShellRun;
+      readonly output: ShellOutput;
+      readonly notes: readonly Note[];
+    }
+  | {
+      readonly status: "error";
+      readonly error: ShellError;
+      readonly run: ShellRun;
+      readonly output: ShellOutput;
+      readonly notes: readonly Note[];
+    };
+
+/**
+ * What an afterRun hook may change. A field left out keeps its value. `notes`
+ * replaces the whole list, so keep the notes you were given.
+ */
+export interface AfterRunUpdate {
+  readonly output?: ShellOutput;
+  readonly notes?: readonly Note[];
 }
 
 export interface AfterRunHook<THost = undefined> {
   readonly id: string;
-  /**
-   * Runs in order on every run that started. May change the output view and
-   * the notes. A change to `status` or `run` is ignored.
-   */
-  afterRun(outcome: RunOutcome, ctx: ShellHookContext<THost>): RunOutcome | Promise<RunOutcome>;
+  /** Runs in order on every run that started. Returns the output view and the notes to keep. */
+  afterRun(
+    outcome: RunOutcome,
+    ctx: ShellHookContext<THost>,
+  ): AfterRunUpdate | Promise<AfterRunUpdate>;
 }

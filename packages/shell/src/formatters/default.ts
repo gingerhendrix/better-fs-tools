@@ -50,9 +50,9 @@ function body(report: ShellReport, messages: Readonly<ShellMessageCatalog>): str
   return [statusLine(run, messages), ...outputLines(output, messages)];
 }
 
+/** An abort or the capture cap shows the exit here, and its reason in the error note. */
 function statusLine(run: ShellRun, messages: Readonly<ShellMessageCatalog>): string {
   if (run.stoppedBy === "timeout") return messages.timedOut({ timeoutMs: run.timeoutMs });
-  if (run.stoppedBy === "abort") return messages.aborted({ durationMs: run.durationMs });
   return messages.exited({ code: run.exitCode, signal: run.signal, durationMs: run.durationMs });
 }
 

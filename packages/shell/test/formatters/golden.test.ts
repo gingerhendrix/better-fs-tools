@@ -37,16 +37,17 @@ const output: ShellOutput = {
   stderrBytes: 0,
   spill: null,
 };
-const report = (patch: Partial<ShellReport>): ShellReport => ({
-  tool: "bash",
-  status: "ok",
-  error: null,
-  request: { command: "x", timeoutMs: 120_000, cwd: null },
-  run,
-  output,
-  notes: [],
-  ...patch,
-});
+/** A report fixture. A patch with status "error" also sets error. */
+const report = (patch: Record<string, unknown>): ShellReport =>
+  ({
+    tool: "bash",
+    status: "ok",
+    request: { command: "x", timeoutMs: 120_000, cwd: null },
+    run,
+    output,
+    notes: [],
+    ...patch,
+  }) as ShellReport;
 
 describe("defaultShellFormatter golden text", () => {
   test("ok", () => {
@@ -81,38 +82,43 @@ describe("defaultShellFormatter golden text", () => {
     );
   });
 
-  test("aborted", () => {
+  test("an abort during the run shows the exit, then the aborted note", () => {
+    const message = "Aborted after 3.1 s. The process tree was stopped.";
     const aborted = report({
-      status: "aborted",
-      run: { ...run, exitCode: null, stoppedBy: "abort", durationMs: 3_100 },
+      status: "error",
+      error: { code: "ABORTED", phase: "run", message },
+      run: { ...run, exitCode: null, signal: "SIGTERM", stoppedBy: "abort", durationMs: 3_100 },
       output: { ...output, head: "", totalBytes: 0, totalLines: 0 },
+      notes: [{ code: "aborted", severity: "warning", message }],
     });
-    expect(format(aborted)).toBe("Aborted after 3.1 s. The process tree was stopped.\n(no output)");
+    expect(format(aborted)).toBe(
+      `Ended by SIGTERM · 3.1 s\n(no output)\n\n[bash:aborted] ${message}`,
+    );
   });
 
-  test("refused prints the note only", () => {
-    const refused = report({
-      status: "refused",
-      error: { code: "DENIED", phase: "authorize" },
+  test("an error before the run prints the note only", () => {
+    const denied = report({
+      status: "error",
+      error: { code: "DENIED", phase: "authorize", message: "No." },
       run: null,
       output: null,
-      notes: [{ code: "DENIED", severity: "warning", message: "No." }],
+      notes: [{ code: "denied", severity: "warning", message: "No." }],
     });
-    expect(format(refused)).toBe("[bash:DENIED] No.");
+    expect(format(denied)).toBe("[bash:denied] No.");
   });
 
   test("error after a run shows the run, then the note", () => {
     const capped = report({
       status: "error",
-      error: { code: "OUTPUT_CAP", phase: "run" },
+      error: { code: "OUTPUT_CAP", phase: "run", message: "Too much." },
       run: { ...run, exitCode: null, signal: "SIGTERM", stoppedBy: "output-cap" },
-      notes: [{ code: "OUTPUT_CAP", severity: "warning", message: "Too much." }],
+      notes: [{ code: "output-cap", severity: "warning", message: "Too much." }],
     });
-    expect(format(capped)).toBe("Ended by SIGTERM · 0.4 s\nhello\n\n[bash:OUTPUT_CAP] Too much.");
+    expect(format(capped)).toBe("Ended by SIGTERM · 0.4 s\nhello\n\n[bash:output-cap] Too much.");
   });
 
   test("view mode leaves out the notes", () => {
-    const noted = report({ notes: [{ code: "N", severity: "info", message: "n" }] });
+    const noted = report({ notes: [{ code: "n", severity: "info", message: "n" }] });
     expect(format(noted, "view")).toBe("Exit code 0 · 0.4 s\nhello");
   });
 });

@@ -51,8 +51,8 @@ describe("justBashCommandRunner", () => {
 
   test("a missing or file cwd maps to the cwd errors", async () => {
     const bash = createBashTool({ runner: justBashCommandRunner(shell()) });
-    expect((await bash({ command: "ls", cwd: "nope" })).error?.code).toBe("CWD_NOT_FOUND");
-    expect((await bash({ command: "ls", cwd: "a.txt" })).error?.code).toBe("CWD_NOT_A_DIRECTORY");
+    expect(errorOf(await bash({ command: "ls", cwd: "nope" }))?.code).toBe("CWD_NOT_FOUND");
+    expect(errorOf(await bash({ command: "ls", cwd: "a.txt" }))?.code).toBe("CWD_NOT_A_DIRECTORY");
   });
 
   test("the description names the emulated runner", () => {
@@ -83,3 +83,10 @@ describe("justBashCommandRunner", () => {
     expect(Date.now() - started).toBeLessThan(2_500);
   });
 });
+
+/** The error of a result, or null when its status is not "error". */
+function errorOf<T extends { readonly status: string }>(
+  result: T,
+): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {
+  return result.status === "error" ? (result as unknown as { readonly error: never }).error : null;
+}

@@ -1,7 +1,7 @@
 /** The canonical input. A signature maps the model's input to it. */
 export interface BashInput {
   readonly command: string;
-  /** Milliseconds. Clamped to limits.maxTimeoutMs. Default limits.defaultTimeoutMs. */
+  /** Milliseconds. Clamped to limits.maxTimeoutMs with a clamped note. Default limits.defaultTimeoutMs. */
   readonly timeoutMs?: number;
   /** Relative to the default cwd, or absolute. Default the default cwd. */
   readonly cwd?: string;

@@ -2,10 +2,9 @@ import type { JsonObject, Note } from "@better-fs-tools/read";
 
 import type { ShellErrorCode, ShellPhase } from "../contract/result.ts";
 
-/** Ends the call before the command starts: "refused" or "error". */
+/** Ends the call with status "error". `note` is the error note. */
 export class StageStop extends Error {
   constructor(
-    readonly status: "refused" | "error",
     readonly code: ShellErrorCode,
     readonly phase: ShellPhase,
     readonly note: Note,
@@ -20,8 +19,20 @@ export function warning(code: string, message: string, data?: JsonObject): Note 
     : { code, severity: "warning", message, data };
 }
 
-export function info(code: string, message: string): Note {
-  return { code, severity: "info", message };
+export function info(code: string, message: string, data?: JsonObject): Note {
+  return data === undefined
+    ? { code, severity: "info", message }
+    : { code, severity: "info", message, data };
+}
+
+/** "OUTPUT_CAP" gives "output-cap". Every error note uses its code this way. */
+export function noteCode(code: ShellErrorCode): string {
+  return code.toLowerCase().replaceAll("_", "-");
+}
+
+/** The warning note of an error, with the error code in kebab case. */
+export function errorNote(code: ShellErrorCode, message: string, data?: JsonObject): Note {
+  return warning(noteCode(code), message, data);
 }
 
 export function isNote(value: unknown): value is Note {

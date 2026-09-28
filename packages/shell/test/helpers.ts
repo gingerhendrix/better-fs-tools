@@ -110,3 +110,10 @@ export function text(result: ShellResult): string {
 export function lines(count: number, prefix = "line"): string {
   return Array.from({ length: count }, (_, index) => `${prefix} ${index + 1}\n`).join("");
 }
+
+/** The error of a result, or null when its status is not "error". */
+export function errorOf<T extends { readonly status: string }>(
+  result: T,
+): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {
+  return result.status === "error" ? (result as unknown as { readonly error: never }).error : null;
+}
