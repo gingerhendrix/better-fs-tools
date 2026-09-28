@@ -48,15 +48,11 @@ export const RUNTIME_NEUTRAL = [
 ];
 
 /**
- * Entries that are empty on purpose: the write package's ./patch and
- * ./signature entries, until the batches that fill them. The Node consumer
- * fails when a listed entry exports something, so each batch that adds
- * exports must remove its entry here.
+ * Entries that are empty on purpose: the write package's ./signature entry,
+ * until the batch that fills it. The Node consumer fails when a listed entry
+ * exports something, so the batch that adds exports must remove its entry here.
  */
-export const EMPTY_ENTRIES: readonly string[] = [
-  `${SCOPE}/write/patch`,
-  `${SCOPE}/write/signature`,
-];
+export const EMPTY_ENTRIES: readonly string[] = [`${SCOPE}/write/signature`];
 
 export interface ExportTarget {
   readonly types?: string;

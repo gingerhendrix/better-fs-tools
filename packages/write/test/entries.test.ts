@@ -11,3 +11,13 @@ describe("package entries", () => {
     }
   });
 });
+
+describe("./patch", () => {
+  test("exports the parser, and the root exports the same functions", async () => {
+    const patch = await import("@better-fs-tools/write/patch");
+    const root = await import("@better-fs-tools/write");
+    expect(Object.keys(patch).sort()).toEqual(["codexPatchParser", "parsePatch"]);
+    expect(root.parsePatch).toBe(patch.parsePatch);
+    expect(root.codexPatchParser).toBe(patch.codexPatchParser);
+  });
+});
