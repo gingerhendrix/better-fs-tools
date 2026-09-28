@@ -1,12 +1,34 @@
 import type { IFileSystem } from "just-bash";
 
-import { justBashReadFileSystem } from "../src/index.ts";
+import { justBashFileSystem, justBashReadFileSystem } from "../src/index.ts";
 import type { JustBashReadFileSystemOptions } from "../src/index.ts";
 
-type Method = "lstat" | "realpath" | "stat" | "readFileBuffer" | "readdir";
+type Method =
+  | "lstat"
+  | "realpath"
+  | "stat"
+  | "readFileBuffer"
+  | "readdir"
+  | "writeFile"
+  | "mkdir"
+  | "rm"
+  | "chmod"
+  | "utimes";
 
 export function adapter(fs: IFileSystem, overrides: Partial<JustBashReadFileSystemOptions> = {}) {
   return justBashReadFileSystem(fs, {
+    id: "test-just-bash",
+    cwd: "/workspace",
+    allowedRoots: ["/workspace"],
+    maxBufferedBytes: 1_024,
+    identity: "required",
+    ...overrides,
+  });
+}
+
+/** The writable adapter with the same test defaults. */
+export function writable(fs: IFileSystem, overrides: Partial<JustBashReadFileSystemOptions> = {}) {
+  return justBashFileSystem(fs, {
     id: "test-just-bash",
     cwd: "/workspace",
     allowedRoots: ["/workspace"],

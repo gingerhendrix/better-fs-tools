@@ -8,7 +8,7 @@ import type { FsStat } from "just-bash";
 
 import { justBashReadFileSystem } from "../src/index.ts";
 import { adapter, intercept } from "./backend.ts";
-import { expectFsError, importSpecifiers } from "./helpers.ts";
+import { expectFsError, sourceSpecifiers } from "./helpers.ts";
 
 const DECODER = new TextDecoder();
 
@@ -417,10 +417,15 @@ describe("just-bash not-a-file", () => {
 });
 
 describe("just-bash imports", () => {
-  test("the source imports only @better-fs-tools/fs and just-bash types", async () => {
-    const specifiers = await importSpecifiers(resolve(import.meta.dir, "../src/index.ts"));
+  test("the source imports only @better-fs-tools/fs, just-bash types and its own modules", async () => {
+    const folder = resolve(import.meta.dir, "../src");
+    const specifiers = await sourceSpecifiers(folder);
     expect(new Set(specifiers)).toEqual(new Set(["@better-fs-tools/fs", "just-bash"]));
-    const source = await Bun.file(resolve(import.meta.dir, "../src/index.ts")).text();
-    expect(source).toContain('import type { FsStat, IFileSystem } from "just-bash";');
+    for (const file of new Bun.Glob("*.ts").scanSync({ cwd: folder, absolute: true })) {
+      const source = await Bun.file(file).text();
+      for (const line of source.split("\n").filter((text) => text.includes('from "just-bash"'))) {
+        expect(line).toStartWith("import type ");
+      }
+    }
   });
 });
