@@ -2,9 +2,10 @@ import { describe, expect, test } from "bun:test";
 
 import { isWritableFileSystem } from "@better-fs-tools/fs";
 import type { WriteOptions } from "@better-fs-tools/fs";
+import { createReadTool, textOf } from "@better-fs-tools/read";
 
-import { shellWorkspaceFileSystem } from "../src/index.ts";
-import type { ShellWorkspaceLike } from "../src/index.ts";
+import { cloudflareShellFileSystem } from "../src/index.ts";
+import type { CloudflareShellWorkspaceLike } from "../src/index.ts";
 import { ROOT, fakeWorkspace, fsFor } from "./fake-workspace.ts";
 import { expectMutationError } from "./helpers.ts";
 
@@ -34,14 +35,44 @@ describe("shell workspace writes: shape", () => {
     expect("stage" in fs).toBe(false);
   });
 
-  test("rejects a workspace without the write methods", () => {
-    const workspace = fakeWorkspace();
+  test("a workspace without a write method still reads; a write reports unsupported (W4)", async () => {
+    const workspace = fakeWorkspace({ "/workspace/a.txt": "alpha\n" });
     for (const method of ["writeFileBytes", "mkdir", "rm"] as const) {
       const { [method]: _dropped, ...without } = workspace;
-      expect(() =>
-        shellWorkspaceFileSystem(without as unknown as ShellWorkspaceLike, { root: ROOT }),
-      ).toThrow(new RegExp(`must implement ${method}`, "u"));
+      const fs = cloudflareShellFileSystem(without as CloudflareShellWorkspaceLike, {
+        allowedRoots: [ROOT],
+      });
+      const opened = await fs.open("a.txt", {});
+      expect(opened.ok).toBe(true);
+      if (opened.ok) await opened.file.close();
+      const before = workspace.calls.length;
+      const outcome =
+        method === "rm"
+          ? await fs.remove("a.txt", ANY)
+          : await fs.write("b.txt", ENCODER.encode("x"), CREATE);
+      expect(outcome).toEqual({
+        ok: false,
+        error: {
+          reason: "unsupported",
+          detail: `the Shell Workspace has no ${method}(), so this backend cannot write`,
+        },
+      });
+      expect(workspace.calls.length).toBe(before);
     }
+  });
+
+  test("a read-only Workspace wrapper backs the read tool", async () => {
+    const workspace = fakeWorkspace({ "/workspace/a.txt": "alpha\n" });
+    const readOnly: CloudflareShellWorkspaceLike = {
+      stat: (path) => workspace.stat(path),
+      lstat: (path) => workspace.lstat(path),
+      readFileBytes: (path) => workspace.readFileBytes(path),
+      readDir: (dir, opts) => workspace.readDir(dir, opts),
+    };
+    const read = createReadTool({
+      fs: cloudflareShellFileSystem(readOnly, { allowedRoots: [ROOT] }),
+    });
+    expect(textOf(await read({ path: "a.txt" })).split("\n")[0]).toBe("1|alpha");
   });
 });
 
@@ -95,7 +126,7 @@ describe("shell workspace writes: stat", () => {
     expectMutationError(await fs.stat("a.txt/x", {}), "not-found");
     expectMutationError(await fs.stat("x\0y", {}), "dangerous-path");
 
-    const empty = shellWorkspaceFileSystem(fakeWorkspace(), { root: "/missing" });
+    const empty = cloudflareShellFileSystem(fakeWorkspace(), { allowedRoots: ["/missing"] });
     expectMutationError(await empty.stat("x.txt", {}), "not-found");
   });
 });
@@ -194,7 +225,7 @@ describe("shell workspace writes: write", () => {
 
   test("refuses bytes above the buffered ceiling as too-large", async () => {
     const workspace = fakeWorkspace();
-    const fs = shellWorkspaceFileSystem(workspace, { root: "/", maxBufferedBytes: 4 });
+    const fs = cloudflareShellFileSystem(workspace, { allowedRoots: ["/"], maxBufferedBytes: 4 });
     const error = expectMutationError(
       await fs.write("big.txt", ENCODER.encode("12345"), CREATE),
       "too-large",

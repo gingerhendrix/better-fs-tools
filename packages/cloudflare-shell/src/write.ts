@@ -25,7 +25,7 @@ import type {
   WriteOptions,
 } from "@better-fs-tools/fs";
 
-import type { ShellFileInfo, ShellWorkspaceLike } from "./contract.ts";
+import type { CloudflareShellFileInfo, CloudflareShellWorkspaceLike } from "./contract.ts";
 import {
   AdapterRefusal,
   authorize,
@@ -38,6 +38,7 @@ import {
   refuse,
   toFileSystemError,
 } from "./policy.ts";
+import type { Roots } from "./policy.ts";
 
 export const SHELL_WRITE_CAPABILITIES: WriteCapabilities = Object.freeze({
   /* Objects above the R2 threshold are written in several steps. */
@@ -54,25 +55,26 @@ export interface ShellWrites {
 }
 
 type Located =
-  | { readonly exists: true; readonly entry: ShellFileInfo }
+  | { readonly exists: true; readonly entry: CloudflareShellFileInfo }
   | { readonly exists: false; readonly missingDirectories: readonly string[] };
 
 /** The same token open() reports in info.version. */
-export function shellVersion(entry: ShellFileInfo): string {
+export function shellVersion(entry: CloudflareShellFileInfo): string {
   return `shell:${entry.size}:${entry.updatedAt}`;
 }
 
 export function shellWrites(
-  workspace: ShellWorkspaceLike,
-  root: string,
+  workspace: CloudflareShellWorkspaceLike,
+  roots: Roots,
   maxBufferedBytes: number,
 ): ShellWrites {
+  const { cwd } = roots;
   /**
    * `lstat` every component from the root down. A symlink anywhere is refused.
    * The first missing component ends the walk: it and every component below
    * it are missing. The root itself must exist.
    */
-  const locate = async (target: string): Promise<Located> => {
+  const locate = async (root: string, target: string): Promise<Located> => {
     const missing: string[] = [];
     for (const component of components(root, target)) {
       if (missing.length > 0) {
@@ -97,7 +99,7 @@ export function shellWrites(
         });
       }
       if (component === target) {
-        if (entry.type !== "file") throw refuse(notAFile("directory", root, target));
+        if (entry.type !== "file") throw refuse(notAFile("directory", cwd, target));
         return { exists: true, entry };
       }
       if (entry.type !== "directory") {
@@ -105,7 +107,7 @@ export function shellWrites(
       }
     }
     /* The root itself, or "/", is a directory. */
-    if (missing.length === 0) throw refuse(notAFile("directory", root, target));
+    if (missing.length === 0) throw refuse(notAFile("directory", cwd, target));
     return { exists: false, missingDirectories: missing.slice(0, -1) };
   };
 
@@ -114,7 +116,7 @@ export function shellWrites(
       ? {
           exists: true,
           resolvedPath: target,
-          displayPath: display(root, target),
+          displayPath: display(cwd, target),
           size: located.entry.size,
           mtimeMs: located.entry.updatedAt,
           identity: null,
@@ -125,15 +127,18 @@ export function shellWrites(
       : {
           exists: false,
           resolvedPath: target,
-          displayPath: display(root, target),
+          displayPath: display(cwd, target),
           missingDirectories: located.missingDirectories,
         };
 
   /** mkdir each missing parent, outermost first, then check it is a real directory. */
-  const makeDirectories = async (directories: readonly string[]): Promise<string[]> => {
+  const makeDirectories = async (
+    mkdir: NonNullable<CloudflareShellWorkspaceLike["mkdir"]>,
+    directories: readonly string[],
+  ): Promise<string[]> => {
     const created: string[] = [];
     for (const directory of directories) {
-      await mutate(workspace.mkdir(directory, { recursive: true }), "mkdir");
+      await mutate(mkdir(directory, { recursive: true }), "mkdir");
       const entry = await inspect(workspace, "lstat", directory);
       if (entry?.type !== "directory") {
         throw refuse({ reason: "denied", detail: "a created parent is not a directory" });
@@ -145,11 +150,11 @@ export function shellWrites(
 
   const mutated = (
     target: string,
-    entry: ShellFileInfo | null,
+    entry: CloudflareShellFileInfo | null,
     created: readonly string[],
   ): MutatedFile => ({
     resolvedPath: target,
-    displayPath: display(root, target),
+    displayPath: display(cwd, target),
     version: entry === null ? null : shellVersion(entry),
     identity: null,
     size: entry?.size ?? null,
@@ -161,8 +166,8 @@ export function shellWrites(
     async stat(requested: string, options: OpenOptions = {}): Promise<StatOutcome> {
       if (options.signal?.aborted) return { ok: false, error: { reason: "aborted" } };
       try {
-        const target = authorize(root, requested);
-        return { ok: true, stat: fileStat(target, await locate(target)) };
+        const { root, target } = authorize(roots, requested);
+        return { ok: true, stat: fileStat(target, await locate(root, target)) };
       } catch (error) {
         return { ok: false, error: toFileSystemError(error) };
       }
@@ -175,7 +180,9 @@ export function shellWrites(
     ): Promise<MutationOutcome> {
       if (options.signal?.aborted) return { ok: false, error: { reason: "aborted" } };
       try {
-        const target = authorize(root, requested);
+        const writeFileBytes = requireMethod(workspace, "writeFileBytes");
+        const mkdir = requireMethod(workspace, "mkdir");
+        const { root, target } = authorize(roots, requested);
         if (bytes.byteLength > maxBufferedBytes) {
           throw new WriteRefusal({
             reason: "too-large",
@@ -184,20 +191,22 @@ export function shellWrites(
             detail: `the object exceeds the ${maxBufferedBytes}-byte buffered ceiling`,
           });
         }
-        const located = await locate(target);
+        const located = await locate(root, target);
         refuseConflict(located, options.precondition);
         if (!located.exists && located.missingDirectories.length > 0 && !options.createParents) {
           throw refuse({ reason: "not-found", detail: "the parent directory does not exist" });
         }
         if (options.signal?.aborted) throw refuse({ reason: "aborted" });
 
-        const created = located.exists ? [] : await makeDirectories(located.missingDirectories);
+        const created = located.exists
+          ? []
+          : await makeDirectories(mkdir, located.missingDirectories);
         /* Shell resets the mime type to its default unless it is passed again. */
         const mimeType = located.exists ? located.entry.mimeType : undefined;
         await mutate(
           mimeType === undefined
-            ? workspace.writeFileBytes(target, bytes)
-            : workspace.writeFileBytes(target, bytes, mimeType),
+            ? writeFileBytes(target, bytes)
+            : writeFileBytes(target, bytes, mimeType),
           "writeFileBytes",
         );
         const after = await inspect(workspace, "lstat", target);
@@ -213,18 +222,38 @@ export function shellWrites(
     async remove(requested: string, options: MutateOptions): Promise<MutationOutcome> {
       if (options.signal?.aborted) return { ok: false, error: { reason: "aborted" } };
       try {
-        const target = authorize(root, requested);
-        const located = await locate(target);
+        const rm = requireMethod(workspace, "rm");
+        const { root, target } = authorize(roots, requested);
+        const located = await locate(root, target);
         refuseConflict(located, options.precondition);
         if (!located.exists) throw refuse({ reason: "not-found" });
         if (options.signal?.aborted) throw refuse({ reason: "aborted" });
-        await mutate(workspace.rm(target), "rm");
+        await mutate(rm(target), "rm");
         return { ok: true, file: mutated(target, null, []) };
       } catch (error) {
         return { ok: false, error: toMutationError(error) };
       }
     },
   };
+}
+
+/**
+ * Decision W4: a write method is looked up when a write runs. A Workspace
+ * without it gives `unsupported` before any backend call. Bound, so a class
+ * instance keeps its `this`.
+ */
+function requireMethod<K extends "writeFileBytes" | "mkdir" | "rm">(
+  workspace: CloudflareShellWorkspaceLike,
+  method: K,
+): NonNullable<CloudflareShellWorkspaceLike[K]> {
+  const found = workspace[method];
+  if (typeof found !== "function") {
+    throw new WriteRefusal({
+      reason: "unsupported",
+      detail: `the Shell Workspace has no ${method}(), so this backend cannot write`,
+    });
+  }
+  return found.bind(workspace) as NonNullable<CloudflareShellWorkspaceLike[K]>;
 }
 
 /** The adapter's own precondition check. Not atomic with the backend call. */

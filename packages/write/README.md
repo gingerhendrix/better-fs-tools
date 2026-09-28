@@ -373,13 +373,13 @@ console.log(textOf(result)); // What the model sees
 
 The core adds a note when the backend cannot keep a promise: `not-atomic` when a reader could see a partial file, `no-compare-and-swap` when the backend cannot check the version at the moment of the write, and `mode-not-kept` when a replace may change the file's permissions.
 
-| Backend                      | `atomic` | `compareAndSwap`    | `preserveMode` | `stage()` | `remove()` |
-| ---------------------------- | -------- | ------------------- | -------------- | --------- | ---------- |
-| `memoryFileSystem()`         | yes      | yes                 | yes            | yes       | yes        |
-| `nodeFileSystem()`           | yes      | yes, in one process | yes            | yes       | yes        |
-| `shellWorkspaceFileSystem()` | no       | no                  | no             | no        | yes        |
-| `computerFileSystem()`       | yes      | no                  | yes            | no        | yes        |
-| `justBashFileSystem()`       | no       | no                  | yes            | no        | yes        |
+| Backend                          | `atomic` | `compareAndSwap`    | `preserveMode` | `stage()` | `remove()` |
+| -------------------------------- | -------- | ------------------- | -------------- | --------- | ---------- |
+| `memoryFileSystem()`             | yes      | yes                 | yes            | yes       | yes        |
+| `nodeFileSystem()`               | yes      | yes, in one process | yes            | yes       | yes        |
+| `cloudflareShellFileSystem()`    | no       | no                  | no             | no        | yes        |
+| `cloudflareComputerFileSystem()` | yes      | no                  | yes            | no        | yes        |
+| `justBashFileSystem()`           | no       | no                  | yes            | no        | yes        |
 
 Without compare-and-swap, the core checks the version with a fresh `stat` just before the write. Another writer can still change the file between that check and the write.
 

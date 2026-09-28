@@ -3,8 +3,8 @@ import { describe, expect, test } from "bun:test";
 import { createReadTool, textOf } from "@better-fs-tools/read";
 import type { ReadContext } from "@better-fs-tools/read";
 
-import { computerFileSystem } from "../src/index.ts";
-import type { ComputerFileSystem } from "../src/index.ts";
+import { cloudflareComputerFileSystem } from "../src/index.ts";
+import type { CloudflareComputerFileSystem } from "../src/index.ts";
 import { ROOT, fakeComputer, fsFor, streamOf } from "./fake-computer.ts";
 import type { FakeComputer } from "./fake-computer.ts";
 import { expectFailure, expectOk } from "./helpers.ts";
@@ -103,9 +103,9 @@ describe("computer filesystem through the read tool", () => {
     }
     const calls: ReadContext<Host>[] = [];
     const read = createReadTool<Host>({
-      fs: (call): ComputerFileSystem => {
+      fs: (call): CloudflareComputerFileSystem => {
         calls.push(call);
-        return computerFileSystem(call.host.backend, { root: ROOT });
+        return cloudflareComputerFileSystem(call.host.backend, { allowedRoots: [ROOT] });
       },
     });
     const first: ReadContext<Host> = {

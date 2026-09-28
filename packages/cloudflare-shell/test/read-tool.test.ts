@@ -3,8 +3,8 @@ import { describe, expect, test } from "bun:test";
 import { createReadTool, textOf } from "@better-fs-tools/read";
 import type { ReadContext } from "@better-fs-tools/read";
 
-import { shellWorkspaceFileSystem } from "../src/index.ts";
-import type { ShellWorkspaceFileSystem } from "../src/index.ts";
+import { cloudflareShellFileSystem } from "../src/index.ts";
+import type { CloudflareShellFileSystem } from "../src/index.ts";
 import { ROOT, fakeWorkspace, fsFor } from "./fake-workspace.ts";
 import type { FakeWorkspace } from "./fake-workspace.ts";
 import { expectFailure, expectOk } from "./helpers.ts";
@@ -60,9 +60,9 @@ describe("shell workspace through the read tool", () => {
     }
     const calls: ReadContext<Host>[] = [];
     const read = createReadTool<Host>({
-      fs: (call): ShellWorkspaceFileSystem => {
+      fs: (call): CloudflareShellFileSystem => {
         calls.push(call);
-        return shellWorkspaceFileSystem(call.host.workspace, { root: ROOT });
+        return cloudflareShellFileSystem(call.host.workspace, { allowedRoots: [ROOT] });
       },
     });
     const first: ReadContext<Host> = {

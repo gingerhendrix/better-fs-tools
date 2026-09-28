@@ -1,4 +1,6 @@
 import type {
+  FileSystemRootOptions,
+  FileSystemRootSettings,
   ListOptions,
   ListOutcome,
   MutateOptions,
@@ -11,7 +13,7 @@ import type {
  * `WorkspaceStatResult`: the fields this adapter reads are declared, `inode`
  * is deliberately ignored, and everything here is validated at runtime anyway.
  */
-export interface ComputerStat {
+export interface CloudflareComputerStat {
   name: string;
   /** Epoch milliseconds. */
   mtime: number;
@@ -28,7 +30,7 @@ export interface ComputerStat {
 }
 
 /** A structural subset of Computer's `WorkspaceDirentResult`. */
-export interface ComputerDirent {
+export interface CloudflareComputerDirent {
   name: string;
   parentPath: string;
   isFile: boolean;
@@ -40,38 +42,50 @@ export interface ComputerDirent {
  * The filesystem methods this adapter uses. `WorkspaceFilesystem` and
  * `WorkspaceFilesystemStub` from `@cloudflare/computer@0.2.1` both satisfy it.
  *
+ * The write methods are optional (decision W4): a filesystem without them still
+ * serves reads, and a write reports `unsupported`.
+ *
  * `readFile` is declared with one parameter on purpose. Supplying an encoding
  * or a byte window selects a different upstream overload, and this adapter must
  * only ever take the whole-object stream: the core owns windowing, and a string
  * overload would bypass byte classification entirely.
  */
-export interface ComputerFileSystemLike {
+export interface CloudflareComputerFileSystemLike {
   readFile(path: string): Promise<ReadableStream<Uint8Array>>;
-  stat(path: string): Promise<ComputerStat>;
-  lstat(path: string): Promise<ComputerStat>;
-  readdir(path: string, options?: { limit?: number; offset?: number }): Promise<ComputerDirent[]>;
+  stat(path: string): Promise<CloudflareComputerStat>;
+  lstat(path: string): Promise<CloudflareComputerStat>;
+  readdir(
+    path: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<CloudflareComputerDirent[]>;
   /** One SQL transaction. `exclusive` fails with `EEXIST`. Follows a leaf symlink; the adapter refuses one first. */
-  writeFile(
+  writeFile?(
     path: string,
     content: Uint8Array,
     options?: { mode?: number; exclusive?: boolean },
   ): Promise<void>;
-  mkdir(path: string, options?: { recursive?: boolean; mode?: number }): Promise<void>;
-  rm(path: string, options?: { recursive?: boolean; force?: boolean }): Promise<void>;
+  mkdir?(path: string, options?: { recursive?: boolean; mode?: number }): Promise<void>;
+  rm?(path: string, options?: { recursive?: boolean; force?: boolean }): Promise<void>;
 }
 
-export interface ComputerFileSystemOptions {
-  /** Absolute POSIX path. Nothing outside it is readable, listable or writable. */
-  root: string;
-  id?: string;
-}
+/**
+ * The shared root options, with workspace paths. `allowedRoots` holds absolute
+ * paths, or paths relative to `cwd`. `cwd` must be absolute and defaults to the
+ * first allowed root. `symlinks` can only be `"reject"` and `identity` only
+ * `"none"`. `id` defaults to `"cloudflare-computer"`. Reads stream, so there is
+ * no `maxBufferedBytes`.
+ */
+export interface CloudflareComputerFileSystemOptions extends FileSystemRootOptions<
+  "reject",
+  "none"
+> {}
 
 /**
  * writeCapabilities is `{ atomic: true, compareAndSwap: false, preserveMode: true }`.
  * There is no stage(): Computer has no rename that could publish a prepared file.
  */
-export interface ComputerFileSystem extends WritableFileSystem {
-  readonly root: string;
+export interface CloudflareComputerFileSystem
+  extends WritableFileSystem, FileSystemRootSettings<"reject", "none"> {
   list(path: string, options: ListOptions): Promise<ListOutcome>;
   remove(path: string, options: MutateOptions): Promise<MutationOutcome>;
 }

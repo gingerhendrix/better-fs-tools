@@ -16,11 +16,13 @@ The package has no peers. It declares the filesystem methods that it uses as a s
 
 ```ts
 import type { Workspace } from "@cloudflare/computer";
-import { computerFileSystem } from "@better-fs-tools/cloudflare-computer";
+import { cloudflareComputerFileSystem } from "@better-fs-tools/cloudflare-computer";
 import { createReadTool } from "@better-fs-tools/read";
 
 export function computerReadTool(workspace: Workspace) {
-  return createReadTool({ fs: computerFileSystem(workspace.fs, { root: "/workspace" }) });
+  return createReadTool({
+    fs: cloudflareComputerFileSystem(workspace.fs, { allowedRoots: ["/workspace"] }),
+  });
 }
 ```
 
@@ -28,13 +30,13 @@ With the write tools, which share one store and one digest with the read tool:
 
 ```ts
 import type { Workspace } from "@cloudflare/computer";
-import { computerFileSystem } from "@better-fs-tools/cloudflare-computer";
+import { cloudflareComputerFileSystem } from "@better-fs-tools/cloudflare-computer";
 import { createMemoryStore, createReadTool, sha256Digest } from "@better-fs-tools/read";
 import { createEditTool, createWriteTool, memoryLocks } from "@better-fs-tools/write";
 
 // sha256Digest() is plain JavaScript, so it runs in a Worker.
 export function computerTools(workspace: Workspace) {
-  const fs = computerFileSystem(workspace.fs, { root: "/workspace" });
+  const fs = cloudflareComputerFileSystem(workspace.fs, { allowedRoots: ["/workspace"] });
   const shared = { fs, state: createMemoryStore(), digest: sha256Digest() };
   const locks = memoryLocks();
   return {
@@ -47,7 +49,9 @@ export function computerTools(workspace: Workspace) {
 
 ## What the filesystem does
 
-- `computerFileSystem(workspace.fs, { root, id? })` refuses every path outside `root` before it calls the workspace.
+- `cloudflareComputerFileSystem(workspace.fs, options)` takes the shared `FileSystemRootOptions` from `@better-fs-tools/fs`: `allowedRoots` (required), `denyRoots`, `cwd`, `id`, `symlinks`, and `identity`. It refuses every path outside the allowed roots, or inside a deny root, before it calls the workspace. A deny root gives `denied`.
+- `cwd` must be absolute and defaults to the first allowed root. Relative paths and relative roots resolve against it. Display paths are relative to `cwd`, and absolute outside it. `id` defaults to `"cloudflare-computer"`. `symlinks` can only be `"reject"` and `identity` only `"none"`. Reads stream, so there is no `maxBufferedBytes`.
+- The filesystem exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, and `identity`.
 - It walks each path with `lstat`, so symlinks are refused before any byte is read.
 - It streams the file that `readFile` returns.
 - `verify()` compares size and modification time, so results have a `weak-identity` note.
@@ -55,7 +59,8 @@ export function computerTools(workspace: Workspace) {
 
 ## How it writes
 
-- `stat()`, `write()`, and `remove()` use `lstat`, `writeFile`, `mkdir`, and `rm`. They check the root and refuse every symlink on the path before any write, as `open()` does.
+- `stat()`, `write()`, and `remove()` use `lstat`, `writeFile`, `mkdir`, and `rm`. They check the roots and refuse every symlink on the path before any write, as `open()` does.
+- `writeFile`, `mkdir`, and `rm` are optional in `CloudflareComputerFileSystemLike`. They are checked when a write runs, not when the filesystem is built. A read-only wrapper backs the read tool, and a write to it gives `unsupported`, which the tools report as `UNSUPPORTED_BACKEND`.
 - `writeCapabilities` is `{ atomic: true, compareAndSwap: false, preserveMode: true }`. `writeFile` runs in one transaction. It has no version check, so the adapter checks the precondition with a fresh `lstat` just before the write, and the write tools add a `no-compare-and-swap` note. A create passes `exclusive: true`, so two creators cannot both win.
 - `writeFile` sets the mode to `0o644` unless it gets one, also on a replace. The adapter passes the mode that `lstat` reported, so a replace keeps it. `stat()` reports the mode.
 - There is no `stage()`: Computer has no rename. `apply_patch` writes each file in turn, and undoes them on a failure.

@@ -49,7 +49,7 @@ export async function ask(model: LanguageModel, prompt: string): Promise<string>
 - Retry text in notes uses the signature's names. `result.continuation.next` stays canonical.
 - `toModelOutput` maps text parts to text parts, and media parts to base64 `file` parts. `toAiSdkOutput(result)` does the same mapping for your own tool.
 
-For a Cloudflare Agents host, pass `fs: shellWorkspaceFileSystem(workspace, { root })` from `@better-fs-tools/cloudflare-shell`. No other wrapper is needed.
+For a Cloudflare Agents host, pass `fs: cloudflareShellFileSystem(workspace, { allowedRoots: [root] })` from `@better-fs-tools/cloudflare-shell`. No other wrapper is needed.
 
 ## Write tools
 

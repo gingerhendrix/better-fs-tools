@@ -4,13 +4,13 @@ import {
   createAiSdkReadTool,
   createAiSdkWriteTool,
 } from "@better-fs-tools/ai-sdk";
-import { shellWorkspaceFileSystem } from "@better-fs-tools/cloudflare-shell";
+import { cloudflareShellFileSystem } from "@better-fs-tools/cloudflare-shell";
 import { createMemoryStore, sha256Digest } from "@better-fs-tools/read";
 import { memoryLocks } from "@better-fs-tools/write";
 
 // sha256Digest() is plain JavaScript, so it runs in a Worker.
 export function workspaceTools(workspace: Workspace) {
-  const fs = shellWorkspaceFileSystem(workspace, { root: "/workspace" });
+  const fs = cloudflareShellFileSystem(workspace, { allowedRoots: ["/workspace"] });
   const shared = { fs, state: createMemoryStore(), digest: sha256Digest() };
   const locks = memoryLocks();
   const read = createAiSdkReadTool(shared);

@@ -1,5 +1,9 @@
-import { computerFileSystem } from "../src/index.ts";
-import type { ComputerDirent, ComputerFileSystemLike, ComputerStat } from "../src/index.ts";
+import { cloudflareComputerFileSystem } from "../src/index.ts";
+import type {
+  CloudflareComputerDirent,
+  CloudflareComputerFileSystemLike,
+  CloudflareComputerStat,
+} from "../src/index.ts";
 
 const ENCODER = new TextEncoder();
 
@@ -14,7 +18,8 @@ interface Entry {
   mode?: number;
 }
 
-export interface FakeComputer extends ComputerFileSystemLike {
+/** Every write method is present in the fake, so the tests can call them. */
+export interface FakeComputer extends Required<CloudflareComputerFileSystemLike> {
   calls: string[];
   /** Argument counts seen by `readFile`, so the overload choice is observable. */
   readFileArity: number[];
@@ -23,7 +28,7 @@ export interface FakeComputer extends ComputerFileSystemLike {
   entries: Map<string, Entry>;
   chunkSize: number;
   /** The unoverridden implementations, so an override can be path-specific. */
-  raw: Pick<ComputerFileSystemLike, "stat" | "lstat" | "readFile" | "readdir">;
+  raw: Pick<CloudflareComputerFileSystemLike, "stat" | "lstat" | "readFile" | "readdir">;
   put(path: string, contents: string | Uint8Array): void;
   link(path: string, target: string): void;
   /** Replaces one method for a single failure or malformed-result case. */
@@ -71,7 +76,7 @@ export function fakeComputer(files: Record<string, string | Uint8Array> = {}): F
       mode: entries.get(path)?.mode ?? 0o644,
     });
   };
-  const stat = (path: string, entry: Entry): ComputerStat => ({
+  const stat = (path: string, entry: Entry): CloudflareComputerStat => ({
     name: path === "/" ? "/" : basenamePosix(path),
     size: entry.bytes?.byteLength ?? 0,
     mtime: entry.mtime,
@@ -88,14 +93,14 @@ export function fakeComputer(files: Record<string, string | Uint8Array> = {}): F
     return follow(entry.target ?? "/", depth + 1);
   };
 
-  async function rawStat(path: string): Promise<ComputerStat> {
+  async function rawStat(path: string): Promise<CloudflareComputerStat> {
     const followed = follow(path);
     const entry = entries.get(followed);
     if (entry === undefined) throw fsError("ENOENT", `no such path: ${path}`);
     return { ...stat(followed, entry), name: path === "/" ? "/" : basenamePosix(path) };
   }
 
-  async function rawLstat(path: string): Promise<ComputerStat> {
+  async function rawLstat(path: string): Promise<CloudflareComputerStat> {
     const entry = entries.get(path);
     if (entry === undefined) throw fsError("ENOENT", `no such path: ${path}`);
     return stat(path, entry);
@@ -112,8 +117,8 @@ export function fakeComputer(files: Record<string, string | Uint8Array> = {}): F
   async function rawReaddir(
     dir: string,
     options?: { limit?: number; offset?: number },
-  ): Promise<ComputerDirent[]> {
-    const found: ComputerDirent[] = [];
+  ): Promise<CloudflareComputerDirent[]> {
+    const found: CloudflareComputerDirent[] = [];
     for (const [path, entry] of entries) {
       if (path === "/" || dirnamePosix(path) !== dir) continue;
       found.push({
@@ -279,5 +284,5 @@ export function fsFor(files: Record<string, string | Uint8Array> = {}) {
   const backend = fakeComputer(files);
   /* The root exists even when no file is in it. */
   if (!backend.entries.has(ROOT)) backend.entries.set(ROOT, { type: "directory", mtime: 1 });
-  return { backend, fs: computerFileSystem(backend, { root: ROOT }) };
+  return { backend, fs: cloudflareComputerFileSystem(backend, { allowedRoots: [ROOT] }) };
 }

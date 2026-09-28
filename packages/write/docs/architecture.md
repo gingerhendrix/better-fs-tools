@@ -204,11 +204,11 @@ A backend keeps the policy. The core never checks roots or symlinks itself. A wr
 
 `runWritableFileSystemConformance(fs, { scratchDirectory })` from `@better-fs-tools/fs` checks these rules. The three virtual adapters show three ways to meet them with weaker backends:
 
-| Adapter                      | Backend calls                                 | How it meets the contract                                                                                                                     |
-| ---------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shellWorkspaceFileSystem()` | `writeFileBytes`, `mkdir`, `rm`               | Walks the path with `lstat` first, because `writeFileBytes` creates parents and follows a leaf link. Passes the old mime type back. No modes  |
-| `computerFileSystem()`       | `writeFile`, `mkdir`, `rm`                    | One transaction, so `atomic`. `exclusive: true` for a create. Passes the old mode back, because `writeFile` resets it                         |
-| `justBashFileSystem()`       | `writeFile`, `mkdir`, `rm`, `chmod`, `utimes` | `chmod` after a replace, because `InMemoryFs` resets the mode. Moves `mtime` on by 1 ms when a write left it the same, so the version changes |
+| Adapter                          | Backend calls                                 | How it meets the contract                                                                                                                     |
+| -------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cloudflareShellFileSystem()`    | `writeFileBytes`, `mkdir`, `rm`               | Walks the path with `lstat` first, because `writeFileBytes` creates parents and follows a leaf link. Passes the old mime type back. No modes  |
+| `cloudflareComputerFileSystem()` | `writeFile`, `mkdir`, `rm`                    | One transaction, so `atomic`. `exclusive: true` for a create. Passes the old mode back, because `writeFile` resets it                         |
+| `justBashFileSystem()`           | `writeFile`, `mkdir`, `rm`, `chmod`, `utimes` | `chmod` after a replace, because `InMemoryFs` resets the mode. Moves `mtime` on by 1 ms when a write left it the same, so the version changes |
 
 None of them has `stage()`, so `apply_patch` writes each file in turn and undoes the journal on a failure.
 

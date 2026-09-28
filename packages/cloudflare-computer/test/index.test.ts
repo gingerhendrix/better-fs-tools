@@ -4,8 +4,8 @@ import { resolve } from "node:path";
 import { posixPaths } from "@better-fs-tools/fs";
 import type { Workspace, WorkspaceFilesystemStub } from "@cloudflare/computer";
 
-import { computerFileSystem } from "../src/index.ts";
-import type { ComputerFileSystemLike } from "../src/index.ts";
+import { cloudflareComputerFileSystem } from "../src/index.ts";
+import type { CloudflareComputerFileSystemLike } from "../src/index.ts";
 import { ROOT, fakeComputer, fsError, fsFor, streamOf } from "./fake-computer.ts";
 import type { FakeComputer } from "./fake-computer.ts";
 import { expectFsError, sourceSpecifiers } from "./helpers.ts";
@@ -36,29 +36,76 @@ function concat(chunks: readonly Uint8Array[]): Uint8Array {
   return joined;
 }
 
+describe("shared root options", () => {
+  test("several roots, a cwd, and deny roots", async () => {
+    const backend = fakeComputer({
+      "/workspace/a.txt": "a\n",
+      "/shared/b.txt": "b\n",
+      "/shared/private/c.txt": "c\n",
+      "/other/d.txt": "d\n",
+    });
+    const fs = cloudflareComputerFileSystem(backend, {
+      cwd: "/workspace",
+      allowedRoots: ["/workspace", "../shared"],
+      denyRoots: ["/shared/private"],
+    });
+    expect(fs.allowedRoots).toEqual(["/workspace", "/shared"]);
+    expect(fs.denyRoots).toEqual(["/shared/private"]);
+
+    const inside = await fs.open("a.txt", {});
+    expect(inside.ok && inside.file.info.displayPath).toBe("a.txt");
+    if (inside.ok) await inside.file.close();
+    // A second root: the display path is absolute, since it is outside cwd.
+    const shared = await fs.open("../shared/b.txt", {});
+    expect(shared.ok && shared.file.info.displayPath).toBe("/shared/b.txt");
+    if (shared.ok) await shared.file.close();
+
+    expectFsError(await fs.open("/shared/private/c.txt", {}), "denied");
+    expectFsError(await fs.open("/other/d.txt", {}), "outside-allowed-roots");
+    const stat = await fs.stat("/shared/private/c.txt", {});
+    expect(stat.ok ? null : stat.error.reason).toBe("denied");
+  });
+
+  test("cwd defaults to the first allowed root", () => {
+    const fs = cloudflareComputerFileSystem(fakeComputer(), { allowedRoots: ["/a", "/b"] });
+    expect(fs.cwd).toBe("/a");
+  });
+});
+
 describe("computer filesystem options", () => {
-  test("rejects a relative root and a backend missing a method", () => {
+  test("rejects a relative cwd, bad roots, unsupported values and a backend missing a read method", () => {
     const backend = fakeComputer();
-    expect(() => computerFileSystem(backend, { root: "workspace" })).toThrow(TypeError);
-    expect(() => computerFileSystem(backend, { root: "/a\0b" })).toThrow(TypeError);
-    expect(() => computerFileSystem(backend, null as never)).toThrow(TypeError);
+    for (const options of [
+      { cwd: "workspace", allowedRoots: [ROOT] },
+      { allowedRoots: [] },
+      { allowedRoots: ["/a\0b"] },
+      { allowedRoots: [ROOT], symlinks: "follow-within-roots" },
+      { allowedRoots: [ROOT], identity: "required" },
+    ]) {
+      expect(() => cloudflareComputerFileSystem(backend, options as never)).toThrow(TypeError);
+    }
+    expect(() => cloudflareComputerFileSystem(backend, null as never)).toThrow(TypeError);
     expect(() =>
-      computerFileSystem(null as unknown as ComputerFileSystemLike, { root: ROOT }),
+      cloudflareComputerFileSystem(null as unknown as CloudflareComputerFileSystemLike, {
+        allowedRoots: [ROOT],
+      }),
     ).toThrow(TypeError);
 
     for (const method of ["readFile", "stat", "lstat", "readdir"] as const) {
       const partial = { ...backend };
       delete (partial as Record<string, unknown>)[method];
       expect(() =>
-        computerFileSystem(partial as unknown as ComputerFileSystemLike, { root: ROOT }),
+        cloudflareComputerFileSystem(partial as unknown as CloudflareComputerFileSystemLike, {
+          allowedRoots: [ROOT],
+        }),
       ).toThrow(new RegExp(`must implement ${method}`, "u"));
     }
   });
 
   test("accepts the real local filesystem and the RPC stub structurally", () => {
     /* Compile-time: both `0.2.1` surfaces satisfy the declared subset. */
-    const local: ComputerFileSystemLike | null = null as Workspace["fs"] | null;
-    const stub: ComputerFileSystemLike | null = null as WorkspaceFilesystemStub | null;
+    const local: CloudflareComputerFileSystemLike | null = null as Workspace["fs"] | null;
+    const stub: CloudflareComputerFileSystemLike | null = null as WorkspaceFilesystemStub | null;
     expect(local).toBeNull();
     expect(stub).toBeNull();
   });
@@ -69,7 +116,11 @@ describe("computer filesystem options", () => {
     expect(fs.capabilities).toEqual({ streaming: true, identity: false });
     expect(typeof fs.list).toBe("function");
     expect(fs.paths).toBe(posixPaths);
-    expect(fs.root).toBe(ROOT);
+    expect(fs.cwd).toBe(ROOT);
+    expect(fs.allowedRoots).toEqual([ROOT]);
+    expect(fs.denyRoots).toEqual([]);
+    expect(fs.symlinks).toBe("reject");
+    expect(fs.identity).toBe("none");
   });
 });
 
@@ -118,7 +169,7 @@ describe("computer filesystem policy", () => {
         "/workspace/real/b.txt": "beta\n",
       });
       build(backend);
-      const fs = computerFileSystem(backend, { root: ROOT });
+      const fs = cloudflareComputerFileSystem(backend, { allowedRoots: [ROOT] });
       const path = label === "leaf" ? "/workspace/link.txt" : "/workspace/dir/b.txt";
 
       const error = expectFsError(await fs.open(path, {}), "denied");
@@ -133,7 +184,7 @@ describe("computer filesystem policy", () => {
     backend.link("/workspace/dangling.txt", "/workspace/gone.txt");
     backend.link("/workspace/loop-a", "/workspace/loop-b");
     backend.link("/workspace/loop-b", "/workspace/loop-a");
-    const fs = computerFileSystem(backend, { root: ROOT });
+    const fs = cloudflareComputerFileSystem(backend, { allowedRoots: [ROOT] });
 
     for (const path of ["/workspace/dangling.txt", "/workspace/loop-a"]) {
       const error = expectFsError(await fs.open(path, {}), "denied");
@@ -197,7 +248,9 @@ describe("computer filesystem not-a-file", () => {
   });
 
   test("a root of / reports kind directory and its target", async () => {
-    const fs = computerFileSystem(fakeComputer({ "/a.txt": "alpha\n" }), { root: "/" });
+    const fs = cloudflareComputerFileSystem(fakeComputer({ "/a.txt": "alpha\n" }), {
+      allowedRoots: ["/"],
+    });
     expect(expectFsError(await fs.open("/", {}), "not-a-file")).toEqual({
       reason: "not-a-file",
       kind: "directory",
@@ -535,7 +588,9 @@ describe("computer filesystem listing", () => {
     if (!listed.ok) throw new Error(`list failed with ${listed.error.reason}`);
     expect(listed.entries).toEqual([{ name: "a.txt", type: "file" }]);
 
-    const whole = computerFileSystem(fakeComputer({ "/a.txt": "alpha\n" }), { root: "/" });
+    const whole = cloudflareComputerFileSystem(fakeComputer({ "/a.txt": "alpha\n" }), {
+      allowedRoots: ["/"],
+    });
     const top = await whole.list("/", { limit: 4 });
     if (!top.ok) throw new Error(`list failed with ${top.error.reason}`);
     expect(top.entries).toEqual([{ name: "a.txt", type: "file" }]);

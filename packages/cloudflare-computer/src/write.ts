@@ -23,7 +23,7 @@ import type {
   WriteOptions,
 } from "@better-fs-tools/fs";
 
-import type { ComputerFileSystemLike, ComputerStat } from "./contract.ts";
+import type { CloudflareComputerFileSystemLike, CloudflareComputerStat } from "./contract.ts";
 import {
   AdapterRefusal,
   authorize,
@@ -36,6 +36,7 @@ import {
   refuse,
   toFileSystemError,
 } from "./policy.ts";
+import type { Roots } from "./policy.ts";
 
 export const COMPUTER_WRITE_CAPABILITIES: WriteCapabilities = Object.freeze({
   atomic: true,
@@ -50,21 +51,25 @@ export interface ComputerWrites {
 }
 
 type Located =
-  | { readonly exists: true; readonly entry: ComputerStat }
+  | { readonly exists: true; readonly entry: CloudflareComputerStat }
   | { readonly exists: false; readonly missingDirectories: readonly string[] };
 
 /** The same token open() reports in info.version. */
-export function computerVersion(entry: ComputerStat): string {
+export function computerVersion(entry: CloudflareComputerStat): string {
   return `computer:${entry.size}:${entry.mtime}`;
 }
 
-export function computerWrites(workspaceFs: ComputerFileSystemLike, root: string): ComputerWrites {
+export function computerWrites(
+  workspaceFs: CloudflareComputerFileSystemLike,
+  roots: Roots,
+): ComputerWrites {
+  const { cwd } = roots;
   /**
    * `lstat` every component from the root down. A symlink anywhere is refused.
    * The first missing component ends the walk: it and every component below
    * it are missing. The root itself must exist.
    */
-  const locate = async (target: string): Promise<Located> => {
+  const locate = async (root: string, target: string): Promise<Located> => {
     const missing: string[] = [];
     for (const component of components(root, target)) {
       if (missing.length > 0) {
@@ -90,7 +95,7 @@ export function computerWrites(workspaceFs: ComputerFileSystemLike, root: string
       }
       if (component === target) {
         if (!entry.isFile) {
-          throw refuse(notAFile(entry.isDirectory ? "directory" : "other", root, target));
+          throw refuse(notAFile(entry.isDirectory ? "directory" : "other", cwd, target));
         }
         return { exists: true, entry };
       }
@@ -99,12 +104,12 @@ export function computerWrites(workspaceFs: ComputerFileSystemLike, root: string
       }
     }
     /* The root itself, or "/", is a directory. */
-    if (missing.length === 0) throw refuse(notAFile("directory", root, target));
+    if (missing.length === 0) throw refuse(notAFile("directory", cwd, target));
     return { exists: false, missingDirectories: missing.slice(0, -1) };
   };
 
   /** Computer throws ENOENT for a missing path. */
-  const lstatOrNull = async (path: string): Promise<ComputerStat | null> => {
+  const lstatOrNull = async (path: string): Promise<CloudflareComputerStat | null> => {
     try {
       return await inspect(workspaceFs, "lstat", path, false);
     } catch (error) {
@@ -118,7 +123,7 @@ export function computerWrites(workspaceFs: ComputerFileSystemLike, root: string
       ? {
           exists: true,
           resolvedPath: target,
-          displayPath: display(root, target),
+          displayPath: display(cwd, target),
           size: located.entry.size,
           mtimeMs: located.entry.mtime,
           identity: null,
@@ -129,15 +134,18 @@ export function computerWrites(workspaceFs: ComputerFileSystemLike, root: string
       : {
           exists: false,
           resolvedPath: target,
-          displayPath: display(root, target),
+          displayPath: display(cwd, target),
           missingDirectories: located.missingDirectories,
         };
 
   /** mkdir each missing parent, outermost first, then check it is a real directory. */
-  const makeDirectories = async (directories: readonly string[]): Promise<string[]> => {
+  const makeDirectories = async (
+    mkdir: NonNullable<CloudflareComputerFileSystemLike["mkdir"]>,
+    directories: readonly string[],
+  ): Promise<string[]> => {
     const created: string[] = [];
     for (const directory of directories) {
-      await mutate(workspaceFs.mkdir(directory, { recursive: true }), "mkdir");
+      await mutate(mkdir(directory, { recursive: true }), "mkdir");
       const entry = await lstatOrNull(directory);
       if (entry?.isDirectory !== true) {
         throw refuse({ reason: "denied", detail: "a created parent is not a directory" });
@@ -149,11 +157,11 @@ export function computerWrites(workspaceFs: ComputerFileSystemLike, root: string
 
   const mutated = (
     target: string,
-    entry: ComputerStat | null,
+    entry: CloudflareComputerStat | null,
     created: readonly string[],
   ): MutatedFile => ({
     resolvedPath: target,
-    displayPath: display(root, target),
+    displayPath: display(cwd, target),
     version: entry === null ? null : computerVersion(entry),
     identity: null,
     size: entry?.size ?? null,
@@ -165,8 +173,8 @@ export function computerWrites(workspaceFs: ComputerFileSystemLike, root: string
     async stat(requested: string, options: OpenOptions = {}): Promise<StatOutcome> {
       if (options.signal?.aborted) return { ok: false, error: { reason: "aborted" } };
       try {
-        const target = authorize(root, requested);
-        return { ok: true, stat: fileStat(target, await locate(target)) };
+        const { root, target } = authorize(roots, requested);
+        return { ok: true, stat: fileStat(target, await locate(root, target)) };
       } catch (error) {
         return { ok: false, error: toFileSystemError(error) };
       }
@@ -179,19 +187,23 @@ export function computerWrites(workspaceFs: ComputerFileSystemLike, root: string
     ): Promise<MutationOutcome> {
       if (options.signal?.aborted) return { ok: false, error: { reason: "aborted" } };
       try {
-        const target = authorize(root, requested);
-        const located = await locate(target);
+        const writeFile = requireMethod(workspaceFs, "writeFile");
+        const mkdir = requireMethod(workspaceFs, "mkdir");
+        const { root, target } = authorize(roots, requested);
+        const located = await locate(root, target);
         refuseConflict(located, options.precondition);
         if (!located.exists && located.missingDirectories.length > 0 && !options.createParents) {
           throw refuse({ reason: "not-found", detail: "the parent directory does not exist" });
         }
         if (options.signal?.aborted) throw refuse({ reason: "aborted" });
 
-        const created = located.exists ? [] : await makeDirectories(located.missingDirectories);
+        const created = located.exists
+          ? []
+          : await makeDirectories(mkdir, located.missingDirectories);
         /* A replace passes the old mode back. A create is exclusive for the absent precondition. */
         const mode = located.exists ? located.entry.mode : options.mode;
         await mutate(
-          workspaceFs.writeFile(target, bytes, {
+          writeFile(target, bytes, {
             ...(mode === undefined ? {} : { mode }),
             ...(options.precondition.kind === "absent" ? { exclusive: true } : {}),
           }),
@@ -210,18 +222,38 @@ export function computerWrites(workspaceFs: ComputerFileSystemLike, root: string
     async remove(requested: string, options: MutateOptions): Promise<MutationOutcome> {
       if (options.signal?.aborted) return { ok: false, error: { reason: "aborted" } };
       try {
-        const target = authorize(root, requested);
-        const located = await locate(target);
+        const rm = requireMethod(workspaceFs, "rm");
+        const { root, target } = authorize(roots, requested);
+        const located = await locate(root, target);
         refuseConflict(located, options.precondition);
         if (!located.exists) throw refuse({ reason: "not-found" });
         if (options.signal?.aborted) throw refuse({ reason: "aborted" });
-        await mutate(workspaceFs.rm(target), "rm");
+        await mutate(rm(target), "rm");
         return { ok: true, file: mutated(target, null, []) };
       } catch (error) {
         return { ok: false, error: toMutationError(error) };
       }
     },
   };
+}
+
+/**
+ * Decision W4: a write method is looked up when a write runs. A filesystem
+ * without it gives `unsupported` before any backend call. Bound, so an RPC stub
+ * or a class instance keeps its `this`.
+ */
+function requireMethod<K extends "writeFile" | "mkdir" | "rm">(
+  workspaceFs: CloudflareComputerFileSystemLike,
+  method: K,
+): NonNullable<CloudflareComputerFileSystemLike[K]> {
+  const found = workspaceFs[method];
+  if (typeof found !== "function") {
+    throw new WriteRefusal({
+      reason: "unsupported",
+      detail: `the Computer workspace filesystem has no ${method}(), so this backend cannot write`,
+    });
+  }
+  return found.bind(workspaceFs) as NonNullable<CloudflareComputerFileSystemLike[K]>;
 }
 
 /** The adapter's own precondition check. Not atomic with the backend call. */

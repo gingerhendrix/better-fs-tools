@@ -1,5 +1,5 @@
-import type { ShellFileInfo, ShellWorkspaceLike } from "../src/index.ts";
-import { shellWorkspaceFileSystem } from "../src/index.ts";
+import type { CloudflareShellFileInfo, CloudflareShellWorkspaceLike } from "../src/index.ts";
+import { cloudflareShellFileSystem } from "../src/index.ts";
 
 const ENCODER = new TextEncoder();
 
@@ -13,7 +13,8 @@ interface Entry {
   mimeType?: string;
 }
 
-export interface FakeWorkspace extends ShellWorkspaceLike {
+/** Every write method is present in the fake, so the tests can call them. */
+export interface FakeWorkspace extends Required<CloudflareShellWorkspaceLike> {
   calls: string[];
   entries: Map<string, Entry>;
   put(path: string, contents: string | Uint8Array, mimeType?: string): void;
@@ -73,7 +74,7 @@ export function fakeWorkspace(files: Record<string, string | Uint8Array> = {}): 
       ...(mimeType === undefined ? {} : { mimeType }),
     });
   };
-  const info = (path: string, entry: Entry): ShellFileInfo => ({
+  const info = (path: string, entry: Entry): CloudflareShellFileInfo => ({
     path,
     type: entry.type,
     size: entry.bytes?.byteLength ?? 0,
@@ -161,7 +162,7 @@ export function fakeWorkspace(files: Record<string, string | Uint8Array> = {}): 
     async readDir(dir: string, opts?: { limit?: number; offset?: number }) {
       calls.push(`readDir:${dir}`);
       if (override.readDir !== undefined) return await run(override.readDir, dir);
-      const found: ShellFileInfo[] = [];
+      const found: CloudflareShellFileInfo[] = [];
       for (const [path, entry] of entries) {
         if (path !== "/" && dirnamePosix(path) === dir) found.push(info(path, entry));
       }
@@ -190,8 +191,8 @@ export function fsFor(files: Record<string, string | Uint8Array> = {}, maxBuffer
   /* The root exists even when no file is in it. */
   if (!workspace.entries.has(ROOT))
     workspace.entries.set(ROOT, { type: "directory", updatedAt: 1 });
-  const fs = shellWorkspaceFileSystem(workspace, {
-    root: ROOT,
+  const fs = cloudflareShellFileSystem(workspace, {
+    allowedRoots: [ROOT],
     ...(maxBufferedBytes === undefined ? {} : { maxBufferedBytes }),
   });
   return { workspace, fs };

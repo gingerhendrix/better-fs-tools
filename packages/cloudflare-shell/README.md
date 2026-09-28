@@ -17,11 +17,11 @@ With the AI SDK adapter (`npm install @better-fs-tools/ai-sdk ai`):
 ```ts
 import type { Workspace } from "@cloudflare/shell";
 import { createAiSdkReadTool } from "@better-fs-tools/ai-sdk";
-import { shellWorkspaceFileSystem } from "@better-fs-tools/cloudflare-shell";
+import { cloudflareShellFileSystem } from "@better-fs-tools/cloudflare-shell";
 
 export function workspaceReadTool(workspace: Workspace) {
   return createAiSdkReadTool({
-    fs: shellWorkspaceFileSystem(workspace, { root: "/workspace" }),
+    fs: cloudflareShellFileSystem(workspace, { allowedRoots: ["/workspace"] }),
   });
 }
 ```
@@ -35,13 +35,13 @@ import {
   createAiSdkReadTool,
   createAiSdkWriteTool,
 } from "@better-fs-tools/ai-sdk";
-import { shellWorkspaceFileSystem } from "@better-fs-tools/cloudflare-shell";
+import { cloudflareShellFileSystem } from "@better-fs-tools/cloudflare-shell";
 import { createMemoryStore, sha256Digest } from "@better-fs-tools/read";
 import { memoryLocks } from "@better-fs-tools/write";
 
 // sha256Digest() is plain JavaScript, so it runs in a Worker.
 export function workspaceTools(workspace: Workspace) {
-  const fs = shellWorkspaceFileSystem(workspace, { root: "/workspace" });
+  const fs = cloudflareShellFileSystem(workspace, { allowedRoots: ["/workspace"] });
   const shared = { fs, state: createMemoryStore(), digest: sha256Digest() };
   const locks = memoryLocks();
   const read = createAiSdkReadTool(shared);
@@ -53,15 +53,18 @@ export function workspaceTools(workspace: Workspace) {
 
 ## What the filesystem does
 
-- `shellWorkspaceFileSystem(workspace, { root, maxBufferedBytes?, id? })` refuses every path outside `root` before it calls the Workspace.
-- It walks each path with `lstat`, so a symlinked root, parent, or file is refused before any byte is read.
-- Reads are buffered: the Workspace returns whole files. `maxBufferedBytes` defaults to 4 MiB. When you use converters, set it at or above `maxConvertBytes` and `maxMediaBytes`. Results have a `buffered-backend` note.
+- `cloudflareShellFileSystem(workspace, options)` takes the shared `FileSystemRootOptions` and `maxBufferedBytes` from `@better-fs-tools/fs`: `allowedRoots` (required), `denyRoots`, `cwd`, `id`, `symlinks`, and `identity`. It refuses every path outside the allowed roots, or inside a deny root, before it calls the Workspace. A deny root gives `denied`.
+- `cwd` must be absolute and defaults to the first allowed root. Relative paths and relative roots resolve against it. Display paths are relative to `cwd`, and absolute outside it. `id` defaults to `"cloudflare-shell"`.
+- `symlinks` can only be `"reject"` and `identity` only `"none"`. It walks each path with `lstat` from its root, so a symlinked root, parent, or file is refused before any byte is read.
+- The filesystem exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, `identity`, and `maxBufferedBytes`.
+- Reads are buffered: the Workspace returns whole files. `maxBufferedBytes` defaults to 16 MiB, as in every buffering adapter. When you use converters, set it at or above `maxConvertBytes` and `maxMediaBytes`. Results have a `buffered-backend` note.
 - `verify()` compares size and modification time. A same-size edit within the same millisecond is not detected. Results have a `weak-identity` note.
 - `list()` lists directories, so suggestions and `directoryListing()` work. Opening a directory gives a `not-a-file` error with `kind: "directory"`.
 
 ## How it writes
 
-- `stat()`, `write()`, and `remove()` use `lstat`, `writeFileBytes`, `mkdir`, and `rm`. They check the root and refuse every symlink on the path before any Workspace write, as `open()` does. `writeFileBytes` would create missing parents and follow a link by itself, so the adapter checks both first.
+- `stat()`, `write()`, and `remove()` use `lstat`, `writeFileBytes`, `mkdir`, and `rm`. They check the roots and refuse every symlink on the path before any Workspace write, as `open()` does. `writeFileBytes` would create missing parents and follow a link by itself, so the adapter checks both first.
+- `writeFileBytes`, `mkdir`, and `rm` are optional in `CloudflareShellWorkspaceLike`. They are checked when a write runs, not when the filesystem is built. A read-only Workspace wrapper backs the read tool, and a write to it gives `unsupported`, which the tools report as `UNSUPPORTED_BACKEND`.
 - `writeCapabilities` is `{ atomic: false, compareAndSwap: false, preserveMode: false }`. A large file spills to R2 in several steps, so a reader can see a partial file. Shell has no version check, so the adapter checks the precondition with a fresh `lstat` just before the write. Shell has no modes. The write tools add a `not-atomic`, a `no-compare-and-swap`, and on a replace a `mode-not-kept` note.
 - There is no `stage()`: Shell's `mv` removes the destination first. `apply_patch` writes each file in turn, and undoes them on a failure.
 - The version is the size and `updatedAt`. Shell stores whole seconds, so two same-size writes in one second keep the version. The write tools also compare the content hash of what the model read, so a change after the read is still `STALE`. Between the adapter's last check and the write, it is not seen.

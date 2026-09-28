@@ -1,41 +1,88 @@
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 
-import { posixPaths } from "@better-fs-tools/fs";
+import { DEFAULT_MAX_BUFFERED_BYTES, posixPaths } from "@better-fs-tools/fs";
 import type { Workspace } from "@cloudflare/shell";
 
-import { shellWorkspaceFileSystem } from "../src/index.ts";
-import type { ShellWorkspaceLike } from "../src/index.ts";
+import { cloudflareShellFileSystem } from "../src/index.ts";
+import type { CloudflareShellWorkspaceLike } from "../src/index.ts";
 import { ROOT, fakeWorkspace, fsFor } from "./fake-workspace.ts";
 import type { FakeWorkspace } from "./fake-workspace.ts";
 import { expectFsError, sourceSpecifiers } from "./helpers.ts";
 
 const ENCODER = new TextEncoder();
 
+describe("shared root options", () => {
+  test("several roots, a cwd, and deny roots", async () => {
+    const backend = fakeWorkspace({
+      "/workspace/a.txt": "a\n",
+      "/shared/b.txt": "b\n",
+      "/shared/private/c.txt": "c\n",
+      "/other/d.txt": "d\n",
+    });
+    const fs = cloudflareShellFileSystem(backend, {
+      cwd: "/workspace",
+      allowedRoots: ["/workspace", "../shared"],
+      denyRoots: ["/shared/private"],
+    });
+    expect(fs.allowedRoots).toEqual(["/workspace", "/shared"]);
+    expect(fs.denyRoots).toEqual(["/shared/private"]);
+
+    const inside = await fs.open("a.txt", {});
+    expect(inside.ok && inside.file.info.displayPath).toBe("a.txt");
+    if (inside.ok) await inside.file.close();
+    // A second root: the display path is absolute, since it is outside cwd.
+    const shared = await fs.open("../shared/b.txt", {});
+    expect(shared.ok && shared.file.info.displayPath).toBe("/shared/b.txt");
+    if (shared.ok) await shared.file.close();
+
+    expectFsError(await fs.open("/shared/private/c.txt", {}), "denied");
+    expectFsError(await fs.open("/other/d.txt", {}), "outside-allowed-roots");
+    const stat = await fs.stat("/shared/private/c.txt", {});
+    expect(stat.ok ? null : stat.error.reason).toBe("denied");
+  });
+
+  test("cwd defaults to the first allowed root", () => {
+    const fs = cloudflareShellFileSystem(fakeWorkspace(), { allowedRoots: ["/a", "/b"] });
+    expect(fs.cwd).toBe("/a");
+  });
+});
+
 describe("shell workspace options", () => {
-  test("rejects a relative root, an unusable ceiling and a workspace without lstat", () => {
+  test("rejects a relative cwd, bad roots, unsupported values, an unusable ceiling and a workspace without lstat", () => {
     const workspace = fakeWorkspace();
-    expect(() => shellWorkspaceFileSystem(workspace, { root: "workspace" })).toThrow(TypeError);
-    expect(() => shellWorkspaceFileSystem(workspace, { root: "/a\0b" })).toThrow(TypeError);
-    expect(() => shellWorkspaceFileSystem(workspace, { root: ROOT, maxBufferedBytes: 0 })).toThrow(
-      TypeError,
-    );
+    for (const options of [
+      { cwd: "workspace", allowedRoots: [ROOT] },
+      { allowedRoots: [] },
+      { allowedRoots: ["/a\0b"] },
+      { allowedRoots: [ROOT], symlinks: "follow-within-roots" },
+      { allowedRoots: [ROOT], identity: "required" },
+    ]) {
+      expect(() => cloudflareShellFileSystem(workspace, options as never)).toThrow(TypeError);
+    }
     expect(() =>
-      shellWorkspaceFileSystem(workspace, { root: ROOT, maxBufferedBytes: 1.5 }),
+      cloudflareShellFileSystem(workspace, { allowedRoots: [ROOT], maxBufferedBytes: 0 }),
+    ).toThrow(TypeError);
+    expect(() =>
+      cloudflareShellFileSystem(workspace, { allowedRoots: [ROOT], maxBufferedBytes: 1.5 }),
     ).toThrow(TypeError);
 
     const { lstat: _dropped, ...withoutLstat } = workspace;
     expect(() =>
-      shellWorkspaceFileSystem(withoutLstat as unknown as ShellWorkspaceLike, { root: ROOT }),
+      cloudflareShellFileSystem(withoutLstat as unknown as CloudflareShellWorkspaceLike, {
+        allowedRoots: [ROOT],
+      }),
     ).toThrow(/must implement lstat/u);
     expect(() =>
-      shellWorkspaceFileSystem(null as unknown as ShellWorkspaceLike, { root: ROOT }),
+      cloudflareShellFileSystem(null as unknown as CloudflareShellWorkspaceLike, {
+        allowedRoots: [ROOT],
+      }),
     ).toThrow(TypeError);
   });
 
   test("accepts a real Shell Workspace structurally", () => {
     /* Compile-time: `@cloudflare/shell`'s Workspace satisfies the declared surface. */
-    const workspace: ShellWorkspaceLike | null = null as Workspace | null;
+    const workspace: CloudflareShellWorkspaceLike | null = null as Workspace | null;
     expect(workspace).toBeNull();
   });
 
@@ -45,8 +92,12 @@ describe("shell workspace options", () => {
     expect(fs.capabilities).toEqual({ streaming: false, identity: false });
     expect(typeof fs.list).toBe("function");
     expect(fs.paths).toBe(posixPaths);
-    expect(fs.root).toBe(ROOT);
-    expect(fs.maxBufferedBytes).toBe(4 * 1024 * 1024);
+    expect(fs.cwd).toBe(ROOT);
+    expect(fs.allowedRoots).toEqual([ROOT]);
+    expect(fs.denyRoots).toEqual([]);
+    expect(fs.symlinks).toBe("reject");
+    expect(fs.identity).toBe("none");
+    expect(fs.maxBufferedBytes).toBe(DEFAULT_MAX_BUFFERED_BYTES);
   });
 });
 
@@ -94,7 +145,7 @@ describe("shell workspace policy", () => {
         "/workspace/real/b.txt": "beta\n",
       });
       build(workspace);
-      const fs = shellWorkspaceFileSystem(workspace, { root: ROOT });
+      const fs = cloudflareShellFileSystem(workspace, { allowedRoots: [ROOT] });
       const path = label === "leaf" ? "/workspace/link.txt" : "/workspace/dir/b.txt";
 
       const error = expectFsError(await fs.open(path, {}), "denied");
@@ -146,7 +197,7 @@ describe("shell workspace not-a-file", () => {
 
   test("a root of / reports kind directory and its target", async () => {
     const workspace = fakeWorkspace({ "/a.txt": "alpha\n" });
-    const fs = shellWorkspaceFileSystem(workspace, { root: "/" });
+    const fs = cloudflareShellFileSystem(workspace, { allowedRoots: ["/"] });
     expect(expectFsError(await fs.open("/", {}), "not-a-file")).toEqual({
       reason: "not-a-file",
       kind: "directory",
@@ -400,7 +451,9 @@ describe("shell workspace listing", () => {
     if (!listed.ok) throw new Error(`list failed with ${listed.error.reason}`);
     expect(listed.entries).toEqual([{ name: "a.txt", type: "file" }]);
 
-    const whole = shellWorkspaceFileSystem(fakeWorkspace({ "/a.txt": "alpha\n" }), { root: "/" });
+    const whole = cloudflareShellFileSystem(fakeWorkspace({ "/a.txt": "alpha\n" }), {
+      allowedRoots: ["/"],
+    });
     const top = await whole.list("/", { limit: 4 });
     if (!top.ok) throw new Error(`list failed with ${top.error.reason}`);
     expect(top.entries).toEqual([{ name: "a.txt", type: "file" }]);

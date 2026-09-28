@@ -1,4 +1,7 @@
 import type {
+  BufferedFileSystemOptions,
+  FileSystemRootOptions,
+  FileSystemRootSettings,
   ListOptions,
   ListOutcome,
   MutateOptions,
@@ -11,7 +14,7 @@ import type {
  * `FileInfo` / `FileStat`: the fields this adapter reads are declared, the rest
  * are ignored, and everything optional here is validated at runtime anyway.
  */
-export interface ShellFileInfo {
+export interface CloudflareShellFileInfo {
   path: string;
   type: "file" | "directory" | "symlink";
   size: number;
@@ -27,39 +30,42 @@ export interface ShellFileInfo {
  * and its `WorkspaceFsLike` structural type both satisfy it.
  *
  * `lstat` is required, not optional: it is the only way to see a symlink
- * before `stat` follows it. Removal uses `rm`, not `deleteFile`, because
+ * before `stat` follows it. The write methods are optional (decision W4): a
+ * Workspace without them still serves reads, and a write reports
+ * `unsupported`. Removal uses `rm`, not `deleteFile`, because
  * `WorkspaceFsLike` has only `rm`.
  */
-export interface ShellWorkspaceLike {
-  stat(path: string): Promise<ShellFileInfo | null>;
-  lstat(path: string): Promise<ShellFileInfo | null>;
+export interface CloudflareShellWorkspaceLike {
+  stat(path: string): Promise<CloudflareShellFileInfo | null>;
+  lstat(path: string): Promise<CloudflareShellFileInfo | null>;
   readFileBytes(path: string): Promise<Uint8Array | null>;
-  readDir(dir: string, opts?: { limit?: number; offset?: number }): Promise<ShellFileInfo[]>;
+  readDir(
+    dir: string,
+    opts?: { limit?: number; offset?: number },
+  ): Promise<CloudflareShellFileInfo[]>;
   /** Creates missing parents itself and follows a symlink at the leaf. The adapter checks both first. */
-  writeFileBytes(path: string, data: Uint8Array, mimeType?: string): Promise<void>;
-  mkdir(path: string, opts?: { recursive?: boolean }): Promise<void>;
-  rm(path: string, opts?: { recursive?: boolean; force?: boolean }): Promise<void>;
+  writeFileBytes?(path: string, data: Uint8Array, mimeType?: string): Promise<void>;
+  mkdir?(path: string, opts?: { recursive?: boolean }): Promise<void>;
+  rm?(path: string, opts?: { recursive?: boolean; force?: boolean }): Promise<void>;
 }
 
-export interface ShellWorkspaceFileSystemOptions {
-  /** Absolute POSIX path. Nothing outside it is readable, listable or writable. */
-  root: string;
-  /**
-   * Ceiling on one buffered object, applied to the size Shell reports and to
-   * the length it returns. A larger read or write is refused as `too-large`.
-   * Defaults to 4 MiB.
-   */
-  maxBufferedBytes?: number;
-  id?: string;
-}
+/**
+ * The shared root options, with Workspace paths. `allowedRoots` holds
+ * absolute paths, or paths relative to `cwd`. `cwd` must be absolute and
+ * defaults to the first allowed root. `symlinks` can only be `"reject"` and
+ * `identity` only `"none"`. `id` defaults to `"cloudflare-shell"`.
+ * `maxBufferedBytes` defaults to 16 MiB.
+ */
+export interface CloudflareShellFileSystemOptions
+  extends FileSystemRootOptions<"reject", "none">, BufferedFileSystemOptions {}
 
 /**
  * writeCapabilities is `{ atomic: false, compareAndSwap: false, preserveMode: false }`.
  * There is no stage(): Shell's `mv` removes the destination first, so it cannot
  * publish a prepared file safely.
  */
-export interface ShellWorkspaceFileSystem extends WritableFileSystem {
-  readonly root: string;
+export interface CloudflareShellFileSystem
+  extends WritableFileSystem, FileSystemRootSettings<"reject", "none"> {
   readonly maxBufferedBytes: number;
   list(path: string, options: ListOptions): Promise<ListOutcome>;
   remove(path: string, options: MutateOptions): Promise<MutationOutcome>;

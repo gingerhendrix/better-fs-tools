@@ -2,9 +2,10 @@ import { describe, expect, test } from "bun:test";
 
 import { isWritableFileSystem } from "@better-fs-tools/fs";
 import type { WriteOptions } from "@better-fs-tools/fs";
+import { createReadTool, textOf } from "@better-fs-tools/read";
 
-import { computerFileSystem } from "../src/index.ts";
-import type { ComputerFileSystemLike } from "../src/index.ts";
+import { cloudflareComputerFileSystem } from "../src/index.ts";
+import type { CloudflareComputerFileSystemLike } from "../src/index.ts";
 import { ROOT, fakeComputer, fsError, fsFor } from "./fake-computer.ts";
 import { expectMutationError } from "./helpers.ts";
 
@@ -34,14 +35,43 @@ describe("cloudflare computer writes: shape", () => {
     expect("stage" in fs).toBe(false);
   });
 
-  test("rejects a filesystem without the write methods", () => {
-    const backend = fakeComputer();
+  test("a filesystem without a write method still reads; a write reports unsupported (W4)", async () => {
+    const backend = fakeComputer({ "/workspace/a.txt": "alpha\n" });
     for (const method of ["writeFile", "mkdir", "rm"] as const) {
       const { [method]: _dropped, ...without } = backend;
-      expect(() =>
-        computerFileSystem(without as unknown as ComputerFileSystemLike, { root: ROOT }),
-      ).toThrow(new RegExp(`must implement ${method}`, "u"));
+      const fs = cloudflareComputerFileSystem(without as CloudflareComputerFileSystemLike, {
+        allowedRoots: [ROOT],
+      });
+      const opened = await fs.open("a.txt", {});
+      expect(opened.ok).toBe(true);
+      if (opened.ok) await opened.file.close();
+      const outcome =
+        method === "rm"
+          ? await fs.remove("a.txt", ANY)
+          : await fs.write("b.txt", ENCODER.encode("x"), CREATE);
+      expect(outcome).toEqual({
+        ok: false,
+        error: {
+          reason: "unsupported",
+          detail: `the Computer workspace filesystem has no ${method}(), so this backend cannot write`,
+        },
+      });
     }
+    expect((await backend.lstat("/workspace/a.txt")).isFile).toBe(true);
+  });
+
+  test("a read-only wrapper backs the read tool", async () => {
+    const backend = fakeComputer({ "/workspace/a.txt": "alpha\n" });
+    const readOnly: CloudflareComputerFileSystemLike = {
+      readFile: (path) => backend.readFile(path),
+      stat: (path) => backend.stat(path),
+      lstat: (path) => backend.lstat(path),
+      readdir: (path, options) => backend.readdir(path, options),
+    };
+    const read = createReadTool({
+      fs: cloudflareComputerFileSystem(readOnly, { allowedRoots: [ROOT] }),
+    });
+    expect(textOf(await read({ path: "a.txt" })).split("\n")[0]).toBe("1|alpha");
   });
 });
 
@@ -105,7 +135,7 @@ describe("cloudflare computer writes: stat", () => {
     expectMutationError(await fs.stat("/etc/passwd", {}), "outside-allowed-roots");
     expectMutationError(await fs.stat("a.txt/x", {}), "not-found");
 
-    const empty = computerFileSystem(fakeComputer(), { root: "/missing" });
+    const empty = cloudflareComputerFileSystem(fakeComputer(), { allowedRoots: ["/missing"] });
     expectMutationError(await empty.stat("x.txt", {}), "not-found");
   });
 });

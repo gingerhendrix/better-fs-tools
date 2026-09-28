@@ -38,7 +38,7 @@
  * policy. A replace is one transaction and keeps the mode. There is no
  * compare-and-swap, and `writeCapabilities` says so.
  */
-import { posixPaths, resolvePosix } from "@better-fs-tools/fs";
+import { posixPaths } from "@better-fs-tools/fs";
 import type {
   DirectoryEntry,
   ListOptions,
@@ -50,10 +50,10 @@ import type {
 } from "@better-fs-tools/fs";
 
 import type {
-  ComputerFileSystem,
-  ComputerFileSystemLike,
-  ComputerFileSystemOptions,
-  ComputerStat,
+  CloudflareComputerFileSystem,
+  CloudflareComputerFileSystemLike,
+  CloudflareComputerFileSystemOptions,
+  CloudflareComputerStat,
 } from "./contract.ts";
 import {
   authorize,
@@ -65,6 +65,7 @@ import {
   invalid,
   notAFile,
   refuse,
+  resolveRoots,
   toFileSystemError,
   validateDirent,
   validateFileSystem,
@@ -73,11 +74,11 @@ import {
 import { COMPUTER_WRITE_CAPABILITIES, computerVersion, computerWrites } from "./write.ts";
 
 export type {
-  ComputerDirent,
-  ComputerFileSystem,
-  ComputerFileSystemLike,
-  ComputerFileSystemOptions,
-  ComputerStat,
+  CloudflareComputerDirent,
+  CloudflareComputerFileSystem,
+  CloudflareComputerFileSystemLike,
+  CloudflareComputerFileSystemOptions,
+  CloudflareComputerStat,
 } from "./contract.ts";
 
 /**
@@ -86,25 +87,21 @@ export type {
  * @experimental Cloudflare Computer is preview software and this adapter is
  * pinned to the `0.2.1` declarations.
  */
-export function computerFileSystem(
-  workspaceFs: ComputerFileSystemLike,
-  options: ComputerFileSystemOptions,
-): ComputerFileSystem {
+export function cloudflareComputerFileSystem(
+  workspaceFs: CloudflareComputerFileSystemLike,
+  options: CloudflareComputerFileSystemOptions,
+): CloudflareComputerFileSystem {
   validateFileSystem(workspaceFs);
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
-    throw new TypeError("computerFileSystem options must be an object");
+    throw new TypeError("cloudflareComputerFileSystem options must be an object");
   }
-  if (
-    typeof options.root !== "string" ||
-    !options.root.startsWith("/") ||
-    options.root.includes("\0")
-  ) {
-    throw new TypeError("root must be an absolute POSIX path without NUL");
-  }
-  const root = resolvePosix("/", options.root);
+  const roots = resolveRoots(options);
+  const { cwd } = roots;
+  const id = options.id ?? "cloudflare-computer";
+  if (typeof id !== "string" || id === "") throw new TypeError("id must be a non-empty string");
 
   /** Refuse a symlinked root, a symlinked parent and a symlinked leaf. */
-  const walk = async (target: string): Promise<ComputerStat> => {
+  const walk = async (root: string, target: string): Promise<CloudflareComputerStat> => {
     for (const component of components(root, target)) {
       const stat = await inspect(workspaceFs, "lstat", component, component !== target);
       if (stat.isSymbolicLink) {
@@ -122,29 +119,33 @@ export function computerFileSystem(
       if (component === target) return stat;
     }
     /* Only reachable when the target is the root "/" itself, which is a directory. */
-    throw refuse(notAFile("directory", root, target));
+    throw refuse(notAFile("directory", cwd, target));
   };
 
   return Object.freeze({
-    id: options.id ?? "cloudflare-computer",
+    id,
     capabilities: Object.freeze({ streaming: true, identity: false }),
     paths: posixPaths,
-    root,
+    cwd,
+    allowedRoots: roots.allowedRoots,
+    denyRoots: roots.denyRoots,
+    symlinks: "reject",
+    identity: "none",
     writeCapabilities: COMPUTER_WRITE_CAPABILITIES,
-    ...computerWrites(workspaceFs, root),
+    ...computerWrites(workspaceFs, roots),
 
     async open(requested: string, callOptions: OpenOptions = {}): Promise<OpenOutcome> {
       const signal = callOptions.signal;
       if (signal?.aborted) return { ok: false, error: { reason: "aborted" } };
 
       try {
-        const target = authorize(root, requested);
-        await walk(target);
+        const { root, target } = authorize(roots, requested);
+        await walk(root, target);
 
         /* `stat` follows links, but `walk` has already refused every one. */
         const stat = await inspect(workspaceFs, "stat", target, false);
         if (!stat.isFile) {
-          throw refuse(notAFile(stat.isDirectory ? "directory" : "other", root, target));
+          throw refuse(notAFile(stat.isDirectory ? "directory" : "other", cwd, target));
         }
 
         if (signal?.aborted) throw refuse({ reason: "aborted" });
@@ -155,7 +156,7 @@ export function computerFileSystem(
           cancel(stream);
           throw refuse({ reason: "aborted" });
         }
-        return { ok: true, file: computerOpenFile(workspaceFs, root, target, stat, stream) };
+        return { ok: true, file: computerOpenFile(workspaceFs, cwd, target, stat, stream) };
       } catch (error) {
         return { ok: false, error: toFileSystemError(error) };
       }
@@ -171,9 +172,9 @@ export function computerFileSystem(
         };
       }
       try {
-        const target = authorize(root, requested);
+        const { root, target } = authorize(roots, requested);
         /* A root of "/" has no component for walk() to inspect, and it is a directory. */
-        const stat = target === "/" ? null : await walk(target);
+        const stat = target === "/" ? null : await walk(root, target);
         /* Same rule as memoryFileSystem: listing a non-directory is not-found. */
         if (stat !== null && !stat.isDirectory) {
           throw refuse({ reason: "not-found", detail: "not a directory" });
@@ -203,10 +204,10 @@ export function computerFileSystem(
 /* -------------------------------------------------------------------------- */
 
 function computerOpenFile(
-  workspaceFs: ComputerFileSystemLike,
-  root: string,
+  workspaceFs: CloudflareComputerFileSystemLike,
+  cwd: string,
   target: string,
-  stat: ComputerStat,
+  stat: CloudflareComputerStat,
   stream: ReadableStream<Uint8Array>,
 ): OpenFile {
   let consumed = false;
@@ -247,7 +248,7 @@ function computerOpenFile(
   return {
     info: {
       resolvedPath: target,
-      displayPath: display(root, target),
+      displayPath: display(cwd, target),
       size: stat.size,
       mtimeMs: stat.mtime,
       identity: null,

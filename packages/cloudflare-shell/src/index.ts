@@ -22,13 +22,13 @@
  * before any Workspace call, and every path component from the configured root
  * to the target is `lstat`ed and refused if it is a symlink. A Workspace that
  * does not implement `lstat` is rejected at construction rather than served
- * with a weaker rule.
+ * with a weaker rule. The write methods are checked when a write runs.
  *
  * Writes (`stat`, `write`, `remove`) live in `write.ts` and keep the same
  * policy. Shell has no compare-and-swap, no atomic replace and no modes, and
  * `writeCapabilities` says so.
  */
-import { posixPaths, resolvePosix } from "@better-fs-tools/fs";
+import { DEFAULT_MAX_BUFFERED_BYTES, posixPaths, resolvePosix } from "@better-fs-tools/fs";
 import type {
   DirectoryEntry,
   ListOptions,
@@ -40,10 +40,10 @@ import type {
 } from "@better-fs-tools/fs";
 
 import type {
-  ShellFileInfo,
-  ShellWorkspaceFileSystem,
-  ShellWorkspaceFileSystemOptions,
-  ShellWorkspaceLike,
+  CloudflareShellFileInfo,
+  CloudflareShellFileSystem,
+  CloudflareShellFileSystemOptions,
+  CloudflareShellWorkspaceLike,
 } from "./contract.ts";
 import {
   authorize,
@@ -54,6 +54,7 @@ import {
   invalid,
   notAFile,
   refuse,
+  resolveRoots,
   toFileSystemError,
   validateStat,
   validateWorkspace,
@@ -61,44 +62,39 @@ import {
 import { SHELL_WRITE_CAPABILITIES, shellVersion, shellWrites } from "./write.ts";
 
 export type {
-  ShellFileInfo,
-  ShellWorkspaceFileSystem,
-  ShellWorkspaceFileSystemOptions,
-  ShellWorkspaceLike,
+  CloudflareShellFileInfo,
+  CloudflareShellFileSystem,
+  CloudflareShellFileSystemOptions,
+  CloudflareShellWorkspaceLike,
 } from "./contract.ts";
 
-/** 4 MiB. Far above any view the read tool will produce, far below a Worker's memory. */
-const DEFAULT_MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
 /**
  * Adapt a Cloudflare Shell Workspace to the filesystem contract.
  *
- * Every method resolves the requested path against `root`, refuses anything
- * outside it before the Workspace is touched, and walks the path with `lstat`
- * so a symlinked root, parent or leaf is refused before any byte is read.
+ * Every method resolves the requested path against `cwd`, refuses anything
+ * outside the allowed roots or inside a deny root before the Workspace is
+ * touched, and walks the path from its root with `lstat` so a symlinked root,
+ * parent or leaf is refused before any byte is read.
  */
-export function shellWorkspaceFileSystem(
-  workspace: ShellWorkspaceLike,
-  options: ShellWorkspaceFileSystemOptions,
-): ShellWorkspaceFileSystem {
+export function cloudflareShellFileSystem(
+  workspace: CloudflareShellWorkspaceLike,
+  options: CloudflareShellFileSystemOptions,
+): CloudflareShellFileSystem {
   validateWorkspace(workspace);
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
-    throw new TypeError("shellWorkspaceFileSystem options must be an object");
+    throw new TypeError("cloudflareShellFileSystem options must be an object");
   }
-  if (
-    typeof options.root !== "string" ||
-    !options.root.startsWith("/") ||
-    options.root.includes("\0")
-  ) {
-    throw new TypeError("root must be an absolute POSIX path without NUL");
-  }
+  const roots = resolveRoots(options);
+  const { cwd } = roots;
   const maxBufferedBytes = options.maxBufferedBytes ?? DEFAULT_MAX_BUFFERED_BYTES;
   if (!Number.isSafeInteger(maxBufferedBytes) || maxBufferedBytes <= 0) {
     throw new TypeError("maxBufferedBytes must be a positive safe integer");
   }
-  const root = resolvePosix("/", options.root);
+  const id = options.id ?? "cloudflare-shell";
+  if (typeof id !== "string" || id === "") throw new TypeError("id must be a non-empty string");
 
   /** Refuse a symlinked root, a symlinked parent and a symlinked leaf. */
-  const walk = async (target: string): Promise<ShellFileInfo> => {
+  const walk = async (root: string, target: string): Promise<CloudflareShellFileInfo> => {
     for (const component of components(root, target)) {
       const stat = await inspect(workspace, "lstat", component);
       if (stat === null) {
@@ -122,30 +118,34 @@ export function shellWorkspaceFileSystem(
       if (component === target) return stat;
     }
     /* Only reachable when the target is the root "/" itself, which is a directory. */
-    throw refuse(notAFile("directory", root, target));
+    throw refuse(notAFile("directory", cwd, target));
   };
 
   return Object.freeze({
-    id: options.id ?? "cloudflare-shell",
+    id,
     capabilities: Object.freeze({ streaming: false, identity: false }),
     paths: posixPaths,
-    root,
+    cwd,
+    allowedRoots: roots.allowedRoots,
+    denyRoots: roots.denyRoots,
+    symlinks: "reject",
+    identity: "none",
     maxBufferedBytes,
     writeCapabilities: SHELL_WRITE_CAPABILITIES,
-    ...shellWrites(workspace, root, maxBufferedBytes),
+    ...shellWrites(workspace, roots, maxBufferedBytes),
 
     async open(requested: string, callOptions: OpenOptions = {}): Promise<OpenOutcome> {
       const signal = callOptions.signal;
       if (signal?.aborted) return { ok: false, error: { reason: "aborted" } };
 
       try {
-        const target = authorize(root, requested);
-        await walk(target);
+        const { root, target } = authorize(roots, requested);
+        await walk(root, target);
 
         const stat = await inspect(workspace, "stat", target);
         if (stat === null) throw refuse({ reason: "not-found" });
         if (stat.type !== "file") {
-          throw refuse(notAFile(stat.type === "directory" ? "directory" : "other", root, target));
+          throw refuse(notAFile(stat.type === "directory" ? "directory" : "other", cwd, target));
         }
         if (stat.size > maxBufferedBytes) {
           throw refuse({
@@ -183,7 +183,7 @@ export function shellWorkspaceFileSystem(
             detail: `the backend returned more than the ${maxBufferedBytes}-byte buffered ceiling`,
           });
         }
-        return { ok: true, file: shellOpenFile(workspace, root, target, stat, bytes) };
+        return { ok: true, file: shellOpenFile(workspace, cwd, target, stat, bytes) };
       } catch (error) {
         return { ok: false, error: toFileSystemError(error) };
       }
@@ -199,9 +199,9 @@ export function shellWorkspaceFileSystem(
         };
       }
       try {
-        const target = authorize(root, requested);
+        const { root, target } = authorize(roots, requested);
         /* A root of "/" has no component for walk() to inspect, and it is a directory. */
-        const stat = target === "/" ? null : await walk(target);
+        const stat = target === "/" ? null : await walk(root, target);
         /* Same rule as memoryFileSystem: listing a non-directory is not-found. */
         if (stat !== null && stat.type !== "directory") {
           throw refuse({ reason: "not-found", detail: "not a directory" });
@@ -236,10 +236,10 @@ export function shellWorkspaceFileSystem(
 }
 
 function shellOpenFile(
-  workspace: ShellWorkspaceLike,
-  root: string,
+  workspace: CloudflareShellWorkspaceLike,
+  cwd: string,
   target: string,
-  stat: ShellFileInfo,
+  stat: CloudflareShellFileInfo,
   bytes: Uint8Array,
 ): OpenFile {
   let consumed = false;
@@ -247,7 +247,7 @@ function shellOpenFile(
   return {
     info: {
       resolvedPath: target,
-      displayPath: display(root, target),
+      displayPath: display(cwd, target),
       size: stat.size,
       mtimeMs: stat.updatedAt,
       /* Weak by capability: a Workspace row carries nothing durable to compare. */

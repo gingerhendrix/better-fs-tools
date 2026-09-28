@@ -79,13 +79,13 @@ if (stat.ok && stat.stat.exists) {
 
 The write tools turn each `false` in `writeCapabilities` into a note for the model, and check the precondition themselves just before the write when `compareAndSwap` is false. `docs/architecture.md` in `@better-fs-tools/write` has a guide to writing a writable adapter.
 
-| Adapter                      | `atomic` | `compareAndSwap`    | `preserveMode` | `stage()` | `remove()` |
-| ---------------------------- | -------- | ------------------- | -------------- | --------- | ---------- |
-| `memoryFileSystem()`         | yes      | yes                 | yes            | yes       | yes        |
-| `nodeFileSystem()`           | yes      | yes, in one process | yes            | yes       | yes        |
-| `shellWorkspaceFileSystem()` | no       | no                  | no             | no        | yes        |
-| `computerFileSystem()`       | yes      | no                  | yes            | no        | yes        |
-| `justBashFileSystem()`       | no       | no                  | yes            | no        | yes        |
+| Adapter                          | `atomic` | `compareAndSwap`    | `preserveMode` | `stage()` | `remove()` |
+| -------------------------------- | -------- | ------------------- | -------------- | --------- | ---------- |
+| `memoryFileSystem()`             | yes      | yes                 | yes            | yes       | yes        |
+| `nodeFileSystem()`               | yes      | yes, in one process | yes            | yes       | yes        |
+| `cloudflareShellFileSystem()`    | no       | no                  | no             | no        | yes        |
+| `cloudflareComputerFileSystem()` | yes      | no                  | yes            | no        | yes        |
+| `justBashFileSystem()`           | no       | no                  | yes            | no        | yes        |
 
 `memoryFileSystem` checks the precondition and publishes in one synchronous step. Its options `readOnly`, `faults`, `stage: false`, `remove: false`, and `writeCapabilities` let tests simulate other backends.
 
@@ -107,11 +107,13 @@ Every filesystem adapter takes `FileSystemRootOptions` for the same ideas, with 
 
 An adapter narrows a union where its backend cannot do the rest, and says so in its type. The adapters expose the resolved values as `FileSystemRootSettings` (`cwd`, `allowedRoots`, `denyRoots`, `symlinks`, `identity`).
 
-| Adapter                | `cwd` default            | `symlinks`                            | `identity`                 | `maxBufferedBytes` | `id` default  |
-| ---------------------- | ------------------------ | ------------------------------------- | -------------------------- | ------------------ | ------------- |
-| `nodeFileSystem()`     | `process.cwd()`          | both, default `"follow-within-roots"` | `"required"` only          | none, it streams   | `"node"`      |
-| `justBashFileSystem()` | `/`                      | both, default `"reject"`              | both, default `"none"`     | 16 MiB             | `"just-bash"` |
-| `memoryFileSystem()`   | none, paths are absolute | links do not exist                    | both, default `"required"` | 16 MiB             | `"memory"`    |
+| Adapter                          | `cwd` default            | `symlinks`                            | `identity`                 | `maxBufferedBytes` | `id` default            |
+| -------------------------------- | ------------------------ | ------------------------------------- | -------------------------- | ------------------ | ----------------------- |
+| `nodeFileSystem()`               | `process.cwd()`          | both, default `"follow-within-roots"` | `"required"` only          | none, it streams   | `"node"`                |
+| `justBashFileSystem()`           | `/`                      | both, default `"reject"`              | both, default `"none"`     | 16 MiB             | `"just-bash"`           |
+| `memoryFileSystem()`             | none, paths are absolute | links do not exist                    | both, default `"required"` | 16 MiB             | `"memory"`              |
+| `cloudflareShellFileSystem()`    | the first allowed root   | `"reject"` only                       | `"none"` only              | 16 MiB             | `"cloudflare-shell"`    |
+| `cloudflareComputerFileSystem()` | the first allowed root   | `"reject"` only                       | `"none"` only              | none, it streams   | `"cloudflare-computer"` |
 
 `memoryFileSystem()` has no allowed roots: every absolute path is inside. It takes `id`, `denyRoots`, `identity`, and `maxBufferedBytes`.
 

@@ -698,7 +698,7 @@ Each adapter owns the signature, abort forwarding, and the mapping from `result.
 | [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)         | `createPiReadTool(options)`    | Each call is confined to Pi's `ctx.cwd`. `fs`, `cwd`, and `allowedRoots` are refused. The `pi.extensions` entry registers `read`, `edit`, `write`, and `apply_patch`. |
 | [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node)     | `createNodeReadTool(options?)` | The core with Node defaults, for your own tool.                                                                                                                       |
 
-Cloudflare Agents hosts use `@better-fs-tools/ai-sdk` with `shellWorkspaceFileSystem` from [`@better-fs-tools/cloudflare-shell`](https://www.npmjs.com/package/@better-fs-tools/cloudflare-shell). [`@better-fs-tools/cloudflare-computer`](https://www.npmjs.com/package/@better-fs-tools/cloudflare-computer) and [`@better-fs-tools/just-bash`](https://www.npmjs.com/package/@better-fs-tools/just-bash) are filesystems. Use them with `createReadTool()` or with an adapter.
+Cloudflare Agents hosts use `@better-fs-tools/ai-sdk` with `cloudflareShellFileSystem` from [`@better-fs-tools/cloudflare-shell`](https://www.npmjs.com/package/@better-fs-tools/cloudflare-shell). [`@better-fs-tools/cloudflare-computer`](https://www.npmjs.com/package/@better-fs-tools/cloudflare-computer) and [`@better-fs-tools/just-bash`](https://www.npmjs.com/package/@better-fs-tools/just-bash) are filesystems. Use them with `createReadTool()` or with an adapter.
 
 ## Exports
 
