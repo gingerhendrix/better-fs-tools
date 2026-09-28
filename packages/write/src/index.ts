@@ -64,6 +64,8 @@ export { defaultWriteMessages, resolveWriteMessages } from "./core/messages.ts";
 export { defaultPreconditions } from "./contract/preconditions.ts";
 export { utf8Codec } from "./codecs/index.ts";
 export { memoryLocks } from "./locks/index.ts";
+export { askBeforeWrite, writeAuthorizers } from "./authorize/index.ts";
 export { defaultWriteFormatter } from "./formatters/index.ts";
 export type { WriteFormatterOptions } from "./formatters/index.ts";
+export { createInvalidator } from "./state/index.ts";
 export { textOf } from "@better-fs-tools/read";
