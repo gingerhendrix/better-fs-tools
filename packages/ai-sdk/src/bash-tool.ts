@@ -3,7 +3,7 @@ import type { JSONSchema7, Schema, ToolExecutionOptions } from "ai";
 
 import type { JsonObject, ToolCallContext } from "@better-fs-tools/read";
 import { createBashTool, parseBashInput, resolveShellLimits } from "@better-fs-tools/shell";
-import type { ShellResult, ShellToolDeps } from "@better-fs-tools/shell";
+import type { BashTool, ShellLimits, ShellResult, ShellToolDeps } from "@better-fs-tools/shell";
 import { bashSignatureMessages, defaultBashSignature } from "@better-fs-tools/shell/signature";
 import type { BashSignature } from "@better-fs-tools/shell/signature";
 
@@ -42,18 +42,36 @@ export function createAiSdkBashTool<C = unknown>(
     throw new TypeError("AI SDK bash tool options must be an object");
   }
   const { signature: given, ...deps } = options;
-  const runnerId = typeof deps.runner === "function" ? undefined : deps.runner?.id;
-  const signature =
-    given ??
-    defaultBashSignature({
-      ...(runnerId === undefined ? {} : { runner: runnerId }),
-      ...(deps.limits === undefined ? {} : { limits: deps.limits }),
-    });
+  const signature = given ?? defaultAiSdkBashSignature(deps);
   const bash = createBashTool<ToolExecutionOptions<C>>({
     ...deps,
     messages: { ...bashSignatureMessages(signature), ...deps.messages },
   });
-  const limits = resolveShellLimits(deps.limits);
+  return adaptBashTool(signature, bash, deps.limits);
+}
+
+/** defaultBashSignature({ runner: runner.id, limits }), from the options. */
+export function defaultAiSdkBashSignature(deps: {
+  readonly runner?: ShellToolDeps<never>["runner"];
+  readonly limits?: Partial<ShellLimits>;
+}): BashSignature {
+  const runnerId = typeof deps.runner === "function" ? undefined : deps.runner?.id;
+  return defaultBashSignature({
+    ...(runnerId === undefined ? {} : { runner: runnerId }),
+    ...(deps.limits === undefined ? {} : { limits: deps.limits }),
+  });
+}
+
+/**
+ * The AI SDK face of a bash tool that is already built with the signature's
+ * messages. createAiSdkFsTools uses it too.
+ */
+export function adaptBashTool<C>(
+  signature: BashSignature,
+  bash: BashTool<ToolExecutionOptions<C>>,
+  limitOverrides: Partial<ShellLimits> | undefined,
+): AiSdkBashTool<C> {
+  const limits = resolveShellLimits(limitOverrides);
   const strict = toStrictSchema(signature.schema);
 
   return Object.freeze<AiSdkBashTool<C>>({

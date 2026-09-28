@@ -26,24 +26,19 @@ export function computerReadTool(workspace: Workspace) {
 }
 ```
 
-With the write tools, which share one store and one digest with the read tool:
+With the write tools. `createFsTools()` from `@better-fs-tools/write` gives them and the read tool one store, one digest, and one lock manager. Its default digest, `sha256Digest()`, is plain JavaScript, so it runs in a Worker:
 
 ```ts
 import type { Workspace } from "@cloudflare/computer";
 import { cloudflareComputerFileSystem } from "@better-fs-tools/cloudflare-computer";
-import { createMemoryStore, createReadTool, sha256Digest } from "@better-fs-tools/read";
-import { createEditTool, createWriteTool, memoryLocks } from "@better-fs-tools/write";
+import { createFsTools } from "@better-fs-tools/write";
 
-// sha256Digest() is plain JavaScript, so it runs in a Worker.
+// One store, one sha256Digest(), and one lock manager. createFsTools needs no
+// Node module, so it runs in a Worker.
 export function computerTools(workspace: Workspace) {
   const fs = cloudflareComputerFileSystem(workspace.fs, { allowedRoots: ["/workspace"] });
-  const shared = { fs, state: createMemoryStore(), digest: sha256Digest() };
-  const locks = memoryLocks();
-  return {
-    read: createReadTool(shared),
-    edit: createEditTool({ ...shared, locks }),
-    write: createWriteTool({ ...shared, locks }),
-  };
+  const { read, edit, write } = createFsTools({ fs });
+  return { read, edit, write };
 }
 ```
 

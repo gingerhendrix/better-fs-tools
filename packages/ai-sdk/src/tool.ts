@@ -5,7 +5,9 @@ import { createReadTool, parseReadInput, resolveReadLimits } from "@better-fs-to
 import type {
   JsonObject,
   ReadContext,
+  ReadLimits,
   ReadResult,
+  ReadTool,
   ReadToolDeps,
   StateNeedsDigest,
 } from "@better-fs-tools/read";
@@ -16,12 +18,12 @@ import { toAiSdkOutput } from "./output.ts";
 import type { AiSdkToolOutput } from "./output.ts";
 import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
-export interface CreateAiSdkReadToolOptions<C = unknown> extends ReadToolDeps<
-  ToolExecutionOptions<C>
-> {
-  /** Default defaultReadSignature(). */
-  readonly signature?: ReadSignature;
-}
+/** The read tool's dependencies, a state only with a digest, and the signature. */
+export type CreateAiSdkReadToolOptions<C = unknown> = ReadToolDeps<ToolExecutionOptions<C>> &
+  StateNeedsDigest & {
+    /** Default defaultReadSignature(). */
+    readonly signature?: ReadSignature;
+  };
 
 /** Assignable to Tool<JsonObject, ReadResult, C> from ai 7.0.77. */
 export interface AiSdkReadTool<C = unknown> {
@@ -37,18 +39,29 @@ export interface AiSdkReadTool<C = unknown> {
 
 /** Builds the core with messages = { ...readSignatureMessages(signature), ...options.messages }. */
 export function createAiSdkReadTool<C = unknown>(
-  options: CreateAiSdkReadToolOptions<C> & StateNeedsDigest,
+  options: CreateAiSdkReadToolOptions<C>,
 ): AiSdkReadTool<C> {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("AI SDK read tool options must be an object");
   }
   const { signature = defaultReadSignature(), ...deps } = options;
-  // The rest of a paired type loses the pairing. The options type checked it.
   const read = createReadTool<ToolExecutionOptions<C>>({
     ...deps,
     messages: { ...readSignatureMessages(signature), ...deps.messages },
   });
-  const limits = resolveReadLimits(deps.limits);
+  return adaptReadTool(signature, read, deps.limits);
+}
+
+/**
+ * The AI SDK face of a read tool that is already built with the signature's
+ * messages. createAiSdkFsTools uses it for the bundle's read tool.
+ */
+export function adaptReadTool<C>(
+  signature: ReadSignature,
+  read: ReadTool<ToolExecutionOptions<C>>,
+  limitOverrides: Partial<ReadLimits> | undefined,
+): AiSdkReadTool<C> {
+  const limits = resolveReadLimits(limitOverrides);
   const strict = toStrictSchema(signature.schema);
 
   return Object.freeze<AiSdkReadTool<C>>({

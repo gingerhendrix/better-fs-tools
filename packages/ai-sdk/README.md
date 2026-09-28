@@ -53,52 +53,27 @@ For a Cloudflare Agents host, pass `fs: cloudflareShellFileSystem(workspace, { a
 
 ## Write tools
 
-`createAiSdkEditTool()`, `createAiSdkWriteTool()`, and `createAiSdkApplyPatchTool()` wrap the tools from [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write). Give the read tool and the write tools the same `state` and `digest`, so `edit` and `write` know what the model has read:
+`createAiSdkFsTools({ fs })` builds the read tool and the write tools from [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) in one call. They share one `state`, one `digest` (default `sha256Digest()`), one lock manager, and one clock, so `edit` and `write` know what the model has read. `tools` has every tool keyed by its name, for `generateText`:
 
 ```ts
 import { generateText, isStepCount } from "ai";
 import type { LanguageModel } from "ai";
-import {
-  createAiSdkApplyPatchTool,
-  createAiSdkEditTool,
-  createAiSdkReadTool,
-  createAiSdkWriteTool,
-} from "@better-fs-tools/ai-sdk";
-import { nodeDigest, nodeFileSystem } from "@better-fs-tools/node";
-import { createMemoryStore } from "@better-fs-tools/read";
-import { memoryLocks } from "@better-fs-tools/write";
+import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
+import { nodeFileSystem } from "@better-fs-tools/node";
 
 const cwd = process.cwd();
-// One filesystem, store, and digest for all four tools. One lock manager for the three writers.
-const shared = {
-  fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
-  state: createMemoryStore(),
-  digest: nodeDigest(),
-};
-const locks = memoryLocks();
-
-const read = createAiSdkReadTool(shared);
-const edit = createAiSdkEditTool({ ...shared, locks });
-const write = createAiSdkWriteTool({ ...shared, locks });
-const applyPatch = createAiSdkApplyPatchTool({ ...shared, locks });
+// read, edit, write, and apply_patch over one filesystem, with one store,
+// one digest, and one lock manager. No bash: this bundle starts no process.
+const { tools } = createAiSdkFsTools({ fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }) });
 
 export async function change(model: LanguageModel, prompt: string): Promise<string> {
-  const result = await generateText({
-    model,
-    prompt,
-    tools: {
-      [read.name]: read,
-      [edit.name]: edit,
-      [write.name]: write,
-      [applyPatch.name]: applyPatch,
-    },
-    stopWhen: isStepCount(10),
-  });
+  const result = await generateText({ model, prompt, tools, stopWhen: isStepCount(10) });
   return result.text;
 }
 ```
 
-- Each factory takes every option of its core factory, plus `signature`. `fs` is required. `state` and `digest` default to `null`, so without them every update carries a `read-before-write-off` note. A `state` needs a `digest`: the options type refuses one without the other, and the factory throws `TypeError`.
+- `createAiSdkFsTools(options)` wraps `createFsTools()`. `fs` is required. `state` (default `createMemoryStore()`, `null` turns read-before-write off), `digest`, `locks`, and `clock` are set once. Each tool's other options, and its `signature`, go under `read`, `edit`, `write`, and `applyPatch`. `bash: { runner, env, ... }` adds a bash tool with the same digest and clock. The result has `read`, `edit`, `write`, `applyPatch`, `bash` (`null` when off), `tools`, `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`. An unknown option key, or a shared key inside a tool's options, throws `TypeError`.
+- The single factories, `createAiSdkEditTool()`, `createAiSdkWriteTool()`, and `createAiSdkApplyPatchTool()`, take every option of their core factory, plus `signature`. `fs` is required. `state` and `digest` default to `null`, so without them every update carries a `read-before-write-off` note. A `state` needs a `digest`: the options type refuses one without the other, and the factory throws `TypeError`.
 - The default signatures are `defaultEditSignature()` (`edit` with `path`, `old_string`, `new_string`, and `replace_all`), `defaultWriteSignature()` (`write` with `path` and `content`), and `defaultPatchSignature()` (`apply_patch` with `patch`). Error texts use the signature's names.
 - The tools are `strict: true`. The schema's `validate` hook runs `signature.toInput` and the core input check.
 - `execute` passes the `ToolExecutionOptions` object as `ctx.call.host`, and returns the whole `MutationResult`. `toModelOutput` gives the model the formatter's text.

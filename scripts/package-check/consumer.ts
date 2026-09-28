@@ -32,7 +32,8 @@ export async function prepareConsumer(repository: string, consumer: string): Pro
  * Imports every export under Node, not Bun, then reads through the Node tool,
  * the memory filesystem, the AI SDK tool, just-bash, and the Pi extension entry
  * that `pi.extensions` names. It also creates and edits files on disk with
- * `createNodeFsTools()`, and edits one through `justBashFileSystem()`. It
+ * `createNodeFsTools()`, and edits one through `justBashFileSystem()` and
+ * `createFsTools()`. It builds `createAiSdkFsTools()`. It
  * runs bash through `createNodeFsTools()` and `justBashCommandRunner()`.
  */
 export function runNodeConsumer(
@@ -72,6 +73,15 @@ const memory = memoryFileSystem({ files: { "/a.txt": "one\\ntwo\\n" } });
 expect("memory", textOf(await createReadTool({ fs: memory })({ path: "/a.txt", offset: 2 })), "2|two");
 const aiSdk = createAiSdkReadTool({ fs: memory });
 expect("ai-sdk", (await aiSdk.execute({ path: "/a.txt" }, { toolCallId: "t", messages: [] })).status, "ok");
+const { createFsTools } = await import("${SCOPE}/write");
+const portable = createFsTools({ fs: memoryFileSystem({ files: { "/p.txt": "p\\n" } }) });
+expect("portable bash off", portable.bash, null);
+expect("portable digest", portable.digest.id, "sha256");
+await portable.read({ path: "/p.txt" });
+expect("portable edit", (await portable.edit({ path: "/p.txt", edits: [{ oldText: "p", newText: "q" }] })).status, "ok");
+const { createAiSdkFsTools } = await import("${SCOPE}/ai-sdk");
+const aiSdkTools = createAiSdkFsTools({ fs: memoryFileSystem() });
+expect("ai-sdk bundle", Object.keys(aiSdkTools.tools).join(), "read,edit,write,apply_patch");
 const bash = readOnlyFileSystem(justBashFileSystem(new InMemoryFs({ "/w/a.txt": "x\\n" }), {
   cwd: "/w", allowedRoots: ["/w"],
 }));

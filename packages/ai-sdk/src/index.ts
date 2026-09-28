@@ -1,5 +1,16 @@
 export { createAiSdkBashTool } from "./bash-tool.ts";
 export type { AiSdkBashTool, CreateAiSdkBashToolOptions } from "./bash-tool.ts";
+export { createAiSdkFsTools } from "./fs-tools.ts";
+export type {
+  AiSdkFsTools,
+  AiSdkFsToolsApplyPatchOptions,
+  AiSdkFsToolsBashOptions,
+  AiSdkFsToolsEditOptions,
+  AiSdkFsToolsReadOptions,
+  AiSdkFsToolsWithBash,
+  AiSdkFsToolsWriteOptions,
+  CreateAiSdkFsToolsOptions,
+} from "./fs-tools.ts";
 export {
   createAiSdkApplyPatchTool,
   createAiSdkEditTool,
