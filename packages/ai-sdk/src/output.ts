@@ -1,4 +1,4 @@
-import type { ContentPart, ReadResult } from "@better-fs-tools/read";
+import type { ContentPart } from "@better-fs-tools/read";
 
 import { toBase64 } from "./base64.ts";
 
@@ -11,8 +11,10 @@ export interface AiSdkReadOutput {
   value: AiSdkContentPart[];
 }
 
-/** Text parts as text. Media parts as base64 file parts. */
-export function toAiSdkOutput(result: ReadResult): AiSdkReadOutput {
+/** Text parts as text. Media parts as base64 file parts. Takes a read or a mutation result. */
+export function toAiSdkOutput(result: {
+  readonly content: readonly ContentPart[];
+}): AiSdkReadOutput {
   return { type: "content", value: result.content.map(toAiSdkPart) };
 }
 

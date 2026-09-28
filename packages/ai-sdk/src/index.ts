@@ -1,3 +1,14 @@
+export {
+  createAiSdkApplyPatchTool,
+  createAiSdkEditTool,
+  createAiSdkWriteTool,
+} from "./mutation-tools.ts";
+export type {
+  AiSdkMutationTool,
+  CreateAiSdkApplyPatchToolOptions,
+  CreateAiSdkEditToolOptions,
+  CreateAiSdkWriteToolOptions,
+} from "./mutation-tools.ts";
 export { toAiSdkOutput } from "./output.ts";
 export type { AiSdkContentPart, AiSdkReadOutput } from "./output.ts";
 export { createAiSdkReadTool } from "./tool.ts";

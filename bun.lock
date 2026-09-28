@@ -64,6 +64,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@better-fs-tools/read": "workspace:^",
+        "@better-fs-tools/write": "workspace:^",
       },
       "devDependencies": {
         "@better-fs-tools/fs": "workspace:^",

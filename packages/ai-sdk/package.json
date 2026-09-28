@@ -1,7 +1,7 @@
 {
   "name": "@better-fs-tools/ai-sdk",
   "version": "0.0.0",
-  "description": "The Better Read tool for AI SDK 7.",
+  "description": "The Better FS Tools read, edit, write, and apply_patch tools for AI SDK 7.",
   "license": "MIT",
   "files": [
     "dist"
@@ -21,7 +21,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@better-fs-tools/read": "workspace:^"
+    "@better-fs-tools/read": "workspace:^",
+    "@better-fs-tools/write": "workspace:^"
   },
   "devDependencies": {
     "@better-fs-tools/fs": "workspace:^",
