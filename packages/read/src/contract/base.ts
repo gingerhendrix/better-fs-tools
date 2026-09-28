@@ -19,8 +19,8 @@ export interface ToolCallContext<THost = undefined> {
   readonly host: THost;
 }
 
-/** "read", "edit", "write", "apply_patch", or a host tool. */
-export type ToolName = "read" | "edit" | "write" | "apply_patch" | (string & {});
+/** "read", "edit", "write", "apply_patch", "bash", or a host tool. */
+export type ToolName = "read" | "edit" | "write" | "apply_patch" | "bash" | (string & {});
 
 /** A note any tool can emit. */
 export interface Note {

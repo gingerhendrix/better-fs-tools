@@ -78,5 +78,5 @@ export const note: Note = readNote;
 declare const access: AccessDecision;
 export const decision: AuthorizeDecision = access;
 
-// ToolName takes the four tools and any host tool name.
-export const names: readonly ToolName[] = ["read", "edit", "write", "apply_patch", "grep"];
+// ToolName takes the five tools and any host tool name.
+export const names: readonly ToolName[] = ["read", "edit", "write", "apply_patch", "bash", "grep"];
