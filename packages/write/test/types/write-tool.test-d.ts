@@ -9,9 +9,15 @@ import type { Authorizer, ToolAuthorizer, ToolCallContext } from "@better-fs-too
 import {
   askBeforeWrite,
   createWriteTool,
+  defaultGuards,
   defaultWriteFormatter,
+  executableShebang,
+  generatedFileGuard,
   memoryLocks,
+  protectPaths,
+  syntaxGuard,
   utf8Codec,
+  verifyWrite,
   writeAuthorizers,
 } from "../../src/index.ts";
 import type {
@@ -66,6 +72,23 @@ export const repaired: WriteToolDeps = { fs, resolve: unicodeRepair() };
 const guard: Guard<unknown> = { id: "g", check: () => ({ allow: true }) };
 const hook: WriteHook<unknown> = { id: "h", afterWrite: () => ({}) };
 export const extended = createWriteTool<Host>({ fs, guards: [guard], hooks: [hook] });
+export const builtIns = createWriteTool<Host>({
+  fs,
+  guards: [...defaultGuards(), generatedFileGuard(), syntaxGuard({ parsers: { yaml: () => {} } })],
+  hooks: [verifyWrite(), executableShebang()],
+  authorize: writeAuthorizers(
+    protectPaths({
+      ask: async (target, ctx) => target.tool === "write" && ctx.call.host.id !== "",
+    }),
+  ),
+});
+export const protectedPaths: WriteAuthorizer<Host> = protectPaths();
+export const badMode: WriteHook<unknown> = {
+  id: "m",
+  // @ts-expect-error: newFileMode returns a number or null.
+  newFileMode: () => "755",
+  afterWrite: () => ({}),
+};
 
 // A write authorizer sees the change; a read authorizer does not fit write.
 export const sees: WriteAuthorizer<Host> = {
