@@ -18,12 +18,18 @@ const BASH_SNIPPET = "Execute bash commands (ls, grep, find, etc.)";
 /** Directories whose runners are kept. */
 const MAX_CACHED_RUNNERS = 8;
 
-export interface CreatePiBashToolOptions extends Omit<ShellToolDeps<ExtensionContext>, "runner"> {
+/** No cwd: the directory is bound to ctx.cwd on every call. */
+export interface CreatePiBashToolOptions extends Omit<
+  ShellToolDeps<ExtensionContext>,
+  "runner" | "cwd"
+> {
   /** Default a nodeCommandRunner at ctx.cwd, one for each directory. */
   readonly runner?: ShellToolDeps<ExtensionContext>["runner"];
   /**
-   * Default defaultBashSignature({ timeoutUnit: "s", cwd: false }): Pi's own
-   * shape, { command, timeout } in seconds, so Pi's bash renderer and prompt fit.
+   * Default defaultBashSignature({ timeoutUnit: "s", cwd: false, limits }):
+   * Pi's own shape, { command, timeout } in seconds, so Pi's bash renderer and
+   * prompt fit. The description names the configured timeouts and output
+   * limits, and a given runner object's id.
    */
   readonly signature?: BashSignature;
   readonly promptSnippet?: string;
@@ -68,12 +74,21 @@ export interface PiBashTool {
 export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashTool {
   checkPiOptions(options, "bash");
   const {
-    signature = defaultBashSignature({ timeoutUnit: "s", cwd: false }),
+    signature: given,
     promptSnippet = BASH_SNIPPET,
     promptGuidelines = [],
     runner = piRunners(),
     ...deps
   } = options;
+  const runnerId = typeof runner === "function" ? undefined : runner.id;
+  const signature =
+    given ??
+    defaultBashSignature({
+      timeoutUnit: "s",
+      cwd: false,
+      ...(runnerId === undefined ? {} : { runner: runnerId }),
+      ...(deps.limits === undefined ? {} : { limits: deps.limits }),
+    });
   const bash = createBashTool<ExtensionContext>({
     ...deps,
     runner,

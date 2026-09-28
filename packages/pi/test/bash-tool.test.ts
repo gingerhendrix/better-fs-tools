@@ -77,6 +77,23 @@ describe("createPiBashTool", () => {
     expect(result.details).toEqual({ fullOutputPath: "/tmp/full.log" });
   });
 
+  test("the default description names the configured timeouts, in seconds", () => {
+    const tool = createPiBashTool({ limits: { defaultTimeoutMs: 1_000, maxTimeoutMs: 2_000 } });
+    const timeout = (tool.parameters as { properties: { timeout: { description: string } } })
+      .properties.timeout.description;
+    expect(timeout).toBe("Timeout in seconds. Default 1 seconds, maximum 2 seconds.");
+    expect(tool.description).not.toContain("120");
+    expect(tool.description).toContain("The command stops after 1 s");
+  });
+
+  test("the default description names a given runner object", () => {
+    const tool = createPiBashTool({
+      runner: { id: "sandbox", cwd: "/", run: () => ({ output: [], exit: new Promise(() => {}) }) },
+    } as never);
+    expect(tool.description).toContain("Commands run in: sandbox.");
+    expect(createPiBashTool().description).not.toContain("Commands run in:");
+  });
+
   test("refuses cwd in options and a context without cwd", async () => {
     expect(() => createPiBashTool({ cwd: "/" } as never)).toThrow(TypeError);
     const tool = createPiBashTool();
