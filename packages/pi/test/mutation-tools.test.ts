@@ -11,7 +11,8 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import type { ToolCallContext } from "@better-fs-tools/read";
 import { createMemoryStore } from "@better-fs-tools/read/state";
-import { CODEX_PATCH_GRAMMAR, exactMatcher } from "@better-fs-tools/write";
+import { exactMatcher } from "@better-fs-tools/write";
+import { CODEX_PATCH_GRAMMAR } from "@better-fs-tools/write/patch";
 import {
   defaultEditSignature,
   defaultPatchSignature,

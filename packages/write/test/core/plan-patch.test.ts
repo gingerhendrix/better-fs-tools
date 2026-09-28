@@ -3,7 +3,8 @@ import { describe, expect, spyOn, test } from "bun:test";
 import { textOf } from "@better-fs-tools/read";
 
 import { executableShebang, lineTrimmedMatcher } from "../../src/index.ts";
-import type { PatchParser, WriteAuthorizeTarget } from "../../src/index.ts";
+import type { WriteAuthorizeTarget } from "../../src/index.ts";
+import type { PatchParser } from "../../src/patch/index.ts";
 import { errorOf, codes, errorCode, harness, note, patchText, text } from "../helpers.ts";
 
 const BOM = Uint8Array.of(0xef, 0xbb, 0xbf);

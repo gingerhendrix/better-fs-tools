@@ -9,7 +9,6 @@ import {
   resolveWriteDependencies,
 } from "../../src/core/deps.ts";
 import {
-  codexPatchParser,
   createApplyPatchTool,
   createEditTool,
   createWriteTool,
@@ -18,6 +17,7 @@ import {
   defaultWriteLimits,
   defaultWriteMessages,
 } from "../../src/index.ts";
+import { codexPatchParser } from "../../src/patch/index.ts";
 import { testDigest } from "../helpers.ts";
 
 const fs = memoryFileSystem();

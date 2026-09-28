@@ -4,8 +4,8 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 
 import { exactMatcher, lineTrimmedMatcher } from "../../src/index.ts";
+import { CODEX_PATCH_GRAMMAR } from "../../src/patch/index.ts";
 import {
-  CODEX_PATCH_GRAMMAR,
   camelCaseEditSignature,
   defaultEditSignature,
   defaultPatchSignature,

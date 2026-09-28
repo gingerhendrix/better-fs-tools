@@ -5,12 +5,7 @@
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { ToolCallContext } from "@better-fs-tools/read";
 
-import {
-  codexPatchParser as rootParser,
-  createApplyPatchTool,
-  defaultPatchMatchers,
-  exactMatcher,
-} from "../../src/index.ts";
+import { createApplyPatchTool, defaultPatchMatchers, exactMatcher } from "../../src/index.ts";
 import type {
   ApplyPatchInput,
   ApplyPatchTool,
@@ -58,7 +53,7 @@ export const deps: ApplyPatchToolDeps<Host> = {
 export const writeDeps: import("../../src/index.ts").WriteToolDeps = {
   fs,
   // @ts-expect-error: patchParser is an apply_patch dependency.
-  patchParser: rootParser(),
+  patchParser: codexPatchParser(),
 };
 
 // A host parser returns the same plan type.

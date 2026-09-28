@@ -9,4 +9,3 @@ export { camelCaseEditSignature, defaultEditSignature, multiEditSignature } from
 export { writeSignatureMessages } from "./messages.ts";
 export { defaultPatchSignature, freeformPatchSignature } from "./patch.ts";
 export { defaultWriteSignature, snakeCaseWriteSignature } from "./write.ts";
-export { CODEX_PATCH_GRAMMAR } from "../patch/grammar.ts";
