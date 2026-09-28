@@ -8,7 +8,7 @@ import { computerFileSystem } from "../src/index.ts";
 import type { ComputerFileSystemLike } from "../src/index.ts";
 import { ROOT, fakeComputer, fsError, fsFor, streamOf } from "./fake-computer.ts";
 import type { FakeComputer } from "./fake-computer.ts";
-import { expectFsError, importSpecifiers } from "./helpers.ts";
+import { expectFsError, sourceSpecifiers } from "./helpers.ts";
 
 const ENCODER = new TextEncoder();
 
@@ -588,8 +588,8 @@ describe("computer filesystem listing", () => {
 });
 
 describe("cloudflare-computer worker safety", () => {
-  test("the source imports only @better-fs-tools/fs", async () => {
-    const specifiers = await importSpecifiers(resolve(import.meta.dir, "../src/index.ts"));
+  test("the source imports only @better-fs-tools/fs and its own modules", async () => {
+    const specifiers = await sourceSpecifiers(resolve(import.meta.dir, "../src"));
     expect(new Set(specifiers)).toEqual(new Set(["@better-fs-tools/fs"]));
   });
 });
