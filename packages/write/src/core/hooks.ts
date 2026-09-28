@@ -17,6 +17,8 @@ export interface Committed {
   identity: string | null;
   /** false when a hook rewrote the file and the core could not read it back. Record then deletes the key. */
   known: boolean;
+  /** A hook rewrote the file. The model has not seen its bytes. */
+  rewritten: boolean;
 }
 
 export function committedFile<THost>(
@@ -26,7 +28,7 @@ export function committedFile<THost>(
   file: MutatedFile,
 ): Committed {
   const identity = scope.fileSystem().capabilities.identity ? file.identity : null;
-  return { planned, change, identity, known: true };
+  return { planned, change, identity, known: true, rewritten: false };
 }
 
 /**
@@ -63,6 +65,7 @@ export async function runWriteHooks<THost>(
       if (result.rewrote) rewrote.push(hook.id);
     }
     if (rewrote.length === 0) continue;
+    file.rewritten = true;
     await rehash(scope, fs, file);
     for (const hook of rewrote) {
       scope.notes.push({

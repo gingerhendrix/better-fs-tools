@@ -24,7 +24,7 @@ export async function recordCommitted<THost>(
   }
   if (store === null) return;
   for (const file of committed) {
-    const { change, planned } = file;
+    const { change } = file;
     const key = change.resolvedPath;
     try {
       const after = change.after;
@@ -44,7 +44,7 @@ export async function recordCommitted<THost>(
         contentId,
         viewId: contentId ?? "",
         observedAt: clock().toISOString(),
-        wholeFileVisible: wholeFileVisible(planned.change.tool, planned),
+        wholeFileVisible: wholeFileVisible(file),
         totalsExact: true,
         request: null,
       };
@@ -55,8 +55,15 @@ export async function recordCommitted<THost>(
   }
 }
 
-/** write and a patch Add see the whole file. edit and a patch Update keep the previous record's value. */
-function wholeFileVisible(tool: string, planned: Committed["planned"]): boolean {
-  if (tool === "write" || planned.loaded === null) return true;
+/**
+ * write and a patch Add see the whole file. edit and a patch Update keep the
+ * previous record's value. false whenever the file holds bytes the model has
+ * not seen: W6 content or a hook rewrite. A later edit still works; a later
+ * write needs a whole-file read first.
+ */
+function wholeFileVisible(file: Committed): boolean {
+  const { planned } = file;
+  if (planned.userModified || file.rewritten) return false;
+  if (planned.change.tool === "write" || planned.loaded === null) return true;
   return planned.record?.wholeFileVisible ?? false;
 }

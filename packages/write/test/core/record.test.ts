@@ -4,7 +4,8 @@ import { createReadTool, repeatReadGuard } from "@better-fs-tools/read";
 import type { ReadStateStore } from "@better-fs-tools/read";
 
 import { createWriteTool } from "../../src/index.ts";
-import { FIXED_DATE, harness, testDigest } from "../helpers.ts";
+import type { WriteAuthorizer, WriteHook } from "../../src/index.ts";
+import { FIXED_DATE, errorCode, harness, testDigest, text } from "../helpers.ts";
 
 describe("record (section 5.10)", () => {
   test("a commit stores a schema 2 write record", async () => {
@@ -84,5 +85,46 @@ describe("record (section 5.10)", () => {
     const write = createWriteTool({ fs });
     const result = await write({ path: "/a.txt", content: "x" });
     expect(result.changes[0]?.after?.contentId).toBeNull();
+  });
+});
+
+describe("records for bytes the model has not seen (batch 3 follow-up)", () => {
+  const userContent: WriteAuthorizer<unknown> = {
+    id: "user",
+    authorize: (target) =>
+      target.change === null ? { allow: true } : { allow: true, content: "user text\n" },
+  };
+  const rewriter: WriteHook<unknown> = {
+    id: "fmt",
+    afterWrite: async (change, ctx) => {
+      await ctx.fs.write(change.resolvedPath, new TextEncoder().encode("formatted\n"), {
+        precondition: { kind: "any" },
+        createParents: false,
+      });
+      return { rewrote: true };
+    },
+  };
+
+  test.each([
+    ["W6 content", { authorize: userContent }, "user-modified"],
+    ["a hook rewrite", { hooks: [rewriter] }, "hook-rewrote"],
+  ])("after %s the record is not whole, so write needs a whole read", async (_name, deps, code) => {
+    const { read, write, fs, state } = harness({ files: { "/a.txt": "one\n" }, deps });
+    await read({ path: "/a.txt" });
+    const first = await write({ path: "/a.txt", content: "mine\n" });
+    expect(first.notes.map((entry) => entry.code)).toContain(code);
+    expect(await state.get("/a.txt")).toMatchObject({ origin: "write", wholeFileVisible: false });
+    const plainWrite = createWriteTool({ fs, state, digest: testDigest() });
+    const current = text(fs, "/a.txt");
+    const replaced = await plainWrite({ path: "/a.txt", content: "again\n" });
+    expect(replaced.error).toMatchObject({ code: "NOT_READ", data: { wholeFile: true } });
+    expect(text(fs, "/a.txt")).toBe(current);
+  });
+
+  test("a create that a hook rewrote needs a read before write", async () => {
+    const { write, state } = harness({ deps: { hooks: [rewriter] } });
+    await write({ path: "/n.txt", content: "raw" });
+    expect((await state.get("/n.txt"))?.wholeFileVisible).toBe(false);
+    expect(errorCode(await write({ path: "/n.txt", content: "again" }))).toBe("NOT_READ");
   });
 });
