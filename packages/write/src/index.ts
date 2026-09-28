@@ -1,5 +1,58 @@
-/**
- * The edit, write, and apply_patch tools. Empty until batch 3 of the write
- * tools plan adds the mutation core.
- */
-export {};
+export type {
+  ApplyPatchInput,
+  ApplyPatchRequest,
+  EditInput,
+  EditPair,
+  EditRequest,
+  MutationRequest,
+  WriteInput,
+  WriteRequest,
+} from "./contract/input.ts";
+export type {
+  ApplyPatchTool,
+  EditTool,
+  MutationTool,
+  WriteTool,
+  WriteToolName,
+} from "./contract/context.ts";
+export type {
+  CommitFileState,
+  CommitReport,
+  FileChange,
+  FileVersion,
+  MatchInfo,
+  MutationReport,
+  MutationResult,
+  Snippet,
+  WriteError,
+  WriteErrorCode,
+  WritePhase,
+} from "./contract/result.ts";
+export type {
+  EditDependencies,
+  EditToolDeps,
+  WriteDependencies,
+  WriteToolDeps,
+} from "./contract/deps.ts";
+export type {
+  AfterWriteContext,
+  ChangeFragment,
+  Guard,
+  GuardContext,
+  GuardDecision,
+  PlannedChange,
+  PlannedText,
+  WriteAuthorizeDecision,
+  WriteAuthorizer,
+  WriteAuthorizeTarget,
+  WriteHook,
+  WriteHookContext,
+  WriteHookResult,
+} from "./contract/extensions.ts";
+export type { Codec, DecodeOutcome, TextStyle } from "./contract/codec.ts";
+export type { Matcher, MatchContext, MatchRange } from "./contract/matcher.ts";
+export type { LockManager, LockOutcome } from "./contract/locks.ts";
+export type { PreconditionPolicy } from "./contract/preconditions.ts";
+export type { WriteFormatContext, WriteFormatter } from "./contract/format.ts";
+export type { WriteLimits } from "./contract/limits.ts";
+export type { CanonicalParam, WriteMessageCatalog } from "./contract/messages.ts";
