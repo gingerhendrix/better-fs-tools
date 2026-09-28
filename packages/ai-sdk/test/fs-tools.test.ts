@@ -161,5 +161,9 @@ describe("createAiSdkFsTools", () => {
       "createAiSdkFsTools bash options must be an object",
     );
     expect(() => createAiSdkFsTools({ fs, bash: { runner } } as never)).toThrow("env is required");
+    // tools is keyed by name, so two tools with one name would hide one of them.
+    expect(() =>
+      createAiSdkFsTools({ fs, read: { signature: lineRangeSignature({ name: "edit" }) } }),
+    ).toThrow("createAiSdkFsTools has two tools named edit");
   });
 });
