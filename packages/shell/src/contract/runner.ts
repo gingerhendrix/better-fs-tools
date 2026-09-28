@@ -25,6 +25,8 @@ export interface RunRequest {
    * capture cap. The runner must then stop the whole process tree.
    */
   readonly signal: AbortSignal;
+  /** After the stop signal, the runner waits this long before it forces the stop (SIGKILL). */
+  readonly killGraceMs: number;
 }
 
 export interface OutputChunk {

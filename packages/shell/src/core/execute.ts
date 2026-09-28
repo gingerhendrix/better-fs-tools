@@ -1,6 +1,12 @@
 import type { PlannedRun, SpillWriter } from "../contract/extensions.ts";
 import type { ShellOutput, ShellRun } from "../contract/result.ts";
-import type { CommandRunner, OutputChunk, RunExit, RunHandle } from "../contract/runner.ts";
+import type {
+  CommandRunner,
+  OutputChunk,
+  RunExit,
+  RunHandle,
+  RunRequest,
+} from "../contract/runner.ts";
 import { delay, unref } from "./abort.ts";
 import { OutputCapture } from "./capture.ts";
 import { isRecord } from "./input.ts";
@@ -56,7 +62,13 @@ export async function execute<THost>(
   const started = Date.now();
   let handle: RunHandle;
   try {
-    handle = startRun(runner, { ...planned, env, signal: controller.signal });
+    handle = startRun(runner, {
+      command: planned.command,
+      cwd: planned.cwd,
+      env,
+      signal: controller.signal,
+      killGraceMs: limits.killGraceMs,
+    });
   } catch (error) {
     release();
     await spill?.close().catch(() => undefined);
@@ -126,7 +138,7 @@ export async function execute<THost>(
   };
 }
 
-function startRun(runner: CommandRunner, request: Parameters<CommandRunner["run"]>[0]): RunHandle {
+function startRun(runner: CommandRunner, request: RunRequest): RunHandle {
   const handle: unknown = runner.run(request);
   if (
     !isRecord(handle) ||
