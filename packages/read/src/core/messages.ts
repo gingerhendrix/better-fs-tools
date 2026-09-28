@@ -19,6 +19,8 @@ const catalog: MessageCatalog = {
     `Scanning stopped before line ${request.offset} was reached. Retry from line ${reachedLine} with ${retry}.`,
   lineClamped: ({ lines, total, maxChars }) =>
     `Source line${total === 1 ? "" : "s"} ${lines.join(", ")}${total > lines.length ? ", …" : ""} exceeded ${maxChars} characters and ${total === 1 ? "was" : "were"} clamped.`,
+  limitClamped: ({ requested, max }) =>
+    `The requested line count of ${requested} is over the maximum, so at most ${max} lines are shown.`,
   scanLimit: ({ maxScanBytes }) =>
     `Scanning stopped at ${maxScanBytes} bytes; total lines and raw content identity are unknown.`,
   empty: ({ path }) => `${path} is empty (0 bytes); no retry is needed.`,

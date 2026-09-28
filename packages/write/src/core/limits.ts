@@ -23,7 +23,11 @@ export const defaultWriteLimits: Readonly<WriteLimits> = Object.freeze({
 
 const LIMIT_KEYS = Object.keys(defaultWriteLimits) as (keyof WriteLimits)[];
 
-/** Merges key by key. Throws TypeError on an unknown key or a value that is not a positive safe integer. */
+/**
+ * Merges key by key. Throws TypeError on an unknown key, a value that is not
+ * a positive safe integer, or a `sampleBytes` you set above `maxFileBytes`.
+ * A default `sampleBytes` over a `maxFileBytes` you set is lowered to it.
+ */
 export function resolveWriteLimits(overrides: Partial<WriteLimits> = {}): Readonly<WriteLimits> {
   if (overrides === null || typeof overrides !== "object" || Array.isArray(overrides)) {
     throw new TypeError("limits must be an object");
@@ -40,7 +44,11 @@ export function resolveWriteLimits(overrides: Partial<WriteLimits> = {}): Readon
     }
     resolved[key] = value;
   }
-  // A sample larger than the load cap is incoherent rather than unsafe.
-  if (resolved.sampleBytes > resolved.maxFileBytes) resolved.sampleBytes = resolved.maxFileBytes;
+  if (resolved.sampleBytes > resolved.maxFileBytes) {
+    if (overrides.sampleBytes !== undefined) {
+      throw new TypeError("sampleBytes must not be more than maxFileBytes");
+    }
+    resolved.sampleBytes = resolved.maxFileBytes;
+  }
   return Object.freeze(resolved);
 }

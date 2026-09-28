@@ -7,7 +7,7 @@ export interface ReadLimits {
   readonly maxCharsPerLine: number;
   /** Bytes scanned before totals and content identity are abandoned. Default 64 MiB. */
   readonly maxScanBytes: number;
-  /** Bytes given to classifiers. Default 8 KiB. Clamped to maxScanBytes. */
+  /** Bytes given to classifiers. Default 8 KiB. Must not be more than maxScanBytes. */
   readonly sampleBytes: number;
   /** Entries in one directory listing. Default 200. */
   readonly maxDirectoryEntries: number;

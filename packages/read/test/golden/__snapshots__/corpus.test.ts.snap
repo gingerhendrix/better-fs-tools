@@ -820,13 +820,15 @@ exports[`golden corpus, default formatter limit clamped to maxLines 1`] = `
   },
   "notes": [
     "continue",
+    "clamped",
   ],
   "status": "ok",
   "text": 
 "1|one
 2|two
 
-[read:continue] Output stopped at the line limit. Continue with {"path":"/corpus/plain.txt","offset":3,"limit":2}."
+[read:continue] Output stopped at the line limit. Continue with {"path":"/corpus/plain.txt","offset":3,"limit":2}.
+[read:clamped] The requested line count of 50 is over the maximum, so at most 2 lines are shown."
 ,
   "totals": {
     "bytes": 14,

@@ -58,7 +58,7 @@ The outcome is plain data. Only media parts hold bytes, as `Uint8Array`. Nothing
 
 Field notes:
 
-- `request` is the validated canonical input. `offset` and `limit` are concrete: `offset` defaults to 1, and `limit` defaults to and is clamped to `limits.maxLines`. `ranged` is `true` when the input set `offset` or `limit`.
+- `request` is the validated canonical input. `offset` and `limit` are concrete: `offset` defaults to 1, and `limit` defaults to and is clamped to `limits.maxLines`. A clamp adds a `clamped` info note. `ranged` is `true` when the input set `offset` or `limit`.
 - `file.requestedPath` is the model's path. `file.resolvedFrom` is the model's path when a resolver changed it, and `null` otherwise. `file.backend` is the filesystem `id`. `file.identity` is `null` unless the filesystem has stable identity. `file.version` is the backend's change token from `open()` (`info.version`), or `null` when the backend gives none. It is kept when the filesystem has no stable identity.
 - `classification.kind` is `"text"`, `"unsupported"`, or `"directory"`. `classifier` is the classifier id, or `"fs"` for a directory. `code` is the classifier's unsupported code, and `null` for text and directories. A converted file keeps its classification, so a converted notebook has `kind: "unsupported"` and `code: "NOTEBOOK"`.
 - `conversion` names the converter when one produced the text, and `null` for plain text.
@@ -150,6 +150,7 @@ Notes from the core:
 | `code`                                                                                                      | Severity | `retry`                                      | `data`                                                                                        |
 | ----------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | `continue`                                                                                                  | info     | the next view                                | `{ reason }`                                                                                  |
+| `clamped`                                                                                                   | info     | none                                         | `{ param: "limit", requested, max }`: the requested `limit` was over `maxLines`               |
 | `offset-unreached`                                                                                          | warning  | a lower offset that the scan reached         | `{ reachedLine }`                                                                             |
 | `first-line-exceeds-byte-limit`                                                                             | warning  | the view after that line                     | `{ line }`                                                                                    |
 | `line-clamped`                                                                                              | warning  | none                                         | `{ lines, total, maxChars }`. `lines` lists at most 20 line numbers.                          |

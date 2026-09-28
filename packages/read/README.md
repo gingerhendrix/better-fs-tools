@@ -426,19 +426,21 @@ Conversion runs again on each continuation read. Cache inside your converter if 
 
 ## Limits and the token budget
 
-| Limit                 | Default | Meaning                                                |
-| --------------------- | ------- | ------------------------------------------------------ |
-| `maxLines`            | 2,000   | Lines in the view. Also the ceiling for `limit`.       |
-| `maxViewBytes`        | 128 KiB | UTF-8 bytes of source text in the view                 |
-| `maxCharsPerLine`     | 2,000   | Characters in one line before it is clamped            |
-| `maxScanBytes`        | 64 MiB  | Bytes scanned before totals and content identity stop  |
-| `sampleBytes`         | 8 KiB   | Bytes given to classifiers. Clamped to `maxScanBytes`. |
-| `maxDirectoryEntries` | 200     | Entries in one listing                                 |
-| `maxSuggestions`      | 5       | Suggested names on a miss                              |
-| `maxConvertBytes`     | 64 MiB  | Source bytes that a converter can read                 |
-| `maxMediaBytes`       | 5 MiB   | Total bytes of media parts in one result               |
+| Limit                 | Default | Meaning                                               |
+| --------------------- | ------- | ----------------------------------------------------- |
+| `maxLines`            | 2,000   | Lines in the view. Also the ceiling for `limit`.      |
+| `maxViewBytes`        | 128 KiB | UTF-8 bytes of source text in the view                |
+| `maxCharsPerLine`     | 2,000   | Characters in one line before it is clamped           |
+| `maxScanBytes`        | 64 MiB  | Bytes scanned before totals and content identity stop |
+| `sampleBytes`         | 8 KiB   | Bytes given to classifiers. At most `maxScanBytes`.   |
+| `maxDirectoryEntries` | 200     | Entries in one listing                                |
+| `maxSuggestions`      | 5       | Suggested names on a miss                             |
+| `maxConvertBytes`     | 64 MiB  | Source bytes that a converter can read                |
+| `maxMediaBytes`       | 5 MiB   | Total bytes of media parts in one result              |
 
 These are defaults, not ceilings. You can set any positive safe integer.
+
+A `limit` over `maxLines` is cut to `maxLines`, with a `clamped` info note. A `sampleBytes` that you set above `maxScanBytes` throws `TypeError`. When you set only `maxScanBytes` below 8 KiB, the default `sampleBytes` is lowered to it. The same limits rule holds in read, write, and bash.
 
 For a token limit, set `budget`. The scanner stops at the last whole line that fits, and the result has a normal continuation. The truncation reason is `"budget"`.
 

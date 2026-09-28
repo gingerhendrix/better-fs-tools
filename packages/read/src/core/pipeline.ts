@@ -12,7 +12,7 @@ import { AbortReadError, ByteCursor } from "./cursor.ts";
 import { convertDirectory } from "./directory.ts";
 import { formatResult } from "./format.ts";
 import { runHooks } from "./hooks.ts";
-import { parseReadInput } from "./input.ts";
+import { clampedLimit, parseReadInput } from "./input.ts";
 import { fileInfo, openFile } from "./open.ts";
 import {
   ReadStop,
@@ -52,14 +52,17 @@ async function readOutcome<THost>(
   }
 
   const scope = new CallScope(deps, request, call);
+  const clampNote = limitNote(deps, input, request);
   // A resolver note travels with every outcome after the resolve stage, and
-  // stays last before the hooks. Allow notes from the authorizer come just before it.
+  // stays last before the hooks. Allow notes from the authorizer come just
+  // before it, and a clamped note from the input before them.
   let resolveNote: ReadNote | null = null;
   const finish = (outcome: ReadOutcome): ReadOutcome =>
-    withNotes(
-      outcome,
-      resolveNote === null ? scope.allowNotes : [...scope.allowNotes, resolveNote],
-    );
+    withNotes(outcome, [
+      ...(clampNote === null ? [] : [clampNote]),
+      ...scope.allowNotes,
+      ...(resolveNote === null ? [] : [resolveNote]),
+    ]);
   let outcome: ReadOutcome;
   try {
     outcome = await readStages(deps, request, scope, (note) => {
@@ -133,6 +136,23 @@ function stopped<THost>(
   if (error instanceof ReadStop) return error.outcome;
   if (error instanceof AbortReadError) return aborted(deps.messages, request, scope.phase);
   return ioError(deps.messages, request, scope.phase, error);
+}
+
+/** The clamped info note when parse cut the requested limit to maxLines, else null. */
+function limitNote<THost>(
+  deps: Dependencies<THost>,
+  input: unknown,
+  request: ReadRequest,
+): ReadNote | null {
+  const requested = clampedLimit(input, request);
+  if (requested === null) return null;
+  const max = deps.limits.maxLines;
+  return {
+    code: "clamped",
+    severity: "info",
+    message: deps.messages.limitClamped({ requested, max }),
+    data: { param: "limit", requested, max },
+  };
 }
 
 function withNotes(outcome: ReadOutcome, notes: readonly ReadNote[]): ReadOutcome {

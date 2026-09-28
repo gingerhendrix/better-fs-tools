@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { defaultLimits, parseReadInput, textOf } from "../../src/index.ts";
-import { expectFailure, harness } from "../helpers.ts";
+import { expectFailure, harness, note } from "../helpers.ts";
 
 describe("parseReadInput", () => {
   test("fills defaults and clamps the limit", () => {
@@ -67,5 +67,25 @@ describe("invalid input through the tool", () => {
     });
     await read({ path: "" });
     expect(built).toBe(0);
+  });
+});
+
+describe("limit clamp note", () => {
+  test("a limit over maxLines is cut, with a clamped info note", async () => {
+    const { read } = harness({ files: { "/a.txt": "one\ntwo\nthree\n" }, limits: { maxLines: 2 } });
+    const result = await read({ path: "/a.txt", limit: 50 });
+    expect(result.request?.limit).toBe(2);
+    expect(note(result, "clamped")).toEqual({
+      code: "clamped",
+      severity: "info",
+      message: "The requested line count of 50 is over the maximum, so at most 2 lines are shown.",
+      data: { param: "limit", requested: 50, max: 2 },
+    });
+  });
+
+  test("a limit at maxLines, or no limit, gives no clamped note", async () => {
+    const { read } = harness({ files: { "/a.txt": "one\n" }, limits: { maxLines: 2 } });
+    expect(note(await read({ path: "/a.txt", limit: 2 }), "clamped")).toBeUndefined();
+    expect(note(await read({ path: "/a.txt" }), "clamped")).toBeUndefined();
   });
 });

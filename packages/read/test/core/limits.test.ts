@@ -24,8 +24,16 @@ describe("resolveLimits", () => {
     });
   });
 
-  test("clamps a sample larger than the scan to the scan", () => {
-    expect(resolveLimits({ maxScanBytes: 64, sampleBytes: 4_096 }).sampleBytes).toBe(64);
+  test("throws on a sample you set above the scan limit", () => {
+    expect(() => resolveLimits({ maxScanBytes: 64, sampleBytes: 4_096 })).toThrow(
+      "sampleBytes must not be more than maxScanBytes",
+    );
+    expect(() => resolveLimits({ maxScanBytes: 64, sampleBytes: 65 })).toThrow(TypeError);
+    expect(resolveLimits({ maxScanBytes: 64, sampleBytes: 64 }).sampleBytes).toBe(64);
+  });
+
+  test("lowers the default sample to a scan limit you set", () => {
+    expect(resolveLimits({ maxScanBytes: 64 }).sampleBytes).toBe(64);
   });
 
   test("rejects non-positive, fractional, and unknown values", () => {

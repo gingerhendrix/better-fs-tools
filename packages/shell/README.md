@@ -111,6 +111,8 @@ Timed out after 2 min. The process tree was stopped.
 | `headPercent`      | 20         | Percent of the view for the head. The tail gets the rest, because errors are usually at the end. |
 | `maxCaptureBytes`  | 10 485 760 | Past this, the core stops the command with `OUTPUT_CAP`.                                         |
 
+A `defaultTimeoutMs` that you set above `maxTimeoutMs`, or a `headPercent` over 100, throws `TypeError`. When you set only `maxTimeoutMs` below 120 000, the default timeout is lowered to it. The same limits rule holds in read, write, and bash. A per-call value over its ceiling is clamped, with a `clamped` info note. Two limits that you set and that conflict throw `TypeError` when the tool is built. A default that is over a ceiling you set is lowered to that ceiling.
+
 stdout and stderr are merged in arrival order. The core decodes UTF-8 with replacement characters and removes ANSI escape codes. It changes nothing else.
 
 The default environment is `defaultShellEnv` only: `PAGER=cat`, `GIT_PAGER=cat`, `GIT_TERMINAL_PROMPT=0`, `NO_COLOR=1`, and `TERM=dumb`. The Node and Pi factories add `process.env` under it with `shellEnv(() => process.env)`.

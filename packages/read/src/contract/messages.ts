@@ -28,6 +28,8 @@ export interface MessageCatalog extends ToolMessages {
   offsetPastEof(c: { request: ReadRequest; totalLines: number; retry: string }): string;
   offsetUnreached(c: { request: ReadRequest; reachedLine: number; retry: string }): string;
   lineClamped(c: { lines: readonly number[]; total: number; maxChars: number }): string;
+  /** The requested line count was over limits.maxLines, so the view uses the maximum. */
+  limitClamped(c: { requested: number; max: number }): string;
   scanLimit(c: { maxScanBytes: number }): string;
   empty(c: { path: string }): string;
   notFound(c: { request: ReadRequest; suggestions: readonly string[] }): string;

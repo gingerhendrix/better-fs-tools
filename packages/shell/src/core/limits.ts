@@ -15,8 +15,9 @@ const LIMIT_KEYS = Object.keys(defaultShellLimits) as (keyof ShellLimits)[];
 
 /**
  * Merges key by key. Throws TypeError on an unknown key, on a value that is
- * not a positive safe integer, on a headPercent over 100, or on a default
- * timeout over the maximum.
+ * not a positive safe integer, on a headPercent over 100, or on a
+ * `defaultTimeoutMs` you set above `maxTimeoutMs`. The default
+ * `defaultTimeoutMs` over a `maxTimeoutMs` you set is lowered to it.
  */
 export function resolveShellLimits(overrides: Partial<ShellLimits> = {}): Readonly<ShellLimits> {
   if (overrides === null || typeof overrides !== "object" || Array.isArray(overrides)) {
@@ -36,7 +37,10 @@ export function resolveShellLimits(overrides: Partial<ShellLimits> = {}): Readon
   }
   if (resolved.headPercent > 100) throw new TypeError("headPercent must be 100 or less");
   if (resolved.defaultTimeoutMs > resolved.maxTimeoutMs) {
-    throw new TypeError("defaultTimeoutMs must not be more than maxTimeoutMs");
+    if (overrides.defaultTimeoutMs !== undefined) {
+      throw new TypeError("defaultTimeoutMs must not be more than maxTimeoutMs");
+    }
+    resolved.defaultTimeoutMs = resolved.maxTimeoutMs;
   }
   return Object.freeze(resolved);
 }

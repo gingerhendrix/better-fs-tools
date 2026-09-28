@@ -23,7 +23,14 @@ describe("resolveWriteLimits", () => {
     expect(() => resolveWriteLimits(null as never)).toThrow(TypeError);
   });
 
-  test("clamps the sample to the load cap", () => {
+  test("lowers the default sample to a load cap you set", () => {
     expect(resolveWriteLimits({ maxFileBytes: 10 }).sampleBytes).toBe(10);
+  });
+
+  test("throws on a sample you set above the load cap", () => {
+    expect(() => resolveWriteLimits({ maxFileBytes: 10, sampleBytes: 11 })).toThrow(
+      "sampleBytes must not be more than maxFileBytes",
+    );
+    expect(resolveWriteLimits({ maxFileBytes: 10, sampleBytes: 10 }).sampleBytes).toBe(10);
   });
 });

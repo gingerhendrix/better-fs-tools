@@ -8,7 +8,7 @@ const KEYS: ReadonlySet<string> = new Set(["path", "offset", "limit"]);
  * - a non-object, or any key other than path, offset, limit;
  * - a path that is not a string, is empty or only whitespace, or holds NUL;
  * - an offset or limit that is not a positive safe integer.
- * Clamps `limit` to `limits.maxLines`.
+ * Clamps `limit` to `limits.maxLines`; the tool adds a clamped note.
  */
 export function parseReadInput(input: unknown, limits: Readonly<ReadLimits>): ReadRequest {
   if (!isRecord(input)) throw new TypeError("Read input must be an object");
@@ -41,6 +41,12 @@ function validateInteger(value: unknown, name: string): number {
     throw new TypeError(`${name} must be a positive safe integer`);
   }
   return value;
+}
+
+/** The requested limit when parse clamped it, else null. `input` passed parseReadInput. */
+export function clampedLimit(input: unknown, request: ReadRequest): number | null {
+  if (!isRecord(input) || typeof input.limit !== "number") return null;
+  return input.limit > request.limit ? input.limit : null;
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

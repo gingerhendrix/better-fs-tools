@@ -18,7 +18,11 @@ export const defaultLimits: Readonly<ReadLimits> = Object.freeze({
 
 const LIMIT_KEYS = Object.keys(defaultLimits) as (keyof ReadLimits)[];
 
-/** Merges key by key. Throws TypeError on an unknown key or a value that is not a positive safe integer. */
+/**
+ * Merges key by key. Throws TypeError on an unknown key, a value that is not
+ * a positive safe integer, or a `sampleBytes` you set above `maxScanBytes`.
+ * A default `sampleBytes` over a `maxScanBytes` you set is lowered to it.
+ */
 export function resolveLimits(overrides: Partial<ReadLimits> = {}): Readonly<ReadLimits> {
   if (overrides === null || typeof overrides !== "object" || Array.isArray(overrides)) {
     throw new TypeError("limits must be an object");
@@ -35,7 +39,11 @@ export function resolveLimits(overrides: Partial<ReadLimits> = {}): Readonly<Rea
     }
     resolved[key] = value;
   }
-  // A sample larger than the scan is incoherent rather than unsafe.
-  if (resolved.sampleBytes > resolved.maxScanBytes) resolved.sampleBytes = resolved.maxScanBytes;
+  if (resolved.sampleBytes > resolved.maxScanBytes) {
+    if (overrides.sampleBytes !== undefined) {
+      throw new TypeError("sampleBytes must not be more than maxScanBytes");
+    }
+    resolved.sampleBytes = resolved.maxScanBytes;
+  }
   return Object.freeze(resolved);
 }
