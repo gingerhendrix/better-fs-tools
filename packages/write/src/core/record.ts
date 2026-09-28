@@ -5,7 +5,8 @@ import type { MutationScope } from "./scope.ts";
 
 /**
  * Stores a write record (schema 2, origin "write") for each committed file,
- * when there is a store. A file a hook rewrote and the core could not read
+ * when there is a store. A delete removes the key, and a move removes the
+ * source's key. A file a hook rewrote and the core could not read
  * back has its key deleted instead. A store failure never fails the call.
  * Built field by field, so nothing from `call` reaches the store.
  */
@@ -27,6 +28,9 @@ export async function recordCommitted<THost>(
     const { change } = file;
     const key = change.resolvedPath;
     try {
+      // A move leaves nothing at the source.
+      const source = file.planned.change.movedFrom;
+      if (source !== null) await store.delete(source);
       const after = change.after;
       if (!file.known || after === null) {
         await store.delete(key);

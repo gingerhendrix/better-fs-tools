@@ -82,9 +82,27 @@ export interface WriteMessageCatalog extends ToolMessages {
   patchParse(c: { line: number; detail: string }): string;
   patchVerifyHeader(): string;
   patchDuplicateTarget(c: { path: string }): string;
+  /** An Update or Delete whose file does not exist. */
+  patchNotFound(c: { path: string; operation: "update" | "delete" }): string;
+  patchMoveExists(c: { path: string; from: string }): string;
+  /** `hunk` is one-based. */
   patchContextNotFound(c: { path: string; hunk: number; context: string }): string;
+  /** `hunk` is one-based. */
   patchLinesNotFound(c: { path: string; hunk: number; lines: readonly string[] }): string;
-  patchCommitFailed(c: { path: string; code: WriteErrorCode; rolledBack: boolean }): string;
+  /** `hunk` is one-based. */
+  patchFuzzyMatch(c: {
+    path: string;
+    hunk: number;
+    matcher: string;
+    lines: readonly [number, number];
+  }): string;
+  /** `files` is set when the rollback failed: the state of every file the patch targets. */
+  patchCommitFailed(c: {
+    path: string;
+    code: WriteErrorCode;
+    rolledBack: boolean;
+    files: readonly { readonly path: string; readonly state: string }[];
+  }): string;
 
   notAtomic(c: { backend: string }): string;
   noCompareAndSwap(c: { backend: string }): string;

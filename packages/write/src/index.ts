@@ -29,6 +29,8 @@ export type {
   WritePhase,
 } from "./contract/result.ts";
 export type {
+  ApplyPatchDependencies,
+  ApplyPatchToolDeps,
   EditDependencies,
   EditToolDeps,
   WriteDependencies,
@@ -65,7 +67,7 @@ export type {
   PatchPlan,
 } from "./contract/patch.ts";
 
-export { createEditTool, createWriteTool } from "./core/create-tools.ts";
+export { createApplyPatchTool, createEditTool, createWriteTool } from "./core/create-tools.ts";
 export { codexPatchParser, parsePatch } from "./patch/index.ts";
 export { parseApplyPatchInput, parseEditInput, parseWriteInput } from "./core/input.ts";
 export { defaultWriteLimits, resolveWriteLimits } from "./core/limits.ts";

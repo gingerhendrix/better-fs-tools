@@ -180,20 +180,23 @@ function resolved(
   return { requestedPath, resolvedPath: stat.resolvedPath, displayPath: stat.displayPath };
 }
 
-function noChange<THost>(scope: MutationScope<THost>, path: string): MutationReport {
+export function noChange<THost>(
+  scope: MutationScope<THost>,
+  ...paths: readonly string[]
+): MutationReport {
   return {
     tool: scope.tool,
     status: "no-change",
     error: null,
     changes: [],
-    unchanged: [path],
+    unchanged: [...paths],
     notes: [...scope.notes],
     commit: null,
   };
 }
 
 /** The report for a stage that threw. */
-function stopped<THost>(scope: MutationScope<THost>, error: unknown): MutationReport {
+export function stopped<THost>(scope: MutationScope<THost>, error: unknown): MutationReport {
   if (error instanceof WriteStop) return error.report;
   const { messages } = scope.deps;
   if (error instanceof AbortStop) {
@@ -206,7 +209,7 @@ function stopped<THost>(scope: MutationScope<THost>, error: unknown): MutationRe
   return failure(scope.tool, scope.phase, note);
 }
 
-function invalidInput<THost>(
+export function invalidInput<THost>(
   deps: WriteDependencies<THost>,
   tool: MutationRequest["tool"],
   input: unknown,

@@ -65,7 +65,25 @@ function body(report: MutationReport, gutter: (line: number) => string, listed: 
       ...snippetLines(change.snippets, gutter),
     ]);
   }
+  if (report.tool === "apply_patch") {
+    return ["Success. Updated the following files:", ...report.changes.map(patchLine)];
+  }
   return report.changes.map(changeLine);
+}
+
+/**
+ * Codex's line for one file: `A`, `M`, or `D` and the path. A move names its
+ * source, and hunks that matched only loosely name their matcher.
+ */
+function patchLine(change: FileChange): string {
+  const letter = change.kind === "create" ? "A" : change.kind === "delete" ? "D" : "M";
+  const details = [
+    ...(change.movedFrom === null ? [] : [`moved from ${change.movedFrom}`]),
+    ...change.matches
+      .filter((match) => match.fuzzy)
+      .map((match) => `hunk ${match.index + 1} matched by ${match.matcher}`),
+  ];
+  return `${letter} ${change.path}${details.length === 0 ? "" : ` (${details.join(", ")})`}`;
 }
 
 /**

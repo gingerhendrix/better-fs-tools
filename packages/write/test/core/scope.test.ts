@@ -5,6 +5,7 @@ import type { ToolCallContext } from "@better-fs-tools/read";
 import { createMemoryStore } from "@better-fs-tools/read/state";
 
 import {
+  createApplyPatchTool,
   createEditTool,
   createWriteTool,
   defaultWriteFormatter,
@@ -180,6 +181,100 @@ describe("call scope (section 5.1)", () => {
       expect(calls[0]).toBe(call);
     }
     expect(JSON.stringify(result)).not.toContain("s3cret");
+  });
+
+  test("apply_patch: every extension point gets the same call object the caller passed", async () => {
+    const fs = memoryFileSystem({ files: { "/a.txt": "one\n" } });
+    const store = createMemoryStore();
+    const seen = new Map<string, unknown[]>();
+    const saw = (point: string, call: unknown) => {
+      seen.set(point, [...(seen.get(point) ?? []), call]);
+    };
+    const formatter = defaultWriteFormatter();
+    const applyPatch = createApplyPatchTool<Host>({
+      fs: (call) => {
+        saw("fs", call);
+        return fs;
+      },
+      state: (call) => {
+        saw("state", call);
+        return store;
+      },
+      digest: testDigest(),
+      preconditions: { requireRead: "off" },
+      resolve: {
+        id: "spy",
+        resolve: (path, ctx) => {
+          saw("resolve", ctx.call);
+          return { kind: "path", path };
+        },
+      },
+      authorize: {
+        id: "spy",
+        authorize: (target, ctx) => {
+          saw(target.change === null ? "authorize:access" : "authorize:change", ctx.call);
+          return { allow: true };
+        },
+      },
+      guards: [
+        {
+          id: "spy",
+          check: (_change, ctx) => {
+            saw("guards", ctx.call);
+            return { allow: true };
+          },
+        },
+      ],
+      hooks: [
+        {
+          id: "spy",
+          newFileMode: (_change, ctx) => {
+            saw("hooks:newFileMode", ctx.call);
+            return null;
+          },
+          afterWrite: (_change, ctx) => {
+            saw("hooks", ctx.call);
+            return {};
+          },
+        },
+      ],
+      formatter: {
+        id: "spy",
+        format: (report, ctx) => {
+          saw("formatter", ctx.call);
+          return formatter.format(report, ctx);
+        },
+      },
+    });
+    const call: ToolCallContext<Host> = { host: { secret: "s3cret" }, callId: "c3" };
+    const patch = [
+      "*** Begin Patch",
+      "*** Add File: /b.txt",
+      "+b",
+      "*** Update File: /a.txt",
+      "@@",
+      "-one",
+      "+two",
+      "*** End Patch",
+    ].join("\n");
+    const result = await applyPatch({ patch }, call);
+    expect(result.status).toBe("ok");
+    expect(Object.fromEntries([...seen].map(([point, calls]) => [point, calls.length]))).toEqual({
+      fs: 1,
+      state: 1,
+      resolve: 2,
+      "authorize:access": 2,
+      "authorize:change": 2,
+      guards: 2,
+      "hooks:newFileMode": 1,
+      hooks: 2,
+      formatter: 1,
+    });
+    for (const calls of seen.values()) {
+      for (const seenCall of calls) expect(seenCall).toBe(call);
+    }
+    expect(JSON.stringify(result)).not.toContain("s3cret");
+    expect(JSON.stringify(await store.get("/b.txt"))).not.toContain("s3cret");
   });
 
   test("a direct caller without a context gets one fresh call object for the whole call", async () => {

@@ -3,8 +3,14 @@ import { describe, expect, test } from "bun:test";
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { createMemoryStore } from "@better-fs-tools/read/state";
 
-import { resolveEditDependencies, resolveWriteDependencies } from "../../src/core/deps.ts";
 import {
+  resolveApplyPatchDependencies,
+  resolveEditDependencies,
+  resolveWriteDependencies,
+} from "../../src/core/deps.ts";
+import {
+  codexPatchParser,
+  createApplyPatchTool,
   createEditTool,
   createWriteTool,
   exactMatcher,
@@ -126,5 +132,28 @@ describe("write tool dependencies (section 4.4)", () => {
     ["a shared rule", { fs, state: createMemoryStore() }, "state needs a digest"],
   ])("edit rejects %s", (_name, deps, message) => {
     expect(() => createEditTool(deps as never)).toThrow(message);
+  });
+
+  test("apply_patch: matchers default to defaultPatchMatchers() and the parser to codexPatchParser()", () => {
+    const deps = resolveApplyPatchDependencies({ fs });
+    expect(deps.matchers.map((matcher) => matcher.id)).toEqual([
+      "exact",
+      "normalized",
+      "line-trimmed",
+    ]);
+    expect(deps.patchParser.id).toBe("codex");
+    expect(deps.guards.length).toBe(5);
+    const parser = codexPatchParser();
+    expect(resolveApplyPatchDependencies({ fs, patchParser: parser }).patchParser).toBe(parser);
+  });
+
+  test.each([
+    ["an empty matcher list", { fs, matchers: [] }, "matchers"],
+    ["a malformed parser", { fs, patchParser: { id: "p" } }, "patchParser"],
+    ["a parser without an id", { fs, patchParser: { parse: () => null } }, "patchParser"],
+    ["an unknown key", { fs, replaceAll: true }, "Unknown apply_patch tool dependency: replaceAll"],
+    ["a shared rule", { fs, codecs: [] }, "codecs"],
+  ])("apply_patch rejects %s", (_name, deps, message) => {
+    expect(() => createApplyPatchTool(deps as never)).toThrow(message);
   });
 });

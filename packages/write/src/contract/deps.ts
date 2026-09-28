@@ -15,6 +15,7 @@ import type { WriteLimits } from "./limits.ts";
 import type { LockManager } from "./locks.ts";
 import type { Matcher } from "./matcher.ts";
 import type { WriteMessageCatalog } from "./messages.ts";
+import type { PatchParser } from "./patch.ts";
 import type { PreconditionPolicy } from "./preconditions.ts";
 
 export interface WriteDependencies<THost = undefined> {
@@ -48,6 +49,12 @@ export interface EditDependencies<THost = undefined> extends WriteDependencies<T
   readonly matchers: readonly Matcher[];
 }
 
+export interface ApplyPatchDependencies<THost = undefined> extends WriteDependencies<THost> {
+  /** Ordered, used in line mode. Non-empty. */
+  readonly matchers: readonly Matcher[];
+  readonly patchParser: PatchParser;
+}
+
 type ToolDeps<D extends WriteDependencies<never>> = {
   readonly fs: D["fs"];
   readonly limits?: Partial<WriteLimits>;
@@ -57,3 +64,4 @@ type ToolDeps<D extends WriteDependencies<never>> = {
 
 export type WriteToolDeps<THost = undefined> = ToolDeps<WriteDependencies<THost>>;
 export type EditToolDeps<THost = undefined> = ToolDeps<EditDependencies<THost>>;
+export type ApplyPatchToolDeps<THost = undefined> = ToolDeps<ApplyPatchDependencies<THost>>;

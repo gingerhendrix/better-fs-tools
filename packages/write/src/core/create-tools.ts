@@ -1,11 +1,16 @@
 import type { ToolCallContext } from "@better-fs-tools/read";
 
-import type { EditTool, WriteTool } from "../contract/context.ts";
-import type { EditToolDeps, WriteToolDeps } from "../contract/deps.ts";
+import type { ApplyPatchTool, EditTool, WriteTool } from "../contract/context.ts";
+import type { ApplyPatchToolDeps, EditToolDeps, WriteToolDeps } from "../contract/deps.ts";
 import type { MutationResult } from "../contract/result.ts";
-import { resolveEditDependencies, resolveWriteDependencies } from "./deps.ts";
+import {
+  resolveApplyPatchDependencies,
+  resolveEditDependencies,
+  resolveWriteDependencies,
+} from "./deps.ts";
 import { MissCounter } from "./hints.ts";
 import { isRecord } from "./input.ts";
+import { runApplyPatch } from "./patch-pipeline.ts";
 import { runEdit, runWrite } from "./pipeline.ts";
 
 /**
@@ -40,4 +45,28 @@ export function createWriteTool<THost = undefined>(deps: WriteToolDeps<THost>): 
     return runWrite(resolved, input, call);
   };
   return write as WriteTool<THost>;
+}
+
+/**
+ * Validates and resolves dependencies once, synchronously, as
+ * createWriteTool does, plus a non-empty `matchers` list (default
+ * defaultPatchMatchers(), used in line mode) and a `patchParser` (default
+ * codexPatchParser()).
+ */
+export function createApplyPatchTool<THost = undefined>(
+  deps: ApplyPatchToolDeps<THost>,
+): ApplyPatchTool<THost> {
+  const resolved = resolveApplyPatchDependencies(deps);
+  const applyPatch = async (
+    input: unknown,
+    ctx?: ToolCallContext<THost>,
+  ): Promise<MutationResult> => {
+    if (ctx !== undefined && !isRecord(ctx)) {
+      throw new TypeError("apply_patch context must be an object");
+    }
+    // One call object for every stage of this call.
+    const call = ctx ?? ({} as ToolCallContext<THost>);
+    return runApplyPatch(resolved, input, call);
+  };
+  return applyPatch as ApplyPatchTool<THost>;
 }

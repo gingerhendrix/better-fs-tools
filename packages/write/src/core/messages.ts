@@ -104,6 +104,12 @@ function catalogFor(param: Param): WriteMessageCatalog {
     patchParse: ({ line, detail }) => `The patch could not be parsed at line ${line}: ${detail}`,
     patchVerifyHeader: () => "Patch validation failed (no files were modified):",
     patchDuplicateTarget: ({ path }) => `${path}: multiple operations target this file.`,
+    patchNotFound: ({ path, operation }) =>
+      operation === "update"
+        ? `${path} does not exist. Use *** Add File to create it.`
+        : `${path} does not exist, so it cannot be deleted.`,
+    patchMoveExists: ({ path, from }) =>
+      `${path} already exists, so ${from} cannot move there. Choose another path, or delete ${path} first.`,
     patchContextNotFound: ({ path, hunk, context }) =>
       `${path}: hunk ${hunk}: failed to find the context line ${JSON.stringify(context)}.`,
     patchLinesNotFound: ({ path, hunk, lines }) =>
@@ -111,10 +117,15 @@ function catalogFor(param: Param): WriteMessageCatalog {
         `${path}: hunk ${hunk}: failed to find the expected lines:`,
         ...lines.map((line) => `    ${line}`),
       ].join("\n"),
-    patchCommitFailed: ({ path, code, rolledBack }) =>
+    patchFuzzyMatch: ({ path, hunk, matcher, lines }) =>
+      `Hunk ${hunk} matched ${path} at lines ${lines[0]}-${lines[1]} only with the ${matcher} matcher, not exactly. Check the result.`,
+    patchCommitFailed: ({ path, code, rolledBack, files }) =>
       rolledBack
         ? `Patch commit failed at ${path} (${code}). The patch was rolled back. No files are changed.`
-        : `Patch commit failed at ${path} (${code}). Rollback failed, so some files are in a mixed state.`,
+        : [
+            `Patch commit failed at ${path} (${code}). Rollback failed, so these files are in a mixed state:`,
+            ...files.map((file) => `${file.state} ${file.path}`),
+          ].join("\n"),
 
     notAtomic: ({ backend }) =>
       `The ${backend} backend does not replace files atomically, so a reader could have seen a partial file.`,

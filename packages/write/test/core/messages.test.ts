@@ -65,4 +65,36 @@ describe("write messages", () => {
     expect(text).toContain("<replaceAll>");
     expect(text).not.toMatch(/ oldText| replaceAll/u);
   });
+
+  test("patch texts", () => {
+    const m = defaultWriteMessages;
+    expect(m.patchNotFound({ path: "a", operation: "update" })).toBe(
+      "a does not exist. Use *** Add File to create it.",
+    );
+    expect(m.patchNotFound({ path: "a", operation: "delete" })).toBe(
+      "a does not exist, so it cannot be deleted.",
+    );
+    expect(m.patchMoveExists({ path: "b", from: "a" })).toBe(
+      "b already exists, so a cannot move there. Choose another path, or delete b first.",
+    );
+    expect(m.patchFuzzyMatch({ path: "a", hunk: 2, matcher: "normalized", lines: [3, 4] })).toBe(
+      "Hunk 2 matched a at lines 3-4 only with the normalized matcher, not exactly. Check the result.",
+    );
+    expect(m.patchCommitFailed({ path: "b", code: "STALE", rolledBack: true, files: [] })).toBe(
+      "Patch commit failed at b (STALE). The patch was rolled back. No files are changed.",
+    );
+    expect(
+      m.patchCommitFailed({
+        path: "b",
+        code: "IO_ERROR",
+        rolledBack: false,
+        files: [
+          { path: "a", state: "restored" },
+          { path: "c", state: "rollback-failed" },
+        ],
+      }),
+    ).toBe(
+      "Patch commit failed at b (IO_ERROR). Rollback failed, so these files are in a mixed state:\nrestored a\nrollback-failed c",
+    );
+  });
 });

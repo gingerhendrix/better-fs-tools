@@ -1,4 +1,4 @@
-import type { MutatedFile, WritableFileSystem } from "@better-fs-tools/fs";
+import type { MutatedFile, Precondition, WritableFileSystem } from "@better-fs-tools/fs";
 import type { Note } from "@better-fs-tools/read";
 
 import type { FileChange } from "../contract/result.ts";
@@ -6,7 +6,7 @@ import { hashBytes } from "./bytes.ts";
 import { newFileMode } from "./hooks.ts";
 import { isRecord } from "./input.ts";
 import { isBackendError, messageOf } from "./outcomes.ts";
-import type { Planned } from "./planned.ts";
+import type { Planned, ResolvedTarget } from "./planned.ts";
 import type { MutationScope } from "./scope.ts";
 import { ioFailure, statTarget } from "./target.ts";
 
@@ -26,7 +26,9 @@ export async function commitOne<THost>(
   scope.enter("commit");
   scope.checkAbort();
   const { target, precondition, createParents } = planned;
-  if (!fs.writeCapabilities.compareAndSwap) await checkBeforeCommit(scope, fs, planned);
+  if (!fs.writeCapabilities.compareAndSwap) {
+    await checkBeforeCommit(scope, fs, target, precondition);
+  }
   const mode = planned.loaded === null ? newFileMode(scope, planned.change) : null;
   scope.startCommit();
   let outcome: unknown;
@@ -52,13 +54,14 @@ export async function commitOne<THost>(
 /**
  * The core's own stale check for a backend without compare-and-swap: the
  * target must still be absent for a create, or at the loaded version.
+ * Throws STALE or EXISTS in the commit phase.
  */
-async function checkBeforeCommit<THost>(
+export async function checkBeforeCommit<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
-  planned: Planned,
+  target: ResolvedTarget,
+  precondition: Precondition,
 ): Promise<void> {
-  const { target, precondition } = planned;
   const stat = await statTarget(
     scope,
     fs,
@@ -76,7 +79,7 @@ async function checkBeforeCommit<THost>(
 }
 
 /** not-atomic, no-compare-and-swap, mode-not-kept, and directories-created. Each once for each call. */
-function addCapabilityNotes<THost>(
+export function addCapabilityNotes<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
   planned: Planned,
@@ -98,7 +101,8 @@ function addCapabilityNotes<THost>(
       message: messages.noCompareAndSwap({ backend }),
     });
   }
-  if (!capabilities.preserveMode && planned.loaded !== null) {
+  // A replace, not a create or a move destination.
+  if (!capabilities.preserveMode && planned.precondition.kind !== "absent") {
     add({ code: "mode-not-kept", severity: "info", message: messages.modeNotKept({ backend }) });
   }
   if (file.createdDirectories.length > 0) {
@@ -147,7 +151,7 @@ export function fileChange<THost>(
   };
 }
 
-function isMutatedFile(value: unknown): value is MutatedFile {
+export function isMutatedFile(value: unknown): value is MutatedFile {
   return (
     isRecord(value) &&
     typeof value.resolvedPath === "string" &&

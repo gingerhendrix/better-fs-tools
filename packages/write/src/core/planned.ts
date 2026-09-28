@@ -41,7 +41,8 @@ export interface Planned {
 
 /**
  * The PlannedChange for a create or update with `after` as the new text in
- * the codec's text space. The diff runs on decoded text.
+ * the codec's text space. The diff runs on decoded text. With `movedFrom`,
+ * it is a move: `loaded` is the source and `target` the destination.
  */
 export function plannedChange(
   tool: WriteToolName,
@@ -51,19 +52,26 @@ export function plannedChange(
   style: TextStyle,
   fragments: readonly ChangeFragment[],
   maxDiffLines: number,
+  movedFrom: ResolvedTarget | null = null,
 ): {
   readonly change: PlannedChange;
   readonly diffTruncated: boolean;
   readonly changed: readonly (readonly [number, number])[];
 } {
-  const diff = unifiedDiff(loaded?.text ?? null, after, target.displayPath, maxDiffLines);
+  const diff = unifiedDiff(
+    loaded?.text ?? null,
+    after,
+    target.displayPath,
+    maxDiffLines,
+    movedFrom?.displayPath,
+  );
   const change: PlannedChange = {
     tool,
-    kind: loaded === null ? "create" : "update",
+    kind: movedFrom !== null ? "move" : loaded === null ? "create" : "update",
     requestedPath: target.requestedPath,
     resolvedPath: target.resolvedPath,
     displayPath: target.displayPath,
-    movedFrom: null,
+    movedFrom: movedFrom?.resolvedPath ?? null,
     before:
       loaded === null
         ? null

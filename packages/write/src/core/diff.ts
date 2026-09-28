@@ -23,8 +23,9 @@ type Op = { readonly kind: " " | "-" | "+"; readonly token: string };
 
 /**
  * A unified diff of two texts, line by line. `before` null is a create
- * (--- /dev/null), `after` null a delete. A last line without a newline gets
- * the usual "\ No newline at end of file" marker. The search is bounded:
+ * (--- /dev/null), `after` null a delete. `beforePath` names the old side
+ * of a move. A last line without a newline gets the usual
+ * "\ No newline at end of file" marker. The search is bounded:
  * past the bound the changed middle is shown as one removal and one addition,
  * so the counts may then be larger than a minimal diff's.
  */
@@ -33,6 +34,7 @@ export function unifiedDiff(
   after: string | null,
   path: string,
   maxLines: number,
+  beforePath: string = path,
 ): LineDiff {
   const a = tokens(before ?? "");
   const b = tokens(after ?? "");
@@ -48,7 +50,7 @@ export function unifiedDiff(
   }
   const name = path.replace(/^\/+/u, "");
   const out = new Output(maxLines);
-  out.push(before === null ? "--- /dev/null" : `--- a/${name}`);
+  out.push(before === null ? "--- /dev/null" : `--- a/${beforePath.replace(/^\/+/u, "")}`);
   out.push(after === null ? "+++ /dev/null" : `+++ b/${name}`);
   for (const hunk of hunks(ops)) {
     if (out.full) break;

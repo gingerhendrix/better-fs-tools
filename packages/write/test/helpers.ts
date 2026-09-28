@@ -9,8 +9,10 @@ import { createReadTool } from "@better-fs-tools/read";
 import type { Digest, Note, ReadStateStore, ReadTool } from "@better-fs-tools/read";
 import { createMemoryStore } from "@better-fs-tools/read/state";
 
-import { createEditTool, createWriteTool } from "../src/index.ts";
+import { createApplyPatchTool, createEditTool, createWriteTool } from "../src/index.ts";
 import type {
+  ApplyPatchTool,
+  ApplyPatchToolDeps,
   EditTool,
   EditToolDeps,
   MutationResult,
@@ -57,6 +59,8 @@ export interface HarnessOptions {
   readonly deps?: Omit<WriteToolDeps, "fs">;
   /** Added to `deps` for the edit tool only. */
   readonly editDeps?: Omit<EditToolDeps, "fs">;
+  /** Added to `deps` for the apply_patch tool only. */
+  readonly patchDeps?: Omit<ApplyPatchToolDeps, "fs">;
 }
 
 export interface Harness {
@@ -66,11 +70,12 @@ export interface Harness {
   readonly read: ReadTool;
   readonly write: WriteTool;
   readonly edit: EditTool;
+  readonly applyPatch: ApplyPatchTool;
 }
 
 /**
- * A read tool, a write tool, and an edit tool over one memory filesystem,
- * one store, one digest, and the fixed clock.
+ * A read tool and the three write tools over one memory filesystem, one
+ * store, one digest, and the fixed clock.
  */
 export function harness(options: HarnessOptions = {}): Harness {
   const fs = memoryFileSystem({ files: options.files ?? {}, ...options.fsOptions });
@@ -81,7 +86,8 @@ export function harness(options: HarnessOptions = {}): Harness {
   const shared = { fs: options.writeFs?.(fs) ?? fs, state, digest, clock, ...options.deps };
   const write = createWriteTool(shared);
   const edit = createEditTool({ ...shared, ...options.editDeps });
-  return { fs, state, digest, read, write, edit };
+  const applyPatch = createApplyPatchTool({ ...shared, ...options.patchDeps });
+  return { fs, state, digest, read, write, edit, applyPatch };
 }
 
 /** The current text of a memory file, or null. */
@@ -127,4 +133,9 @@ export function deferred(): { promise: Promise<void>; resolve: () => void } {
     resolve = done;
   });
   return { promise, resolve };
+}
+
+/** Codex patch text: the Begin and End lines around the given lines. */
+export function patchText(...lines: string[]): string {
+  return ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
 }
