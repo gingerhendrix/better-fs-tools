@@ -3,6 +3,7 @@
   "references": [
     { "path": "../fs/tsconfig.build.json" },
     { "path": "../read/tsconfig.build.json" },
-    { "path": "../write/tsconfig.build.json" }
+    { "path": "../write/tsconfig.build.json" },
+    { "path": "../shell/tsconfig.build.json" }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "name": "@better-fs-tools/node",
   "version": "0.0.0",
-  "description": "The Node filesystem, a SHA-256 digest, and the zero-config read, edit, write, and apply_patch tools for Node and Bun.",
+  "description": "The Node filesystem, a SHA-256 digest, a bash runner, and the zero-config read, edit, write, apply_patch, and bash tools for Node and Bun.",
   "license": "MIT",
   "files": [
     "dist"
@@ -23,6 +23,7 @@
   "dependencies": {
     "@better-fs-tools/fs": "workspace:^",
     "@better-fs-tools/read": "workspace:^",
+    "@better-fs-tools/shell": "workspace:^",
     "@better-fs-tools/write": "workspace:^"
   },
   "engines": {

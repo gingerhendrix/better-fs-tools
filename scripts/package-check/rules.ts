@@ -20,7 +20,7 @@ export const RULES: Readonly<Record<string, PackageRule>> = {
   read: { dependencies: ["fs"], peers: {}, node: false, extraFiles: ["docs"] },
   write: { dependencies: ["fs", "read"], peers: {}, node: false, extraFiles: ["docs"] },
   shell: { dependencies: ["fs", "read"], peers: {}, node: false, extraFiles: [] },
-  node: { dependencies: ["fs", "read", "write"], peers: {}, node: true, extraFiles: [] },
+  node: { dependencies: ["fs", "read", "write", "shell"], peers: {}, node: true, extraFiles: [] },
   "ai-sdk": {
     dependencies: ["read", "write"],
     peers: { ai: "^7.0.77" },

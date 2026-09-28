@@ -1,3 +1,6 @@
+export { nodeCommandRunner } from "./command-runner.ts";
+export type { NodeCommandRunnerOptions } from "./command-runner.ts";
+export { createNodeBashTool } from "./create-node-bash-tool.ts";
 export { createNodeFsTools } from "./create-node-fs-tools.ts";
 export type { CreateNodeFsToolsOptions, NodeFsTools } from "./create-node-fs-tools.ts";
 export { createNodeReadTool } from "./create-node-read-tool.ts";

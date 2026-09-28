@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { createReadTool } from "@better-fs-tools/read";
 import type { Digest, ReadStateStore, ReadTool, ReadToolDeps } from "@better-fs-tools/read";
 import { createMemoryStore } from "@better-fs-tools/read/state";
@@ -18,6 +20,10 @@ import type {
   WriteToolDeps,
 } from "@better-fs-tools/write";
 
+import { createBashTool } from "@better-fs-tools/shell";
+import type { BashTool, ShellToolDeps } from "@better-fs-tools/shell";
+
+import { withNodeShellDefaults } from "./create-node-bash-tool.ts";
 import { nodeDigest } from "./digest.ts";
 import { nodeFileSystem } from "./filesystem.ts";
 import type { NodeFileSystem } from "./filesystem.ts";
@@ -42,6 +48,8 @@ export interface CreateNodeFsToolsOptions<THost = undefined> {
   readonly edit?: Omit<Partial<EditToolDeps<THost>>, Shared>;
   readonly write?: Omit<Partial<WriteToolDeps<THost>>, Shared>;
   readonly applyPatch?: Omit<Partial<ApplyPatchToolDeps<THost>>, Shared>;
+  /** The runner defaults to nodeCommandRunner({ cwd }). */
+  readonly bash?: Partial<ShellToolDeps<THost>>;
 }
 
 export interface NodeFsTools<THost = undefined> {
@@ -49,6 +57,8 @@ export interface NodeFsTools<THost = undefined> {
   readonly edit: EditTool<THost>;
   readonly write: WriteTool<THost>;
   readonly applyPatch: ApplyPatchTool<THost>;
+  /** Runs in cwd. It does not share the read state: see invalidate. */
+  readonly bash: BashTool<THost>;
   readonly fs: NodeFileSystem;
   readonly state: ReadStateStore | null;
   readonly locks: LockManager;
@@ -57,10 +67,11 @@ export interface NodeFsTools<THost = undefined> {
 }
 
 /**
- * One filesystem, one store, one digest, and one lock manager for all four
- * tools. The write tools take the lock; read takes none (D25). A shell tool
- * that changes files should call invalidate(path), so the next edit needs a
- * read.
+ * One filesystem, one store, one digest, and one lock manager for the four
+ * file tools, and a bash tool in the same cwd. The write tools take the
+ * lock; read and bash take none (D25). The allowed roots do not limit what a
+ * bash command touches. A host that wants the next edit after a command to
+ * need a read can call invalidate(path) from a bash afterRun hook.
  */
 export function createNodeFsTools<THost = undefined>(
   options: CreateNodeFsToolsOptions<THost> = {},
@@ -68,7 +79,7 @@ export function createNodeFsTools<THost = undefined>(
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("createNodeFsTools options must be an object");
   }
-  const cwd = options.cwd ?? process.cwd();
+  const cwd = path.resolve(options.cwd ?? process.cwd());
   const fs = nodeFileSystem({
     cwd,
     allowedRoots: options.allowedRoots ?? [cwd],
@@ -87,6 +98,7 @@ export function createNodeFsTools<THost = undefined>(
     edit: createEditTool<THost>({ ...options.edit, ...shared, locks }),
     write: createWriteTool<THost>({ ...options.write, ...shared, locks }),
     applyPatch: createApplyPatchTool<THost>({ ...options.applyPatch, ...shared, locks }),
+    bash: createBashTool<THost>(withNodeShellDefaults(options.bash ?? {}, cwd)),
     fs,
     state,
     locks,

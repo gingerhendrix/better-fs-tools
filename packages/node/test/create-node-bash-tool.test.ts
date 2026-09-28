@@ -1,0 +1,146 @@
+import { describe, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
+import { mkdtemp, realpath, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { createNodeBashTool, createNodeFsTools, nodeCommandRunner } from "@better-fs-tools/node";
+import { textOf } from "@better-fs-tools/shell";
+
+async function workdir(): Promise<string> {
+  return realpath(await mkdtemp(join(tmpdir(), "bash-tool-")));
+}
+
+/** True while a process whose command line holds `marker` exists. */
+function running(marker: string): boolean {
+  const list = spawnSync("ps", ["-eo", "args"], { encoding: "utf8" }).stdout;
+  return list.split("\n").some((line) => line.includes(marker) && !line.includes("ps -eo"));
+}
+
+async function waitUntil(check: () => boolean, ms: number): Promise<boolean> {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (check()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return check();
+}
+
+describe("createNodeBashTool", () => {
+  test("runs a command in the runner cwd and reports the exit code", async () => {
+    const cwd = await workdir();
+    const bash = createNodeBashTool({ runner: nodeCommandRunner({ cwd }) });
+    const result = await bash({ command: "pwd; echo err >&2; exit 3" });
+    expect(result.status).toBe("failed");
+    expect(result.run?.exitCode).toBe(3);
+    expect(result.output?.head).toBe(`${cwd}\nerr`);
+  });
+
+  test("a timeout kills a grandchild: no process is left", async () => {
+    const marker = `sleep 97.${process.pid}`;
+    const bash = createNodeBashTool({ limits: { killGraceMs: 200 } });
+    const result = await bash({ command: `${marker} & ${marker}`, timeoutMs: 300 });
+    expect(result.status).toBe("timeout");
+    expect(await waitUntil(() => !running(marker), 2_000)).toBe(true);
+  });
+
+  test("a SIGTERM trap does not save the tree: SIGKILL follows the grace time", async () => {
+    const marker = `sleep 96.${process.pid}`;
+    const bash = createNodeBashTool({ limits: { killGraceMs: 200 } });
+    const command = `trap '' TERM; (trap '' TERM; ${marker}) & ${marker}`;
+    const result = await bash({ command, timeoutMs: 300 });
+    expect(result.status).toBe("timeout");
+    expect(await waitUntil(() => !running(marker), 2_000)).toBe(true);
+  });
+
+  test("abort during a run stops the tree and returns the output so far", async () => {
+    const marker = `sleep 95.${process.pid}`;
+    const controller = new AbortController();
+    const bash = createNodeBashTool();
+    const pending = bash({ command: `echo started; ${marker}` }, { signal: controller.signal });
+    setTimeout(() => controller.abort(), 300);
+    const result = await pending;
+    expect(result.status).toBe("aborted");
+    expect(result.output?.head).toBe("started");
+    expect(await waitUntil(() => !running(marker), 2_000)).toBe(true);
+  });
+
+  test("a command that reads stdin gets end of file", async () => {
+    const result = await createNodeBashTool()({
+      command: "cat; read x || echo eof",
+      timeoutMs: 5_000,
+    });
+    expect(result.status).toBe("ok");
+    expect(result.output?.head).toBe("eof");
+  });
+
+  test("a background child does not hold the call open after the shell exits", async () => {
+    const marker = `sleep 94.${process.pid}`;
+    const started = Date.now();
+    const result = await createNodeBashTool()({ command: `${marker} & echo done` });
+    expect(result.status).toBe("ok");
+    expect(result.output?.head).toBe("done");
+    expect(Date.now() - started).toBeLessThan(3_000);
+    spawnSync("pkill", ["-f", marker]);
+  });
+
+  test("large output keeps the head, the tail, and the count", async () => {
+    const result = await createNodeBashTool()({ command: "seq 1 200000" });
+    expect(result.output?.totalLines).toBe(200_000);
+    expect(result.output?.head.split("\n")[0]).toBe("1");
+    expect(result.output?.tail?.split("\n").at(-1)).toBe("200000");
+    expect(textOf(result)).toContain("lines (");
+  });
+
+  test("the default env turns pagers and colour off and keeps process.env", async () => {
+    process.env.BASH_TOOL_TEST = "yes";
+    const result = await createNodeBashTool()({
+      command: 'echo "$PAGER $GIT_PAGER $NO_COLOR $TERM $BASH_TOOL_TEST"',
+    });
+    delete process.env.BASH_TOOL_TEST;
+    expect(result.output?.head).toBe("cat cat 1 dumb yes");
+  });
+
+  test("a missing cwd is CWD_NOT_FOUND and a file cwd is CWD_NOT_A_DIRECTORY", async () => {
+    const cwd = await workdir();
+    await writeFile(join(cwd, "file.txt"), "x");
+    const bash = createNodeBashTool({ runner: nodeCommandRunner({ cwd }) });
+    expect((await bash({ command: "ls", cwd: "missing" })).error?.code).toBe("CWD_NOT_FOUND");
+    expect((await bash({ command: "ls", cwd: "file.txt" })).error?.code).toBe(
+      "CWD_NOT_A_DIRECTORY",
+    );
+  });
+
+  test("a missing shell is SPAWN_FAILED", async () => {
+    const runner = nodeCommandRunner({ shell: "/no/such/shell" });
+    const result = await createNodeBashTool({ runner })({ command: "true" });
+    expect(result.error?.code).toBe("SPAWN_FAILED");
+  });
+});
+
+describe("createNodeFsTools bash", () => {
+  test("runs in the shared cwd, and an afterRun hook can invalidate a read record", async () => {
+    const cwd = await workdir();
+    await writeFile(join(cwd, "a.txt"), "one\n");
+    let tools: ReturnType<typeof createNodeFsTools> | undefined;
+    tools = createNodeFsTools({
+      cwd,
+      bash: {
+        afterRun: [
+          {
+            id: "invalidate",
+            afterRun: async (outcome) => {
+              await tools?.invalidate("a.txt");
+              return outcome;
+            },
+          },
+        ],
+      },
+    });
+    await tools.read({ path: "a.txt" });
+    const ran = await tools.bash({ command: "printf 'two\\n' > a.txt; pwd" });
+    expect(ran.output?.head).toBe(cwd);
+    const edit = await tools.edit({ path: "a.txt", edits: [{ oldText: "two", newText: "three" }] });
+    expect(edit.error?.code).toBe("NOT_READ");
+  });
+});
