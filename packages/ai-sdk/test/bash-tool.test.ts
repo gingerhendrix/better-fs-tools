@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
+import { shellEnv } from "@better-fs-tools/shell";
 import type { CommandRunner, RunExit } from "@better-fs-tools/shell";
 import { defaultBashSignature } from "@better-fs-tools/shell/signature";
 
@@ -32,7 +33,7 @@ function echoRunner(): CommandRunner & { commands: string[]; timeouts: AbortSign
 
 describe("createAiSdkBashTool", () => {
   test("names the tool from the signature and puts the runner id in the description", () => {
-    const tool = createAiSdkBashTool({ runner: echoRunner() });
+    const tool = createAiSdkBashTool({ runner: echoRunner(), env: shellEnv() });
     expect(tool.name).toBe("bash");
     expect(tool.strict).toBe(true);
     expect(tool.description).toContain("Commands run in: echo.");
@@ -40,7 +41,7 @@ describe("createAiSdkBashTool", () => {
 
   test("execute maps the model input and returns the result; toModelOutput gives text", async () => {
     const runner = echoRunner();
-    const tool = createAiSdkBashTool({ runner });
+    const tool = createAiSdkBashTool({ runner, env: shellEnv() });
     const result = await tool.execute({ command: "ls -la" }, executeOptions());
     expect(result.status).toBe("ok");
     expect(runner.commands).toEqual(["ls -la"]);
@@ -51,7 +52,7 @@ describe("createAiSdkBashTool", () => {
   });
 
   test("validate runs the signature and the core parse", async () => {
-    const tool = createAiSdkBashTool({ runner: echoRunner() });
+    const tool = createAiSdkBashTool({ runner: echoRunner(), env: shellEnv() });
     const validate = (tool.inputSchema as { validate?: (value: unknown) => unknown }).validate;
     expect(await validate?.({ command: "ls" })).toMatchObject({ success: true });
     expect(await validate?.({ command: "" })).toMatchObject({ success: false });
@@ -61,6 +62,7 @@ describe("createAiSdkBashTool", () => {
   test("a seconds signature reaches the core as milliseconds", async () => {
     const tool = createAiSdkBashTool({
       runner: echoRunner(),
+      env: shellEnv(),
       signature: defaultBashSignature({ timeoutUnit: "s" }),
     });
     const result = await tool.execute({ command: "x", timeout: 3 }, executeOptions());
@@ -71,15 +73,17 @@ describe("createAiSdkBashTool", () => {
     const runner = echoRunner();
     const controller = new AbortController();
     controller.abort();
-    const tool = createAiSdkBashTool({ runner });
+    const tool = createAiSdkBashTool({ runner, env: shellEnv() });
     const result = await tool.execute({ command: "x" }, executeOptions(controller.signal));
     expect(result.status).toBe("error");
     expect(result.status === "error" ? result.error.code : null).toBe("ABORTED");
     expect(runner.commands).toEqual([]);
   });
 
-  test("options must be an object with a runner", () => {
+  test("options must be an object with a runner and an env", () => {
     expect(() => createAiSdkBashTool(null as never)).toThrow(TypeError);
     expect(() => createAiSdkBashTool({} as never)).toThrow(TypeError);
+    // @ts-expect-error: env is required, as in the core (Q4).
+    expect(() => createAiSdkBashTool({ runner: echoRunner() })).toThrow("env is required");
   });
 });

@@ -2,7 +2,6 @@ import type { ShellDependencies, ShellToolDeps } from "../contract/deps.ts";
 import type { AfterRunHook, BeforeRunHook } from "../contract/extensions.ts";
 import type { CommandRunner } from "../contract/runner.ts";
 import { defaultShellFormatter } from "../formatters/default.ts";
-import { shellEnv } from "./env.ts";
 import { isRecord } from "./input.ts";
 import { resolveShellLimits } from "./limits.ts";
 import { resolveShellMessages } from "./messages.ts";
@@ -25,7 +24,8 @@ const KNOWN: ReadonlySet<string> = new Set([
 
 /**
  * Validates and resolves the dependencies once, synchronously. Throws
- * TypeError on an unknown key, a missing runner, or a malformed dependency.
+ * TypeError on an unknown key, a missing runner or env, or a malformed
+ * dependency.
  */
 export function resolveShellDependencies<THost>(
   deps: ShellToolDeps<THost>,
@@ -55,7 +55,12 @@ export function resolveShellDependencies<THost>(
   if (!Array.isArray(beforeRun) || !beforeRun.every(isBeforeRunHook)) {
     throw new TypeError("beforeRun must be an array of hooks with an id and beforeRun");
   }
-  const env = deps.env ?? shellEnv();
+  const { env } = deps;
+  if (env === undefined) {
+    throw new TypeError(
+      "env is required: pass shellEnv(() => process.env), an allow list such as shellEnv({ PATH }), or shellEnv()",
+    );
+  }
   if (typeof env !== "function") throw new TypeError("env must be a function");
   const spill = deps.spill ?? null;
   if (spill !== null && (!isRecord(spill) || typeof spill.open !== "function")) {

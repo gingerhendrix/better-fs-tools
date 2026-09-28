@@ -1,6 +1,6 @@
 import { Bash } from "just-bash";
 import { justBashCommandRunner } from "@better-fs-tools/just-bash";
-import { createBashTool, textOf } from "@better-fs-tools/shell";
+import { createBashTool, shellEnv, textOf } from "@better-fs-tools/shell";
 
 // An emulated shell over an in-memory filesystem. Nothing starts a process.
 // executionLimits stop a busy loop, because no timer fires while one runs.
@@ -10,7 +10,8 @@ const shell = new Bash({
   executionLimits: { maxCommandCount: 100_000 },
 });
 
-const bash = createBashTool({ runner: justBashCommandRunner(shell) });
+// shellEnv() gives defaultShellEnv only: the emulated shell sees no host variables.
+const bash = createBashTool({ runner: justBashCommandRunner(shell), env: shellEnv() });
 
 console.log(textOf(await bash({ command: "wc -l notes.txt" })));
 // Exit code 0 · 0 s

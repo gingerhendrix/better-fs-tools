@@ -9,7 +9,7 @@ import { runBash } from "./pipeline.ts";
 
 /**
  * Validates and resolves dependencies once, synchronously. Throws TypeError
- * on an unknown key, a missing runner, or a malformed dependency. `limits`
+ * on an unknown key, a missing runner or env, or a malformed dependency. `limits`
  * and `messages` merge key by key. Every other dependency replaces.
  */
 export function createBashTool<THost = undefined>(deps: ShellToolDeps<THost>): BashTool<THost> {

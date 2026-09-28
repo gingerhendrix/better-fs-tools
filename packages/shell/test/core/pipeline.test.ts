@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createBashTool, defaultShellEnv, parseBashInput } from "@better-fs-tools/shell";
+import { createBashTool, defaultShellEnv, parseBashInput, shellEnv } from "@better-fs-tools/shell";
 import type {
   CommandRunner,
   OutputChunk,
@@ -10,7 +10,7 @@ import type {
 
 import { resolveShellLimits } from "@better-fs-tools/shell";
 
-import { err, errorOf, out, scriptedRunner, text } from "../helpers.ts";
+import { bashTool, err, errorOf, out, scriptedRunner, text } from "../helpers.ts";
 
 const createLimits = () => resolveShellLimits();
 
@@ -18,7 +18,7 @@ const anyMessage = expect.any(String) as unknown as string;
 
 describe("statuses", () => {
   test("exit 0 is ok, with the exit code first in the text", async () => {
-    const bash = createBashTool({ runner: scriptedRunner({ steps: [out("hello\n")] }) });
+    const bash = bashTool({ runner: scriptedRunner({ steps: [out("hello\n")] }) });
     const result = await bash({ command: "echo hello" });
     expect(result.status).toBe("ok");
     expect("error" in result).toBe(false);
@@ -28,7 +28,7 @@ describe("statuses", () => {
 
   test("a non-zero exit is a normal failed result, not an error", async () => {
     const runner = scriptedRunner({ steps: [err("boom\n")], exit: { code: 2, signal: null } });
-    const result = await createBashTool({ runner })({ command: "false" });
+    const result = await bashTool({ runner })({ command: "false" });
     expect(result.status).toBe("failed");
     expect("error" in result).toBe(false);
     expect(text(result).split("\n")[0]).toStartWith("Exit code 2 ·");
@@ -37,27 +37,27 @@ describe("statuses", () => {
 
   test("stdout and stderr merge in arrival order", async () => {
     const runner = scriptedRunner({ steps: [out("a\n"), err("b\n"), out("c\n")] });
-    const result = await createBashTool({ runner })({ command: "x" });
+    const result = await bashTool({ runner })({ command: "x" });
     expect(result.output?.head).toBe("a\nb\nc");
     expect(result.output?.stdoutBytes).toBe(4);
     expect(result.output?.stderrBytes).toBe(2);
   });
 
   test("no output says so", async () => {
-    const result = await createBashTool({ runner: scriptedRunner() })({ command: "true" });
+    const result = await bashTool({ runner: scriptedRunner() })({ command: "true" });
     expect(text(result).split("\n")[1]).toBe("(no output)");
   });
 
   test("a signal exit names the signal", async () => {
     const runner = scriptedRunner({ exit: { code: null, signal: "SIGSEGV" } });
-    const result = await createBashTool({ runner })({ command: "x" });
+    const result = await bashTool({ runner })({ command: "x" });
     expect(result.status).toBe("failed");
     expect(text(result)).toStartWith("Ended by SIGSEGV");
   });
 
   test("a timeout stops the run and keeps the output so far", async () => {
     const runner = scriptedRunner({ steps: [out("partial\n")], hang: true });
-    const result = await createBashTool({ runner })({ command: "sleep", timeoutMs: 50 });
+    const result = await bashTool({ runner })({ command: "sleep", timeoutMs: 50 });
     expect(result.status).toBe("timeout");
     expect(result.run?.stoppedBy).toBe("timeout");
     expect(runner.requests[0]?.signal.aborted).toBe(true);
@@ -70,10 +70,7 @@ describe("statuses", () => {
     const runner = scriptedRunner({ steps: [out("so far\n")], hang: true });
     const controller = new AbortController();
     setTimeout(() => controller.abort(), 30);
-    const result = await createBashTool({ runner })(
-      { command: "sleep" },
-      { signal: controller.signal },
-    );
+    const result = await bashTool({ runner })({ command: "sleep" }, { signal: controller.signal });
     expect(result.status).toBe("error");
     expect(errorOf(result)).toEqual({ code: "ABORTED", phase: "run", message: anyMessage });
     expect(result.run?.stoppedBy).toBe("abort");
@@ -85,10 +82,7 @@ describe("statuses", () => {
     const runner = scriptedRunner();
     const controller = new AbortController();
     controller.abort();
-    const result = await createBashTool({ runner })(
-      { command: "x" },
-      { signal: controller.signal },
-    );
+    const result = await bashTool({ runner })({ command: "x" }, { signal: controller.signal });
     expect(result.status).toBe("error");
     // The default env is the first host call, and it sees the abort.
     expect(errorOf(result)).toEqual({ code: "ABORTED", phase: "env", message: anyMessage });
@@ -99,7 +93,7 @@ describe("statuses", () => {
 
   test("a runner that ignores the stop gives up after the grace time with a warning", async () => {
     const runner = scriptedRunner({ hang: true, ignoreStop: true });
-    const bash = createBashTool({ runner, limits: { killGraceMs: 10 } });
+    const bash = bashTool({ runner, limits: { killGraceMs: 10 } });
     const started = Date.now();
     const result = await bash({ command: "x", timeoutMs: 20 });
     expect(Date.now() - started).toBeLessThan(3_000);
@@ -114,7 +108,7 @@ describe("statuses", () => {
       steps: Array.from({ length: 50 }, () => out(big)),
       hang: true,
     });
-    const bash = createBashTool({ runner, limits: { maxCaptureBytes: 10_000 } });
+    const bash = bashTool({ runner, limits: { maxCaptureBytes: 10_000 } });
     const result = await bash({ command: "yes" });
     expect(result.status).toBe("error");
     expect(errorOf(result)).toEqual({ code: "OUTPUT_CAP", phase: "run", message: anyMessage });
@@ -125,7 +119,7 @@ describe("statuses", () => {
 
 describe("input", () => {
   test("a blank command is INVALID_INPUT", async () => {
-    const result = await createBashTool({ runner: scriptedRunner() })({ command: "  " });
+    const result = await bashTool({ runner: scriptedRunner() })({ command: "  " });
     expect(result.status).toBe("error");
     expect(errorOf(result)).toEqual({ code: "INVALID_INPUT", phase: "input", message: anyMessage });
     expect(result.notes.map((note) => note.code)).toEqual(["invalid-input"]);
@@ -133,14 +127,14 @@ describe("input", () => {
   });
 
   test("an unknown key is INVALID_INPUT", async () => {
-    const bash = createBashTool({ runner: scriptedRunner() });
+    const bash = bashTool({ runner: scriptedRunner() });
     const result = await bash({ command: "x", extra: 1 } as never);
     expect(errorOf(result)?.code).toBe("INVALID_INPUT");
   });
 
   test("a timeout over the maximum is cut, with a clamped info note", async () => {
     const runner = scriptedRunner();
-    const bash = createBashTool({ runner, limits: { maxTimeoutMs: 1_000, defaultTimeoutMs: 500 } });
+    const bash = bashTool({ runner, limits: { maxTimeoutMs: 1_000, defaultTimeoutMs: 500 } });
     const result = await bash({ command: "x", timeoutMs: 5_000 });
     expect(result.request?.timeoutMs).toBe(1_000);
     expect(result.notes[0]).toEqual({
@@ -152,7 +146,7 @@ describe("input", () => {
   });
 
   test("a timeout at the maximum gives no note", async () => {
-    const bash = createBashTool({
+    const bash = bashTool({
       runner: scriptedRunner(),
       limits: { maxTimeoutMs: 1_000, defaultTimeoutMs: 500 },
     });
@@ -173,7 +167,7 @@ describe("input", () => {
   });
 
   test("the default timeout applies when none is given", async () => {
-    const result = await createBashTool({ runner: scriptedRunner() })({ command: "x" });
+    const result = await bashTool({ runner: scriptedRunner() })({ command: "x" });
     expect(result.request?.timeoutMs).toBe(120_000);
   });
 });
@@ -181,7 +175,7 @@ describe("input", () => {
 describe("cwd", () => {
   test("defaults to the runner's cwd and resolves a relative cwd against it", async () => {
     const runner = scriptedRunner({}, "/work");
-    const bash = createBashTool({ runner });
+    const bash = bashTool({ runner });
     await bash({ command: "x" });
     await bash({ command: "x", cwd: "sub/../pkg" });
     expect(runner.requests.map((request) => request.cwd)).toEqual(["/work", "/work/pkg"]);
@@ -189,13 +183,13 @@ describe("cwd", () => {
 
   test("the cwd dependency replaces the runner's cwd", async () => {
     const runner = scriptedRunner({}, "/work");
-    await createBashTool({ runner, cwd: () => "/other" })({ command: "x" });
+    await bashTool({ runner, cwd: () => "/other" })({ command: "x" });
     expect(runner.requests[0]?.cwd).toBe("/other");
   });
 
   test("a resolver changes the requested string first", async () => {
     const runner = scriptedRunner({}, "/work");
-    const bash = createBashTool({
+    const bash = bashTool({
       runner,
       resolve: {
         id: "strip",
@@ -207,7 +201,7 @@ describe("cwd", () => {
   });
 
   test("a resolver not-found gives CWD_NOT_FOUND", async () => {
-    const bash = createBashTool({
+    const bash = bashTool({
       runner: scriptedRunner(),
       resolve: { id: "none", resolve: () => ({ kind: "not-found" }) },
     });
@@ -223,7 +217,7 @@ describe("cwd", () => {
     const runner = scriptedRunner({
       exit: { code: null, signal: null, error: { reason: "cwd-not-a-directory" } },
     });
-    const result = await createBashTool({ runner })({ command: "x", cwd: "file.txt" });
+    const result = await bashTool({ runner })({ command: "x", cwd: "file.txt" });
     expect(errorOf(result)).toEqual({
       code: "CWD_NOT_A_DIRECTORY",
       phase: "run",
@@ -240,7 +234,7 @@ describe("cwd", () => {
         throw new Error("no shell");
       },
     };
-    const result = await createBashTool({ runner })({ command: "x" });
+    const result = await bashTool({ runner })({ command: "x" });
     expect(errorOf(result)).toEqual({ code: "SPAWN_FAILED", phase: "run", message: anyMessage });
     expect(text(result)).toContain("no shell");
   });
@@ -249,7 +243,7 @@ describe("cwd", () => {
 describe("hooks", () => {
   test("authorize deny gives DENIED with the authorizer's note", async () => {
     const runner = scriptedRunner();
-    const bash = createBashTool({
+    const bash = bashTool({
       runner,
       authorize: {
         id: "no-rm",
@@ -268,7 +262,7 @@ describe("hooks", () => {
   });
 
   test("authorize without a note gives a denied note", async () => {
-    const bash = createBashTool({
+    const bash = bashTool({
       runner: scriptedRunner({}, "/work"),
       authorize: { id: "no", authorize: () => ({ allow: false }) },
     });
@@ -284,7 +278,7 @@ describe("hooks", () => {
 
   test("authorize sees the cwd as the path fields, with a relative display path", async () => {
     const seen: unknown[] = [];
-    const bash = createBashTool({
+    const bash = bashTool({
       runner: scriptedRunner({}, "/work"),
       authorize: {
         id: "spy",
@@ -310,7 +304,7 @@ describe("hooks", () => {
 
   test("the display path is . for the default cwd, and ../ outside it", async () => {
     const seen: string[] = [];
-    const bash = createBashTool({
+    const bash = bashTool({
       runner: scriptedRunner({}, "/work/app"),
       authorize: {
         id: "spy",
@@ -328,7 +322,7 @@ describe("hooks", () => {
 
   test("beforeRun can refuse", async () => {
     const runner = scriptedRunner();
-    const bash = createBashTool({
+    const bash = bashTool({
       runner,
       beforeRun: [
         {
@@ -351,7 +345,7 @@ describe("hooks", () => {
   });
 
   test("a beforeRun refusal without a note gets a refused note", async () => {
-    const bash = createBashTool({
+    const bash = bashTool({
       runner: scriptedRunner(),
       beforeRun: [{ id: "no", beforeRun: () => ({ allow: false }) }],
     });
@@ -364,7 +358,7 @@ describe("hooks", () => {
   test("authorize runs after beforeRun and sees the rewritten command", async () => {
     const order: string[] = [];
     const runner = scriptedRunner();
-    const bash = createBashTool({
+    const bash = bashTool({
       runner,
       beforeRun: [
         {
@@ -393,7 +387,7 @@ describe("hooks", () => {
 
   test("a beforeRun refusal stops the call before authorize", async () => {
     let authorized = false;
-    const bash = createBashTool({
+    const bash = bashTool({
       runner: scriptedRunner(),
       beforeRun: [{ id: "no", beforeRun: () => ({ allow: false }) }],
       authorize: {
@@ -411,7 +405,7 @@ describe("hooks", () => {
   test("beforeRun rewrites feed the next hook and the runner", async () => {
     const runner = scriptedRunner();
     const seen: string[] = [];
-    const bash = createBashTool({
+    const bash = bashTool({
       runner,
       beforeRun: [
         { id: "a", beforeRun: (run) => ({ allow: true, command: `${run.command} | head` }) },
@@ -431,9 +425,9 @@ describe("hooks", () => {
     expect(result.notes.map((note) => note.code)).toEqual(["b"]);
   });
 
-  test("the default env is defaultShellEnv only; env replaces it", async () => {
+  test("env is the whole environment: shellEnv() is defaultShellEnv only (Q4)", async () => {
     const runner = scriptedRunner();
-    await createBashTool({ runner })({ command: "x" });
+    await createBashTool({ runner, env: shellEnv() })({ command: "x" });
     expect(runner.requests[0]?.env).toEqual(defaultShellEnv);
     await createBashTool({ runner, env: () => ({ A: "1" }) })({ command: "x" });
     expect(runner.requests[1]?.env).toEqual({ A: "1" });
@@ -442,7 +436,7 @@ describe("hooks", () => {
   test("afterRun returns the output and the notes; the status stays", async () => {
     const runner = scriptedRunner({ steps: [out("token=abc\n")], exit: { code: 1, signal: null } });
     const seen: RunOutcome["status"][] = [];
-    const bash = createBashTool({
+    const bash = bashTool({
       runner,
       afterRun: [
         {
@@ -466,7 +460,7 @@ describe("hooks", () => {
 
   test("an afterRun field left out keeps its value", async () => {
     const runner = scriptedRunner({ steps: [out("kept\n")] });
-    const bash = createBashTool({
+    const bash = bashTool({
       runner,
       afterRun: [
         { id: "none", afterRun: () => ({}) },
@@ -490,7 +484,7 @@ describe("hooks", () => {
       steps: Array.from({ length: 5 }, () => out("x".repeat(50))),
       hang: true,
     });
-    const bash = createBashTool({
+    const bash = bashTool({
       runner,
       limits: { maxCaptureBytes: 100 },
       afterRun: [
@@ -512,7 +506,7 @@ describe("hooks", () => {
     const digest = { id: "d", create: () => ({ update() {}, digest: () => "" }), hash: () => "h" };
     const at = new Date("2026-09-28T00:00:00.000Z");
     const seen: Pick<ShellHookContext, "digest" | "clock">[] = [];
-    const bash = createBashTool({
+    const bash = bashTool({
       runner: scriptedRunner(),
       digest,
       clock: () => at,
@@ -531,7 +525,7 @@ describe("hooks", () => {
 
   test("the default digest is null and the default clock is the time now", async () => {
     let ctx: ShellHookContext | null = null;
-    await createBashTool({
+    await bashTool({
       runner: scriptedRunner(),
       beforeRun: [
         {
@@ -561,7 +555,7 @@ describe("hooks", () => {
       [{ resolve: { id: "res", resolve: boom } }, "resolve"],
     ] as const;
     for (const [deps, phase] of cases) {
-      const result = await createBashTool({ runner, ...deps })({ command: "x", cwd: "." });
+      const result = await bashTool({ runner, ...deps })({ command: "x", cwd: "." });
       expect(result.status).toBe("error");
       expect(errorOf(result)).toEqual({ code: "EXTENSION_FAILED", phase, message: anyMessage });
       expect(text(result)).toContain("[bash:extension-failed]");
@@ -577,7 +571,7 @@ describe("hooks", () => {
       () => 42 as never,
     ];
     for (const format of cases) {
-      const result = await createBashTool({ runner, formatter: { id: "fmt", format } })({
+      const result = await bashTool({ runner, formatter: { id: "fmt", format } })({
         command: "x",
       });
       expect(result.status).toBe("ok");
@@ -599,7 +593,7 @@ describe("hooks", () => {
 
   test("afterRun failure keeps the run and the output", async () => {
     const runner = scriptedRunner({ steps: [out("kept\n")] });
-    const bash = createBashTool({
+    const bash = bashTool({
       runner,
       afterRun: [{ id: "after", afterRun: () => ({ output: "not a view" }) as never }],
     });
@@ -614,7 +608,7 @@ describe("hooks", () => {
     const runner = scriptedRunner({
       steps: Array.from({ length: 100 }, (_, index) => out(`row ${index}\n`)),
     });
-    const bash = createBashTool({
+    const bash = bashTool({
       runner,
       limits: { maxOutputLines: 10 },
       spill: {
@@ -635,7 +629,7 @@ describe("hooks", () => {
 
   test("a failing spill write adds a warning and does not change the run", async () => {
     const runner = scriptedRunner({ steps: [out("a\n")] });
-    const bash = createBashTool({
+    const bash = bashTool({
       runner,
       spill: {
         id: "disk",
@@ -673,7 +667,7 @@ describe("output stream failures", () => {
         throw new Error("lost output");
       },
     });
-    const result = await createBashTool({ runner })({ command: "x" });
+    const result = await bashTool({ runner })({ command: "x" });
     expect(result.status).toBe("ok");
     expect(result.output?.head).toBe("partial");
     expect(result.notes).toEqual([
@@ -695,7 +689,7 @@ describe("output stream failures", () => {
         throw new Error("lost output");
       },
     });
-    const result = await createBashTool({ runner })({ command: "x" });
+    const result = await bashTool({ runner })({ command: "x" });
     expect(result.notes.map((note) => note.code)).toEqual(["output-incomplete"]);
   });
 
@@ -708,7 +702,7 @@ describe("output stream failures", () => {
         yield out("b\n");
       },
     });
-    const result = await createBashTool({ runner })({ command: "x" });
+    const result = await bashTool({ runner })({ command: "x" });
     expect(result.output?.head).toBe("a\nb");
     expect(result.notes).toMatchObject([{ code: "output-incomplete", data: { skippedChunks: 2 } }]);
     expect(result.notes[0]?.message).toContain("2 malformed output chunks, which were skipped");
@@ -717,20 +711,20 @@ describe("output stream failures", () => {
 
 describe("createBashTool", () => {
   test("throws TypeError on a missing runner, an unknown key, or a bad limit", () => {
-    expect(() => createBashTool({} as never)).toThrow(TypeError);
-    expect(() => createBashTool({ runner: scriptedRunner(), extra: 1 } as never)).toThrow(
+    expect(() => bashTool({} as never)).toThrow(TypeError);
+    expect(() => bashTool({ runner: scriptedRunner(), extra: 1 } as never)).toThrow(
       "Unknown bash tool dependency: extra",
     );
-    expect(() =>
-      createBashTool({ runner: scriptedRunner(), limits: { headPercent: 101 } }),
-    ).toThrow(TypeError);
-    expect(() => createBashTool({ runner: scriptedRunner(), cwd: "relative" })).toThrow(TypeError);
+    expect(() => bashTool({ runner: scriptedRunner(), limits: { headPercent: 101 } })).toThrow(
+      TypeError,
+    );
+    expect(() => bashTool({ runner: scriptedRunner(), cwd: "relative" })).toThrow(TypeError);
   });
 
   test("a runner factory runs for each call", async () => {
     const runner = scriptedRunner();
     let calls = 0;
-    const bash = createBashTool<{ id: number }>({
+    const bash = bashTool<{ id: number }>({
       runner: (call) => {
         calls += call.host.id;
         return runner;

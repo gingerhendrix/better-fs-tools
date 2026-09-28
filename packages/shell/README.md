@@ -50,12 +50,12 @@ Each call starts a new shell. A `cd` or an `export` does not carry to the next c
 
 ## Hosts
 
-| Host            | Package                      | Factories                                                                          |
-| --------------- | ---------------------------- | ---------------------------------------------------------------------------------- |
-| Node or Bun     | `@better-fs-tools/node`      | `createNodeBashTool()`, `nodeCommandRunner()`, and `bash` in `createNodeFsTools()` |
-| AI SDK 7        | `@better-fs-tools/ai-sdk`    | `createAiSdkBashTool({ runner })`                                                  |
-| Pi coding agent | `@better-fs-tools/pi`        | `createPiBashTool()`, with Pi's own shape: `{ command, timeout }` in seconds       |
-| just-bash       | `@better-fs-tools/just-bash` | `justBashCommandRunner(bash)`, an emulated shell with no process                   |
+| Host            | Package                      | Factories                                                                              |
+| --------------- | ---------------------------- | -------------------------------------------------------------------------------------- |
+| Node or Bun     | `@better-fs-tools/node`      | `createNodeBashTool()`, `nodeCommandRunner()`, and `createNodeFsTools({ bash: true })` |
+| AI SDK 7        | `@better-fs-tools/ai-sdk`    | `createAiSdkBashTool({ runner, env })`                                                 |
+| Pi coding agent | `@better-fs-tools/pi`        | `createPiBashTool()`, with Pi's own shape: `{ command, timeout }` in seconds           |
+| just-bash       | `@better-fs-tools/just-bash` | `justBashCommandRunner(bash)`, an emulated shell with no process                       |
 
 ## Results
 
@@ -115,11 +115,11 @@ A `defaultTimeoutMs` that you set above `maxTimeoutMs`, or a `headPercent` over 
 
 stdout and stderr are merged in arrival order. The core decodes UTF-8 with replacement characters and removes ANSI escape codes. It changes nothing else.
 
-The default environment is `defaultShellEnv` only: `PAGER=cat`, `GIT_PAGER=cat`, `GIT_TERMINAL_PROMPT=0`, `NO_COLOR=1`, and `TERM=dumb`. The Node and Pi factories add `process.env` under it with `shellEnv(() => process.env)`.
+`createBashTool` has no default environment: `env` is required, so the host chooses once what a command sees. `shellEnv(() => process.env)` passes the host environment, `shellEnv({ PATH, HOME })` passes an allow list, and `shellEnv()` passes `defaultShellEnv` alone. Every `shellEnv()` puts `defaultShellEnv` over its base: `PAGER=cat`, `GIT_PAGER=cat`, `GIT_TERMINAL_PROMPT=0`, `NO_COLOR=1`, and `TERM=dumb`. `createNodeBashTool()`, `createPiBashTool()`, and `createNodeFsTools({ bash: true })` default `env` to `shellEnv(() => process.env)`. `createAiSdkBashTool()` and `createFsTools()` require it, like the core.
 
 ## Hooks
 
-Only `runner` is required. `limits` and `messages` merge key by key. Every other dependency replaces its default.
+`runner` and `env` are required. `limits` and `messages` merge key by key. Every other dependency replaces its default.
 
 | Dependency  | Default                   | What a host builds on it                                                                         |
 | ----------- | ------------------------- | ------------------------------------------------------------------------------------------------ |
@@ -128,7 +128,7 @@ Only `runner` is required. `limits` and `messages` merge key by key. Every other
 | `resolve`   | none                      | A read tool resolver changes the requested cwd string.                                           |
 | `beforeRun` | `[]`                      | Guards and command rewrites. A rewrite feeds the next hook.                                      |
 | `authorize` | none (allow)              | Approval prompts, prefix rules, deny lists, plan mode. A read `ToolAuthorizer` works on the cwd. |
-| `env`       | `defaultShellEnv`         | Allow lists and secret scrubbing.                                                                |
+| `env`       | required                  | The host environment, allow lists, and secret scrubbing.                                         |
 | `spill`     | none                      | Every output byte saved to a file or a store.                                                    |
 | `afterRun`  | `[]`                      | Secret masking, output filters, exit-code meanings, read-record invalidation.                    |
 | `formatter` | `defaultShellFormatter()` | Another layout of the model text.                                                                |

@@ -30,9 +30,10 @@ export interface AiSdkBashTool<C = unknown> {
 
 /**
  * Builds the core with messages = { ...bashSignatureMessages(signature),
- * ...options.messages }. The runner is required: this package does not
- * start processes. Use nodeCommandRunner() from @better-fs-tools/node, or
- * justBashCommandRunner() from @better-fs-tools/just-bash.
+ * ...options.messages }. The runner and env are required: this package does
+ * not start processes and does not read process.env. Use nodeCommandRunner()
+ * from @better-fs-tools/node, or justBashCommandRunner() from
+ * @better-fs-tools/just-bash, and shellEnv() from @better-fs-tools/shell.
  */
 export function createAiSdkBashTool<C = unknown>(
   options: CreateAiSdkBashToolOptions<C>,

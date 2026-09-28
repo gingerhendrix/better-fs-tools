@@ -106,7 +106,7 @@ export async function change(model: LanguageModel, prompt: string): Promise<stri
 
 ## Bash tool
 
-`createAiSdkBashTool({ runner })` adapts the `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell). This package starts no process, so the runner is required. The default signature takes the timeout in milliseconds and names the runner in the description.
+`createAiSdkBashTool({ runner, env })` adapts the `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell). This package starts no process and reads no `process.env`, so `runner` and `env` are required. The default signature takes the timeout in milliseconds and names the runner in the description.
 
 ```ts
 import { generateText, isStepCount } from "ai";

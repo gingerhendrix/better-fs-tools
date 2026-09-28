@@ -1,10 +1,20 @@
+import { createBashTool, shellEnv } from "@better-fs-tools/shell";
 import type {
+  BashTool,
   CommandRunner,
   OutputChunk,
   RunExit,
   RunRequest,
   ShellResult,
+  ShellToolDeps,
 } from "@better-fs-tools/shell";
+
+/** createBashTool with env shellEnv() unless the test gives one. */
+export function bashTool<THost = undefined>(
+  deps: Omit<ShellToolDeps<THost>, "env"> & Partial<Pick<ShellToolDeps<THost>, "env">>,
+): BashTool<THost> {
+  return createBashTool<THost>({ env: shellEnv(), ...deps });
+}
 
 export type Step = OutputChunk | { readonly delay: number };
 

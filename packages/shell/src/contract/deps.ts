@@ -25,7 +25,12 @@ export interface ShellDependencies<THost = undefined> {
   readonly beforeRun: readonly BeforeRunHook<THost>[];
   /** Host policy on the final command. null allows. */
   readonly authorize: ShellAuthorizer<THost> | null;
-  /** Default: defaultShellEnv only. The Node factories add process.env. */
+  /**
+   * The whole environment of each command. Required (decision Q4): pass
+   * shellEnv(() => process.env), an allow list such as shellEnv({ PATH }), or
+   * shellEnv() for defaultShellEnv alone. The Node and Pi factories default
+   * it to shellEnv(() => process.env).
+   */
   readonly env: ShellEnv<THost>;
   /** null turns spill off. */
   readonly spill: SpillSink<THost> | null;
@@ -38,11 +43,12 @@ export interface ShellDependencies<THost = undefined> {
 }
 
 /**
- * Only `runner` is required. `limits` and `messages` merge key by key. Every
- * other dependency replaces its default.
+ * `runner` and `env` are required. `limits` and `messages` merge key by key.
+ * Every other dependency replaces its default.
  */
 export type ShellToolDeps<THost = undefined> = {
   readonly runner: ShellDependencies<THost>["runner"];
+  readonly env: ShellDependencies<THost>["env"];
   readonly limits?: Partial<ShellLimits>;
   readonly messages?: Partial<ShellMessageCatalog>;
-} & Partial<Omit<ShellDependencies<THost>, "runner" | "limits" | "messages">>;
+} & Partial<Omit<ShellDependencies<THost>, "runner" | "env" | "limits" | "messages">>;

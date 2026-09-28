@@ -7,6 +7,7 @@ import { MockLanguageModelV4 } from "ai/test";
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { ReadResult } from "@better-fs-tools/read";
 import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
+import { shellEnv } from "@better-fs-tools/shell";
 import type { CommandRunner, RunExit } from "@better-fs-tools/shell";
 import { defaultBashSignature } from "@better-fs-tools/shell/signature";
 import {
@@ -75,9 +76,10 @@ function allTools() {
       fs,
       signature: freeformPatchSignature({ name: "apply_patch_freeform" }),
     }),
-    bash: createAiSdkBashTool({ runner }),
+    bash: createAiSdkBashTool({ runner, env: shellEnv() }),
     bash_seconds: createAiSdkBashTool({
       runner,
+      env: shellEnv(),
       signature: defaultBashSignature({ name: "bash_seconds", timeoutUnit: "s", cwd: false }),
     }),
   };
@@ -193,7 +195,7 @@ describe("strict provider schema", () => {
       }),
     ).toMatchObject({ success: true });
 
-    const bash = createAiSdkBashTool({ runner });
+    const bash = createAiSdkBashTool({ runner, env: shellEnv() });
     const ran = await bash.execute({ command: "ls", timeout: null, cwd: null }, executeOptions());
     expect(ran.status).toBe("ok");
   });

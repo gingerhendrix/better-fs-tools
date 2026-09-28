@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { Bash } from "just-bash";
 
-import { createBashTool } from "@better-fs-tools/shell";
+import { createBashTool, shellEnv } from "@better-fs-tools/shell";
 
 import { justBashCommandRunner } from "../src/index.ts";
 
@@ -19,7 +19,7 @@ function shell(executionLimits = {}): Bash {
 
 describe("justBashCommandRunner", () => {
   test("runs in the emulated shell and reports stdout, stderr, and the exit code", async () => {
-    const bash = createBashTool({ runner: justBashCommandRunner(shell()) });
+    const bash = createBashTool({ runner: justBashCommandRunner(shell()), env: shellEnv() });
     const result = await bash({ command: "cat a.txt; echo oops >&2; exit 4" });
     expect(result.status).toBe("failed");
     expect(result.run?.exitCode).toBe(4);
@@ -28,7 +28,7 @@ describe("justBashCommandRunner", () => {
 
   test("the cwd input is resolved against the shell's cwd, for this call only", async () => {
     const emulated = shell();
-    const bash = createBashTool({ runner: justBashCommandRunner(emulated) });
+    const bash = createBashTool({ runner: justBashCommandRunner(emulated), env: shellEnv() });
     expect((await bash({ command: "pwd; cat b.txt", cwd: "sub" })).output?.head).toBe(
       "/w/sub\nbeta",
     );
@@ -51,12 +51,12 @@ describe("justBashCommandRunner", () => {
   });
 
   test("stdin is empty", async () => {
-    const bash = createBashTool({ runner: justBashCommandRunner(shell()) });
+    const bash = createBashTool({ runner: justBashCommandRunner(shell()), env: shellEnv() });
     expect((await bash({ command: "cat; echo end" })).output?.head).toBe("end");
   });
 
   test("a missing or file cwd maps to the cwd errors", async () => {
-    const bash = createBashTool({ runner: justBashCommandRunner(shell()) });
+    const bash = createBashTool({ runner: justBashCommandRunner(shell()), env: shellEnv() });
     expect(errorOf(await bash({ command: "ls", cwd: "nope" }))?.code).toBe("CWD_NOT_FOUND");
     expect(errorOf(await bash({ command: "ls", cwd: "a.txt" }))?.code).toBe("CWD_NOT_A_DIRECTORY");
   });
@@ -70,6 +70,7 @@ describe("justBashCommandRunner", () => {
     // the core's timeout cannot fire. just-bash's executionLimits stop it.
     const bash = createBashTool({
       runner: justBashCommandRunner(shell({ maxCommandCount: 10_000 })),
+      env: shellEnv(),
       limits: { killGraceMs: 100 },
     });
     const result = await bash({ command: "while true; do :; done", timeoutMs: 1 });
@@ -81,6 +82,7 @@ describe("justBashCommandRunner", () => {
   test("fact check: a timeout during sleep ends the call within the grace time", async () => {
     const bash = createBashTool({
       runner: justBashCommandRunner(shell()),
+      env: shellEnv(),
       limits: { killGraceMs: 100 },
     });
     const started = Date.now();

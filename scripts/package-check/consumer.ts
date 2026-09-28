@@ -93,14 +93,14 @@ const bashEdit = createEditTool({ fs: writableBash, preconditions: { requireRead
 expect("just-bash edit", (await bashEdit({ path: "b.txt", edits: [{ oldText: "y", newText: "z" }] })).status, "ok");
 expect("just-bash bytes", await bashBackend.readFile("/w/b.txt"), "z\\n");
 
-const { createBashTool } = await import("${SCOPE}/shell");
+const { createBashTool, shellEnv } = await import("${SCOPE}/shell");
 const { justBashCommandRunner } = await import("${SCOPE}/just-bash");
 const { Bash } = await import("just-bash");
 const ran = await fsTools.bash({ command: "cat fixture.txt; exit 3" });
 expect("node bash status", ran.status, "failed");
 expect("node bash output", ran.output.head, "alpha\\ngamma");
 const emulated = new Bash({ files: { "/w/c.txt": "c\\n" }, cwd: "/w" });
-const virtualBash = createBashTool({ runner: justBashCommandRunner(emulated) });
+const virtualBash = createBashTool({ runner: justBashCommandRunner(emulated), env: shellEnv() });
 expect("just-bash bash", (await virtualBash({ command: "cat c.txt" })).output.head, "c");
 
 const { pathToFileURL } = await import("node:url");

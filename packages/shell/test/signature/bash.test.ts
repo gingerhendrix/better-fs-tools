@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createBashTool, resolveShellMessages } from "@better-fs-tools/shell";
+import { createBashTool, resolveShellMessages, shellEnv } from "@better-fs-tools/shell";
 import { bashSignatureMessages, defaultBashSignature } from "@better-fs-tools/shell/signature";
 
 import { scriptedRunner } from "../helpers.ts";
@@ -41,6 +41,7 @@ describe("defaultBashSignature", () => {
     const signature = defaultBashSignature({ timeoutUnit: "s" });
     const bash = createBashTool({
       runner: scriptedRunner(),
+      env: shellEnv(),
       messages: bashSignatureMessages(signature),
     });
     const result = await bash(signature.toInput({ command: "x", timeout: 3_600 }));

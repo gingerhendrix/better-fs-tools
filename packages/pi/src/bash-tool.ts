@@ -21,10 +21,12 @@ const MAX_CACHED_RUNNERS = 8;
 /** No cwd: the directory is bound to ctx.cwd on every call. */
 export interface CreatePiBashToolOptions extends Omit<
   ShellToolDeps<ExtensionContext>,
-  "runner" | "cwd"
+  "runner" | "cwd" | "env"
 > {
   /** Default a nodeCommandRunner at ctx.cwd, one for each directory. */
   readonly runner?: ShellToolDeps<ExtensionContext>["runner"];
+  /** Default shellEnv(() => process.env): Pi runs commands with the host's environment. */
+  readonly env?: ShellToolDeps<ExtensionContext>["env"];
   /**
    * Default defaultBashSignature({ timeoutUnit: "s", cwd: false, limits }):
    * Pi's own shape, { command, timeout } in seconds, so Pi's bash renderer and
