@@ -53,7 +53,7 @@ export function resolveShellDependencies<THost>(
   if (!Array.isArray(beforeRun) || !beforeRun.every(isBeforeRunHook)) {
     throw new TypeError("beforeRun must be an array of hooks with an id and beforeRun");
   }
-  const env = deps.env ?? shellEnv<THost>();
+  const env = deps.env ?? shellEnv();
   if (typeof env !== "function") throw new TypeError("env must be a function");
   const spill = deps.spill ?? null;
   if (spill !== null && (!isRecord(spill) || typeof spill.open !== "function")) {

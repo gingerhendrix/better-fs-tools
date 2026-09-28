@@ -25,6 +25,6 @@ export function withNodeShellDefaults<THost>(
   return {
     ...deps,
     runner: deps.runner ?? nodeCommandRunner(cwd === undefined ? {} : { cwd }),
-    env: deps.env ?? shellEnv<THost>(() => process.env),
+    env: deps.env ?? shellEnv(() => process.env),
   };
 }

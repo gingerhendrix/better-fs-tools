@@ -1,5 +1,3 @@
-import type { ShellEnv } from "../contract/extensions.ts";
-
 type EnvRecord = Readonly<Record<string, string | undefined>>;
 
 /**
@@ -15,13 +13,14 @@ export const defaultShellEnv: Readonly<Record<string, string>> = Object.freeze({
 });
 
 /**
- * An env dependency: `base` with defaultShellEnv over it. Entries whose
- * value is undefined are left out. A function base is read again on each
- * call, so `shellEnv(() => process.env)` follows changes to process.env.
+ * An env dependency for any host: `base` with defaultShellEnv over it.
+ * Entries whose value is undefined are left out. A function base is read
+ * again on each call, so `shellEnv(() => process.env)` follows changes to
+ * process.env.
  */
-export function shellEnv<THost = undefined>(
+export function shellEnv(
   base: EnvRecord | (() => EnvRecord) = {},
-): ShellEnv<THost> {
+): () => Readonly<Record<string, string>> {
   if (typeof base === "function") return () => merge(base());
   const fixed = merge(base);
   return () => fixed;
