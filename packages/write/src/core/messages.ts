@@ -83,8 +83,13 @@ function catalogFor(param: Param): WriteMessageCatalog {
     },
     ambiguousMatch: ({ path, index, lines, total }) =>
       `Edit ${index + 1}: the ${param("oldText")} matches ${total} places in ${path} (lines ${lines.join(", ")}${total > lines.length ? ", …" : ""}). Add surrounding lines to make it unique, or set ${param("replaceAll")}.`,
-    matchRefused: ({ path, index, matcher, reason }) =>
-      `Edit ${index + 1}: the ${matcher} matcher found the ${param("oldText")} in ${path}, but the match was refused (${refusalLabel(reason)}). Copy the ${param("oldText")} exactly from the file.`,
+    matchRefused: ({ path, index, matcher, reason }) => {
+      const found = `Edit ${index + 1}: the ${matcher} matcher found the ${param("oldText")} in ${path}, but the match was refused (${refusalLabel(reason)}).`;
+      if (reason === "too-many") {
+        return `${found} Change fewer places in each edit, or replace the file with the write tool.`;
+      }
+      return `${found} Copy the ${param("oldText")} exactly from the file.`;
+    },
     overlap: ({ path, first, second }) =>
       `Edits ${first + 1} and ${second + 1} change overlapping text in ${path}. Merge them into one edit.`,
     noChange: ({ path }) =>
@@ -134,10 +139,13 @@ function kindLabel(kind: NodeKind): string {
   return kind;
 }
 
-function refusalLabel(reason: "span" | "boundary" | "escape" | "fuzzy-replace-all"): string {
+function refusalLabel(
+  reason: "span" | "boundary" | "escape" | "fuzzy-replace-all" | "too-many",
+): string {
   if (reason === "span") return "the matched region is much longer than the text sent";
   if (reason === "boundary") return "the match starts or ends inside normalized text";
   if (reason === "escape") return "the new text holds escape sequences the file does not";
+  if (reason === "too-many") return "it matches more places than one edit may replace";
   return "a loose match cannot replace every occurrence";
 }
 

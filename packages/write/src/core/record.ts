@@ -58,12 +58,12 @@ export async function recordCommitted<THost>(
 /**
  * write and a patch Add see the whole file. edit and a patch Update keep the
  * previous record's value. false whenever the file holds bytes the model has
- * not seen: W6 content or a hook rewrite. A later edit still works; a later
- * write needs a whole-file read first.
+ * not seen: W6 content, a hook rewrite, or an edit applied on a stale record.
+ * A later edit still works; a later write needs a whole-file read first.
  */
 function wholeFileVisible(file: Committed): boolean {
   const { planned } = file;
-  if (planned.userModified || file.rewritten) return false;
+  if (planned.userModified || planned.rematched || file.rewritten) return false;
   if (planned.change.tool === "write" || planned.loaded === null) return true;
   return planned.record?.wholeFileVisible ?? false;
 }

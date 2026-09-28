@@ -86,7 +86,7 @@ export interface FileChange {
   /** Unified diff with a/ and b/ headers, cut at limits.maxDiffLines. */
   readonly diff: string;
   readonly diffTruncated: boolean;
-  /** One entry for each edit pair or patch hunk. Empty for write. */
+  /** One entry for each edit pair or patch hunk that matched. Empty for write. An already applied pair has none. */
   readonly matches: readonly MatchInfo[];
   /** Result lines around each change, for the model text. Empty for write and delete. */
   readonly snippets: readonly Snippet[];
@@ -113,6 +113,11 @@ export interface MatchInfo {
   readonly lines: readonly [number, number];
   /** Replacements made. More than 1 only with replaceAll. */
   readonly count: number;
+  /**
+   * One-based inclusive lines of each replacement in the file after the
+   * change, in order. At most limits.maxListedMatches entries.
+   */
+  readonly replaced: readonly (readonly [number, number])[];
 }
 
 export interface Snippet {

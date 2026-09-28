@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { defaultWriteFormatter } from "../../src/index.ts";
-import type { FileChange, MutationReport, WriteFormatContext } from "../../src/index.ts";
+import type { FileChange, MatchInfo, MutationReport, WriteFormatContext } from "../../src/index.ts";
 import { defaultWriteLimits } from "../../src/index.ts";
 
 const ctx = (mode: "model" | "view" = "model"): WriteFormatContext<unknown> => ({
@@ -27,6 +27,16 @@ const change = (overrides: Partial<FileChange>): FileChange => ({
   snippets: [],
   userModified: false,
   createdDirectories: [],
+  ...overrides,
+});
+
+const match = (overrides: Partial<MatchInfo>): MatchInfo => ({
+  index: 0,
+  matcher: "exact",
+  fuzzy: false,
+  lines: [1, 1],
+  count: 1,
+  replaced: [],
   ...overrides,
 });
 
@@ -109,6 +119,79 @@ describe("defaultWriteFormatter", () => {
       notes: [{ code: "stale", severity: "warning", message: "x" }],
     });
     expect(custom.format(failed, ctx())).toBe("write/stale");
+  });
+
+  test("edit: one replacement with its snippet", () => {
+    const edited = report({
+      tool: "edit",
+      changes: [
+        change({
+          path: "src/app.ts",
+          matches: [match({ replaced: [[12, 14]] })],
+          snippets: [{ startLine: 11, lines: ["a", "b", "c", "d", "e"] }],
+        }),
+      ],
+    });
+    expect(formatter.format(edited, ctx())).toBe(
+      "Edited src/app.ts: 1 replacement at lines 12-14.\n11|a\n12|b\n13|c\n14|d\n15|e",
+    );
+  });
+
+  test("edit: a single line, several pairs sorted, and snippets split by ...", () => {
+    const single = report({
+      tool: "edit",
+      changes: [change({ matches: [match({ replaced: [[4, 4]] })] })],
+    });
+    expect(formatter.format(single, ctx())).toBe("Edited src/app.ts: 1 replacement at line 4.");
+    const several = report({
+      tool: "edit",
+      changes: [
+        change({
+          matches: [
+            match({ index: 0, replaced: [[12, 14]] }),
+            match({ index: 1, replaced: [[4, 4]] }),
+            match({ index: 2, replaced: [[40, 40]] }),
+          ],
+          snippets: [
+            { startLine: 4, lines: ["x"] },
+            { startLine: 40, lines: ["y"] },
+          ],
+        }),
+      ],
+    });
+    expect(formatter.format(several, ctx())).toBe(
+      "Edited src/app.ts: 3 replacements at lines 4, 12-14, 40.\n4|x\n...\n40|y",
+    );
+  });
+
+  test("edit: replace all, and more than maxListedMatches ranges end with …", () => {
+    const replaced = Array.from({ length: 10 }, (_, index): [number, number] => [
+      index * 3 + 1,
+      index * 3 + 1,
+    ]);
+    const all = report({
+      tool: "edit",
+      changes: [change({ matches: [match({ count: 12, replaced })] })],
+    });
+    expect(formatter.format(all, ctx())).toBe(
+      "Edited src/app.ts: 12 replacements (replace all) at lines 1, 4, 7, 10, 13, 16, 19, 22, 25, 28, ….",
+    );
+  });
+
+  test("edit: user-modified content, no-change, and a custom gutter", () => {
+    const user = report({
+      tool: "edit",
+      changes: [change({ userModified: true, snippets: [{ startLine: 2, lines: ["u"] }] })],
+    });
+    expect(defaultWriteFormatter({ gutter: (line) => `${line}\t` }).format(user, ctx())).toBe(
+      "Edited src/app.ts with the user's changes (+12 -3 lines).\n2\tu",
+    );
+    expect(
+      formatter.format(
+        report({ tool: "edit", status: "no-change", unchanged: ["src/app.ts"] }),
+        ctx(),
+      ),
+    ).toBe("No change to src/app.ts.");
   });
 
   test("rejects bad options", () => {

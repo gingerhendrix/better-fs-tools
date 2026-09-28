@@ -45,5 +45,8 @@ export function planWrite<THost>(
     createParents: loaded === null,
     record: pre.record,
     userModified: false,
+    rematched: false,
+    matches: [],
+    snippets: [],
   };
 }

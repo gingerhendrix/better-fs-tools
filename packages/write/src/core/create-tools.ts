@@ -1,11 +1,29 @@
 import type { ToolCallContext } from "@better-fs-tools/read";
 
-import type { WriteTool } from "../contract/context.ts";
-import type { WriteToolDeps } from "../contract/deps.ts";
+import type { EditTool, WriteTool } from "../contract/context.ts";
+import type { EditToolDeps, WriteToolDeps } from "../contract/deps.ts";
 import type { MutationResult } from "../contract/result.ts";
-import { resolveWriteDependencies } from "./deps.ts";
+import { resolveEditDependencies, resolveWriteDependencies } from "./deps.ts";
+import { MissCounter } from "./hints.ts";
 import { isRecord } from "./input.ts";
-import { runWrite } from "./pipeline.ts";
+import { runEdit, runWrite } from "./pipeline.ts";
+
+/**
+ * Validates and resolves dependencies once, synchronously, as
+ * createWriteTool does, plus a non-empty `matchers` list (default
+ * defaultEditMatchers()). Each tool instance keeps its own miss counter.
+ */
+export function createEditTool<THost = undefined>(deps: EditToolDeps<THost>): EditTool<THost> {
+  const resolved = resolveEditDependencies(deps);
+  const misses = new MissCounter();
+  const edit = async (input: unknown, ctx?: ToolCallContext<THost>): Promise<MutationResult> => {
+    if (ctx !== undefined && !isRecord(ctx)) throw new TypeError("edit context must be an object");
+    // One call object for every stage of this call.
+    const call = ctx ?? ({} as ToolCallContext<THost>);
+    return runEdit(resolved, input, call, misses);
+  };
+  return edit as EditTool<THost>;
+}
 
 /**
  * Validates and resolves dependencies once, synchronously. Throws TypeError

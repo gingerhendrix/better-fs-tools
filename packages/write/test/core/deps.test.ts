@@ -3,9 +3,11 @@ import { describe, expect, test } from "bun:test";
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { createMemoryStore } from "@better-fs-tools/read/state";
 
-import { resolveWriteDependencies } from "../../src/core/deps.ts";
+import { resolveEditDependencies, resolveWriteDependencies } from "../../src/core/deps.ts";
 import {
+  createEditTool,
   createWriteTool,
+  exactMatcher,
   defaultPreconditions,
   defaultWriteLimits,
   defaultWriteMessages,
@@ -89,5 +91,28 @@ describe("write tool dependencies (section 4.4)", () => {
     expect(() =>
       createWriteTool({ fs, state: createMemoryStore(), digest: testDigest() }),
     ).not.toThrow();
+  });
+
+  test("edit: matchers default to defaultEditMatchers() and replace as a whole", () => {
+    expect(resolveEditDependencies({ fs }).matchers.map((matcher) => matcher.id)).toEqual([
+      "exact",
+      "normalized",
+      "escape",
+    ]);
+    expect(
+      resolveEditDependencies({ fs, matchers: undefined }).matchers.map((matcher) => matcher.id),
+    ).toEqual(["exact", "normalized", "escape"]);
+    const exact = exactMatcher();
+    expect(resolveEditDependencies({ fs, matchers: [exact] }).matchers).toEqual([exact]);
+  });
+
+  test.each([
+    ["an empty matcher list", { fs, matchers: [] }, "matchers"],
+    ["a malformed matcher", { fs, matchers: [{ id: "m", find: () => [] }] }, "matchers"],
+    ["a bad adapt", { fs, matchers: [{ ...exactMatcher(), adapt: 1 }] }, "matchers"],
+    ["an unknown key", { fs, patchParser: {} }, "Unknown edit tool dependency: patchParser"],
+    ["a shared rule", { fs, state: createMemoryStore() }, "state needs a digest"],
+  ])("edit rejects %s", (_name, deps, message) => {
+    expect(() => createEditTool(deps as never)).toThrow(message);
   });
 });

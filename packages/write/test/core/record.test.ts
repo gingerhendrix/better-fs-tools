@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { createReadTool, repeatReadGuard } from "@better-fs-tools/read";
 import type { ReadStateStore } from "@better-fs-tools/read";
 
-import { createWriteTool } from "../../src/index.ts";
+import { createEditTool, createWriteTool } from "../../src/index.ts";
 import type { WriteAuthorizer, WriteHook } from "../../src/index.ts";
 import { FIXED_DATE, errorCode, harness, testDigest, text } from "../helpers.ts";
 
@@ -86,6 +86,13 @@ describe("record (section 5.10)", () => {
     const result = await write({ path: "/a.txt", content: "x" });
     expect(result.changes[0]?.after?.contentId).toBeNull();
   });
+
+  test("an edit keeps the previous record's wholeFileVisible", async () => {
+    const { read, edit, state } = harness({ files: { "/a.txt": "one\n" } });
+    await read({ path: "/a.txt" });
+    await edit({ path: "/a.txt", edits: [{ oldText: "one", newText: "two" }] });
+    expect(await state.get("/a.txt")).toMatchObject({ origin: "write", wholeFileVisible: true });
+  });
 });
 
 describe("records for bytes the model has not seen (batch 3 follow-up)", () => {
@@ -108,17 +115,39 @@ describe("records for bytes the model has not seen (batch 3 follow-up)", () => {
   test.each([
     ["W6 content", { authorize: userContent }, "user-modified"],
     ["a hook rewrite", { hooks: [rewriter] }, "hook-rewrote"],
-  ])("after %s the record is not whole, so write needs a whole read", async (_name, deps, code) => {
-    const { read, write, fs, state } = harness({ files: { "/a.txt": "one\n" }, deps });
+  ])(
+    "after %s the record is not whole: edit works, write needs a whole read",
+    async (_name, deps, code) => {
+      const { read, write, fs, state } = harness({ files: { "/a.txt": "one\n" }, deps });
+      await read({ path: "/a.txt" });
+      const first = await write({ path: "/a.txt", content: "mine\n" });
+      expect(first.notes.map((entry) => entry.code)).toContain(code);
+      expect(await state.get("/a.txt")).toMatchObject({ origin: "write", wholeFileVisible: false });
+
+      const plain = createEditTool({ fs, state, digest: testDigest(), clock: () => FIXED_DATE });
+      const current = text(fs, "/a.txt") ?? "";
+      const edited = await plain({
+        path: "/a.txt",
+        edits: [{ oldText: current, newText: "edited\n" }],
+      });
+      expect(edited.status).toBe("ok");
+
+      const plainWrite = createWriteTool({ fs, state, digest: testDigest() });
+      const replaced = await plainWrite({ path: "/a.txt", content: "again\n" });
+      expect(replaced.error).toMatchObject({ code: "NOT_READ", data: { wholeFile: true } });
+      expect(text(fs, "/a.txt")).toBe("edited\n");
+    },
+  );
+
+  test("the same rules hold for edit: W6 content on an edit leaves a partial record", async () => {
+    const { read, edit, write, state } = harness({
+      files: { "/a.txt": "one\n" },
+      deps: { authorize: userContent },
+    });
     await read({ path: "/a.txt" });
-    const first = await write({ path: "/a.txt", content: "mine\n" });
-    expect(first.notes.map((entry) => entry.code)).toContain(code);
-    expect(await state.get("/a.txt")).toMatchObject({ origin: "write", wholeFileVisible: false });
-    const plainWrite = createWriteTool({ fs, state, digest: testDigest() });
-    const current = text(fs, "/a.txt");
-    const replaced = await plainWrite({ path: "/a.txt", content: "again\n" });
-    expect(replaced.error).toMatchObject({ code: "NOT_READ", data: { wholeFile: true } });
-    expect(text(fs, "/a.txt")).toBe(current);
+    await edit({ path: "/a.txt", edits: [{ oldText: "one", newText: "two" }] });
+    expect((await state.get("/a.txt"))?.wholeFileVisible).toBe(false);
+    expect(errorCode(await write({ path: "/a.txt", content: "x" }))).toBe("NOT_READ");
   });
 
   test("a create that a hook rewrote needs a read before write", async () => {

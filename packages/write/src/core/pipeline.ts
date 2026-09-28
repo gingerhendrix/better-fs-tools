@@ -1,7 +1,7 @@
 import type { ToolCallContext } from "@better-fs-tools/read";
 
-import type { WriteDependencies } from "../contract/deps.ts";
-import type { MutationRequest, WriteRequest } from "../contract/input.ts";
+import type { EditDependencies, WriteDependencies } from "../contract/deps.ts";
+import type { EditRequest, MutationRequest, WriteRequest } from "../contract/input.ts";
 import type { MutationReport, MutationResult } from "../contract/result.ts";
 import { AbortStop } from "./abort.ts";
 import { authorizeAccess, authorizeChanges } from "./authorize.ts";
@@ -10,11 +10,13 @@ import { encodePlanned } from "./encode.ts";
 import { formatResult } from "./format.ts";
 import { runGuards } from "./guards.ts";
 import { committedFile, runWriteHooks } from "./hooks.ts";
-import { isRecord, parseWriteInput } from "./input.ts";
+import type { MissCounter } from "./hints.ts";
+import { isRecord, parseEditInput, parseWriteInput } from "./input.ts";
 import { loadFile } from "./load.ts";
 import type { Loaded } from "./load.ts";
 import { acquireLocks } from "./lock.ts";
 import { WriteStop, errorNote, failure, messageOf } from "./outcomes.ts";
+import { planEdit } from "./plan-edit.ts";
 import { planWrite } from "./plan-write.ts";
 import { withContent } from "./planned.ts";
 import type { Planned, ResolvedTarget } from "./planned.ts";
@@ -45,7 +47,30 @@ export async function runWrite<THost>(
   return formatResult(deps, call, report);
 }
 
-/** What differs between the single-file tools (write now, edit next). */
+/** One edit call, start to end. `misses` counts NO_MATCH results for this tool instance. */
+export async function runEdit<THost>(
+  deps: EditDependencies<THost>,
+  input: unknown,
+  call: ToolCallContext<THost>,
+  misses: MissCounter,
+): Promise<MutationResult> {
+  let request: EditRequest;
+  try {
+    request = parseEditInput(input, deps.limits);
+  } catch (error) {
+    return formatResult(deps, call, invalidInput(deps, "edit", input, error));
+  }
+  const { matchers } = deps;
+  const report = await runSingleFile(deps, request, call, {
+    missing: "not-found",
+    plan: (scope, target, loaded, pre) =>
+      planEdit(scope, { request, matchers, misses }, target, loaded, pre),
+    sameBytes: "error",
+  });
+  return formatResult(deps, call, report);
+}
+
+/** What differs between the single-file tools, write and edit. */
 export interface SingleFilePlan<THost> {
   /** "create": a missing target is a create. "not-found": it ends the call with NOT_FOUND. */
   readonly missing: "create" | "not-found";
@@ -114,7 +139,7 @@ async function singleFileStages<THost>(
     const [content] = await authorizeChanges(scope, [planned.change]);
     if (content !== null && content !== undefined) {
       scope.enter("plan");
-      planned = withContent(planned, content, limits.maxDiffLines);
+      planned = withContent(planned, content, limits);
       scope.notes.push({
         code: "user-modified",
         severity: "warning",

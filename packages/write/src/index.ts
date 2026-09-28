@@ -57,7 +57,7 @@ export type { WriteFormatContext, WriteFormatter } from "./contract/format.ts";
 export type { WriteLimits } from "./contract/limits.ts";
 export type { CanonicalParam, WriteMessageCatalog } from "./contract/messages.ts";
 
-export { createWriteTool } from "./core/create-tools.ts";
+export { createEditTool, createWriteTool } from "./core/create-tools.ts";
 export { parseApplyPatchInput, parseEditInput, parseWriteInput } from "./core/input.ts";
 export { defaultWriteLimits, resolveWriteLimits } from "./core/limits.ts";
 export { defaultWriteMessages, resolveWriteMessages } from "./core/messages.ts";

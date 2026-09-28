@@ -169,6 +169,40 @@ describe("authorize (sections 5.2 and 5.8)", () => {
     expect((await write({ path: "/a.txt", content: "two\n" })).status).toBe("no-change");
   });
 
+  test("W6 on edit: content is re-diffed and re-snippeted", async () => {
+    const lines = Array.from({ length: 20 }, (_, index) => `l${index + 1}`);
+    const { authorizer } = recording((target) =>
+      target.change === null
+        ? { allow: true }
+        : { allow: true, content: `${lines.join("\n").replace("l17", "user")}\n` },
+    );
+    const { fs, read, edit } = harness({
+      files: { "/a.txt": `${lines.join("\n")}\n` },
+      deps: { authorize: authorizer, limits: { snippetLines: 1 } },
+    });
+    await read({ path: "/a.txt" });
+    const result = await edit({ path: "/a.txt", edits: [{ oldText: "l2\n", newText: "two\n" }] });
+    expect(text(fs, "/a.txt")).toContain("\nl2\n");
+    expect(text(fs, "/a.txt")).toContain("\nuser\n");
+    const [change] = result.changes;
+    expect(change?.userModified).toBe(true);
+    expect(change?.snippets).toEqual([{ startLine: 16, lines: ["l16", "user", "l18"] }]);
+    expect(codes(result)).toEqual(["user-modified"]);
+  });
+
+  test("W6 on edit: content equal to the file is NO_CHANGE", async () => {
+    const { authorizer } = recording((target) =>
+      target.change === null ? { allow: true } : { allow: true, content: "one\n" },
+    );
+    const { read, edit } = harness({
+      files: { "/a.txt": "one\n" },
+      deps: { authorize: authorizer },
+    });
+    await read({ path: "/a.txt" });
+    const result = await edit({ path: "/a.txt", edits: [{ oldText: "one", newText: "two" }] });
+    expect(result.error).toMatchObject({ code: "NO_CHANGE", phase: "encode" });
+  });
+
   test("content in the access stage is EXTENSION_FAILED", async () => {
     const { authorizer } = recording(() => ({ allow: true, content: "x" }));
     const { write } = harness({ deps: { authorize: authorizer } });

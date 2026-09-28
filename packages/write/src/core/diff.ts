@@ -12,6 +12,11 @@ export interface LineDiff {
   readonly text: string;
   /** The text was cut at maxLines. The counts are still exact for the edit script. */
   readonly truncated: boolean;
+  /**
+   * One-based inclusive line ranges in `after` of each run of changed lines.
+   * A run that only removes lines gives the line after the removal.
+   */
+  readonly changed: readonly (readonly [number, number])[];
 }
 
 type Op = { readonly kind: " " | "-" | "+"; readonly token: string };
@@ -39,7 +44,7 @@ export function unifiedDiff(
     else if (op.kind === "-") linesRemoved += 1;
   }
   if (linesAdded === 0 && linesRemoved === 0) {
-    return { linesAdded, linesRemoved, text: "", truncated: false };
+    return { linesAdded, linesRemoved, text: "", truncated: false, changed: [] };
   }
   const name = path.replace(/^\/+/u, "");
   const out = new Output(maxLines);
@@ -55,7 +60,35 @@ export function unifiedDiff(
       if (!newline) out.push("\\ No newline at end of file");
     }
   }
-  return { linesAdded, linesRemoved, text: out.text(), truncated: out.truncated };
+  return {
+    linesAdded,
+    linesRemoved,
+    text: out.text(),
+    truncated: out.truncated,
+    changed: changedRuns(ops),
+  };
+}
+
+function changedRuns(ops: readonly Op[]): [number, number][] {
+  const runs: [number, number][] = [];
+  let line = 0;
+  let index = 0;
+  while (index < ops.length) {
+    if ((ops[index] as Op).kind === " ") {
+      line += 1;
+      index += 1;
+      continue;
+    }
+    const first = line + 1;
+    let added = 0;
+    while (index < ops.length && (ops[index] as Op).kind !== " ") {
+      if ((ops[index] as Op).kind === "+") added += 1;
+      index += 1;
+    }
+    line += added;
+    runs.push([first, Math.max(first, line)]);
+  }
+  return runs;
 }
 
 /** Lines with their "\n". The last one has none when the text does not end with a newline. */

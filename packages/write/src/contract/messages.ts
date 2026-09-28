@@ -66,7 +66,7 @@ export interface WriteMessageCatalog extends ToolMessages {
     path: string;
     index: number;
     matcher: string;
-    reason: "span" | "boundary" | "escape" | "fuzzy-replace-all";
+    reason: "span" | "boundary" | "escape" | "fuzzy-replace-all" | "too-many";
   }): string;
   overlap(c: { path: string; first: number; second: number }): string;
   noChange(c: { path: string }): string;

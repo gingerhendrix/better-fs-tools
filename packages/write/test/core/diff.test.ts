@@ -12,6 +12,7 @@ describe("unifiedDiff", () => {
       linesRemoved: 1,
       truncated: false,
       text: "--- a/src/x.ts\n+++ b/src/x.ts\n@@ -2,7 +2,7 @@\n b\n c\n d\n-e\n+E\n f\n g\n h\n",
+      changed: [[5, 5]],
     });
   });
 
@@ -39,12 +40,23 @@ describe("unifiedDiff", () => {
     expect(diff.text).toContain("@@ -25,6 +25,6 @@");
   });
 
+  test("changed runs are line ranges in the new text", () => {
+    const before = "a\nb\nc\nd\ne\nf\n";
+    const after = "a\nB\nB2\nc\ne\nf\ng\n";
+    expect(unifiedDiff(before, after, "f", 100).changed).toEqual([
+      [2, 3],
+      [5, 5],
+      [7, 7],
+    ]);
+  });
+
   test("equal texts give an empty diff", () => {
     expect(unifiedDiff("a\n", "a\n", "f", 100)).toEqual({
       linesAdded: 0,
       linesRemoved: 0,
       text: "",
       truncated: false,
+      changed: [],
     });
   });
 

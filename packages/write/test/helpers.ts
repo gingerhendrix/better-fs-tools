@@ -9,8 +9,14 @@ import { createReadTool } from "@better-fs-tools/read";
 import type { Digest, Note, ReadStateStore, ReadTool } from "@better-fs-tools/read";
 import { createMemoryStore } from "@better-fs-tools/read/state";
 
-import { createWriteTool } from "../src/index.ts";
-import type { MutationResult, WriteTool, WriteToolDeps } from "../src/index.ts";
+import { createEditTool, createWriteTool } from "../src/index.ts";
+import type {
+  EditTool,
+  EditToolDeps,
+  MutationResult,
+  WriteTool,
+  WriteToolDeps,
+} from "../src/index.ts";
 
 const ENCODER = new TextEncoder();
 const DECODER = new TextDecoder();
@@ -49,6 +55,8 @@ export interface HarnessOptions {
   /** Replaces the memory filesystem the write tool sees. The read tool still reads `fs`. */
   readonly writeFs?: (fs: MemoryFileSystem) => WritableFileSystem;
   readonly deps?: Omit<WriteToolDeps, "fs">;
+  /** Added to `deps` for the edit tool only. */
+  readonly editDeps?: Omit<EditToolDeps, "fs">;
 }
 
 export interface Harness {
@@ -57,23 +65,23 @@ export interface Harness {
   readonly digest: Digest;
   readonly read: ReadTool;
   readonly write: WriteTool;
+  readonly edit: EditTool;
 }
 
-/** A read tool and a write tool over one memory filesystem, one store, one digest, and the fixed clock. */
+/**
+ * A read tool, a write tool, and an edit tool over one memory filesystem,
+ * one store, one digest, and the fixed clock.
+ */
 export function harness(options: HarnessOptions = {}): Harness {
   const fs = memoryFileSystem({ files: options.files ?? {}, ...options.fsOptions });
   const state = createMemoryStore();
   const digest = testDigest();
   const clock = () => FIXED_DATE;
   const read = createReadTool({ fs, state, digest, clock });
-  const write = createWriteTool({
-    fs: options.writeFs?.(fs) ?? fs,
-    state,
-    digest,
-    clock,
-    ...options.deps,
-  });
-  return { fs, state, digest, read, write };
+  const shared = { fs: options.writeFs?.(fs) ?? fs, state, digest, clock, ...options.deps };
+  const write = createWriteTool(shared);
+  const edit = createEditTool({ ...shared, ...options.editDeps });
+  return { fs, state, digest, read, write, edit };
 }
 
 /** The current text of a memory file, or null. */

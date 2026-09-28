@@ -5,13 +5,20 @@ import type { Digest, ReadStateStore } from "@better-fs-tools/read";
 
 import { utf8Codec } from "../codecs/utf8.ts";
 import type { Codec } from "../contract/codec.ts";
-import type { WriteDependencies, WriteToolDeps } from "../contract/deps.ts";
+import type {
+  EditDependencies,
+  EditToolDeps,
+  WriteDependencies,
+  WriteToolDeps,
+} from "../contract/deps.ts";
 import type { Guard, WriteHook } from "../contract/extensions.ts";
 import type { LockManager } from "../contract/locks.ts";
+import type { Matcher } from "../contract/matcher.ts";
 import { defaultPreconditions } from "../contract/preconditions.ts";
 import type { PreconditionPolicy } from "../contract/preconditions.ts";
 import { defaultWriteFormatter } from "../formatters/default.ts";
 import { memoryLocks } from "../locks/memory-locks.ts";
+import { defaultEditMatchers } from "../matchers/index.ts";
 import { isRecord } from "./input.ts";
 import { resolveWriteLimits } from "./limits.ts";
 import { resolveWriteMessages } from "./messages.ts";
@@ -116,6 +123,19 @@ export function resolveWriteDependencies<THost>(
   });
 }
 
+/** The shared dependencies plus `matchers`: ordered and non-empty. Default defaultEditMatchers(). */
+export function resolveEditDependencies<THost>(deps: EditToolDeps<THost>): EditDependencies<THost> {
+  if (!isRecord(deps)) throw new TypeError("edit tool dependencies must be an object");
+  const { matchers = defaultEditMatchers(), ...shared } = deps;
+  if (!Array.isArray(matchers) || matchers.length === 0 || !matchers.every(isMatcher)) {
+    throw new TypeError("matchers must be a non-empty array of matchers");
+  }
+  return Object.freeze({
+    ...resolveWriteDependencies(shared, "edit"),
+    matchers: Object.freeze([...matchers]),
+  });
+}
+
 const POLICY_VALUES: { readonly [K in keyof PreconditionPolicy]: readonly string[] } = {
   requireRead: ["existing", "off"],
   partialRead: ["edit-only", "always", "never"],
@@ -180,6 +200,17 @@ function isCodec(value: unknown): value is Codec {
     typeof value.decode === "function" &&
     typeof value.encode === "function" &&
     isRecord(value.newFileStyle)
+  );
+}
+
+function isMatcher(value: unknown): value is Matcher {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.fuzzy === "boolean" &&
+    typeof value.describe === "string" &&
+    typeof value.find === "function" &&
+    (value.adapt === undefined || typeof value.adapt === "function")
   );
 }
 

@@ -133,8 +133,8 @@ export function fileChange<THost>(
     linesRemoved: change.linesRemoved,
     diff: change.diff,
     diffTruncated: planned.diffTruncated,
-    matches: [],
-    snippets: [],
+    matches: planned.matches,
+    snippets: planned.snippets,
     userModified: planned.userModified,
     createdDirectories: [...file.createdDirectories],
   };

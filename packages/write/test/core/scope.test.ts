@@ -4,7 +4,12 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { ToolCallContext } from "@better-fs-tools/read";
 import { createMemoryStore } from "@better-fs-tools/read/state";
 
-import { createWriteTool, defaultWriteFormatter, memoryLocks } from "../../src/index.ts";
+import {
+  createEditTool,
+  createWriteTool,
+  defaultWriteFormatter,
+  memoryLocks,
+} from "../../src/index.ts";
 import { errorCode, harness, testDigest } from "../helpers.ts";
 
 interface Host {
@@ -90,6 +95,86 @@ describe("call scope (section 5.1)", () => {
     // host never reaches the result or the record.
     expect(JSON.stringify(result)).not.toContain("s3cret");
     expect(JSON.stringify(await store.get("/b.txt"))).not.toContain("s3cret");
+  });
+
+  test("edit: every extension point gets the same call object the caller passed", async () => {
+    const fs = memoryFileSystem({ files: { "/a.txt": "one\n" } });
+    const seen = new Map<string, unknown[]>();
+    const saw = (point: string, call: unknown) => {
+      seen.set(point, [...(seen.get(point) ?? []), call]);
+    };
+    const formatter = defaultWriteFormatter();
+    const edit = createEditTool<Host>({
+      fs: (call) => {
+        saw("fs", call);
+        return fs;
+      },
+      state: (call) => {
+        saw("state", call);
+        return null;
+      },
+      digest: testDigest(),
+      resolve: {
+        id: "spy",
+        resolve: (path, ctx) => {
+          saw("resolve", ctx.call);
+          return { kind: "path", path };
+        },
+      },
+      authorize: {
+        id: "spy",
+        authorize: (target, ctx) => {
+          saw(target.change === null ? "authorize:access" : "authorize:change", ctx.call);
+          return { allow: true };
+        },
+      },
+      guards: [
+        {
+          id: "spy",
+          check: (_change, ctx) => {
+            saw("guards", ctx.call);
+            return { allow: true };
+          },
+        },
+      ],
+      hooks: [
+        {
+          id: "spy",
+          afterWrite: (_change, ctx) => {
+            saw("hooks", ctx.call);
+            return {};
+          },
+        },
+      ],
+      formatter: {
+        id: "spy",
+        format: (report, ctx) => {
+          saw("formatter", ctx.call);
+          return formatter.format(report, ctx);
+        },
+      },
+    });
+    const call: ToolCallContext<Host> = { host: { secret: "s3cret" }, callId: "c2" };
+    const result = await edit(
+      { path: "/a.txt", edits: [{ oldText: "one", newText: "two" }] },
+      call,
+    );
+    expect(result.status).toBe("ok");
+    expect([...seen.keys()].sort()).toEqual([
+      "authorize:access",
+      "authorize:change",
+      "formatter",
+      "fs",
+      "guards",
+      "hooks",
+      "resolve",
+      "state",
+    ]);
+    for (const calls of seen.values()) {
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toBe(call);
+    }
+    expect(JSON.stringify(result)).not.toContain("s3cret");
   });
 
   test("a direct caller without a context gets one fresh call object for the whole call", async () => {
