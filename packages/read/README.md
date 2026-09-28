@@ -124,23 +124,23 @@ You cannot remove the input validation, the scan, the limits, the type check, or
 
 Pass dependencies to `createReadTool()`, `createNodeReadTool()`, or an adapter factory (`createAiSdkReadTool()`, `createPiReadTool()`). The adapter passes them to the core.
 
-| Dimension                                              | Dependency                  | Default                                                                     |
-| ------------------------------------------------------ | --------------------------- | --------------------------------------------------------------------------- |
-| Tool name, parameters, range model, descriptions       | `signature` (adapters only) | `defaultReadSignature()`: `read` with `path`, `offset`, `limit`             |
-| Filesystem, allowed roots, deny roots, symlinks        | `fs`                        | Required. `createNodeReadTool()` uses `nodeFileSystem` over `process.cwd()` |
-| Path rewrites (`~`, `file://`, `@`, Unicode repair)    | `resolve`                   | `null` (the path is used as given)                                          |
-| Names to suggest when a file is missing                | `suggest`                   | `defaultSuggest()`                                                          |
-| Per-path policy, size ceiling, user approval           | `authorize`                 | `null` (allow)                                                              |
-| Binary and format detection                            | `classifiers`               | `defaultClassifiers()`                                                      |
-| File conversion, images, directories                   | `converters`                | `[]`                                                                        |
-| Line, byte, scan, conversion, and media limits         | `limits`                    | `defaultReadLimits`                                                         |
-| Token limit                                            | `budget`                    | `null`                                                                      |
-| Redaction, repeat-read guard, your own after-read code | `hooks`                     | `[]`                                                                        |
-| Output text or content parts                           | `formatter`                 | `lineNumberFormatter()`                                                     |
-| Note and message wording                               | `messages`                  | `defaultReadMessages`                                                       |
-| Read records for later tools                           | `state`                     | `null`                                                                      |
-| Content hashes and observations                        | `digest`                    | `null`. `createNodeReadTool()` and the Pi tool use `nodeDigest()`           |
-| Timestamps                                             | `clock`                     | `() => new Date()`                                                          |
+| Dimension                                              | Dependency                  | Default                                                                                           |
+| ------------------------------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------- |
+| Tool name, parameters, range model, descriptions       | `signature` (adapters only) | `defaultReadSignature()`: `read` with `path`, `offset`, `limit`                                   |
+| Filesystem, allowed roots, deny roots, symlinks        | `fs`                        | Required. `createNodeReadTool()` uses `nodeFileSystem` over `process.cwd()`                       |
+| Path rewrites (`~`, `file://`, `@`, Unicode repair)    | `resolve`                   | `null` (the path is used as given)                                                                |
+| Names to suggest when a file is missing                | `suggest`                   | `defaultSuggest()`                                                                                |
+| Per-path policy, size ceiling, user approval           | `authorize`                 | `null` (allow)                                                                                    |
+| Binary and format detection                            | `classifiers`               | `defaultClassifiers()`                                                                            |
+| File conversion, images, directories                   | `converters`                | `[]`                                                                                              |
+| Line, byte, scan, conversion, and media limits         | `limits`                    | `defaultReadLimits`                                                                               |
+| Token limit                                            | `budget`                    | `null`                                                                                            |
+| Redaction, repeat-read guard, your own after-read code | `hooks`                     | `[]`                                                                                              |
+| Output text or content parts                           | `formatter`                 | `lineNumberFormatter()`                                                                           |
+| Note and message wording                               | `messages`                  | `defaultReadMessages`                                                                             |
+| Read records for later tools                           | `state`                     | `null`                                                                                            |
+| Content hashes and observations                        | `digest`                    | `null`. `createNodeReadTool()` and the Pi tool use `nodeDigest()`. `sha256Digest()` runs anywhere |
+| Timestamps                                             | `clock`                     | `() => new Date()`                                                                                |
 
 `limits` and `messages` merge over their defaults key by key. Every other dependency replaces its default. To add to a list, include the default yourself:
 
@@ -666,6 +666,7 @@ await read({ path: "/a.txt" }, { host: session, callId: "call-1" });
 ```
 
 - `fs` can be a function of the call. It runs once for each read, before `resolve`. Use it to choose a backend for each call.
+- `sha256Digest()` is SHA-256 in plain JavaScript. It is synchronous and needs no Node module, so it works in a Cloudflare Worker. Its id and its values (`sha256:<hex>`) are the same as `nodeDigest()`, so records from either one match.
 - `state` needs a `digest`, because a record names the digest that made it. `createReadTool` throws `TypeError` for a `state` without a `digest`, and the dependency type (`StateNeedsDigest`) refuses it at compile time.
 - `state` can be a function of the call. It runs at most once for each read, and only when the core needs the store. Return `null` for no store. A factory that throws gives `EXTENSION_FAILED`. A store whose `get` or `put` fails never fails the read.
 - The record key is `file.resolvedPath`. A read stores a `ReadRecord` with `schema: 2` and `origin: "read"`. It holds the backend `version`, the `digest` id, the content and view ids, and the read range. The write tools store records with `origin: "write"` and `request: null` after a commit. A record of another schema counts as absent.

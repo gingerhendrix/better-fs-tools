@@ -82,6 +82,7 @@ export { parseReadInput } from "./core/input.ts";
 export { defaultReadLimits, resolveReadLimits } from "./core/limits.ts";
 export { defaultReadMessages, resolveReadMessages } from "./core/messages.ts";
 export { textOf } from "./core/format.ts";
+export { sha256Digest } from "./digest/sha256.ts";
 export { createMemoryStore } from "./state/index.ts";
 export type { MemoryStoreOptions } from "./state/index.ts";
 export {

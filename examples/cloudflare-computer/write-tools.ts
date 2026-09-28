@@ -1,13 +1,12 @@
 import type { Workspace } from "@cloudflare/computer";
 import { computerFileSystem } from "@better-fs-tools/cloudflare-computer";
-import { createMemoryStore, createReadTool } from "@better-fs-tools/read";
-import type { Digest } from "@better-fs-tools/read";
+import { createMemoryStore, createReadTool, sha256Digest } from "@better-fs-tools/read";
 import { createEditTool, createWriteTool, memoryLocks } from "@better-fs-tools/write";
 
-// A Digest is synchronous, and a Worker has no node:crypto: pass a pure JavaScript hash.
-export function computerTools(workspace: Workspace, digest: Digest) {
+// sha256Digest() is plain JavaScript, so it runs in a Worker.
+export function computerTools(workspace: Workspace) {
   const fs = computerFileSystem(workspace.fs, { root: "/workspace" });
-  const shared = { fs, state: createMemoryStore(), digest };
+  const shared = { fs, state: createMemoryStore(), digest: sha256Digest() };
   const locks = memoryLocks();
   return {
     read: createReadTool(shared),
