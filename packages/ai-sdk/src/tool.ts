@@ -8,6 +8,7 @@ import type { ReadSignature } from "@better-fs-tools/read/signature";
 
 import { toAiSdkOutput } from "./output.ts";
 import type { AiSdkReadOutput } from "./output.ts";
+import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
 export interface CreateAiSdkReadToolOptions<C = unknown> extends ReadToolDeps<
   ToolExecutionOptions<C>
@@ -21,9 +22,9 @@ export interface AiSdkReadTool<C = unknown> {
   readonly name: string;
   readonly description: string;
   readonly strict: true;
-  /** jsonSchema(signature.schema, { validate }). validate runs toRead and parseReadInput. */
+  /** jsonSchema(toStrictSchema(signature.schema), { validate }). validate maps null to absent first. validate runs toRead and parseReadInput. */
   readonly inputSchema: Schema<JsonObject>;
-  /** read(signature.toRead(input), { signal: abortSignal, callId: toolCallId, host: options }). */
+  /** read(signature.toRead(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ReadResult>;
   toModelOutput(options: { output: ReadResult }): AiSdkReadOutput;
 }
@@ -41,14 +42,16 @@ export function createAiSdkReadTool<C = unknown>(
     messages: { ...signatureMessages(signature), ...deps.messages },
   });
   const limits = resolveLimits(deps.limits);
+  const strict = toStrictSchema(signature.schema);
 
   return Object.freeze<AiSdkReadTool<C>>({
     name: signature.name,
     description: signature.description,
     strict: true,
-    inputSchema: jsonSchema<JsonObject>(signature.schema as JSONSchema7, {
-      validate(value) {
+    inputSchema: jsonSchema<JsonObject>(strict as JSONSchema7, {
+      validate(model) {
         try {
+          const value = fromStrictInput(signature.schema, model);
           // The core parse checks the canonical input the signature produced.
           parseReadInput(signature.toRead(value), limits);
           return { success: true, value: value as JsonObject };
@@ -67,7 +70,7 @@ export function createAiSdkReadTool<C = unknown>(
         callId: execution.toolCallId,
         host: execution,
       };
-      return read(signature.toRead(input), call);
+      return read(signature.toRead(fromStrictInput(signature.schema, input)), call);
     },
     toModelOutput: ({ output }) => toAiSdkOutput(output),
   });

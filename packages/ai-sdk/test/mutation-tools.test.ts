@@ -25,6 +25,7 @@ import {
   createAiSdkWriteTool,
 } from "../src/index.ts";
 import type { AiSdkMutationTool } from "../src/index.ts";
+import { toStrictSchema } from "../src/strict.ts";
 import { CLOCK, executeOptions } from "./helpers.ts";
 
 type Host = ToolExecutionOptions<Record<string, unknown>>;
@@ -79,7 +80,9 @@ describe("ai sdk mutation tools: schema", () => {
       expect(tool.strict).toBe(true);
       expect(tool.name).toBe(signature.name);
       expect(tool.description).toBe(signature.description);
-      expect(await tool.inputSchema.jsonSchema).toEqual(signature.schema as JSONSchema7);
+      expect(await tool.inputSchema.jsonSchema).toEqual(
+        toStrictSchema(signature.schema) as JSONSchema7,
+      );
       expect(Object.isFrozen(tool)).toBe(true);
     }
   });
@@ -93,7 +96,9 @@ describe("ai sdk mutation tools: schema", () => {
   test("a freeform signature keeps its JSON schema and has no grammar field", async () => {
     const signature = freeformPatchSignature();
     const tool = createAiSdkApplyPatchTool({ fs: memoryFileSystem(), signature });
-    expect(await tool.inputSchema.jsonSchema).toEqual(signature.schema as JSONSchema7);
+    expect(await tool.inputSchema.jsonSchema).toEqual(
+      toStrictSchema(signature.schema) as JSONSchema7,
+    );
     expect(Object.keys(tool).sort()).toEqual([
       "description",
       "execute",

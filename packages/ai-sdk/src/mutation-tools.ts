@@ -33,6 +33,7 @@ import type {
 
 import { toAiSdkOutput } from "./output.ts";
 import type { AiSdkReadOutput } from "./output.ts";
+import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
 export interface CreateAiSdkEditToolOptions<C = unknown> extends EditToolDeps<
   ToolExecutionOptions<C>
@@ -60,9 +61,9 @@ export interface AiSdkMutationTool<C = unknown> {
   readonly name: string;
   readonly description: string;
   readonly strict: true;
-  /** jsonSchema(signature.schema, { validate }). validate runs toInput and the core parse. */
+  /** jsonSchema(toStrictSchema(signature.schema), { validate }). validate maps null to absent first. validate runs toInput and the core parse. */
   readonly inputSchema: Schema<JsonObject>;
-  /** tool(signature.toInput(input), { signal: abortSignal, callId: toolCallId, host: options }). */
+  /** tool(signature.toInput(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<MutationResult>;
   toModelOutput(options: { output: MutationResult }): AiSdkReadOutput;
 }
@@ -131,13 +132,16 @@ function adapt<TInput, C>(
   limitOverrides: Partial<WriteLimits> | undefined,
 ): AiSdkMutationTool<C> {
   const limits = resolveWriteLimits(limitOverrides);
+  const strict = toStrictSchema(signature.schema);
+
   return Object.freeze<AiSdkMutationTool<C>>({
     name: signature.name,
     description: signature.description,
     strict: true,
-    inputSchema: jsonSchema<JsonObject>(signature.schema as JSONSchema7, {
-      validate(value) {
+    inputSchema: jsonSchema<JsonObject>(strict as JSONSchema7, {
+      validate(model) {
         try {
+          const value = fromStrictInput(signature.schema, model);
           // The core parse checks the canonical input the signature produced.
           parse(signature.toInput(value), limits);
           return { success: true, value: value as JsonObject };
@@ -156,7 +160,7 @@ function adapt<TInput, C>(
         callId: execution.toolCallId,
         host: execution,
       };
-      return tool(signature.toInput(input) as never, call);
+      return tool(signature.toInput(fromStrictInput(signature.schema, input)) as never, call);
     },
     toModelOutput: ({ output }) => toAiSdkOutput(output),
   });

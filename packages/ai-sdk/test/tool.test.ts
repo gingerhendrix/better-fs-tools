@@ -11,6 +11,7 @@ import { defaultSignature, lineRangeSignature } from "@better-fs-tools/read/sign
 
 import { createAiSdkReadTool } from "../src/index.ts";
 import type { AiSdkReadTool } from "../src/index.ts";
+import { toStrictSchema } from "../src/strict.ts";
 import { CLOCK, executeOptions, expectFailure, expectOk, stallingFileSystem } from "./helpers.ts";
 
 function tool(files: Record<string, string | Uint8Array> = {}) {
@@ -36,7 +37,7 @@ describe("ai sdk input schema", () => {
     expect(read.strict).toBe(true);
     expect(read.name).toBe("read");
     expect(read.description).toBe(signature.description);
-    expect(await schemaOf(read)).toEqual(signature.schema as JSONSchema7);
+    expect(await schemaOf(read)).toEqual(toStrictSchema(signature.schema) as JSONSchema7);
     expect(read.description).toMatch(/one-based/u);
     expect(read.description).toMatch(/continuation/u);
   });
