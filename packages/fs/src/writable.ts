@@ -5,6 +5,7 @@ import type {
   FileSystemErrorReason,
   NotAFileError,
   OpenOptions,
+  TooLargeError,
 } from "./contract.ts";
 
 /**
@@ -122,14 +123,14 @@ export type MutationErrorReason =
   | "no-space";
 
 export interface OtherMutationError {
-  readonly reason: Exclude<MutationErrorReason, "not-a-file">;
+  readonly reason: Exclude<MutationErrorReason, "not-a-file" | "too-large">;
   /** Non-sensitive detail for logs and notes. */
   readonly detail?: string;
   readonly cause?: BackendCause;
 }
 
 /** Read errors stay FileSystemError. Only mutation methods return the four new reasons. */
-export type MutationError = NotAFileError | OtherMutationError;
+export type MutationError = NotAFileError | TooLargeError | OtherMutationError;
 
 /** True when `fs` has writeCapabilities, stat, and write. */
 export function isWritableFileSystem(fs: FileSystem): fs is WritableFileSystem {

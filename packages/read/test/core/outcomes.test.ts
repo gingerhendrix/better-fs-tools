@@ -45,12 +45,20 @@ describe("filesystem refusals", () => {
     expect(textOf(result)).toContain("(/secret)");
   });
 
-  test("a buffered ceiling refuses an oversized object as DENIED", async () => {
+  test("a buffered ceiling refuses an oversized object as TOO_LARGE", async () => {
     const { read } = harness({
       files: { "/big.txt": "x".repeat(64) },
       fsOptions: { maxBufferedBytes: 16 },
     });
-    expectFailure(await read({ path: "/big.txt" }), "DENIED");
+    const result = expectFailure(await read({ path: "/big.txt" }), "TOO_LARGE");
+    expect(result.error.phase).toBe("open");
+    expect(result.notes[0]).toMatchObject({
+      code: "too-large",
+      severity: "warning",
+      message:
+        "/big.txt is larger than the 16-byte limit of this filesystem backend, so it was not read.",
+      data: { limit: 16, size: 64 },
+    });
   });
 
   test("an adapter that throws from open() gives IO_ERROR", async () => {

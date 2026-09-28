@@ -80,6 +80,7 @@ const CODE_BY_REASON = {
   exists: "EXISTS",
   "read-only": "READ_ONLY",
   "no-space": "NO_SPACE",
+  "too-large": "TOO_LARGE",
 } as const satisfies Record<MutationError["reason"], WriteErrorCode>;
 
 /** Section 5.11: the code for a backend refusal. */
@@ -97,13 +98,14 @@ export function backendErrorNote(
 ): Note {
   const code = codeForReason(error.reason);
   if (code === "ABORTED") return errorNote(code, messages.aborted({ phase }), { phase });
-  return errorNote(code, messageForError(messages, tool, path, error), errorData(error));
+  return errorNote(code, messageForError(messages, tool, path, error, phase), errorData(error));
 }
 
 /** Note data for a backend refusal: kind, detail, and cause when the backend gave them. */
 function errorData(error: FileSystemError | MutationError): Record<string, JsonValue> {
   return {
     ...(error.reason === "not-a-file" ? { kind: error.kind } : {}),
+    ...(error.reason === "too-large" ? { limit: error.limit, size: error.size } : {}),
     ...(error.detail === undefined ? {} : { detail: error.detail }),
     ...(error.cause === undefined ? {} : { cause: { ...error.cause } }),
   };
@@ -114,6 +116,7 @@ function messageForError(
   tool: WriteToolName,
   path: string,
   error: FileSystemError | MutationError,
+  phase: WritePhase,
 ): string {
   const detail = error.detail ?? null;
   switch (error.reason) {
@@ -139,6 +142,14 @@ function messageForError(
       return messages.readOnly({ path });
     case "no-space":
       return messages.noSpace({ path });
+    case "too-large":
+      // A ceiling on the way in is about the file; on the way out, about the new content.
+      return messages.tooLarge({
+        path,
+        what: phase === "commit" ? "content" : "file",
+        limit: error.limit,
+        existing: false,
+      });
     default:
       return messages.ioError({ path });
   }

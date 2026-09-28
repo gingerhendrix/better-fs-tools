@@ -38,10 +38,14 @@ const catalog: ReadMessageCatalog = {
   permissionDenied: ({ request }) => `Permission was denied for ${request.path}.`,
   denied: ({ path, detail }) =>
     `${path} was refused by policy${detail === null ? "" : ` (${detail})`}.`,
-  tooLarge: ({ request, stage, limit }) =>
-    stage === "convert"
+  tooLarge: ({ request, stage, limit }) => {
+    if (stage === "backend") {
+      return `${request.path} is larger than the ${limit}-byte limit of this filesystem backend, so it was not read.`;
+    }
+    return stage === "convert"
       ? `${request.path} is larger than the ${limit}-byte conversion limit, so it was not converted.`
-      : `The media converted from ${request.path} is larger than the ${limit}-byte media limit, so it was not returned.`,
+      : `The media converted from ${request.path} is larger than the ${limit}-byte media limit, so it was not returned.`;
+  },
   changedDuringRead: ({ request, retry }) =>
     `${request.path} changed while it was being read. Read it again with ${retry} before relying on this result.`,
   aborted: ({ phase }) =>

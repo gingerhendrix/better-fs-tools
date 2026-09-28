@@ -164,6 +164,7 @@ const CODE_BY_REASON = {
   "outside-allowed-roots": "OUTSIDE_ALLOWED_ROOTS",
   "permission-denied": "PERMISSION_DENIED",
   denied: "DENIED",
+  "too-large": "TOO_LARGE",
   unsupported: "UNSUPPORTED_BACKEND",
   aborted: "ABORTED",
   io: "IO_ERROR",
@@ -193,6 +194,7 @@ export function fromFileSystemError(
 export function errorData(error: FileSystemError): Record<string, JsonValue> {
   return {
     ...(error.reason === "not-a-file" ? { kind: error.kind } : {}),
+    ...(error.reason === "too-large" ? { limit: error.limit, size: error.size } : {}),
     ...(error.detail === undefined ? {} : { detail: error.detail }),
     ...(error.cause === undefined ? {} : { cause: { ...error.cause } }),
   };
@@ -232,6 +234,8 @@ function messageForError(
       return messages.permissionDenied({ request, detail });
     case "denied":
       return messages.denied({ path: request.path, detail });
+    case "too-large":
+      return messages.tooLarge({ request, stage: "backend", limit: error.limit });
     case "unsupported":
       return messages.unsupportedBackend({ request, detail });
     default:

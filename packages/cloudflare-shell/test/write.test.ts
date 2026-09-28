@@ -192,14 +192,18 @@ describe("shell workspace writes: write", () => {
     expect(workspace.entries.has("/workspace/nowhere.txt")).toBe(false);
   });
 
-  test("refuses bytes above the buffered ceiling as no-space", async () => {
+  test("refuses bytes above the buffered ceiling as too-large", async () => {
     const workspace = fakeWorkspace();
     const fs = shellWorkspaceFileSystem(workspace, { root: "/", maxBufferedBytes: 4 });
     const error = expectMutationError(
       await fs.write("big.txt", ENCODER.encode("12345"), CREATE),
-      "no-space",
+      "too-large",
     );
-    expect(error).toMatchObject({ detail: "the object exceeds the 4-byte buffered ceiling" });
+    expect(error).toMatchObject({
+      limit: 4,
+      size: 5,
+      detail: "the object exceeds the 4-byte buffered ceiling",
+    });
     expect(writes(workspace.calls)).toEqual([]);
   });
 

@@ -85,6 +85,7 @@ export type ReadErrorCode =
   | "OUTSIDE_ALLOWED_ROOTS"
   | "PERMISSION_DENIED"
   | "DENIED"
+  | "TOO_LARGE"
   | "CHANGED_DURING_READ"
   | "ABORTED"
   | "UNSUPPORTED_BACKEND"

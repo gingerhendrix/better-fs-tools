@@ -239,7 +239,7 @@ describe("just-bash writes: write", () => {
     expectMutationError(await wrapped.write("dir", ENCODER.encode("x"), ANY), "not-a-file");
     expectMutationError(
       await wrapped.write("big.txt", ENCODER.encode("12345"), CREATE),
-      "no-space",
+      "too-large",
     );
     expect(calls).toEqual([]);
     expect((await fs.stat("/workspace/dir")).isDirectory).toBe(true);

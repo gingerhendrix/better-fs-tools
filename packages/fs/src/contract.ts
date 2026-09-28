@@ -66,6 +66,7 @@ export type FileSystemErrorReason =
   | "outside-allowed-roots"
   | "permission-denied"
   | "denied"
+  | "too-large"
   | "unsupported"
   | "aborted"
   | "io";
@@ -84,14 +85,29 @@ export interface NotAFileError {
   readonly cause?: BackendCause;
 }
 
+/**
+ * The object is over a byte ceiling of the backend, for example the buffer
+ * ceiling of an adapter that reads or writes whole files. Not a permission
+ * problem and not a full disk: a smaller object would work.
+ */
+export interface TooLargeError {
+  readonly reason: "too-large";
+  /** The backend's ceiling in bytes. */
+  readonly limit: number;
+  /** The size in bytes that the backend saw, or null when it is unknown. */
+  readonly size: number | null;
+  readonly detail?: string;
+  readonly cause?: BackendCause;
+}
+
 export interface OtherFileSystemError {
-  readonly reason: Exclude<FileSystemErrorReason, "not-a-file">;
+  readonly reason: Exclude<FileSystemErrorReason, "not-a-file" | "too-large">;
   /** Non-sensitive detail for logs and notes. */
   readonly detail?: string;
   readonly cause?: BackendCause;
 }
 
-export type FileSystemError = NotAFileError | OtherFileSystemError;
+export type FileSystemError = NotAFileError | TooLargeError | OtherFileSystemError;
 
 export interface ListOptions {
   readonly limit: number;

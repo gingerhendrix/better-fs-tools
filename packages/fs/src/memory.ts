@@ -23,7 +23,7 @@ export interface MemoryFileSystemOptions {
   readonly denyRoots?: readonly string[];
   /** Bytes per chunk. Default 64 KiB. */
   readonly chunkBytes?: number;
-  /** Refused as denied above this on open, and as no-space on write. Default 16 MiB. */
+  /** Refused as too-large above this on open and on write. Default 16 MiB. */
   readonly maxBufferedBytes?: number;
   /** Default true. */
   readonly streaming?: boolean;
@@ -143,7 +143,9 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
     if (entry === undefined) return fail({ reason: "not-found" });
     if (entry.bytes.byteLength > maxBufferedBytes) {
       return fail({
-        reason: "denied",
+        reason: "too-large",
+        limit: maxBufferedBytes,
+        size: entry.bytes.byteLength,
         detail: `object exceeds the ${maxBufferedBytes}-byte buffered ceiling`,
       });
     }

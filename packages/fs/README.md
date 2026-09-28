@@ -46,7 +46,7 @@ console.log(textOf(await read({ path: "/src/b.ts" }))); // "1|export const b = 2
 - A handle has `info`, a single-use `bytes()` stream, `verify()` for change detection, and `close()`.
 - `list(path, { limit })` is optional. Without it, the read tool makes no suggestions and no directory listings.
 - `capabilities.streaming` says whether `bytes()` streams. `capabilities.identity` says whether `info.identity` is stable across calls.
-- Errors have a `reason`: `not-found`, `not-a-file`, `dangerous-path`, `outside-allowed-roots`, `permission-denied`, `denied`, `unsupported`, `aborted`, or `io`. A `not-a-file` error has a `kind` (`directory`, `fifo`, `socket`, `device`, or `other`) and, when the adapter reached the object, a `target` with its paths.
+- Errors have a `reason`: `not-found`, `not-a-file`, `dangerous-path`, `outside-allowed-roots`, `permission-denied`, `denied`, `too-large`, `unsupported`, `aborted`, or `io`. A `too-large` error has the backend's byte `limit` and the `size` it saw (or `null`), and the tools report it as `TOO_LARGE`. A `not-a-file` error has a `kind` (`directory`, `fifo`, `socket`, `device`, or `other`) and, when the adapter reached the object, a `target` with its paths.
 - `list()` on a path that is not a directory gives `not-found`.
 
 ## The write contract

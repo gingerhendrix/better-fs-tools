@@ -299,7 +299,9 @@ export function requireRegularFile(stat: ValidatedStat, cwd: string, resolved: s
 export function requireWithinCeiling(size: number, ceiling: number, subject: string): void {
   if (size > ceiling) {
     throw refuse({
-      reason: "denied",
+      reason: "too-large",
+      limit: ceiling,
+      size,
       detail: `the ${subject} exceeds the ${ceiling}-byte buffered ceiling`,
     });
   }

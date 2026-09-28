@@ -273,7 +273,11 @@ describe("memoryFileSystem write", () => {
     expect(
       errorOf(await fs.write("/a", bytes("x"), { ...options, signal: AbortSignal.abort() })).reason,
     ).toBe("aborted");
-    expect(errorOf(await fs.write("/a", bytes("12345"), options)).reason).toBe("no-space");
+    expect(errorOf(await fs.write("/a", bytes("12345"), options))).toMatchObject({
+      reason: "too-large",
+      limit: 4,
+      size: 5,
+    });
     expect(fs.peek("/a")).toBeNull();
   });
 

@@ -149,7 +149,9 @@ export function shellWorkspaceFileSystem(
         }
         if (stat.size > maxBufferedBytes) {
           throw refuse({
-            reason: "denied",
+            reason: "too-large",
+            limit: maxBufferedBytes,
+            size: stat.size,
             detail: `the object exceeds the ${maxBufferedBytes}-byte buffered ceiling`,
           });
         }
@@ -175,7 +177,9 @@ export function shellWorkspaceFileSystem(
         }
         if (bytes.byteLength > maxBufferedBytes) {
           throw refuse({
-            reason: "denied",
+            reason: "too-large",
+            limit: maxBufferedBytes,
+            size: bytes.byteLength,
             detail: `the backend returned more than the ${maxBufferedBytes}-byte buffered ceiling`,
           });
         }

@@ -15,6 +15,7 @@ export type {
   OpenOutcome,
   OtherFileSystemError,
   PathOps,
+  TooLargeError,
   VerifyOutcome,
 } from "./contract.ts";
 export { containsPosix, posixPaths, resolvePosix } from "./paths.ts";

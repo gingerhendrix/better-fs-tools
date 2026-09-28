@@ -46,7 +46,7 @@ export interface ShellWorkspaceFileSystemOptions {
   root: string;
   /**
    * Ceiling on one buffered object, applied to the size Shell reports and to
-   * the length it returns. A write of more bytes is refused as `no-space`.
+   * the length it returns. A larger read or write is refused as `too-large`.
    * Defaults to 4 MiB.
    */
   maxBufferedBytes?: number;

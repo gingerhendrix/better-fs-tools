@@ -249,7 +249,8 @@ describe("shell workspace reads", () => {
 describe("shell workspace ceilings", () => {
   test("refuses a known size above the ceiling before reading", async () => {
     const { workspace, fs } = fsFor({ "/workspace/big.txt": "0123456789" }, 4);
-    const error = expectFsError(await fs.open("/workspace/big.txt", {}), "denied");
+    const error = expectFsError(await fs.open("/workspace/big.txt", {}), "too-large");
+    expect(error).toMatchObject({ limit: 4, size: 10 });
     expect(error.detail).toMatch(/4-byte buffered ceiling/u);
     expect(workspace.calls.some((call) => call.startsWith("readFileBytes"))).toBe(false);
   });
@@ -257,7 +258,8 @@ describe("shell workspace ceilings", () => {
   test("refuses a returned buffer above the ceiling", async () => {
     const { workspace, fs } = fsFor({ "/workspace/liar.txt": "ab" }, 4);
     workspace.override.readFileBytes = ENCODER.encode("0123456789");
-    const error = expectFsError(await fs.open("/workspace/liar.txt", {}), "denied");
+    const error = expectFsError(await fs.open("/workspace/liar.txt", {}), "too-large");
+    expect(error).toMatchObject({ limit: 4, size: 10 });
     expect(error.detail).toMatch(/returned more than the 4-byte buffered ceiling/u);
   });
 });

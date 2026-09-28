@@ -136,7 +136,9 @@ export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings):
     if (bytes.byteLength > state.maxBufferedBytes) {
       return {
         error: {
-          reason: "no-space",
+          reason: "too-large",
+          limit: state.maxBufferedBytes,
+          size: bytes.byteLength,
           detail: `object exceeds the ${state.maxBufferedBytes}-byte buffered ceiling`,
         },
       };

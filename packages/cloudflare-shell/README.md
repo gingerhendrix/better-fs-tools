@@ -66,7 +66,7 @@ export function workspaceTools(workspace: Workspace) {
 - There is no `stage()`: Shell's `mv` removes the destination first. `apply_patch` writes each file in turn, and undoes them on a failure.
 - The version is the size and `updatedAt`. Shell stores whole seconds, so two same-size writes in one second keep the version. The write tools also compare the content hash of what the model read, so a change after the read is still `STALE`. Between the adapter's last check and the write, it is not seen.
 - A replace passes the file's mime type back, since Shell would reset it. A new file gets Shell's default, `application/octet-stream`.
-- A write over `maxBufferedBytes` gives `no-space`, since the adapter could not read the file back.
+- A read or a write over `maxBufferedBytes` gives `too-large` with the `limit` and the `size`, since the adapter could not read the file back. The tools report `TOO_LARGE`. The effective limit is the smaller of `maxBufferedBytes` and the tool's own limits.
 - Shell's errors carry their POSIX code in the message. The adapter reads the code and drops the message: `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` gives `no-space`.
 
 ## Links

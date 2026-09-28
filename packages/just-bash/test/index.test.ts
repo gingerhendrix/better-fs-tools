@@ -61,7 +61,10 @@ describe("justBashReadFileSystem", () => {
     const empty = opened(await wrapped.open("empty.bin", {}));
     expect((await contents(empty)).byteLength).toBe(0);
     await empty.close();
-    expectFsError(await wrapped.open("large.bin", {}), "denied");
+    expect(expectFsError(await wrapped.open("large.bin", {}), "too-large")).toMatchObject({
+      limit: 4,
+      size: 5,
+    });
 
     const staleSize = intercept(fs, {
       stat: async (original, args) => {
@@ -71,7 +74,7 @@ describe("justBashReadFileSystem", () => {
     });
     expectFsError(
       await adapter(staleSize, { maxBufferedBytes: 4 }).open("large.bin", {}),
-      "denied",
+      "too-large",
     );
   });
 

@@ -157,6 +157,34 @@ describe("commit (section 5.9)", () => {
     expect(result.notes[0]?.code).toBe(code.toLowerCase().replaceAll("_", "-"));
   });
 
+  test("a backend byte ceiling gives TOO_LARGE, with the limit and the size", async () => {
+    const { write, edit, read } = harness({
+      files: { "/big.txt": "0123456789" },
+      fsOptions: { maxBufferedBytes: 8 },
+    });
+    const written = await write({ path: "/a.txt", content: "0123456789" });
+    expect(errorOf(written)).toMatchObject({ code: "TOO_LARGE", phase: "commit" });
+    expect(written.notes).toEqual([
+      {
+        code: "too-large",
+        severity: "warning",
+        message:
+          "The new content for /a.txt is larger than the 8-byte write limit. Write a smaller file.",
+        data: {
+          limit: 8,
+          size: 10,
+          detail: "object exceeds the 8-byte buffered ceiling",
+        },
+      },
+    ]);
+    await read({ path: "/big.txt" });
+    const edited = await edit({ path: "/big.txt", edits: [{ oldText: "0", newText: "1" }] });
+    expect(errorOf(edited)?.code).toBe("TOO_LARGE");
+    expect(edited.notes[0]?.message).toBe(
+      "/big.txt is larger than the 8-byte limit, so it cannot be changed with this tool.",
+    );
+  });
+
   test("readOnly memory gives READ_ONLY", async () => {
     const { write } = harness({ fsOptions: { readOnly: true } });
     expect(errorCode(await write({ path: "/a.txt", content: "x" }))).toBe("READ_ONLY");

@@ -40,7 +40,12 @@ export interface ReadMessageCatalog extends ToolMessages {
   permissionDenied(c: { request: ReadRequest; detail: string | null }): string;
   /** Tool-neutral: shared authorizers such as denyPaths use it for every tool. */
   denied(c: { path: string; detail: string | null }): string;
-  tooLarge(c: { request: ReadRequest; stage: "convert" | "media"; limit: number }): string;
+  /** "backend" is a byte ceiling of the filesystem backend, before any byte reached the core. */
+  tooLarge(c: {
+    request: ReadRequest;
+    stage: "convert" | "media" | "backend";
+    limit: number;
+  }): string;
   changedDuringRead(c: { request: ReadRequest; retry: string }): string;
   aborted(c: { phase: ReadPhase }): string;
   invalidInput(c: { detail: string }): string;

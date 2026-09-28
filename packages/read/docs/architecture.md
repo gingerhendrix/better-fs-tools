@@ -195,6 +195,7 @@ Filesystem adapters return typed reasons, and the core maps them one to one. The
 | `outside-allowed-roots` | `OUTSIDE_ALLOWED_ROOTS` |
 | `permission-denied`     | `PERMISSION_DENIED`     |
 | `denied`                | `DENIED`                |
+| `too-large`             | `TOO_LARGE`             |
 | `unsupported`           | `UNSUPPORTED_BACKEND`   |
 | `aborted`               | `ABORTED`               |
 | `io`                    | `IO_ERROR`              |

@@ -89,7 +89,11 @@ describe("memoryFileSystem open", () => {
       reason: "dangerous-path",
       detail: "/secret",
     });
-    expect(errorOf(await fs.open("/big.txt", {})).reason).toBe("denied");
+    expect(errorOf(await fs.open("/big.txt", {}))).toMatchObject({
+      reason: "too-large",
+      limit: 16,
+      size: 32,
+    });
     const controller = new AbortController();
     controller.abort();
     expect(errorOf(await fs.open("/big.txt", { signal: controller.signal })).reason).toBe(

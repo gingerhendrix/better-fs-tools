@@ -178,7 +178,9 @@ export function shellWrites(
         const target = authorize(root, requested);
         if (bytes.byteLength > maxBufferedBytes) {
           throw new WriteRefusal({
-            reason: "no-space",
+            reason: "too-large",
+            limit: maxBufferedBytes,
+            size: bytes.byteLength,
             detail: `the object exceeds the ${maxBufferedBytes}-byte buffered ceiling`,
           });
         }

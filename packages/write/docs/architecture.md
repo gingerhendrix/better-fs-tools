@@ -187,6 +187,7 @@ Every error result has exactly one warning note whose `code` is the error code i
 | `exists`                | `EXISTS`                |
 | `read-only`             | `READ_ONLY`             |
 | `no-space`              | `NO_SPACE`              |
+| `too-large`             | `TOO_LARGE`             |
 
 A backend method that throws gives `IO_ERROR`.
 
