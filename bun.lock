@@ -119,6 +119,7 @@
       "dependencies": {
         "@better-fs-tools/fs": "workspace:^",
         "@better-fs-tools/read": "workspace:^",
+        "@better-fs-tools/write": "workspace:^",
       },
     },
     "packages/pi": {
