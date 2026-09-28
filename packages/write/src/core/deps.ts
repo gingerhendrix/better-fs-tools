@@ -17,6 +17,7 @@ import type { Matcher } from "../contract/matcher.ts";
 import { defaultPreconditions } from "../contract/preconditions.ts";
 import type { PreconditionPolicy } from "../contract/preconditions.ts";
 import { defaultWriteFormatter } from "../formatters/default.ts";
+import { defaultGuards } from "../guards/index.ts";
 import { memoryLocks } from "../locks/memory-locks.ts";
 import { defaultEditMatchers } from "../matchers/index.ts";
 import { isRecord } from "./input.ts";
@@ -91,7 +92,7 @@ export function resolveWriteDependencies<THost>(
   if (!Array.isArray(codecs) || codecs.length === 0 || !codecs.every(isCodec)) {
     throw new TypeError("codecs must be a non-empty array of codecs");
   }
-  const guards = deps.guards ?? [];
+  const guards = deps.guards ?? defaultGuards();
   if (!Array.isArray(guards) || !guards.every(isGuard)) {
     throw new TypeError("guards must be an array of guards with an id and check");
   }

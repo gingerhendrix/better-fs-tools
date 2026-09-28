@@ -74,6 +74,15 @@ export {
 } from "./matchers/index.ts";
 export { utf8Codec } from "./codecs/index.ts";
 export { memoryLocks } from "./locks/index.ts";
+export {
+  defaultGuards,
+  generatedFileGuard,
+  nonTextGuard,
+  omissionGuard,
+  readPrefixGuard,
+  syntaxGuard,
+  truncationNoticeGuard,
+} from "./guards/index.ts";
 export { askBeforeWrite, writeAuthorizers } from "./authorize/index.ts";
 export { defaultWriteFormatter } from "./formatters/index.ts";
 export type { WriteFormatterOptions } from "./formatters/index.ts";

@@ -38,7 +38,14 @@ describe("write tool dependencies (section 4.4)", () => {
     expect(deps.locks.id).toBe("memory");
     expect(deps.classifiers.length).toBeGreaterThan(0);
     expect(deps.codecs.map((codec) => codec.id)).toEqual(["utf-8"]);
-    expect(deps.guards).toEqual([]);
+    expect(deps.guards.map((guard) => guard.id)).toEqual([
+      "read-prefix",
+      "truncation-notice",
+      "omission",
+      "syntax",
+      "non-text",
+    ]);
+    expect(resolveWriteDependencies({ fs, guards: [] }, "write").guards).toEqual([]);
     expect(deps.hooks).toEqual([]);
     expect(deps.formatter.id).toBe("default");
   });

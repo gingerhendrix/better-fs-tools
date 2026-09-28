@@ -37,6 +37,7 @@ export interface WriteDependencies<THost = undefined> {
   readonly classifiers: readonly Classifier[];
   /** First codec that accepts the sample decodes. Non-empty. */
   readonly codecs: readonly Codec[];
+  /** Default defaultGuards(). An empty array turns the guards off. */
   readonly guards: readonly Guard<THost>[];
   readonly hooks: readonly WriteHook<THost>[];
   readonly formatter: WriteFormatter<THost>;
