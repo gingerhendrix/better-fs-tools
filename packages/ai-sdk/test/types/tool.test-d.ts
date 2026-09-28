@@ -9,7 +9,7 @@ import { lineNumberFormatter } from "@better-fs-tools/read";
 import type { ReadFormatter, JsonObject, ReadContext, ReadResult } from "@better-fs-tools/read";
 
 import { createAiSdkReadTool } from "../../src/index.ts";
-import type { AiSdkReadOutput, AiSdkReadTool } from "../../src/index.ts";
+import type { AiSdkToolOutput, AiSdkReadTool } from "../../src/index.ts";
 
 const fs = memoryFileSystem();
 
@@ -22,7 +22,7 @@ export const asContextTool: Tool<JsonObject, ReadResult, { user: string }> = con
 type ModelOutput = Awaited<
   ReturnType<NonNullable<Tool<JsonObject, ReadResult, unknown>["toModelOutput"]>>
 >;
-declare const output: AiSdkReadOutput;
+declare const output: AiSdkToolOutput;
 export const asOutput: ModelOutput = output;
 
 // The host type is ToolExecutionOptions<C>, so the context is typed.

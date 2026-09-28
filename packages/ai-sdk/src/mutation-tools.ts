@@ -32,7 +32,7 @@ import type {
 } from "@better-fs-tools/write/signature";
 
 import { toAiSdkOutput } from "./output.ts";
-import type { AiSdkReadOutput } from "./output.ts";
+import type { AiSdkToolOutput } from "./output.ts";
 import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
 export interface CreateAiSdkEditToolOptions<C = unknown> extends EditToolDeps<
@@ -65,7 +65,7 @@ export interface AiSdkMutationTool<C = unknown> {
   readonly inputSchema: Schema<JsonObject>;
   /** tool(signature.toInput(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<MutationResult>;
-  toModelOutput(options: { output: MutationResult }): AiSdkReadOutput;
+  toModelOutput(options: { output: MutationResult }): AiSdkToolOutput;
 }
 
 type Core<C> = (

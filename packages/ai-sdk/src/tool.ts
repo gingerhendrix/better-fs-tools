@@ -13,7 +13,7 @@ import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/re
 import type { ReadSignature } from "@better-fs-tools/read/signature";
 
 import { toAiSdkOutput } from "./output.ts";
-import type { AiSdkReadOutput } from "./output.ts";
+import type { AiSdkToolOutput } from "./output.ts";
 import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
 export interface CreateAiSdkReadToolOptions<C = unknown> extends ReadToolDeps<
@@ -32,7 +32,7 @@ export interface AiSdkReadTool<C = unknown> {
   readonly inputSchema: Schema<JsonObject>;
   /** read(signature.toInput(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ReadResult>;
-  toModelOutput(options: { output: ReadResult }): AiSdkReadOutput;
+  toModelOutput(options: { output: ReadResult }): AiSdkToolOutput;
 }
 
 /** Builds the core with messages = { ...readSignatureMessages(signature), ...options.messages }. */

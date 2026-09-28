@@ -6,15 +6,16 @@ export type AiSdkContentPart =
   | { type: "text"; text: string }
   | { type: "file"; mediaType: string; data: { type: "data"; data: string } };
 
-export interface AiSdkReadOutput {
+/** The model output of every AI SDK tool: read, edit, write, apply_patch, and bash. */
+export interface AiSdkToolOutput {
   type: "content";
   value: AiSdkContentPart[];
 }
 
-/** Text parts as text. Media parts as base64 file parts. Takes a read or a mutation result. */
+/** Text parts as text. Media parts as base64 file parts. Takes a read, a mutation, or a bash result. */
 export function toAiSdkOutput(result: {
   readonly content: readonly ContentPart[];
-}): AiSdkReadOutput {
+}): AiSdkToolOutput {
   return { type: "content", value: result.content.map(toAiSdkPart) };
 }
 

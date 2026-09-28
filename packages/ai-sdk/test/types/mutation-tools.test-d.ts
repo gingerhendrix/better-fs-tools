@@ -16,7 +16,7 @@ import {
   createAiSdkReadTool,
   createAiSdkWriteTool,
 } from "../../src/index.ts";
-import type { AiSdkMutationTool, AiSdkReadOutput } from "../../src/index.ts";
+import type { AiSdkMutationTool, AiSdkToolOutput } from "../../src/index.ts";
 
 const fs = memoryFileSystem();
 
@@ -34,7 +34,7 @@ export const asContextTool: Tool<JsonObject, MutationResult, { user: string }> =
 type ModelOutput = Awaited<
   ReturnType<NonNullable<Tool<JsonObject, MutationResult, unknown>["toModelOutput"]>>
 >;
-declare const output: AiSdkReadOutput;
+declare const output: AiSdkToolOutput;
 export const asOutput: ModelOutput = output;
 
 // The host type is ToolExecutionOptions<C>, so the context is typed.

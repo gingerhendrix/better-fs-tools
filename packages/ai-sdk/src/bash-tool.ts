@@ -8,7 +8,7 @@ import { bashSignatureMessages, defaultBashSignature } from "@better-fs-tools/sh
 import type { BashSignature } from "@better-fs-tools/shell/signature";
 
 import { toAiSdkOutput } from "./output.ts";
-import type { AiSdkReadOutput } from "./output.ts";
+import type { AiSdkToolOutput } from "./output.ts";
 import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
 export type CreateAiSdkBashToolOptions<C = unknown> = ShellToolDeps<ToolExecutionOptions<C>> & {
@@ -25,7 +25,7 @@ export interface AiSdkBashTool<C = unknown> {
   readonly inputSchema: Schema<JsonObject>;
   /** bash(signature.toInput(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ShellResult>;
-  toModelOutput(options: { output: ShellResult }): AiSdkReadOutput;
+  toModelOutput(options: { output: ShellResult }): AiSdkToolOutput;
 }
 
 /**
