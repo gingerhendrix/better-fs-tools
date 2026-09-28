@@ -106,7 +106,7 @@ read({ path, offset, limit }, ctx)
   │  fs.open ................. roots, deny roots, realpath, type check: one open for each read
   │     ├─ on a miss: suggest  one bounded listing, names only
   │     └─ on a directory .... a directory converter lists it, else NOT_A_FILE
-  │  authorize ............... host policy on the open file, before any content byte
+  │  authorize ............... host policy on the open file, before the core reads content
   │  sample + classifiers .... text, image, PDF, notebook, binary, ...
   │  converters .............. other formats to text or media parts
   │  scan .................... lines, clamping, view bytes, token budget, scan limit
@@ -283,7 +283,7 @@ The listing goes through `authorize` with `action: "list"`. A denied listing, or
 
 ## Permissions
 
-The filesystem owns the root policy: allowed roots, deny roots, and symlinks. `authorize` adds your own policy. The core calls it with `action: "read"` after the file is open and before it reads any content byte. It also calls it with `action: "list"` before every directory listing.
+The filesystem owns the root policy: allowed roots, deny roots, and symlinks. `authorize` adds your own policy. The core calls it with `action: "read"` after the file is open and before the core reads any content byte. A buffered backend, such as `@better-fs-tools/cloudflare-shell` or `@better-fs-tools/just-bash`, fetches the whole file inside `open()`, so those bytes have left the backend before `authorize` runs. The core still passes none of them to a classifier, a converter, or the model until `authorize` allows it. It also calls it with `action: "list"` before every directory listing.
 
 ```ts
 import { createNodeReadTool } from "@better-fs-tools/node";
@@ -675,7 +675,7 @@ Your dependencies can narrow access. They cannot widen it.
 - The filesystem is the only place that grants access. It checks roots, deny roots, the realpath, and the type in one `open()` call. `resolve` runs before it and `authorize` runs after it.
 - Each read opens at most one file. A resolver only changes the path that goes into that open.
 - `nodeFileSystem` opens files with `O_NOFOLLOW | O_NONBLOCK` and checks the type first. It refuses directories, FIFOs, sockets, and devices before any content read. It refuses `/dev`, `/proc`, and `/sys` before it touches the filesystem.
-- No content byte is read before `authorize` allows it.
+- The core reads no content byte before `authorize` allows it, so no content reaches a classifier, a converter, or the model. A buffered backend (a result with a `buffered-backend` note) has already fetched the whole file in `open()`. If a denied read must not reach the backend, deny the path in the filesystem's own root policy.
 - The scan is bounded. Converters get a capped stream from the open file, never a path.
 - Change detection runs after the scan and after conversion. A file that changed returns `CHANGED_DURING_READ`.
 - A suggested name is never opened.
@@ -788,4 +788,4 @@ console.log(report.passed); // true when the adapter keeps the contract
 
 ## Runtime
 
-The build output is ESNext JavaScript modules. It needs a current runtime with `AbortSignal`, `TextEncoder`, `TextDecoder`, and async iterators, for example Node 24, Bun, a current browser, or Cloudflare Workers. This release supports POSIX paths only, and ships no write tool.
+The build output is ESNext JavaScript modules. It needs a current runtime with `AbortSignal`, `TextEncoder`, `TextDecoder`, and async iterators, for example Node 24, Bun, a current browser, or Cloudflare Workers. This release supports POSIX paths only. The write tools are in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write).
