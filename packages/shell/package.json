@@ -1,0 +1,32 @@
+{
+  "name": "@better-fs-tools/shell",
+  "version": "0.0.0",
+  "description": "A bash tool for TypeScript agents: a small run core with hooks and defaults.",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./signature": "./src/signature/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./signature": {
+        "types": "./dist/signature/index.d.ts",
+        "import": "./dist/signature/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "dependencies": {
+    "@better-fs-tools/fs": "workspace:^",
+    "@better-fs-tools/read": "workspace:^"
+  }
+}
