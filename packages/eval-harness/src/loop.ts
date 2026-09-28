@@ -1,6 +1,6 @@
 import { appendFile } from "node:fs/promises";
 
-import { generateText, isStepCount } from "ai";
+import { isStepCount, streamText } from "ai";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 
 import { addStep, addUsage, emptyMetrics } from "./metrics.ts";
@@ -30,10 +30,13 @@ export interface LoopResult {
 }
 
 /**
- * Runs the agent loop one model call at a time. Each `generateText` call does
+ * Runs the agent loop one model call at a time. Each `streamText` call does
  * one step: a model response, then the tool calls in it. The loop appends the
  * response messages and calls again until the model stops calling tools.
  * One step per call keeps a clean per-step log and lets the loop stop early.
+ *
+ * The loop streams because slow models that write long tool inputs (whole
+ * files) run past the Command Code gateway timeout on a non-streaming call.
  */
 export async function runLoop(options: LoopOptions): Promise<LoopResult> {
   const metrics = emptyMetrics();
@@ -42,15 +45,7 @@ export async function runLoop(options: LoopOptions): Promise<LoopResult> {
   for (let step = 0; step < options.maxSteps; step++) {
     let result;
     try {
-      result = await generateText({
-        model: options.model,
-        system: options.system,
-        messages,
-        tools: options.tools,
-        stopWhen: isStepCount(1),
-        maxRetries: 3,
-        abortSignal: AbortSignal.timeout(options.stepTimeoutMs),
-      });
+      result = await oneStep(options, messages);
     } catch (error) {
       const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
       return { end: "error", error: text, metrics, finalText };
@@ -70,6 +65,33 @@ export async function runLoop(options: LoopOptions): Promise<LoopResult> {
     }
   }
   return { end: "max-steps", error: null, metrics, finalText };
+}
+
+/** One streamed model call. Resolves when the stream ends, and rejects on a stream error. */
+async function oneStep(options: LoopOptions, messages: readonly ModelMessage[]) {
+  let streamError: unknown = null;
+  const stream = streamText({
+    model: options.model,
+    system: options.system,
+    messages: [...messages],
+    tools: options.tools,
+    stopWhen: isStepCount(1),
+    maxRetries: 3,
+    abortSignal: AbortSignal.timeout(options.stepTimeoutMs),
+    onError: ({ error }) => {
+      streamError = error;
+    },
+  });
+  const [content, text, toolCalls, finishReason, usage, responseMessages] = await Promise.all([
+    stream.content,
+    stream.text,
+    stream.toolCalls,
+    stream.finishReason,
+    stream.usage,
+    stream.responseMessages,
+  ]);
+  if (streamError !== null) throw streamError;
+  return { content, text, toolCalls, finishReason, usage, responseMessages };
 }
 
 /** Drops model-facing content arrays from tool outputs, which repeat the file text. */
