@@ -47,7 +47,7 @@ export function createAiSdkReadTool<C = unknown>(
   const read = createReadTool<ToolExecutionOptions<C>>({
     ...deps,
     messages: { ...readSignatureMessages(signature), ...deps.messages },
-  } as ReadToolDeps<ToolExecutionOptions<C>> & StateNeedsDigest);
+  });
   const limits = resolveReadLimits(deps.limits);
   const strict = toStrictSchema(signature.schema);
 

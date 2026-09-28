@@ -1,4 +1,8 @@
 {
   "extends": "../../tsconfig.build.base.json",
-  "references": [{ "path": "../fs/tsconfig.build.json" }, { "path": "../read/tsconfig.build.json" }]
+  "references": [
+    { "path": "../fs/tsconfig.build.json" },
+    { "path": "../read/tsconfig.build.json" },
+    { "path": "../shell/tsconfig.build.json" }
+  ]
 }

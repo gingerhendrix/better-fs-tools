@@ -1,19 +1,12 @@
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { nodeDigest } from "@better-fs-tools/node";
-import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
-import { createEditTool, createWriteTool, memoryLocks } from "@better-fs-tools/write";
+import { textOf } from "@better-fs-tools/read";
+import { createFsTools } from "@better-fs-tools/write";
 
 const fs = memoryFileSystem({ files: { "/src/app.ts": "export const a = 1;\n" } });
 
-// One store, one digest, and one lock manager for every tool, so edit and
-// write know what the model has read.
-const state = createMemoryStore();
-const digest = nodeDigest();
-const locks = memoryLocks();
-
-const read = createReadTool({ fs, state, digest });
-const edit = createEditTool({ fs, state, digest, locks });
-const write = createWriteTool({ fs, state, digest, locks });
+// read, edit, write, and apply_patch with one store, one sha256Digest(), and
+// one lock manager, so edit and write know what the model has read.
+const { read, edit, write } = createFsTools({ fs });
 
 console.log(textOf(await edit({ path: "/src/app.ts", edits: [{ oldText: "1", newText: "2" }] })));
 // [edit:not-read] Read /src/app.ts with the read tool before changing it.

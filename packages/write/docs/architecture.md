@@ -57,18 +57,19 @@ Some stages cannot be removed by any dependency: input validation, the type chec
 
 ## Source layout
 
-| Path                                                                                             | Role                                                                                                     |
-| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `src/contract/`                                                                                  | The public types, one file for each area. No runtime code                                                |
-| `src/core/create-tools.ts`, `core/deps.ts`                                                       | The three factories. They check and resolve the dependencies once, synchronously                         |
-| `src/core/pipeline.ts`                                                                           | The stage order for `edit` and `write`. `apply_patch` has its own order in `core/patch-pipeline.ts`      |
-| `src/core/scope.ts`                                                                              | Per-call state: the call object, the phase, `fs(call)`, `state(call)`, notes, abort checks, and failures |
-| `src/core/resolve.ts`, `target.ts`, `lock.ts`, `load.ts`, `precondition.ts`                      | Resolve, stat, lock, load, and the precondition table                                                    |
-| `src/core/plan-write.ts`, `plan-edit.ts`, `plan-patch.ts`, `match.ts`, `hints.ts`, `splice.ts`   | The three plan stages, the matcher chain, failure help, and the literal splice                           |
-| `src/core/guards.ts`, `authorize.ts`, `encode.ts`, `commit.ts`, `commit-patch.ts`                | Guards, both authorize stages, encode, the single-file commit, and the staged patch commit with rollback |
-| `src/core/hooks.ts`, `record.ts`, `diff.ts`, `snippet.ts`, `outcomes.ts`, `format.ts`            | Hooks, records, the unified diff, snippets, failures and the error map, and the formatter call           |
-| `src/matchers/`, `guards/`, `authorize/`, `codecs/`, `locks/`, `hooks/`, `formatters/`, `state/` | The built-in helpers, one file for each                                                                  |
-| `src/patch/`, `src/signature/`                                                                   | The `./patch` and `./signature` subpaths                                                                 |
+| Path                                                                                             | Role                                                                                                       |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `src/contract/`                                                                                  | The public types, one file for each area. No runtime code                                                  |
+| `src/core/create-tools.ts`, `core/deps.ts`                                                       | The three factories. They check and resolve the dependencies once, synchronously                           |
+| `src/core/pipeline.ts`                                                                           | The stage order for `edit` and `write`. `apply_patch` has its own order in `core/patch-pipeline.ts`        |
+| `src/core/scope.ts`                                                                              | Per-call state: the call object, the phase, `fs(call)`, `state(call)`, notes, abort checks, and failures   |
+| `src/core/resolve.ts`, `target.ts`, `lock.ts`, `load.ts`, `precondition.ts`                      | Resolve, stat, lock, load, and the precondition table                                                      |
+| `src/core/plan-write.ts`, `plan-edit.ts`, `plan-patch.ts`, `match.ts`, `hints.ts`, `splice.ts`   | The three plan stages, the matcher chain, failure help, and the literal splice                             |
+| `src/core/guards.ts`, `authorize.ts`, `encode.ts`, `commit.ts`, `commit-patch.ts`                | Guards, both authorize stages, encode, the single-file commit, and the staged patch commit with rollback   |
+| `src/core/hooks.ts`, `record.ts`, `diff.ts`, `snippet.ts`, `outcomes.ts`, `format.ts`            | Hooks, records, the unified diff, snippets, failures and the error map, and the formatter call             |
+| `src/matchers/`, `guards/`, `authorize/`, `codecs/`, `locks/`, `hooks/`, `formatters/`, `state/` | The built-in helpers, one file for each                                                                    |
+| `src/bundle/create-fs-tools.ts`                                                                  | `createFsTools`: the four file tools, and bash when asked, over one store, digest, lock manager, and clock |
+| `src/patch/`, `src/signature/`                                                                   | The `./patch` and `./signature` subpaths                                                                   |
 
 ## One call, one context
 

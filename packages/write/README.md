@@ -14,29 +14,22 @@ All three refuse to change a file the model has not read, refuse a file that cha
 npm install @better-fs-tools/write @better-fs-tools/read @better-fs-tools/fs
 ```
 
-The package has no peers and imports no `node:` module. Add a filesystem package, for example `@better-fs-tools/node`.
+The package has no peers and imports no `node:` module. It depends on `@better-fs-tools/shell` for the optional bash tool of `createFsTools()`. Add a filesystem package, for example `@better-fs-tools/node`.
 
 ## Quick start
 
-On Node, `createNodeFsTools()` from [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node) builds all four tools with one call. With any other `WritableFileSystem`, share one store, one digest, and one lock manager:
+`createFsTools({ fs })` builds all four tools over any `WritableFileSystem`. On Node, `createNodeFsTools()` from [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node) does the same with a Node filesystem and `nodeDigest()`:
 
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { nodeDigest } from "@better-fs-tools/node";
-import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
-import { createEditTool, createWriteTool, memoryLocks } from "@better-fs-tools/write";
+import { textOf } from "@better-fs-tools/read";
+import { createFsTools } from "@better-fs-tools/write";
 
 const fs = memoryFileSystem({ files: { "/src/app.ts": "export const a = 1;\n" } });
 
-// One store, one digest, and one lock manager for every tool, so edit and
-// write know what the model has read.
-const state = createMemoryStore();
-const digest = nodeDigest();
-const locks = memoryLocks();
-
-const read = createReadTool({ fs, state, digest });
-const edit = createEditTool({ fs, state, digest, locks });
-const write = createWriteTool({ fs, state, digest, locks });
+// read, edit, write, and apply_patch with one store, one sha256Digest(), and
+// one lock manager, so edit and write know what the model has read.
+const { read, edit, write } = createFsTools({ fs });
 
 console.log(textOf(await edit({ path: "/src/app.ts", edits: [{ oldText: "1", newText: "2" }] })));
 // [edit:not-read] Read /src/app.ts with the read tool before changing it.
@@ -53,16 +46,27 @@ console.log(textOf(created)); // Created /src/b.ts (1 line).
 
 A tool call is `tool(input, ctx?)`. `ctx` is the read tool's call context: `{ signal?, callId?, host }`. The core passes the same object to every host function as `ctx.call`.
 
+## One bundle for every tool
+
+`createFsTools(options)` takes a `WritableFileSystem`, or a factory that returns one for each call, and builds `read`, `edit`, `write`, and `apply_patch`. They share one `state` (default `createMemoryStore()`, `null` turns read-before-write off), one `digest` (default `sha256Digest()`), one `locks` (default `memoryLocks()`), and one `clock`. It imports no `node:` module, so a Worker needs no host digest. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`.
+
+Bash is off unless you ask. `bash: { runner, env, ... }` adds a bash tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell) that gets the same `digest` and `clock`. The allowed roots of the filesystem do not limit a command.
+
+The result also has `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, which deletes the record for a path so the next edit needs a read. It returns an `InvalidateOutcome`. When `fs` is a factory, pass the call context, for example `ctx.call` in a bash `afterRun` hook.
+
+An unknown option key, a shared key (`fs`, `state`, `digest`, `locks`, or `clock`) inside a tool's options, or `bash: true` throws `TypeError`. `createNodeFsTools()`, `createPiFsTools()`, and `createAiSdkFsTools()` wrap it.
+
 ## Hosts
 
-| Host                                  | Package                                                                                                   | Factories                                                                                            |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Node or Bun                           | [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node)                            | `createNodeFsTools()`, `createNodeEditTool()`, `createNodeWriteTool()`, `createNodeApplyPatchTool()` |
-| AI SDK 7                              | [`@better-fs-tools/ai-sdk`](https://www.npmjs.com/package/@better-fs-tools/ai-sdk)                        | `createAiSdkEditTool()`, `createAiSdkWriteTool()`, `createAiSdkApplyPatchTool()`                     |
-| Pi coding agent                       | [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)                                | `createPiFsTools()`, one factory for each tool, and a `pi.extensions` entry                          |
-| Cloudflare Shell, Computer, just-bash | `@better-fs-tools/cloudflare-shell`, `@better-fs-tools/cloudflare-computer`, `@better-fs-tools/just-bash` | Writable filesystems for the core factories or the AI SDK factories                                  |
+| Host                                  | Package                                                                                                   | Factories                                                                                                      |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Any                                   | this package                                                                                              | `createFsTools({ fs })`, `createEditTool()`, `createWriteTool()`, `createApplyPatchTool()`                     |
+| Node or Bun                           | [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node)                            | `createNodeFsTools()`, `createNodeEditTool()`, `createNodeWriteTool()`, `createNodeApplyPatchTool()`           |
+| AI SDK 7                              | [`@better-fs-tools/ai-sdk`](https://www.npmjs.com/package/@better-fs-tools/ai-sdk)                        | `createAiSdkFsTools({ fs })`, `createAiSdkEditTool()`, `createAiSdkWriteTool()`, `createAiSdkApplyPatchTool()` |
+| Pi coding agent                       | [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)                                | `createPiFsTools()`, one factory for each tool, and a `pi.extensions` entry                                    |
+| Cloudflare Shell, Computer, just-bash | `@better-fs-tools/cloudflare-shell`, `@better-fs-tools/cloudflare-computer`, `@better-fs-tools/just-bash` | Writable filesystems for `createFsTools()`, `createAiSdkFsTools()`, or the single factories                    |
 
-The standalone factories (`createNodeEditTool()`, `createAiSdkEditTool()`, `createPiEditTool()`, and the others) default to `state: null`. Every update then carries a `read-before-write-off` note. Use `createNodeFsTools()` or `createPiFsTools()`, or pass the same `state` and `digest` to the read tool and the write tools.
+The standalone factories (`createNodeEditTool()`, `createAiSdkEditTool()`, `createPiEditTool()`, and the others) default to `state: null`. Every update then carries a `read-before-write-off` note. Use a bundle (`createFsTools()`, `createNodeFsTools()`, `createPiFsTools()`, or `createAiSdkFsTools()`), or pass the same `state`, `digest`, and `locks` to the read tool and the write tools.
 
 ## edit
 
@@ -394,11 +398,11 @@ Without compare-and-swap, the core checks the version with a fresh `stat` just b
 
 ## Entries
 
-| Entry                              | Contents                                                                                                                                                                                                                                                                                                 |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@better-fs-tools/write`           | `createWriteTool`, `createEditTool`, `createApplyPatchTool`, the matchers, the guards and `defaultGuards`, the mutation core's types, `utf8Codec`, `memoryLocks`, `askBeforeWrite`, `writeAuthorizers`, `protectPaths`, `executableShebang`, `verifyWrite`, `defaultWriteFormatter`, `createInvalidator` |
-| `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, `CODEX_PATCH_GRAMMAR`, and the patch types. The only home of these                                                                                                                                                                                                     |
-| `@better-fs-tools/write/signature` | `defaultEditSignature`, `multiEditSignature`, `camelCaseEditSignature`, `defaultWriteSignature`, `snakeCaseWriteSignature`, `defaultPatchSignature`, `freeformPatchSignature`, and `writeSignatureMessages`                                                                                              |
+| Entry                              | Contents                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@better-fs-tools/write`           | `createFsTools`, `createWriteTool`, `createEditTool`, `createApplyPatchTool`, the matchers, the guards and `defaultGuards`, the mutation core's types, `utf8Codec`, `memoryLocks`, `askBeforeWrite`, `writeAuthorizers`, `protectPaths`, `executableShebang`, `verifyWrite`, `defaultWriteFormatter`, `createInvalidator` |
+| `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, `CODEX_PATCH_GRAMMAR`, and the patch types. The only home of these                                                                                                                                                                                                                      |
+| `@better-fs-tools/write/signature` | `defaultEditSignature`, `multiEditSignature`, `camelCaseEditSignature`, `defaultWriteSignature`, `snakeCaseWriteSignature`, `defaultPatchSignature`, `freeformPatchSignature`, and `writeSignatureMessages`                                                                                                               |
 
 The package builds on the tool-neutral base types in `@better-fs-tools/read`, such as `ToolCallContext`, `PathResolver`, and `ToolAuthorizer`. An authorizer or resolver typed on them works for the read tool and for the write tools:
 

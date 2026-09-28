@@ -92,6 +92,14 @@ export { askBeforeWrite, protectPaths, writeAuthorizers } from "./authorize/inde
 export { executableShebang, verifyWrite } from "./hooks/index.ts";
 export { defaultWriteFormatter } from "./formatters/index.ts";
 export type { WriteFormatterOptions } from "./formatters/index.ts";
+export { createFsTools } from "./bundle/create-fs-tools.ts";
+export type {
+  CreateFsToolsOptions,
+  FsTools,
+  FsToolsBashOptions,
+  FsToolsSharedKey,
+  FsToolsWithBash,
+} from "./bundle/create-fs-tools.ts";
 export { createInvalidator } from "./state/index.ts";
 export type { Invalidate, InvalidateOutcome } from "./state/index.ts";
 export { textOf } from "@better-fs-tools/read";
