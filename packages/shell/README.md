@@ -247,6 +247,10 @@ The runner's `id` goes into the tool description, so the model can see, for exam
 
 `defaultBashSignature()` from `@better-fs-tools/shell/signature` gives the model `bash({ command, timeout?, cwd? })` with the timeout in milliseconds. `timeoutUnit: "s"` takes seconds, and `cwd: false` leaves out the cwd parameter. `bashSignatureMessages(signature)` gives the messages the same parameter names and unit.
 
+## Parse helper
+
+Every tool has one parse helper with the same pattern: `parseReadInput`, `parseEditInput`, `parseWriteInput`, `parseApplyPatchInput`, and `parseBashInput`. Each takes the canonical input and the resolved limits, returns the request, and throws `TypeError` for input it refuses. The tool turns that throw into `INVALID_INPUT`. A clamp is not an error: the helper returns the clamped value, and the tool adds the `clamped` note.
+
 ## Known limits
 
 - POSIX only. The Node runner runs `bash -c` in its own process group.

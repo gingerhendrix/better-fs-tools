@@ -442,6 +442,8 @@ These are defaults, not ceilings. You can set any positive safe integer.
 
 A `limit` over `maxLines` is cut to `maxLines`, with a `clamped` info note. A `sampleBytes` that you set above `maxScanBytes` throws `TypeError`. When you set only `maxScanBytes` below 8 KiB, the default `sampleBytes` is lowered to it. The same limits rule holds in read, write, and bash.
 
+Every tool has one parse helper with the same pattern: `parseReadInput`, `parseEditInput`, `parseWriteInput`, `parseApplyPatchInput`, and `parseBashInput`. Each takes the canonical input and the resolved limits, returns the request, and throws `TypeError` for input it refuses. The tool turns that throw into `INVALID_INPUT`. A clamp is not an error: the helper returns the clamped value, and the tool adds the `clamped` note.
+
 For a token limit, set `budget`. The scanner stops at the last whole line that fits, and the result has a normal continuation. The truncation reason is `"budget"`.
 
 ```ts

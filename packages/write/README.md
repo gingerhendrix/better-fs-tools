@@ -176,6 +176,8 @@ Every dependency except `fs` has a default. Pass them to `createEditTool()`, `cr
 
 A `sampleBytes` that you set above `maxFileBytes` throws `TypeError`. When you set only `maxFileBytes` below 8 192, the default `sampleBytes` is lowered to it. The same limits rule holds in read, write, and bash. A per-call value over its ceiling is clamped, with a `clamped` info note. Two limits that you set and that conflict throw `TypeError` when the tool is built. A default that is over a ceiling you set is lowered to that ceiling.
 
+Every tool has one parse helper with the same pattern: `parseReadInput`, `parseEditInput`, `parseWriteInput`, `parseApplyPatchInput`, and `parseBashInput`. Each takes the canonical input and the resolved limits, returns the request, and throws `TypeError` for input it refuses. The tool turns that throw into `INVALID_INPUT`. A clamp is not an error: the helper returns the clamped value, and the tool adds the `clamped` note.
+
 ## Authorize
 
 An authorizer runs twice. The access stage runs for each target after `stat` and before any content byte is read, with `change: null`. The change stage runs for each planned change with the diff, after the guards. `writeAuthorizers(...steps)` runs steps left to right. The first deny wins. A read `ToolAuthorizer`, such as `denyPaths()`, is a valid step.
