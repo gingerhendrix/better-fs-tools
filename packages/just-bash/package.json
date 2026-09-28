@@ -30,6 +30,6 @@
     "just-bash": "catalog:"
   },
   "peerDependencies": {
-    "just-bash": "3.4.2"
+    "just-bash": "^3.4.2"
   }
 }

@@ -37,7 +37,7 @@ export const RULES: Readonly<Record<string, PackageRule>> = {
   "cloudflare-computer": { dependencies: ["fs"], peers: {}, node: false, extraFiles: [] },
   "just-bash": {
     dependencies: ["fs", "shell"],
-    peers: { "just-bash": "3.4.2" },
+    peers: { "just-bash": "^3.4.2" },
     node: false,
     extraFiles: [],
   },

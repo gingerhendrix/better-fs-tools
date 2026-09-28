@@ -8,7 +8,7 @@ A `WritableFileSystem` over a [just-bash](https://www.npmjs.com/package/just-bas
 npm install @better-fs-tools/just-bash @better-fs-tools/read @better-fs-tools/write just-bash
 ```
 
-`just-bash` is a required peer, pinned to `3.4.2`.
+`just-bash` is a required peer with the range `^3.4.2`. The tests run against 3.4.2.
 
 ## Example
 
