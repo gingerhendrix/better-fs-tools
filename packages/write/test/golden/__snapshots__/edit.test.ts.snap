@@ -1,0 +1,312 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`golden edit output one change, several changes, replace all, and a fuzzy match 1`] = `
+[
+  {
+    "error": null,
+    "status": "ok",
+    "text": 
+"Edited /src/app.ts: 1 replacement at lines 4-5.
+1|import { x } from "./x";
+2|
+3|// sum
+4|export const y = x + 1;
+5|export const z = y * 2;
+6|
+7|export default z;
+8|"
+,
+  },
+  {
+    "error": null,
+    "status": "ok",
+    "text": 
+"Edited /src/app.ts: 2 replacements at lines 3, 15.
+1|import { x } from "./x";
+2|
+3|// sum of x
+4|export const y = x + 1;
+5|export const z = y * 2;
+6|
+...
+12|}
+13|
+14|function two() {
+15|  return 1 + 1;
+16|}"
+,
+  },
+  {
+    "error": null,
+    "status": "ok",
+    "text": 
+"Edited /src/app.ts: 2 replacements (replace all) at lines 10, 14.
+7|export default z;
+8|
+9|// helpers
+10|export function one() {
+11|  return 1;
+12|}
+13|
+14|export function two() {
+15|  return 1 + 1;
+16|}"
+,
+  },
+  {
+    "error": null,
+    "status": "ok",
+    "text": 
+"Edited /src/app.ts: 1 replacement at lines 9-10.
+6|
+7|export default z;
+8|
+9|// helper functions
+10|export function one() {
+11|  return 1;
+12|}
+13|
+
+[edit:fuzzy-match] Edit 1 matched /src/app.ts at lines 9-10 only with the normalized matcher, not exactly. Check the result."
+,
+  },
+]
+`;
+
+exports[`golden edit output no change and failure help 1`] = `
+[
+  {
+    "error": null,
+    "status": "no-change",
+    "text": 
+"No change to /src/app.ts.
+
+[edit:already-applied] Edit 1 is already applied: the newText is in /src/app.ts and the oldText is not. Do not send this edit again."
+,
+  },
+  {
+    "error": {
+      "code": "NO_CHANGE",
+      "phase": "plan",
+    },
+    "status": "error",
+    "text": "[edit:no-change] The edits leave /src/app.ts as it is. Check the newText values, or do not send the edit.",
+  },
+  {
+    "error": {
+      "code": "NO_MATCH",
+      "data": {
+        "closest": [
+          13,
+          16,
+        ],
+        "index": 0,
+      },
+      "phase": "plan",
+    },
+    "status": "error",
+    "text": 
+"[edit:no-match] Edit 1: the oldText was not found in /src/app.ts.
+The closest region is:
+13|
+14|function two() {
+15|  return 2;
+16|}"
+,
+  },
+  {
+    "error": {
+      "code": "NO_MATCH",
+      "data": {
+        "closest": [
+          13,
+          16,
+        ],
+        "index": 0,
+      },
+      "phase": "plan",
+    },
+    "status": "error",
+    "text": 
+"[edit:no-match] Edit 1: the oldText was not found in /src/app.ts.
+The closest region is:
+13|
+14|function two() {
+15|  return 2;
+16|}"
+,
+  },
+  {
+    "error": {
+      "code": "NO_MATCH",
+      "data": {
+        "closest": [
+          13,
+          16,
+        ],
+        "index": 0,
+      },
+      "phase": "plan",
+    },
+    "status": "error",
+    "text": 
+"[edit:no-match] Edit 1: the oldText was not found in /src/app.ts.
+The closest region is:
+13|
+14|function two() {
+15|  return 2;
+16|}
+[edit:repeated-miss] This is miss 3 in a row on /src/app.ts. Read the file again, include more surrounding lines, or replace the file with the write tool."
+,
+  },
+  {
+    "error": {
+      "code": "AMBIGUOUS_MATCH",
+      "data": {
+        "index": 0,
+        "lines": [
+          1,
+          12,
+          16,
+        ],
+        "total": 3,
+      },
+      "phase": "plan",
+    },
+    "status": "error",
+    "text": "[edit:ambiguous-match] Edit 1: the oldText matches 3 places in /src/app.ts (lines 1, 12, 16). Add surrounding lines to make it unique, or set replaceAll.",
+  },
+  {
+    "error": {
+      "code": "OVERLAP",
+      "data": {
+        "first": 0,
+        "second": 1,
+      },
+      "phase": "plan",
+    },
+    "status": "error",
+    "text": "[edit:overlap] Edits 1 and 2 change overlapping text in /src/app.ts. Merge them into one edit.",
+  },
+  {
+    "error": {
+      "code": "NO_MATCH",
+      "data": {
+        "closest": [
+          1,
+          1,
+        ],
+        "index": 0,
+        "trailingNewline": "extra",
+      },
+      "phase": "plan",
+    },
+    "status": "error",
+    "text": 
+"[edit:no-match] Edit 1: the oldText was not found in /src/tail.ts.
+It differs only by a trailing newline.
+The closest region is:
+1|last line"
+,
+  },
+]
+`;
+
+exports[`golden edit output refusals and preconditions 1`] = `
+[
+  {
+    "error": {
+      "code": "MATCH_REFUSED",
+      "data": {
+        "index": 0,
+        "matcher": "normalized",
+        "reason": "boundary",
+      },
+      "phase": "plan",
+    },
+    "status": "error",
+    "text": "[edit:match-refused] Edit 1: the normalized matcher found the oldText in /src/lig.ts, but the match was refused (the match starts or ends inside normalized text). Copy the oldText exactly from the file.",
+  },
+  {
+    "error": {
+      "code": "MATCH_REFUSED",
+      "data": {
+        "index": 0,
+        "matcher": "normalized",
+        "reason": "fuzzy-replace-all",
+      },
+      "phase": "plan",
+    },
+    "status": "error",
+    "text": "[edit:match-refused] Edit 1: the normalized matcher found the oldText in /src/dash.ts, but the match was refused (a loose match cannot replace every occurrence). Copy the oldText exactly from the file.",
+  },
+  {
+    "error": {
+      "code": "NOT_FOUND",
+      "phase": "stat",
+    },
+    "status": "error",
+    "text": "[edit:not-found] /src/missing.ts does not exist. Use the write tool to create it.",
+  },
+  {
+    "error": null,
+    "status": "ok",
+    "text": 
+"Edited /src/app.ts: 1 replacement at line 16.
+13|}
+14|
+15|function two() {
+16|  return 22;
+17|}
+
+[edit:stale-rematched] /src/app.ts changed since it was last read, but every old text still matched exactly once, so the edit was applied."
+,
+  },
+  {
+    "error": {
+      "code": "STALE",
+      "data": {
+        "index": 0,
+      },
+      "phase": "precondition",
+    },
+    "status": "error",
+    "text": "[edit:stale] /src/app.ts changed since it was last read. Read it again, then retry.",
+  },
+  {
+    "error": {
+      "code": "INVALID_INPUT",
+      "data": {
+        "path": "/src/app.ts",
+      },
+      "phase": "input",
+    },
+    "status": "error",
+    "text": "[edit:invalid-input] The edit input was rejected: edits must be a non-empty array",
+  },
+]
+`;
+
+exports[`golden edit output with diff: true 1`] = `
+"Edited /src/app.ts: 1 replacement at line 11.
+8|
+9|// helpers
+10|function one() {
+11|  return 10;
+12|}
+13|
+14|function two() {
+\`\`\`diff
+--- a/src/app.ts
++++ b/src/app.ts
+@@ -8,7 +8,7 @@
+ 
+ // helpers
+ function one() {
+-  return 1;
++  return 10;
+ }
+ 
+ function two() {
+\`\`\`"
+`;
