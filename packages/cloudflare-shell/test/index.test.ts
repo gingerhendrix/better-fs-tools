@@ -8,7 +8,7 @@ import { shellWorkspaceFileSystem } from "../src/index.ts";
 import type { ShellWorkspaceLike } from "../src/index.ts";
 import { ROOT, fakeWorkspace, fsFor } from "./fake-workspace.ts";
 import type { FakeWorkspace } from "./fake-workspace.ts";
-import { expectFsError, importSpecifiers } from "./helpers.ts";
+import { expectFsError, sourceSpecifiers } from "./helpers.ts";
 
 const ENCODER = new TextEncoder();
 
@@ -428,8 +428,8 @@ describe("shell workspace listing", () => {
 });
 
 describe("cloudflare-shell worker safety", () => {
-  test("the source imports only @better-fs-tools/fs", async () => {
-    const specifiers = await importSpecifiers(resolve(import.meta.dir, "../src/index.ts"));
+  test("the source imports only @better-fs-tools/fs and its own modules", async () => {
+    const specifiers = await sourceSpecifiers(resolve(import.meta.dir, "../src"));
     expect(new Set(specifiers)).toEqual(new Set(["@better-fs-tools/fs"]));
   });
 });

@@ -2,10 +2,13 @@ import type {
   FileSystemError,
   FileSystemErrorReason,
   ListOutcome,
+  MutationError,
+  MutationOutcome,
   OpenOutcome,
+  StatOutcome,
   VerifyOutcome,
 } from "@better-fs-tools/fs";
-import type { ReadErrorCode, ReadFailure, ReadOk, ReadResult } from "@better-fs-tools/read";
+import type { Digest, ReadErrorCode, ReadFailure, ReadOk, ReadResult } from "@better-fs-tools/read";
 
 /**
  * Assert the shape of a typed filesystem error from `open()`, `list()` or
@@ -50,4 +53,49 @@ export async function importSpecifiers(file: string): Promise<string[]> {
   return [...source.matchAll(/^\s*import(?:\s+type)?\s[^;]*?from\s+"([^"]+)"/gmu)].map(
     (match) => match[1] ?? "",
   );
+}
+
+/** The package-external import specifiers of every source file in a folder. */
+export async function sourceSpecifiers(folder: string): Promise<string[]> {
+  const found: string[] = [];
+  for (const file of new Bun.Glob("*.ts").scanSync({ cwd: folder, absolute: true })) {
+    found.push(
+      ...(await importSpecifiers(file)).filter((specifier) => !specifier.startsWith("./")),
+    );
+  }
+  return found;
+}
+
+const TEXT = new TextEncoder();
+
+/** A small FNV-1a digest. A Worker host brings its own; the tests need one that is fixed. */
+export function testDigest(): Digest {
+  const fold = (bytes: Iterable<number>): string => {
+    let hash = 2166136261 >>> 0;
+    for (const byte of bytes) hash = Math.imul(hash ^ byte, 16777619) >>> 0;
+    return `fnv:${hash.toString(16).padStart(8, "0")}`;
+  };
+  return {
+    id: "test-fnv",
+    create() {
+      const seen: number[] = [];
+      return {
+        update: (bytes: Uint8Array) => void seen.push(...bytes),
+        digest: () => fold(seen),
+      };
+    },
+    hash: (value: string) => fold(TEXT.encode(value)),
+  };
+}
+
+/** Assert the shape of a typed error from `stat()`, `write()` or `remove()`. */
+export function expectMutationError(
+  outcome: MutationOutcome | StatOutcome,
+  reason: MutationError["reason"],
+): MutationError | FileSystemError {
+  if (outcome.ok) throw new Error(`expected a ${reason} error, got a successful outcome`);
+  if (outcome.error.reason !== reason) {
+    throw new Error(`expected reason ${reason}, got ${outcome.error.reason}`);
+  }
+  return outcome.error;
 }

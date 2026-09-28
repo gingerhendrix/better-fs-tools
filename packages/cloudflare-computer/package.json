@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@better-fs-tools/read": "workspace:^",
+    "@better-fs-tools/write": "workspace:^",
     "@cloudflare/computer": "catalog:"
   }
 }

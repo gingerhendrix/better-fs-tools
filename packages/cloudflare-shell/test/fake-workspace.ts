@@ -19,18 +19,41 @@ export interface FakeWorkspace extends ShellWorkspaceLike {
   put(path: string, contents: string | Uint8Array, mimeType?: string): void;
   link(path: string, target: string): void;
   /** Replaces one method for a single failure or malformed-result case. */
-  override: Partial<Record<"stat" | "lstat" | "readFileBytes" | "readDir", unknown>>;
+  override: Partial<Record<FakeMethod, unknown>>;
+}
+
+type FakeMethod =
+  | "stat"
+  | "lstat"
+  | "readFileBytes"
+  | "readDir"
+  | "writeFileBytes"
+  | "mkdir"
+  | "rm";
+
+/** Shell throws plain errors whose message starts with the POSIX code. */
+function shellError(code: string, message: string): Error {
+  return new Error(`${code}: ${message}`);
 }
 
 /**
  * An in-memory stand-in for a Shell Workspace: `stat` follows a trailing
  * symlink, `lstat` does not, `readFileBytes` buffers, `readDir` honours its
  * limit. Directories are created implicitly, as Shell's `ensureParentDir` does.
+ *
+ * The write methods follow `@cloudflare/shell` 0.4.3: `writeFileBytes`
+ * follows a leaf symlink, creates missing parents, and sets the mime type to
+ * `application/octet-stream` unless one is passed. `mkdir` and `rm` throw
+ * `EEXIST`, `ENOENT`, `ENOTDIR` and `ENOTEMPTY` as message prefixes, with no
+ * `code` property. Each change moves `updatedAt` on. Real Shell stores whole
+ * seconds, so two writes inside one second can keep the same `updatedAt`.
  */
 export function fakeWorkspace(files: Record<string, string | Uint8Array> = {}): FakeWorkspace {
   const entries = new Map<string, Entry>([["/", { type: "directory", updatedAt: 1 }]]);
   const calls: string[] = [];
   const override: FakeWorkspace["override"] = {};
+  /* One clock for the whole workspace, so a removed and recreated file gets a new time. */
+  let clock = 1_700_000_000_000;
 
   const parents = (path: string): void => {
     let parent = dirnamePosix(path);
@@ -46,7 +69,7 @@ export function fakeWorkspace(files: Record<string, string | Uint8Array> = {}): 
     entries.set(path, {
       type: "file",
       bytes,
-      updatedAt: (entries.get(path)?.updatedAt ?? 1_700_000_000_000) + 1,
+      updatedAt: (clock += 1),
       ...(mimeType === undefined ? {} : { mimeType }),
     });
   };
@@ -92,6 +115,49 @@ export function fakeWorkspace(files: Record<string, string | Uint8Array> = {}): 
       if (override.readFileBytes !== undefined) return await run(override.readFileBytes, path);
       return entries.get(path)?.bytes ?? null;
     },
+    async writeFileBytes(path: string, data: Uint8Array, mimeType?: string) {
+      calls.push(`writeFileBytes:${path}`);
+      if (override.writeFileBytes !== undefined) return await run(override.writeFileBytes, path);
+      const target = follow(path) ?? path;
+      if (target === "/" || entries.get(target)?.type === "directory") {
+        throw shellError("EISDIR", `${path} is a directory`);
+      }
+      put(target, Uint8Array.from(data), mimeType ?? "application/octet-stream");
+    },
+    async mkdir(path: string, opts?: { recursive?: boolean }) {
+      calls.push(`mkdir:${path}`);
+      if (override.mkdir !== undefined) return await run(override.mkdir, path);
+      if (path === "/") return;
+      const existing = entries.get(path);
+      if (existing !== undefined) {
+        if (existing.type === "directory" && opts?.recursive === true) return;
+        throw shellError("EEXIST", `path exists: ${path}`);
+      }
+      const parent = entries.get(dirnamePosix(path));
+      if (parent === undefined) {
+        if (opts?.recursive !== true) throw shellError("ENOENT", "parent directory not found");
+        await workspace.mkdir(dirnamePosix(path), { recursive: true });
+      } else if (parent.type !== "directory") {
+        throw shellError("ENOTDIR", "parent is not a directory");
+      }
+      entries.set(path, { type: "directory", updatedAt: (clock += 1) });
+    },
+    async rm(path: string, opts?: { recursive?: boolean; force?: boolean }) {
+      calls.push(`rm:${path}`);
+      if (override.rm !== undefined) return await run(override.rm, path);
+      if (path === "/") throw shellError("EPERM", "cannot remove root directory");
+      const existing = entries.get(path);
+      if (existing === undefined) {
+        if (opts?.force === true) return;
+        throw shellError("ENOENT", `no such file or directory: ${path}`);
+      }
+      const children = [...entries.keys()].filter((key) => key.startsWith(`${path}/`));
+      if (existing.type === "directory" && children.length > 0) {
+        if (opts?.recursive !== true) throw shellError("ENOTEMPTY", `directory not empty: ${path}`);
+        for (const child of children) entries.delete(child);
+      }
+      entries.delete(path);
+    },
     async readDir(dir: string, opts?: { limit?: number; offset?: number }) {
       calls.push(`readDir:${dir}`);
       if (override.readDir !== undefined) return await run(override.readDir, dir);
@@ -121,6 +187,9 @@ function dirnamePosix(path: string): string {
 
 export function fsFor(files: Record<string, string | Uint8Array> = {}, maxBufferedBytes?: number) {
   const workspace = fakeWorkspace(files);
+  /* The root exists even when no file is in it. */
+  if (!workspace.entries.has(ROOT))
+    workspace.entries.set(ROOT, { type: "directory", updatedAt: 1 });
   const fs = shellWorkspaceFileSystem(workspace, {
     root: ROOT,
     ...(maxBufferedBytes === undefined ? {} : { maxBufferedBytes }),
