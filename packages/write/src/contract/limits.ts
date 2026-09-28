@@ -3,7 +3,7 @@ export interface WriteLimits {
   readonly maxFileBytes: number;
   /** Encoded bytes of new content for one file. Default 8 MiB. */
   readonly maxWriteBytes: number;
-  /** UTF-16 code units of patch text. Default 4 MiB (4_194_304). */
+  /** UTF-8 bytes of patch text, like every other *Bytes limit. Default 4 MiB (4_194_304). */
   readonly maxPatchBytes: number;
   /** Operations in one patch. Default 100. */
   readonly maxPatchFiles: number;

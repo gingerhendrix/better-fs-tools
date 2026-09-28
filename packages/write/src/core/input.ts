@@ -37,10 +37,20 @@ export function parseApplyPatchInput(
   if (typeof patch !== "string" || patch.trim() === "") {
     throw new TypeError("patch must be a non-empty string");
   }
-  if (patch.length > limits.maxPatchBytes) {
-    throw new TypeError(`patch must be at most ${limits.maxPatchBytes} characters`);
+  if (utf8Length(patch, limits.maxPatchBytes) > limits.maxPatchBytes) {
+    throw new TypeError(`patch must be at most ${limits.maxPatchBytes} bytes of UTF-8`);
   }
   return { tool: "apply_patch", patch };
+}
+
+/**
+ * The UTF-8 byte length of `text`. Each UTF-16 unit is at least one byte and
+ * at most three, so the count is skipped when the answer is clear either way.
+ */
+function utf8Length(text: string, max: number): number {
+  if (text.length > max) return text.length;
+  if (text.length * 3 <= max) return text.length;
+  return new TextEncoder().encode(text).byteLength;
 }
 
 function inputRecord(

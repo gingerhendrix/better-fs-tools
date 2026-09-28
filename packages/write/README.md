@@ -163,7 +163,7 @@ Every dependency except `fs` has a default. Pass them to `createEditTool()`, `cr
 | ------------------ | ------- | ---------------------------------------------- |
 | `maxFileBytes`     | 8 MiB   | Bytes of an existing file that any tool loads  |
 | `maxWriteBytes`    | 8 MiB   | Encoded bytes of new content for one file      |
-| `maxPatchBytes`    | 4 MiB   | Characters of patch text                       |
+| `maxPatchBytes`    | 4 MiB   | UTF-8 bytes of patch text                      |
 | `maxPatchFiles`    | 100     | Operations in one patch                        |
 | `maxEdits`         | 100     | Pairs in one edit call                         |
 | `sampleBytes`      | 8 192   | Bytes given to the classifiers and codecs      |

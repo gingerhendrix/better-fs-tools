@@ -77,4 +77,23 @@ describe("parseApplyPatchInput", () => {
     const small = resolveWriteLimits({ maxPatchBytes: 3 });
     expect(() => parseApplyPatchInput({ patch: "abcd" }, small)).toThrow(TypeError);
   });
+
+  test("maxPatchBytes counts UTF-8 bytes, not UTF-16 units", () => {
+    const patch = "*** Begin Patch\n*** Add File: /é.txt\n+ééé\n*** End Patch";
+    const bytes = new TextEncoder().encode(patch).byteLength;
+    expect(patch.length).toBeLessThan(bytes);
+    const atUnits = resolveWriteLimits({ maxPatchBytes: patch.length });
+    expect(() => parseApplyPatchInput({ patch }, atUnits)).toThrow(
+      `patch must be at most ${patch.length} bytes of UTF-8`,
+    );
+    const atBytes = resolveWriteLimits({ maxPatchBytes: bytes });
+    expect(parseApplyPatchInput({ patch }, atBytes).patch).toBe(patch);
+    const astral = "😀".repeat(3);
+    expect(() =>
+      parseApplyPatchInput({ patch: astral }, resolveWriteLimits({ maxPatchBytes: 11 })),
+    ).toThrow(TypeError);
+    expect(
+      parseApplyPatchInput({ patch: astral }, resolveWriteLimits({ maxPatchBytes: 12 })).patch,
+    ).toBe(astral);
+  });
 });
