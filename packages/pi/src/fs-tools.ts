@@ -1,38 +1,49 @@
-import { nodeDigest } from "@better-fs-tools/node";
-import type { ReadStateStore } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read";
-import { memoryLocks } from "@better-fs-tools/write";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { buildPiApplyPatchTool, buildPiEditTool, buildPiWriteTool } from "./mutation-tools.ts";
+import { nodeDigest } from "@better-fs-tools/node";
+import type { Clock, Digest, ReadStateStore, ToolCallContext } from "@better-fs-tools/read";
+import { createFsTools } from "@better-fs-tools/write";
+import type { FsToolsSharedKey, InvalidateOutcome, LockManager } from "@better-fs-tools/write";
+
+import {
+  adaptPiMutationTool,
+  piApplyPatchParts,
+  piEditParts,
+  piWriteParts,
+} from "./mutation-tools.ts";
 import type {
   CreatePiApplyPatchToolOptions,
   CreatePiEditToolOptions,
   CreatePiWriteToolOptions,
   PiMutationTool,
 } from "./mutation-tools.ts";
-import { checkPiOptions, piFileSystems } from "./roots.ts";
+import { checkPiOptions, PI_ROOT_KEYS, piFileSystems } from "./roots.ts";
 import type { PiRootOptions } from "./roots.ts";
-import { buildPiReadTool } from "./tool.ts";
+import { adaptPiReadTool, piReadDeps, piReadParts } from "./tool.ts";
 import type { CreatePiReadToolOptions, PiReadTool } from "./tool.ts";
 
 /** Set once for all four tools. */
-type Shared = "state" | "digest" | "locks" | keyof PiRootOptions;
+type Shared = FsToolsSharedKey | keyof PiRootOptions;
 
-const KNOWN = new Set([
+const KNOWN: ReadonlySet<string> = new Set([
   "state",
-  "denyRoots",
-  "symlinks",
-  "hardLinks",
+  "locks",
+  "clock",
+  ...PI_ROOT_KEYS,
   "read",
   "edit",
   "write",
   "applyPatch",
 ]);
-const SHARED_KEYS = ["state", "digest", "locks", "denyRoots", "symlinks", "hardLinks"] as const;
+const SHARED_KEYS = ["state", "digest", "locks", "clock", ...PI_ROOT_KEYS] as const;
 
 export interface CreatePiFsToolsOptions extends PiRootOptions {
   /** Default createMemoryStore(). null turns read-before-write off. */
   readonly state?: ReadStateStore | null;
+  /** Default memoryLocks(). */
+  readonly locks?: LockManager;
+  /** Default () => new Date(). */
+  readonly clock?: Clock;
   readonly read?: Omit<CreatePiReadToolOptions, Shared>;
   readonly edit?: Omit<CreatePiEditToolOptions, Shared>;
   readonly write?: Omit<CreatePiWriteToolOptions, Shared>;
@@ -44,27 +55,40 @@ export interface PiFsTools {
   readonly edit: PiMutationTool;
   readonly write: PiMutationTool;
   readonly applyPatch: PiMutationTool;
+  readonly state: ReadStateStore | null;
+  /** nodeDigest(). */
+  readonly digest: Digest;
+  readonly locks: LockManager;
+  readonly clock: Clock;
+  /**
+   * Deletes the record for a path under the call's ctx.cwd, so the next edit
+   * needs a read. Pass the call: in a bash afterRun hook it is ctx.call.
+   * Never throws. With state null it still stats, and reports recorded: false.
+   */
+  invalidate(path: string, call: ToolCallContext<ExtensionContext>): Promise<InvalidateOutcome>;
 }
 
 /**
- * Four tools with one store, one digest (nodeDigest()), one lock manager, and
- * one root cache over ctx.cwd. Throws TypeError on fs, cwd, or allowedRoots,
- * at the top level or in any tool's options, on an unknown top-level key, and
- * on a shared option (state, digest, locks, or a root option) in a tool's options.
+ * createFsTools from @better-fs-tools/write, over one root cache on ctx.cwd,
+ * with nodeDigest(). The four tools share one store, one digest, one lock
+ * manager, and one clock. Throws TypeError on fs, cwd, or allowedRoots, at
+ * the top level or in any tool's options, on an unknown top-level key, and
+ * on a shared option (state, digest, locks, clock, or a root option) in a
+ * tool's options. No bash: register createPiBashTool() for that, and call
+ * invalidate from its afterRun hook.
  */
 export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools {
   checkPiOptions(options, "fs");
   for (const key of Object.keys(options)) {
     if (!KNOWN.has(key)) throw new TypeError(`Unknown createPiFsTools option: ${key}`);
   }
-  const { state: given, denyRoots, symlinks, hardLinks } = options;
-  const parts = {
+  const given = {
     read: options.read ?? {},
     edit: options.edit ?? {},
     write: options.write ?? {},
     applyPatch: options.applyPatch ?? {},
   };
-  for (const [key, value] of Object.entries(parts)) {
+  for (const [key, value] of Object.entries(given)) {
     checkPiOptions(value, key);
     for (const shared of SHARED_KEYS) {
       if (Object.hasOwn(value, shared)) {
@@ -75,16 +99,59 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
     }
   }
 
-  const fileSystemFor = piFileSystems({ denyRoots, symlinks, hardLinks });
-  const shared = {
-    state: given === undefined ? createMemoryStore() : given,
-    digest: nodeDigest(),
+  const { denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode } = options;
+  const fs = piFileSystems({ denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode });
+  const {
+    signature: _readSignature,
+    promptSnippet: _readSnippet,
+    promptGuidelines: _readLines,
+    ...read
+  } = given.read;
+  const {
+    signature: _editSignature,
+    promptSnippet: _editSnippet,
+    promptGuidelines: _editLines,
+    ...edit
+  } = given.edit;
+  const {
+    signature: _writeSignature,
+    promptSnippet: _writeSnippet,
+    promptGuidelines: _writeLines,
+    ...write
+  } = given.write;
+  const {
+    signature: _patchSignature,
+    promptSnippet: _patchSnippet,
+    promptGuidelines: _patchLines,
+    ...applyPatch
+  } = given.applyPatch;
+  const parts = {
+    read: piReadParts(given.read),
+    edit: piEditParts(given.edit),
+    write: piWriteParts(given.write),
+    applyPatch: piApplyPatchParts(given.applyPatch),
   };
-  const locks = memoryLocks();
+
+  const core = createFsTools<ExtensionContext>({
+    fs,
+    digest: nodeDigest(),
+    ...(options.state === undefined ? {} : { state: options.state }),
+    ...(options.locks === undefined ? {} : { locks: options.locks }),
+    ...(options.clock === undefined ? {} : { clock: options.clock }),
+    read: { ...read, ...piReadDeps(parts.read) },
+    edit: { ...edit, messages: parts.edit.messages },
+    write: { ...write, messages: parts.write.messages },
+    applyPatch: { ...applyPatch, messages: parts.applyPatch.messages },
+  });
   return Object.freeze<PiFsTools>({
-    read: buildPiReadTool({ ...parts.read, ...shared }, fileSystemFor),
-    edit: buildPiEditTool({ ...parts.edit, ...shared, locks }, fileSystemFor),
-    write: buildPiWriteTool({ ...parts.write, ...shared, locks }, fileSystemFor),
-    applyPatch: buildPiApplyPatchTool({ ...parts.applyPatch, ...shared, locks }, fileSystemFor),
+    read: adaptPiReadTool(parts.read, core.read, core.digest),
+    edit: adaptPiMutationTool(parts.edit, core.edit),
+    write: adaptPiMutationTool(parts.write, core.write),
+    applyPatch: adaptPiMutationTool(parts.applyPatch, core.applyPatch),
+    state: core.state,
+    digest: core.digest,
+    locks: core.locks,
+    clock: core.clock,
+    invalidate: (path, call) => core.invalidate(path, call),
   });
 }

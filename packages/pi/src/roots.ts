@@ -34,19 +34,6 @@ export const PI_ROOT_KEYS = [
   "newDirectoryMode",
 ] as const satisfies readonly (keyof PiRootOptions)[];
 
-/** The root options, and the rest of the options without them. */
-export function splitPiRootOptions<T extends PiRootOptions>(
-  options: T,
-): [PiRootOptions, Omit<T, keyof PiRootOptions>] {
-  const roots: Record<string, unknown> = {};
-  const rest = { ...options } as Record<string, unknown>;
-  for (const key of PI_ROOT_KEYS) {
-    if (rest[key] !== undefined) roots[key] = rest[key];
-    delete rest[key];
-  }
-  return [roots as PiRootOptions, rest as Omit<T, keyof PiRootOptions>];
-}
-
 /** The fs factory every Pi tool uses: one Node filesystem for each ctx.cwd. */
 export type PiFileSystems = (call: ToolCallContext<ExtensionContext>) => NodeFileSystem;
 

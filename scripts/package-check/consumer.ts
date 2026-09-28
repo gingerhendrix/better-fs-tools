@@ -32,9 +32,10 @@ export async function prepareConsumer(repository: string, consumer: string): Pro
  * Imports every export under Node, not Bun, then reads through the Node tool,
  * the memory filesystem, the AI SDK tool, just-bash, and the Pi extension entry
  * that `pi.extensions` names. It also creates and edits files on disk with
- * `createNodeFsTools()`, and edits one through `justBashFileSystem()` and
- * `createFsTools()`. It builds `createAiSdkFsTools()`. It
- * runs bash through `createNodeFsTools()` and `justBashCommandRunner()`.
+ * `createNodeFsTools()`, and edits one through `justBashFileSystem()`. It
+ * edits a memory file through `createFsTools()` and builds
+ * `createAiSdkFsTools()`. It runs bash through `createNodeFsTools()` and
+ * `justBashCommandRunner()`.
  */
 export function runNodeConsumer(
   consumer: string,

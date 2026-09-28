@@ -5,8 +5,10 @@ import path from "node:path";
 
 import { defaultEditSignature } from "@better-fs-tools/write/signature";
 
-import { createPiFsTools } from "../src/index.ts";
-import { execute, fixtures, run, textOf } from "./helpers.ts";
+import { memoryLocks } from "@better-fs-tools/write";
+
+import { createPiBashTool, createPiFsTools } from "../src/index.ts";
+import { execute, fixtures, piContext, run, textOf } from "./helpers.ts";
 
 const fixture = fixtures();
 
@@ -128,11 +130,75 @@ describe("createPiFsTools", () => {
 
   test("a shared option inside a tool's options throws TypeError", () => {
     for (const tool of ["read", "edit", "write", "applyPatch"]) {
-      for (const key of ["state", "digest", "locks", "denyRoots", "symlinks", "hardLinks"]) {
+      for (const key of [
+        "state",
+        "digest",
+        "locks",
+        "clock",
+        "denyRoots",
+        "symlinks",
+        "hardLinks",
+        "newFileMode",
+        "newDirectoryMode",
+      ]) {
         expect(() => createPiFsTools({ [tool]: { [key]: null } } as never)).toThrow(
           `createPiFsTools ${tool} options cannot set ${key}: set it once at the top level`,
         );
       }
     }
+  });
+
+  test("exposes state, digest, locks, and clock, and takes locks and clock (CF-16)", () => {
+    const locks = memoryLocks();
+    const clock = () => new Date("2026-09-29T00:00:00.000Z");
+    const tools = createPiFsTools({ locks, clock });
+    expect(tools.state).not.toBeNull();
+    expect(tools.digest.id).toBe("sha256");
+    expect(tools.locks).toBe(locks);
+    expect(tools.clock).toBe(clock);
+    expect(createPiFsTools({ state: null }).state).toBeNull();
+  });
+
+  test("a bash afterRun hook can invalidate a read record with ctx.call (CF-16)", async () => {
+    const cwd = await fixture({ "a.txt": "one\n" });
+    const tools = createPiFsTools();
+    const bash = createPiBashTool({
+      afterRun: [
+        {
+          id: "invalidate",
+          afterRun: async (_outcome, ctx) => {
+            const outcome = await tools.invalidate("a.txt", ctx.call);
+            expect(outcome).toEqual({
+              ok: true,
+              resolvedPath: path.join(cwd, "a.txt"),
+              recorded: true,
+            });
+            return {};
+          },
+        },
+      ],
+    });
+    await execute(tools.read, { path: "a.txt" }, cwd);
+    await bash.execute(
+      "bash-1",
+      { command: "printf 'two\\n' > a.txt" },
+      undefined,
+      undefined,
+      piContext(cwd),
+    );
+    expect(await readFile(path.join(cwd, "a.txt"), "utf8")).toBe("two\n");
+    expect(textOf(await run(tools.edit, EDIT("two", "2"), cwd))).toBe(
+      "[edit:not-read] Read a.txt with the read tool before changing it.",
+    );
+  });
+
+  test("invalidate follows the call's ctx.cwd", async () => {
+    const parent = await fixture({ "a/x.txt": "a\n", "b/x.txt": "b\n" });
+    const tools = createPiFsTools();
+    await execute(tools.read, { path: "x.txt" }, path.join(parent, "a"));
+    const call = { host: piContext(path.join(parent, "b")) };
+    expect(await tools.invalidate("x.txt", call)).toMatchObject({ ok: true, recorded: false });
+    const other = { host: piContext(path.join(parent, "a")) };
+    expect(await tools.invalidate("x.txt", other)).toMatchObject({ ok: true, recorded: true });
   });
 });

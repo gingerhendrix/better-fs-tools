@@ -74,7 +74,7 @@ export default function readExtension(pi: ExtensionAPI): void {
 
 ## What the write tools do
 
-- `createPiFsTools(options?)` builds `read`, `edit`, `write`, and `apply_patch` with one `createMemoryStore()`, one `nodeDigest()`, one lock manager, and one cache of filesystems over `ctx.cwd`. `state: null` turns read-before-write off. `denyRoots`, `symlinks`, and `hardLinks` are set once for all four. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`. An unknown top-level key, or `state`, `digest`, `locks`, or a root option inside a tool's options, throws `TypeError`.
+- `createPiFsTools(options?)` wraps `createFsTools()` from `@better-fs-tools/write`. It builds `read`, `edit`, `write`, and `apply_patch` with one `createMemoryStore()`, one `nodeDigest()`, one lock manager, one clock, and one cache of filesystems over `ctx.cwd`. `state: null` turns read-before-write off. `locks`, `clock`, and the root options (`denyRoots`, `symlinks`, `hardLinks`, `newFileMode`, `newDirectoryMode`) are set once for all four. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`. The result also has `state`, `digest`, `locks`, `clock`, and `invalidate(path, call)`, which returns an `InvalidateOutcome`. Pass the call, so the path resolves under its `ctx.cwd`: in a bash `afterRun` hook it is `ctx.call`. An unknown top-level key, or `state`, `digest`, `locks`, `clock`, or a root option inside a tool's options, throws `TypeError`.
 - `createPiEditTool()`, `createPiWriteTool()`, and `createPiApplyPatchTool()` build one tool each. They default to `state: null`, so every update carries a `read-before-write-off` note. Pass the same `state` as your read tool, or use `createPiFsTools()`.
 - `fs`, `cwd`, and `allowedRoots` throw `TypeError`, as for the read tool. Writes go through `nodeFileSystem` with `ctx.cwd` as the only allowed root, and `hardLinks: "refuse"` by default. `newFileMode` and `newDirectoryMode` set the modes of new files and directories exactly. Without them, a new file is `0o666` and a new directory `0o777`, less the process umask.
 - The default signatures follow Pi's own tools: `edit` takes `path` and `edits: [{ oldText, newText }]` (`multiEditSignature({ name: "edit" })`), and `write` takes `path` and `content`. Their prompt snippets and guidelines are Pi's own, so the system prompt stays the same. `apply_patch` uses `freeformPatchSignature()`: models with grammar-tool support get the Codex patch grammar, and other models get the JSON schema.
@@ -96,9 +96,39 @@ export default function bashExtension(pi: ExtensionAPI): void {
 }
 ```
 
-The options take every `createBashTool()` dependency except `cwd`, plus `runner`, `signature`, `promptSnippet`, and `promptGuidelines`. The default description names the timeouts and output limits from `limits`, and the id of a `runner` object when you pass one.
+The options take every `createBashTool()` dependency except `cwd`, plus `runner`, `signature`, `promptSnippet`, and `promptGuidelines`. `runner` and `env` are optional here. The default description names the timeouts and output limits from `limits`, and the id of a `runner` object when you pass one.
 
-Pi's own `bash` also sets `PI_*` session variables. This tool does not. Add them with the `env` option when you need them.
+Pi's own `bash` also sets `PI_*` session variables. This tool does not. Add them with the `env` option when you need them. `env` defaults to `shellEnv(() => process.env)`.
+
+With the file tools, a bash `afterRun` hook can make the next edit of a file need a read:
+
+```ts
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createPiBashTool, createPiFsTools } from "@better-fs-tools/pi";
+
+// The four file tools and Pi-shaped bash. After each command, the next edit of
+// package.json needs a read, since the command may have changed it.
+export default function fsAndBashExtension(pi: ExtensionAPI): void {
+  const tools = createPiFsTools();
+  const bash = createPiBashTool({
+    afterRun: [
+      {
+        id: "invalidate-package-json",
+        afterRun: async (_outcome, ctx) => {
+          // ctx.call carries Pi's ctx, so the path resolves under its cwd.
+          await tools.invalidate("package.json", ctx.call);
+          return {};
+        },
+      },
+    ],
+  });
+  pi.registerTool(tools.read);
+  pi.registerTool(tools.edit);
+  pi.registerTool(tools.write);
+  pi.registerTool(tools.applyPatch);
+  pi.registerTool(bash);
+}
+```
 
 ## Links
 

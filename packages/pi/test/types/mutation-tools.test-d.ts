@@ -73,3 +73,10 @@ createPiEditTool({ fs: null });
 createPiFsTools({ cwd: "/" });
 // @ts-expect-error the shared store is set once, at the top level
 createPiFsTools({ edit: { state: null } });
+
+// The state and digest pairing is in the options types (StateNeedsDigestOrDefault).
+declare const store: ReadStateStore;
+export const pairedEdit = createPiEditTool({ state: store });
+// @ts-expect-error: a state needs a digest that is not null.
+createPiEditTool({ state: store, digest: null });
+export const bareEdit = createPiEditTool({ digest: null });

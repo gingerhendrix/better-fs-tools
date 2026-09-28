@@ -6,13 +6,17 @@ import { nodeDigest } from "@better-fs-tools/node";
 import type { NodeFileSystemOptions } from "@better-fs-tools/node";
 import { createReadTool, lineNumberFormatter, resolveReadLimits } from "@better-fs-tools/read";
 import type {
+  Digest,
   JsonObject,
   ReadContext,
   ReadFormatContext,
   ReadFormatter,
+  ReadLimits,
+  ReadMessageCatalog,
   ReadResult,
+  ReadTool,
   ReadToolDeps,
-  StateNeedsDigest,
+  StateNeedsDigestOrDefault,
 } from "@better-fs-tools/read";
 import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
@@ -22,7 +26,6 @@ import type { PiReadDetails } from "./details.ts";
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
 import { checkPiContext, checkPiOptions, piFileSystems } from "./roots.ts";
-import type { PiFileSystems } from "./roots.ts";
 
 export type { PiContentPart } from "./parts.ts";
 
@@ -30,17 +33,27 @@ export type { PiContentPart } from "./parts.ts";
 const PROMPT_SNIPPET = "Read file contents";
 const PROMPT_GUIDELINES: readonly string[] = ["Use read to examine files instead of cat or sed."];
 
-export interface CreatePiReadToolOptions extends Omit<ReadToolDeps<ExtensionContext>, "fs"> {
+/** The Pi options of the read tool, which createPiFsTools takes under `read` too. */
+export interface PiReadOptions {
   /** Default defaultReadSignature({ name: "read" }). */
   readonly signature?: ReadSignature;
   /** Default "Read file contents". */
   readonly promptSnippet?: string;
   /** Default ["Use read to examine files instead of cat or sed."]. */
   readonly promptGuidelines?: readonly string[];
-  /** Added to /dev, /proc, /sys. */
-  readonly denyRoots?: readonly string[];
-  readonly symlinks?: NodeFileSystemOptions["symlinks"];
 }
+
+/**
+ * Every read option except fs, and the Pi options. digest defaults to
+ * nodeDigest(); a state needs a digest that is not null.
+ */
+export type CreatePiReadToolOptions = Omit<ReadToolDeps<ExtensionContext>, "fs"> &
+  StateNeedsDigestOrDefault &
+  PiReadOptions & {
+    /** Added to /dev, /proc, /sys. */
+    readonly denyRoots?: readonly string[];
+    readonly symlinks?: NodeFileSystemOptions["symlinks"];
+  };
 
 export interface PiReadToolResult {
   content: PiContentPart[];
@@ -72,34 +85,68 @@ export interface PiReadTool {
  */
 export function createPiReadTool(options: CreatePiReadToolOptions = {}): PiReadTool {
   checkPiOptions(options, "read");
-  const { denyRoots, symlinks, ...rest } = options;
-  return buildPiReadTool(rest, piFileSystems({ denyRoots, symlinks }));
-}
-
-/** createPiReadTool over a given fs factory, so createPiFsTools can share one root cache. */
-export function buildPiReadTool(
-  options: Omit<CreatePiReadToolOptions, "denyRoots" | "symlinks">,
-  fileSystemFor: PiFileSystems,
-): PiReadTool {
   const {
-    signature = defaultReadSignature({ name: "read" }),
-    promptSnippet = PROMPT_SNIPPET,
-    promptGuidelines = PROMPT_GUIDELINES,
+    denyRoots,
+    symlinks,
+    signature: _signature,
+    promptSnippet: _promptSnippet,
+    promptGuidelines: _promptGuidelines,
     ...deps
   } = options;
-  const limits = resolveReadLimits(deps.limits);
-  const formatter: ReadFormatter<ExtensionContext> = deps.formatter ?? lineNumberFormatter();
-  const digest = deps.digest === undefined ? nodeDigest() : deps.digest;
-  // The core checks at run time that a state comes with a digest.
-  const read = createReadTool<ExtensionContext>({
-    ...deps,
-    limits,
-    messages: { ...readSignatureMessages(signature), ...deps.messages },
-    formatter,
-    digest,
-    fs: fileSystemFor,
-  } as ReadToolDeps<ExtensionContext> & StateNeedsDigest);
+  const parts = piReadParts(options);
+  const fs = piFileSystems({ denyRoots, symlinks });
+  // digest: null narrows the options to the branch without a state.
+  if (deps.digest === null) {
+    const read = createReadTool({ ...deps, ...piReadDeps(parts), fs, digest: null });
+    return adaptPiReadTool(parts, read, null);
+  }
+  const digest = deps.digest ?? nodeDigest();
+  const read = createReadTool({ ...deps, ...piReadDeps(parts), fs, digest });
+  return adaptPiReadTool(parts, read, digest);
+}
 
+/** A read tool's Pi options with their defaults, and the core options that the Pi face needs too. */
+export interface PiReadParts {
+  readonly signature: ReadSignature;
+  readonly promptSnippet: string;
+  readonly promptGuidelines: readonly string[];
+  readonly limits: Readonly<ReadLimits>;
+  readonly formatter: ReadFormatter<ExtensionContext>;
+  /** The signature's messages under the host's. */
+  readonly messages: Partial<ReadMessageCatalog>;
+}
+
+/**
+ * The Pi defaults: the signature, the prompt text, lineNumberFormatter(), the
+ * resolved limits, and the signature's messages under the host's.
+ */
+export function piReadParts(
+  options: PiReadOptions &
+    Pick<Partial<ReadToolDeps<ExtensionContext>>, "limits" | "messages" | "formatter">,
+): PiReadParts {
+  const signature = options.signature ?? defaultReadSignature({ name: "read" });
+  return {
+    signature,
+    promptSnippet: options.promptSnippet ?? PROMPT_SNIPPET,
+    promptGuidelines: options.promptGuidelines ?? PROMPT_GUIDELINES,
+    limits: resolveReadLimits(options.limits),
+    formatter: options.formatter ?? lineNumberFormatter(),
+    messages: { ...readSignatureMessages(signature), ...options.messages },
+  };
+}
+
+/** The core options that piReadParts fills in, to spread over the host's. */
+export function piReadDeps(parts: PiReadParts) {
+  return { limits: parts.limits, formatter: parts.formatter, messages: parts.messages };
+}
+
+/** The Pi face of a built read tool. `digest` is the core's, for the "view" format context. */
+export function adaptPiReadTool(
+  parts: PiReadParts,
+  read: ReadTool<ExtensionContext>,
+  digest: Digest | null,
+): PiReadTool {
+  const { signature, promptSnippet, promptGuidelines, limits, formatter } = parts;
   return Object.freeze<PiReadTool>({
     name: signature.name,
     label: signature.name,
