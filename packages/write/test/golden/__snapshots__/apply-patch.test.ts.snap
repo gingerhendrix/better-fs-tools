@@ -1,0 +1,173 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`golden apply_patch output (plan section 6) success: add, update with a loose hunk, move, and delete 1`] = `
+{
+  "commit": null,
+  "error": null,
+  "status": "ok",
+  "text": 
+"Success. Updated the following files:
+A /docs/new.md
+M /src/app.ts
+M /src/new-name.ts (moved from /src/old-name.ts, hunk 1 matched by normalized)
+D /old/unused.ts
+
+[apply_patch:fuzzy-match] Hunk 1 matched /src/old-name.ts at lines 1-1 only with the normalized matcher, not exactly. Check the result.
+[apply_patch:directories-created] Created the directory /docs."
+,
+}
+`;
+
+exports[`golden apply_patch output (plan section 6) success with the diff option 1`] = `
+"Success. Updated the following files:
+M /src/a.ts
+\`\`\`diff
+--- a/src/a.ts
++++ b/src/a.ts
+@@ -1 +1 @@
+-a
++A
+\`\`\`"
+`;
+
+exports[`golden apply_patch output (plan section 6) verify failure, parse failure, not read, and no change 1`] = `
+[
+  {
+    "commit": null,
+    "error": {
+      "code": "PATCH_VERIFY",
+      "data": {
+        "problems": [
+          {
+            "hunk": 0,
+            "path": "/src/app.ts",
+            "reason": "lines-not-found",
+          },
+          {
+            "path": "/src/a.ts",
+            "reason": "exists",
+          },
+        ],
+      },
+      "phase": "plan",
+    },
+    "status": "error",
+    "text": 
+"[apply_patch:patch-verify] Patch validation failed (no files were modified):
+- /src/app.ts: hunk 1: failed to find the expected lines:
+    const a = 1;
+    const b = 2;
+- /src/a.ts already exists. Use *** Update File, or the write tool to replace it."
+,
+  },
+  {
+    "commit": null,
+    "error": {
+      "code": "PATCH_PARSE",
+      "data": {
+        "detail": "the last line must be "*** End Patch"",
+        "line": 2,
+      },
+      "phase": "input",
+    },
+    "status": "error",
+    "text": "[apply_patch:patch-parse] The patch could not be parsed at line 2: the last line must be "*** End Patch"",
+  },
+  {
+    "commit": null,
+    "error": {
+      "code": "NOT_READ",
+      "phase": "precondition",
+    },
+    "status": "error",
+    "text": "[apply_patch:not-read] Read /src/a.ts with the read tool before changing it.",
+  },
+  {
+    "commit": null,
+    "error": null,
+    "status": "no-change",
+    "text": "No change to /src/b.ts.",
+  },
+]
+`;
+
+exports[`golden apply_patch output (plan section 6) commit failure: rolled back, and a failed rollback 1`] = `
+[
+  {
+    "commit": {
+      "files": [
+        {
+          "path": "/src/a.ts",
+          "state": "restored",
+        },
+        {
+          "code": "STALE",
+          "path": "/src/b.ts",
+          "state": "unchanged",
+        },
+        {
+          "path": "/src/c.ts",
+          "state": "unchanged",
+        },
+        {
+          "path": "/src/d.ts",
+          "state": "unchanged",
+        },
+      ],
+      "rolledBack": true,
+    },
+    "error": {
+      "code": "STALE",
+      "data": {
+        "path": "/src/b.ts",
+        "rolledBack": true,
+      },
+      "phase": "commit",
+    },
+    "status": "error",
+    "text": "[apply_patch:stale] Patch commit failed at /src/b.ts (STALE). The patch was rolled back. No files are changed.",
+  },
+  {
+    "commit": {
+      "files": [
+        {
+          "path": "/src/a.ts",
+          "state": "restored",
+        },
+        {
+          "path": "/src/b.ts",
+          "state": "restored",
+        },
+        {
+          "code": "IO_ERROR",
+          "path": "/src/c.ts",
+          "state": "rollback-failed",
+        },
+        {
+          "code": "IO_ERROR",
+          "path": "/src/d.ts",
+          "state": "unchanged",
+        },
+      ],
+      "rolledBack": false,
+    },
+    "error": {
+      "code": "PARTIAL_COMMIT",
+      "data": {
+        "cause": "IO_ERROR",
+        "path": "/src/d.ts",
+        "rolledBack": false,
+      },
+      "phase": "commit",
+    },
+    "status": "error",
+    "text": 
+"[apply_patch:partial-commit] Patch commit failed at /src/d.ts (IO_ERROR). Rollback failed, so these files are in a mixed state:
+restored /src/a.ts
+restored /src/b.ts
+rollback-failed /src/c.ts
+unchanged /src/d.ts"
+,
+  },
+]
+`;
