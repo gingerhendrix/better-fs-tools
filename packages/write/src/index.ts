@@ -56,3 +56,10 @@ export type { PreconditionPolicy } from "./contract/preconditions.ts";
 export type { WriteFormatContext, WriteFormatter } from "./contract/format.ts";
 export type { WriteLimits } from "./contract/limits.ts";
 export type { CanonicalParam, WriteMessageCatalog } from "./contract/messages.ts";
+
+export { parseApplyPatchInput, parseEditInput, parseWriteInput } from "./core/input.ts";
+export { defaultWriteLimits, resolveWriteLimits } from "./core/limits.ts";
+export { defaultWriteMessages, resolveWriteMessages } from "./core/messages.ts";
+export { defaultPreconditions } from "./contract/preconditions.ts";
+export { utf8Codec } from "./codecs/index.ts";
+export { memoryLocks } from "./locks/index.ts";
