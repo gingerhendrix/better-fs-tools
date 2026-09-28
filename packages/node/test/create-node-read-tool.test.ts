@@ -34,7 +34,7 @@ describe("createNodeReadTool", () => {
   test("with no arguments refuses a path outside process.cwd()", async () => {
     const result = await createNodeReadTool()({ path: join(root, "a.txt") });
     if (result.status !== "error") throw new Error("expected error");
-    expect(result.code).toBe("OUTSIDE_ALLOWED_ROOTS");
+    expect(result.error.code).toBe("OUTSIDE_ALLOWED_ROOTS");
   });
 
   test("a given fs replaces the default", async () => {

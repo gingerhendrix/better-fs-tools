@@ -11,6 +11,12 @@ type ContentPart =
   | { type: "media"; mediaType: string; data: Uint8Array; name?: string };
 ```
 
+`ReadOutcome` is a discriminated union on `status`. Every variant has `tool: "read"`. Only the `error` variant has an `error` field, and it is never null there, so a plain `if (result.status === "error")` narrows it:
+
+```ts
+if (result.status === "error") console.log(result.error.code, result.error.phase);
+```
+
 There is no `result.text`. `textOf(result)` joins the text parts of `content` with `"\n"`.
 
 The outcome is plain data. Only media parts hold bytes, as `Uint8Array`. Nothing in the result comes from `ctx.host`.
@@ -22,12 +28,13 @@ The outcome is plain data. Only media parts hold bytes, as `Uint8Array`. Nothing
 | `ok`          | The file, the converted text, or the directory listing was read as text. This includes empty files and empty views. |
 | `media`       | A converter returned content parts, for example an image.                                                           |
 | `unsupported` | A classifier or a converter refused the content. `code` is open.                                                    |
-| `error`       | The read failed. `code` is a `ReadErrorCode`.                                                                       |
+| `error`       | The read failed. `error.code` is a `ReadErrorCode`.                                                                 |
 
 ## `ok`
 
 ```ts
 {
+  tool: "read",
   status: "ok",
   request: { path, offset, limit, ranged },
   file: {
@@ -69,6 +76,7 @@ Field notes:
 
 ```ts
 {
+  tool: "read",
   status: "media",
   request, file, classification,
   conversion: { converter, mimeType },
@@ -84,9 +92,7 @@ Field notes:
 ## `unsupported`
 
 ```ts
-{
-  status: ("unsupported", code, request, file, classification, notes, content);
-}
+{ tool: "read", status: "unsupported", code, request, file, classification, notes, content }
 ```
 
 `code` comes from the classifier, a converter refusal, or the core:
@@ -101,12 +107,22 @@ Field notes:
 ## `error`
 
 ```ts
-{ status: "error", code, request: ReadRequest | null, file: FileInfo | null, notes, content }
+{
+  tool: "read",
+  status: "error",
+  error: { code, phase, message, data? },
+  request: ReadRequest | null,
+  file: FileInfo | null,
+  notes,
+  content
+}
 ```
+
+`error` has the same shape in every tool (`ToolError`). `code` is an UPPER_SNAKE `ReadErrorCode`. `phase` is the `ReadPhase` that failed: `input`, `resolve`, `open`, `authorize`, `sampling`, `conversion`, `scan`, `verification`, or `hooks`. `message` and `data` are copied from the error note. The error note is always in `notes`, and its code is the error code in kebab case, for example `not-found` for `NOT_FOUND`.
 
 `request` is `null` only for `INVALID_INPUT`. `file` is set only for failures found after the file was opened and allowed: `CHANGED_DURING_READ`, `UNSUPPORTED_BACKEND` from the classifiers, and a failed `verify()`. It is `null` for every other failure. `DENIED` from an authorizer always has `file: null`.
 
-| `code`                  | Meaning                                                                                                     |
+| `error.code`            | Meaning                                                                                                     |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `INVALID_INPUT`         | The input failed validation                                                                                 |
 | `NOT_FOUND`             | No such file. `note.data.suggestions` can hold nearby names.                                                |

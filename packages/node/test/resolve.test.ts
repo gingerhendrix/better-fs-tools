@@ -41,7 +41,7 @@ describe("resolvers on the node filesystem", () => {
   test("~ outside the allowed roots gives OUTSIDE_ALLOWED_ROOTS", async () => {
     const result = await toolWithHome(outside)({ path: "~/secret.txt" });
     if (result.status !== "error") throw new Error(`expected error, got ${result.status}`);
-    expect(result.code).toBe("OUTSIDE_ALLOWED_ROOTS");
+    expect(result.error.code).toBe("OUTSIDE_ALLOWED_ROOTS");
     expect(textOf(result)).not.toContain("secret\n");
   });
 
@@ -60,7 +60,7 @@ describe("resolvers on the node filesystem", () => {
     const read = createNodeReadTool({ fs: nodeFileSystem({ cwd: root, allowedRoots: [root] }) });
     const result = await read({ path: "report 2026.txt" });
     if (result.status !== "error") throw new Error(`expected error, got ${result.status}`);
-    expect(result.code).toBe("NOT_FOUND");
+    expect(result.error.code).toBe("NOT_FOUND");
     expect(result.notes[0]?.data?.suggestions).toEqual(["report 2026.txt"]);
   });
 });

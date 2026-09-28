@@ -24,7 +24,7 @@ export function expectOk(result: ReadResult): ReadOk & ReadResult {
 }
 
 export function expectFailure(result: ReadResult, code: ReadErrorCode): ReadResult {
-  if (result.status !== "error" || result.code !== code) {
+  if (result.status !== "error" || result.error.code !== code) {
     throw new Error(`expected error ${code}, got ${result.status}`);
   }
   return result;

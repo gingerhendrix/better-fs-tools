@@ -82,7 +82,7 @@ export function lineText(result: ReadResult): string[] {
 /** Narrows to ok, failing the test with the actual status when it is not. */
 export function expectOk(result: ReadResult): ReadOk & ReadResult {
   if (result.status !== "ok") {
-    const code = "code" in result ? ` (${result.code})` : "";
+    const code = result.status === "error" ? ` (${result.error.code})` : "";
     throw new Error(`expected ok, got ${result.status}${code}`);
   }
   return result;
@@ -91,7 +91,7 @@ export function expectOk(result: ReadResult): ReadOk & ReadResult {
 /** Narrows to media. */
 export function expectMedia(result: ReadResult): ReadMedia & ReadResult {
   if (result.status !== "media") {
-    const code = "code" in result ? ` (${result.code})` : "";
+    const code = result.status === "error" ? ` (${result.error.code})` : "";
     throw new Error(`expected media, got ${result.status}${code}`);
   }
   return result;
@@ -110,7 +110,8 @@ export function expectUnsupported(result: ReadResult, code?: string): ReadUnsupp
 /** Narrows to error, asserting the code. */
 export function expectFailure(result: ReadResult, code: ReadErrorCode): ReadFailure & ReadResult {
   if (result.status !== "error") throw new Error(`expected error ${code}, got ${result.status}`);
-  if (result.code !== code) throw new Error(`expected error ${code}, got ${result.code}`);
+  if (result.error.code !== code)
+    throw new Error(`expected error ${code}, got ${result.error.code}`);
   return result;
 }
 

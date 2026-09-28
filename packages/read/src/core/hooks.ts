@@ -15,6 +15,7 @@ import { same } from "./same.ts";
  * observation: it recomputes it after a hook edits the view.
  */
 const FROZEN = [
+  "tool",
   "request",
   "file",
   "classification",
@@ -151,8 +152,18 @@ function hasShape(after: Record<string, unknown>): boolean {
     }
     case "media":
       return Array.isArray(after.parts) && after.parts.every(isContentPart);
-    default:
+    case "unsupported":
       return typeof after.code === "string" && after.code !== "";
+    default: {
+      const { error } = after;
+      return (
+        isRecord(error) &&
+        typeof error.code === "string" &&
+        error.code !== "" &&
+        typeof error.phase === "string" &&
+        typeof error.message === "string"
+      );
+    }
   }
 }
 

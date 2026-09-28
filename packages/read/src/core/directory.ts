@@ -122,6 +122,7 @@ export async function convertDirectory<THost>(
       return tooLarge(messages, request, file, DIRECTORY, "media", limits.maxMediaBytes);
     }
     return {
+      tool: "read",
       status: "media",
       request,
       file,

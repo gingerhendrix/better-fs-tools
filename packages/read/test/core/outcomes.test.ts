@@ -130,3 +130,40 @@ describe("capability disclosure", () => {
     expect(result.file.version).toBe("memory:/a.txt:1");
   });
 });
+
+describe("result envelope", () => {
+  test("every status names the tool", async () => {
+    const { read } = harness({ files: { "/a.txt": "one\n", "/b.png": "\u0089PNG\r\n" } });
+    expect((await read({ path: "/a.txt" })).tool).toBe("read");
+    expect((await read({ path: "/b.png" })).tool).toBe("read");
+    expect((await read({ path: "/missing" })).tool).toBe("read");
+  });
+
+  test("an error nests code, phase, message, and data from its note", async () => {
+    const { read } = harness({ files: { "/src/config.json": "{}\n" } });
+    const result = expectFailure(await read({ path: "/src/config.jsan" }), "NOT_FOUND");
+    expect(result.error).toEqual({
+      code: "NOT_FOUND",
+      phase: "resolve",
+      message: '/src/config.jsan was not found. Nearby names: "config.json".',
+      data: { suggestions: ["config.json"] },
+    });
+    expect("code" in result).toBe(false);
+  });
+
+  test("the phase names the stage that failed", async () => {
+    const { read } = harness({
+      files: { "/a.txt": "one\n" },
+      deps: {
+        authorize: { id: "no", authorize: () => ({ allow: false }) },
+      },
+    });
+    expect(expectFailure(await read({ path: "" }), "INVALID_INPUT").error.phase).toBe("input");
+    expect(expectFailure(await read({ path: "/a.txt" }), "DENIED").error.phase).toBe("authorize");
+  });
+
+  test("a result that is not an error has no error field", async () => {
+    const { read } = harness({ files: { "/a.txt": "one\n" } });
+    expect("error" in expectOk(await read({ path: "/a.txt" }))).toBe(false);
+  });
+});

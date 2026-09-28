@@ -70,7 +70,7 @@ async function readOutcome<THost>(
   }
   outcome = finish(outcome);
   // The caller gave up: no host code runs after an abort.
-  if (outcome.status === "error" && outcome.code === "ABORTED") return outcome;
+  if (outcome.status === "error" && outcome.error.code === "ABORTED") return outcome;
   try {
     const hooked = await runHooks(scope, outcome);
     await recordOutcome(scope, hooked);
@@ -132,7 +132,7 @@ function stopped<THost>(
 ): ReadOutcome {
   if (error instanceof ReadStop) return error.outcome;
   if (error instanceof AbortReadError) return aborted(deps.messages, request, scope.phase);
-  return ioError(deps.messages, request, error);
+  return ioError(deps.messages, request, scope.phase, error);
 }
 
 function withNotes(outcome: ReadOutcome, notes: readonly ReadNote[]): ReadOutcome {
@@ -155,7 +155,7 @@ async function readOpenFile<THost>(
     if (sample.complete) checkSize(messages, request, file, sample.bytes.byteLength);
 
     const decision = classifySample(classifiers, sample);
-    if (decision === null) return unsupportedBackend(messages, request, file, null);
+    if (decision === null) return unsupportedBackend(messages, request, "sampling", file, null);
     const converter = selectFileConverter(scope, decision, sample);
     if (converter !== null) {
       return await convertFile({
@@ -183,6 +183,7 @@ async function readOpenFile<THost>(
         return unsupportedBackend(
           messages,
           request,
+          "scan",
           file,
           "invalid utf-8 with no encoding refusal",
         );

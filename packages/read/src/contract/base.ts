@@ -24,10 +24,25 @@ export type ToolName = "read" | "edit" | "write" | "apply_patch" | "bash" | (str
 
 /** A note any tool can emit. */
 export interface Note {
-  /** Stable identifier. */
+  /** Stable identifier, in kebab case, for example "denied" or "clamped". */
   readonly code: string;
   readonly severity: "info" | "warning";
   readonly message: string;
+  readonly data?: JsonObject;
+}
+
+/**
+ * The error of a result with status "error", in every tool. `code` is
+ * UPPER_SNAKE. The result's error note has the same code in kebab case, and
+ * `message` and `data` are copied from that note.
+ */
+export interface ToolError<TCode extends string = string, TPhase extends string = string> {
+  readonly code: TCode;
+  /** The stage that failed. */
+  readonly phase: TPhase;
+  /** The error note's message. */
+  readonly message: string;
+  /** The error note's data, when it has any. */
   readonly data?: JsonObject;
 }
 

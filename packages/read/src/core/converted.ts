@@ -95,7 +95,15 @@ export function refusedOutcome(
   code: string,
   note: ReadNote,
 ): ReadUnsupported {
-  return { status: "unsupported", code, request, file, classification, notes: [note] };
+  return {
+    tool: "read",
+    status: "unsupported",
+    code,
+    request,
+    file,
+    classification,
+    notes: [note],
+  };
 }
 
 /** Converter input past maxConvertBytes, or media past maxMediaBytes. */

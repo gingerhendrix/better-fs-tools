@@ -1,5 +1,6 @@
-import type { Note } from "./base.ts";
+import type { Note, ToolError } from "./base.ts";
 import type { ReadInput, ReadRequest } from "./input.ts";
+import type { ReadPhase } from "./messages.ts";
 
 export interface TextPart {
   readonly type: "text";
@@ -15,12 +16,17 @@ export interface MediaPart {
 
 export type ContentPart = TextPart | MediaPart;
 
+/**
+ * One variant for each status. `status` narrows the union: only the "error"
+ * variant has `error`, and it is never null there.
+ */
 export type ReadOutcome = ReadOk | ReadMedia | ReadUnsupported | ReadFailure;
 
 /** The outcome plus the formatter's model-facing content. */
 export type ReadResult = ReadOutcome & { readonly content: readonly ContentPart[] };
 
 export interface ReadOk {
+  readonly tool: "read";
   readonly status: "ok";
   readonly request: ReadRequest;
   readonly file: FileInfo;
@@ -36,6 +42,7 @@ export interface ReadOk {
 }
 
 export interface ReadMedia {
+  readonly tool: "read";
   readonly status: "media";
   readonly request: ReadRequest;
   readonly file: FileInfo;
@@ -47,6 +54,7 @@ export interface ReadMedia {
 }
 
 export interface ReadUnsupported {
+  readonly tool: "read";
   readonly status: "unsupported";
   /** Open vocabulary: classifier codes, converter refusal codes, "TOO_LARGE". */
   readonly code: string;
@@ -57,13 +65,18 @@ export interface ReadUnsupported {
 }
 
 export interface ReadFailure {
+  readonly tool: "read";
   readonly status: "error";
-  readonly code: ReadErrorCode;
+  readonly error: ReadError;
   readonly request: ReadRequest | null;
   readonly file: FileInfo | null;
   readonly notes: readonly ReadNote[];
 }
 
+/** The error of a failed read. Same shape as the write and shell errors. */
+export type ReadError = ToolError<ReadErrorCode, ReadPhase>;
+
+/** UPPER_SNAKE, like every tool's error codes. The error note's code is the kebab-case form. */
 export type ReadErrorCode =
   | "INVALID_INPUT"
   | "NOT_FOUND"

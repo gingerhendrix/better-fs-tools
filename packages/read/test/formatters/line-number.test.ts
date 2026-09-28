@@ -84,8 +84,9 @@ describe("lineNumberFormatter", () => {
     const formatter = lineNumberFormatter({ header: () => "HEADER" });
     const text = formatter.format(
       {
+        tool: "read",
         status: "error",
-        code: "NOT_FOUND",
+        error: { code: "NOT_FOUND", phase: "open", message: "" },
         request: null,
         file: null,
         notes: [{ code: "not-found", severity: "warning", message: "gone" }],

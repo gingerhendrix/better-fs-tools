@@ -40,8 +40,9 @@ describe("AI SDK media parts", () => {
   test("toAiSdkOutput keeps text and media parts in order", () => {
     const data = Uint8Array.from({ length: 70_000 }, (_, index) => index % 251);
     const result: ReadResult = {
+      tool: "read",
       status: "error",
-      code: "IO_ERROR",
+      error: { code: "IO_ERROR", phase: "open", message: "" },
       request: null,
       file: null,
       notes: [],

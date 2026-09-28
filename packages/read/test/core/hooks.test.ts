@@ -165,8 +165,9 @@ describe("hooks", () => {
   test("a hook may refuse an ok read", async () => {
     const state = createMemoryStore();
     const refuse = hook("refuse", (outcome) => ({
+      tool: "read",
       status: "error",
-      code: "DENIED",
+      error: { code: "DENIED", phase: "hooks", message: "no" },
       request: outcome.request,
       file: outcome.file,
       notes: [{ code: "denied", severity: "warning", message: "no" }],

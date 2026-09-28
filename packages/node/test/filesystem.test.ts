@@ -74,7 +74,7 @@ describe("node filesystem reads", () => {
     const result = await toolFor()({ path: "src/index.tsx" });
 
     if (result.status !== "error") throw new Error("expected error");
-    expect(result.code).toBe("NOT_FOUND");
+    expect(result.error.code).toBe("NOT_FOUND");
     expect(result.notes[0]?.data).toEqual({
       cause: { code: "ENOENT", phase: "resolve" },
       suggestions: ["index.ts"],
@@ -85,7 +85,7 @@ describe("node filesystem reads", () => {
     const result = await toolFor()({ path: "src" });
 
     if (result.status !== "error") throw new Error("expected error");
-    expect(result.code).toBe("NOT_A_FILE");
+    expect(result.error.code).toBe("NOT_A_FILE");
     expect(result.notes[0]?.message).toContain("directory");
     expect(result.notes[0]?.data).toEqual({ kind: "directory" });
 
@@ -102,21 +102,21 @@ describe("node filesystem reads", () => {
     const result = await toolFor()({ path: join(outside, "secret.txt") });
 
     if (result.status !== "error") throw new Error("expected error");
-    expect(result.code).toBe("OUTSIDE_ALLOWED_ROOTS");
+    expect(result.error.code).toBe("OUTSIDE_ALLOWED_ROOTS");
   });
 
   test("traversal out of the root is refused", async () => {
     const result = await toolFor()({ path: "../../etc/hosts" });
 
     if (result.status !== "error") throw new Error("expected error");
-    expect(result.code).toBe("OUTSIDE_ALLOWED_ROOTS");
+    expect(result.error.code).toBe("OUTSIDE_ALLOWED_ROOTS");
   });
 
   test("a refused namespace is rejected before any filesystem call", async () => {
     const result = await toolFor()({ path: "/dev/null" });
 
     if (result.status !== "error") throw new Error("expected error");
-    expect(result.code).toBe("DANGEROUS_PATH");
+    expect(result.error.code).toBe("DANGEROUS_PATH");
     expect(result.notes[0]?.data?.detail).toBe("/dev");
   });
 
@@ -125,7 +125,7 @@ describe("node filesystem reads", () => {
     const result = await toolFor()({ path: "escape.txt" });
 
     if (result.status !== "error") throw new Error("expected error");
-    expect(result.code).toBe("OUTSIDE_ALLOWED_ROOTS");
+    expect(result.error.code).toBe("OUTSIDE_ALLOWED_ROOTS");
   });
 
   test("a symlink inside the root is followed by default and rejected under policy", async () => {
@@ -141,7 +141,7 @@ describe("node filesystem reads", () => {
     const strict = toolFor({ cwd: root, allowedRoots: [root], symlinks: "reject" });
     const rejected = await strict({ path: "alias.ts" });
     if (rejected.status !== "error") throw new Error("expected error");
-    expect(rejected.code).toBe("DENIED");
+    expect(rejected.error.code).toBe("DENIED");
   });
 
   test("a symlink loop is refused as denied", async () => {
@@ -158,7 +158,7 @@ describe("node filesystem reads", () => {
     const result = await read({ path: "src/index.ts" });
 
     if (result.status !== "error") throw new Error("expected error");
-    expect(result.code).toBe("DANGEROUS_PATH");
+    expect(result.error.code).toBe("DANGEROUS_PATH");
   });
 
   test("a FIFO is refused in milliseconds rather than blocking", async () => {
@@ -170,10 +170,10 @@ describe("node filesystem reads", () => {
     const result = (await Promise.race([
       toolFor()({ path: "pipe" }),
       new Promise((resolve) => setTimeout(() => resolve({ status: "timeout" }), 2_000)),
-    ])) as { status: string; code?: string };
+    ])) as { status: string; error?: { code: string } };
 
     expect(result.status).toBe("error");
-    expect(result.code).toBe("NOT_A_FILE");
+    expect(result.error?.code).toBe("NOT_A_FILE");
     expect(Date.now() - started).toBeLessThan(2_000);
 
     const fs = nodeFileSystem({ cwd: root, allowedRoots: [root] });
@@ -196,7 +196,7 @@ describe("node filesystem reads", () => {
       expect(error.target?.displayPath).toBe("server.sock");
       const result = await toolFor()({ path: "server.sock" });
       if (result.status !== "error") throw new Error("expected error");
-      expect(result.code).toBe("NOT_A_FILE");
+      expect(result.error.code).toBe("NOT_A_FILE");
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }
@@ -291,7 +291,7 @@ describe("cancellation against a real descriptor", () => {
     const result = await pending;
 
     if (result.status !== "error") throw new Error("expected error");
-    expect(result.code).toBe("ABORTED");
+    expect(result.error.code).toBe("ABORTED");
     expect(result.notes.find((entry) => entry.code === "aborted")).toBeDefined();
     await rm(big, { force: true });
   });

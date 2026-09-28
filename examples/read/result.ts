@@ -10,4 +10,6 @@ if (result.status === "ok") {
   console.log(result.continuation); // { available: false, next: null }
   console.log(result.totals); // { lines: 1, exact: true, bytes: 13 }
   console.log(result.file.resolvedFrom); // null: no resolver changed the path
+} else if (result.status === "error") {
+  console.log(result.error.code, result.error.phase); // only the error variant has `error`
 }

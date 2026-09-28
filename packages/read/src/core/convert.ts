@@ -182,6 +182,7 @@ function mediaOutcome<THost>(
 ): ReadMedia {
   const { deps, fs, request, file, converter } = input;
   return {
+    tool: "read",
     status: "media",
     request,
     file,

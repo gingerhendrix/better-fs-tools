@@ -43,7 +43,8 @@ export function expectOk(result: ReadResult): ReadOk & ReadResult {
 /** Narrows to error, asserting the code. */
 export function expectFailure(result: ReadResult, code: ReadErrorCode): ReadFailure & ReadResult {
   if (result.status !== "error") throw new Error(`expected error ${code}, got ${result.status}`);
-  if (result.code !== code) throw new Error(`expected error ${code}, got ${result.code}`);
+  if (result.error.code !== code)
+    throw new Error(`expected error ${code}, got ${result.error.code}`);
   return result;
 }
 

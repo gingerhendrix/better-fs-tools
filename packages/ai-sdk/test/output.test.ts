@@ -7,8 +7,9 @@ import { toAiSdkOutput } from "../src/index.ts";
 describe("toAiSdkOutput", () => {
   test("maps each text part to one text part, in order", () => {
     const result = {
+      tool: "read",
       status: "error",
-      code: "IO_ERROR",
+      error: { code: "IO_ERROR", phase: "open", message: "" },
       request: null,
       file: null,
       notes: [],
@@ -29,8 +30,9 @@ describe("toAiSdkOutput", () => {
 
   test("an empty content list gives an empty value", () => {
     const result: ReadResult = {
+      tool: "read",
       status: "error",
-      code: "IO_ERROR",
+      error: { code: "IO_ERROR", phase: "open", message: "" },
       request: null,
       file: null,
       notes: [],

@@ -53,6 +53,7 @@ export function textOutcome<THost>(input: TextOutcomeInput<THost>): ReadOk {
     scanner.clampedLines.length === 0;
 
   return {
+    tool: "read",
     status: "ok",
     request,
     file,

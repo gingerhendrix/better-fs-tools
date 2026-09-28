@@ -24,18 +24,26 @@ export class ReadStop extends Error {
   }
 }
 
+/** An error outcome with one note. `error.message` and `error.data` come from the note. */
 export function failure(
   code: ReadErrorCode,
+  phase: ReadPhase,
   request: ReadRequest | null,
   file: FileInfo | null,
   note: ReadNote,
 ): ReadFailure {
-  return { status: "error", code, request, file, notes: [note] };
+  const error = {
+    code,
+    phase,
+    message: note.message,
+    ...(note.data === undefined ? {} : { data: note.data }),
+  };
+  return { tool: "read", status: "error", error, request, file, notes: [note] };
 }
 
 export function invalidInput(messages: Messages, input: unknown, error: unknown): ReadFailure {
   const path = isRecord(input) && typeof input.path === "string" ? input.path : "";
-  return failure("INVALID_INPUT", null, null, {
+  return failure("INVALID_INPUT", "input", null, null, {
     code: "invalid-input",
     severity: "warning",
     message: messages.invalidInput({ detail: messageOf(error) }),
@@ -44,7 +52,7 @@ export function invalidInput(messages: Messages, input: unknown, error: unknown)
 }
 
 export function aborted(messages: Messages, request: ReadRequest, phase: ReadPhase): ReadFailure {
-  return failure("ABORTED", request, null, {
+  return failure("ABORTED", phase, request, null, {
     code: "aborted",
     severity: "warning",
     message: messages.aborted({ phase }),
@@ -60,7 +68,7 @@ export function extensionFailed(
   phase: ReadPhase,
   id: string | null = null,
 ): ReadFailure {
-  return failure("EXTENSION_FAILED", request, null, {
+  return failure("EXTENSION_FAILED", phase, request, null, {
     code: "extension-failed",
     severity: "warning",
     message: messages.extensionFailed({ request, extension, phase }),
@@ -79,6 +87,7 @@ export function denied(
 ): ReadFailure {
   return failure(
     "DENIED",
+    "authorize",
     request,
     null,
     note ?? {
@@ -89,8 +98,13 @@ export function denied(
   );
 }
 
-export function ioError(messages: Messages, request: ReadRequest, error: unknown): ReadFailure {
-  return failure("IO_ERROR", request, null, {
+export function ioError(
+  messages: Messages,
+  request: ReadRequest,
+  phase: ReadPhase,
+  error: unknown,
+): ReadFailure {
+  return failure("IO_ERROR", phase, request, null, {
     code: "io-error",
     severity: "warning",
     message: messages.ioError({ request }),
@@ -104,7 +118,7 @@ export function changedDuringRead(
   file: FileInfo,
 ): ReadFailure {
   const retry = { path: request.path, offset: request.offset, limit: request.limit };
-  return failure("CHANGED_DURING_READ", request, file, {
+  return failure("CHANGED_DURING_READ", "verification", request, file, {
     code: "changed-during-read",
     severity: "warning",
     message: messages.changedDuringRead({ request, retry: messages.retry(retry) }),
@@ -115,10 +129,11 @@ export function changedDuringRead(
 export function unsupportedBackend(
   messages: Messages,
   request: ReadRequest,
+  phase: ReadPhase,
   file: FileInfo,
   detail: string | null,
 ): ReadFailure {
-  return failure("UNSUPPORTED_BACKEND", request, file, {
+  return failure("UNSUPPORTED_BACKEND", phase, request, file, {
     code: "unsupported-backend",
     severity: "warning",
     message: messages.unsupportedBackend({ request, detail }),
@@ -132,6 +147,7 @@ export function unsupportedOutcome(
   classification: UnsupportedClassification,
 ): ReadUnsupported {
   return {
+    tool: "read",
     status: "unsupported",
     code: classification.code,
     request,
@@ -165,7 +181,7 @@ export function fromFileSystemError(
   if (code === "ABORTED") return aborted(messages, request, phase);
   const detail = error.detail ?? null;
   const data = errorData(error);
-  return failure(code, request, file, {
+  return failure(code, phase, request, file, {
     code: code.toLowerCase().replaceAll("_", "-"),
     severity: "warning",
     message: messageForError(messages, request, error, detail),
@@ -189,7 +205,7 @@ export function notFound(
   suggestions: readonly string[],
   data: Record<string, JsonValue>,
 ): ReadFailure {
-  return failure("NOT_FOUND", request, null, {
+  return failure("NOT_FOUND", "resolve", request, null, {
     code: "not-found",
     severity: "warning",
     message: messages.notFound({ request, suggestions }),

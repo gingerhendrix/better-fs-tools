@@ -37,7 +37,7 @@ describe("authorize on the node filesystem", () => {
     });
     const result = await read({ path: "config" });
     if (result.status !== "error") throw new Error(`expected error, got ${result.status}`);
-    expect(result.code).toBe("DENIED");
+    expect(result.error.code).toBe("DENIED");
     expect(result.file).toBeNull();
     expect(targets).toEqual([join(root, ".env")]);
     expect(textOf(result)).toBe(
@@ -57,6 +57,6 @@ describe("authorize on the node filesystem", () => {
     });
     const result = await read({ path: "notes.txt" });
     if (result.status !== "error") throw new Error(`expected error, got ${result.status}`);
-    expect(result.code).toBe("CHANGED_DURING_READ");
+    expect(result.error.code).toBe("CHANGED_DURING_READ");
   });
 });

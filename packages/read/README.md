@@ -591,18 +591,18 @@ No default message names `offset` or `limit`. Every message that suggests a retr
 
 ## The result
 
-`ReadResult` is the outcome plus `content`, the formatter's parts for the model:
+`ReadResult` is the outcome plus `content`, the formatter's parts for the model. Every result has `tool: "read"` and a `status`. The outcome is a union on `status`: only the `error` variant has `error: { code, phase, message, data? }`, the same shape as the write and bash errors.
 
 | Status        | Meaning                                                                                         |
 | ------------- | ----------------------------------------------------------------------------------------------- |
 | `ok`          | A text view. `view.lines` has the structured lines. An empty file is `ok` with an `empty` note. |
 | `media`       | Content parts from a converter, for example an image.                                           |
 | `unsupported` | A classifier or converter refused the format. `code` is open, for example `PDF` or `TOO_LARGE`. |
-| `error`       | One of twelve `ReadErrorCode` values.                                                           |
+| `error`       | `error.code` is one of twelve `ReadErrorCode` values.                                           |
 
 The error codes are `INVALID_INPUT`, `NOT_FOUND`, `NOT_A_FILE`, `DANGEROUS_PATH`, `OUTSIDE_ALLOWED_ROOTS`, `PERMISSION_DENIED`, `DENIED`, `CHANGED_DURING_READ`, `ABORTED`, `UNSUPPORTED_BACKEND`, `EXTENSION_FAILED`, and `IO_ERROR`. `EXTENSION_FAILED` means that host code threw or broke a rule. Its note data names the dependency and the stage, for example `{ extension: "hooks", phase: "hooks", id: "redact" }`.
 
-An `ok` result has structured lines:
+An `ok` result has structured lines, and an `error` result has its error:
 
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
@@ -617,6 +617,8 @@ if (result.status === "ok") {
   console.log(result.continuation); // { available: false, next: null }
   console.log(result.totals); // { lines: 1, exact: true, bytes: 13 }
   console.log(result.file.resolvedFrom); // null: no resolver changed the path
+} else if (result.status === "error") {
+  console.log(result.error.code, result.error.phase); // only the error variant has `error`
 }
 ```
 

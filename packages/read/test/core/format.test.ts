@@ -77,8 +77,9 @@ describe("formatter call", () => {
 describe("textOf", () => {
   test("joins text parts with a newline", () => {
     const result = {
+      tool: "read",
       status: "error",
-      code: "IO_ERROR",
+      error: { code: "IO_ERROR", phase: "open", message: "" },
       request: null,
       file: null,
       notes: [],

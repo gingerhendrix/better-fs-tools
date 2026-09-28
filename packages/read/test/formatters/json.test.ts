@@ -50,8 +50,9 @@ describe("jsonFormatter", () => {
   test("view mode leaves notes out", () => {
     const text = jsonFormatter().format(
       {
+        tool: "read",
         status: "error",
-        code: "NOT_FOUND",
+        error: { code: "NOT_FOUND", phase: "open", message: "" },
         request: null,
         file: null,
         notes: [{ code: "not-found", severity: "warning", message: "gone" }],
@@ -59,8 +60,9 @@ describe("jsonFormatter", () => {
       { digest: null, limits: { maxLines: 1 } as never, mode: "view", call: { host: undefined } },
     );
     expect(JSON.parse(text as string)).toEqual({
+      tool: "read",
       status: "error",
-      code: "NOT_FOUND",
+      error: { code: "NOT_FOUND", phase: "open", message: "" },
       request: null,
       file: null,
     });

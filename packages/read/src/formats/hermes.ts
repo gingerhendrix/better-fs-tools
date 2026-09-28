@@ -61,7 +61,7 @@ function hermesFields(outcome: ReadOutcome): JsonObject {
     case "unsupported":
       return { error: messages || outcome.code, ...fileSize };
     case "error":
-      return { error: messages || outcome.code, ...similarFiles(outcome.notes) };
+      return { error: messages || outcome.error.code, ...similarFiles(outcome.notes) };
   }
 }
 
