@@ -78,15 +78,11 @@ describe("repeatReadGuard", () => {
     expect(lineText(expectOk(await read({ path: "/a.txt", offset: 2, limit: 1 })))).toEqual([]);
   });
 
-  test("does nothing without a digest or without state", async () => {
+  test("does nothing without state", async () => {
     const fs = memoryFileSystem({ files: { "/a.txt": FILE } });
-    const noDigest = createReadTool({
-      fs,
-      hooks: [repeatReadGuard()],
-      state: createMemoryStore(),
-    });
+    // A state without a digest cannot be built, so no state is the only case.
     const noState = createReadTool({ fs, digest: testDigest(), hooks: [repeatReadGuard()] });
-    for (const read of [noDigest, noState]) {
+    for (const read of [noState]) {
       expectOk(await read({ path: "/a.txt" }));
       const again = expectOk(await read({ path: "/a.txt" }));
       expect(lineText(again)).toEqual(["one", "two", "three"]);

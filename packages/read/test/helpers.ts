@@ -19,6 +19,7 @@ import type {
   ReadTool,
   ReadToolDeps,
   ReadUnsupported,
+  StateNeedsDigest,
 } from "../src/index.ts";
 
 const ENCODER = new TextEncoder();
@@ -67,7 +68,8 @@ export function harness(options: HarnessOptions = {}): { read: ReadTool; fs: Mem
     clock: () => FIXED_DATE,
     ...(options.limits === undefined ? {} : { limits: options.limits }),
     ...options.deps,
-  });
+    // A test may override the digest. The core checks the state pairing at run time.
+  } as ReadToolDeps & StateNeedsDigest);
   return { read, fs };
 }
 

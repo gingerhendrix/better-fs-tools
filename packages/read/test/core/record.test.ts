@@ -96,13 +96,8 @@ describe("record", () => {
     ]);
   });
 
-  test("nothing is recorded without an observation or on a refusal", async () => {
+  test("nothing is recorded on a refusal", async () => {
     const state = spyStore();
-    const noDigest = harness({
-      files: { "/a.txt": "one\n" },
-      deps: { state, digest: null },
-    });
-    expectOk(await noDigest.read({ path: "/a.txt" }));
     const { read } = harness({
       files: { "/b.bin": new Uint8Array([0, 1, 2]) },
       deps: { state },
@@ -149,14 +144,16 @@ describe("state(call)", () => {
     expect((await read({ path: "" }, call)).status).toBe("error");
     expect(built).toBe(0);
 
-    const noDigest = createReadTool<Host>({
-      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
-      state: () => {
-        built += 1;
-        return createMemoryStore();
-      },
-    });
-    expectOk(await noDigest({ path: "/a.txt" }, call));
+    // A state without a digest throws when the tool is built, before any factory runs.
+    expect(() =>
+      createReadTool<Host>({
+        fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+        state: () => {
+          built += 1;
+          return createMemoryStore();
+        },
+      } as never),
+    ).toThrow("state needs a digest");
     expect(built).toBe(0);
   });
 
@@ -216,11 +213,23 @@ describe("state(call)", () => {
 describe("state dependency", () => {
   test("a malformed state throws TypeError when the tool is built", () => {
     const fs = memoryFileSystem({ files: {} });
-    expect(() => createReadTool({ fs, state: {} as ReadStateStore })).toThrow(
+    const digest = testDigest();
+    expect(() => createReadTool({ fs, digest, state: {} as ReadStateStore })).toThrow(
       "state must be a store, a function that returns one, or null",
     );
-    expect(() => createReadTool({ fs, state: "memory" as unknown as ReadStateStore })).toThrow(
-      TypeError,
+    expect(() =>
+      createReadTool({ fs, digest, state: "memory" as unknown as ReadStateStore }),
+    ).toThrow(TypeError);
+  });
+
+  test("a state without a digest throws TypeError, as in the write tools", () => {
+    const fs = memoryFileSystem({ files: {} });
+    const state = createMemoryStore();
+    expect(() => createReadTool({ fs, state } as never)).toThrow(
+      "state needs a digest: records name the digest that made them",
     );
+    expect(() => createReadTool({ fs, state, digest: null } as never)).toThrow(TypeError);
+    expect(() => createReadTool({ fs, state: null })).not.toThrow();
+    expect(() => createReadTool({ fs, digest: testDigest() })).not.toThrow();
   });
 });

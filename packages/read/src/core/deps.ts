@@ -82,6 +82,10 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
   if (state !== null && typeof state !== "function" && !isStateStore(state)) {
     throw new TypeError("state must be a store, a function that returns one, or null");
   }
+  const digest = deps.digest ?? null;
+  if (state !== null && digest === null) {
+    throw new TypeError("state needs a digest: records name the digest that made them");
+  }
 
   return Object.freeze({
     fs,
@@ -95,7 +99,7 @@ export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): Dependenc
     budget,
     hooks: Object.freeze([...hooks]),
     state,
-    digest: deps.digest ?? null,
+    digest,
     clock,
     formatter,
   });

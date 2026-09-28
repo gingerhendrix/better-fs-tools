@@ -6,7 +6,13 @@ import type {
   WriteOptions,
 } from "@better-fs-tools/fs";
 import { createReadTool } from "@better-fs-tools/read";
-import type { Digest, Note, ReadStateStore, ReadTool } from "@better-fs-tools/read";
+import type {
+  Digest,
+  Note,
+  ReadStateStore,
+  ReadTool,
+  StateNeedsDigest,
+} from "@better-fs-tools/read";
 import { createMemoryStore } from "@better-fs-tools/read/state";
 
 import { createApplyPatchTool, createEditTool, createWriteTool } from "../src/index.ts";
@@ -83,10 +89,21 @@ export function harness(options: HarnessOptions = {}): Harness {
   const digest = testDigest();
   const clock = () => FIXED_DATE;
   const read = createReadTool({ fs, state, digest, clock });
-  const shared = { fs: options.writeFs?.(fs) ?? fs, state, digest, clock, ...options.deps };
+  // A test may override state or digest. The core checks the pairing at run time.
+  const shared = {
+    fs: options.writeFs?.(fs) ?? fs,
+    state,
+    digest,
+    clock,
+    ...options.deps,
+  } as WriteToolDeps & StateNeedsDigest;
   const write = createWriteTool(shared);
-  const edit = createEditTool({ ...shared, ...options.editDeps });
-  const applyPatch = createApplyPatchTool({ ...shared, ...options.patchDeps });
+  const edit = createEditTool({ ...shared, ...options.editDeps } as EditToolDeps &
+    StateNeedsDigest);
+  const applyPatch = createApplyPatchTool({
+    ...shared,
+    ...options.patchDeps,
+  } as ApplyPatchToolDeps & StateNeedsDigest);
   return { fs, state, digest, read, write, edit, applyPatch };
 }
 

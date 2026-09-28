@@ -7,6 +7,7 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 import { createReadTool, jsonFormatter, lineNumberFormatter } from "../../src/index.ts";
 import type {
   Dependencies,
+  Digest,
   FormatContext,
   Formatter,
   ReadContext,
@@ -63,17 +64,31 @@ declare const unknownContext: FormatContext<unknown>;
 export const narrowed: FormatContext<{ id: string }> = unknownContext;
 
 // The state factory sees the typed host. A host-free store fits any tool.
+declare const digest: Digest;
 const stores = new Map<string, ReadStateStore>();
 export const hostState = createReadTool<{ id: string }>({
   fs,
+  digest,
   state: (call) => stores.get(call.host.id) ?? null,
 });
-export const sharedState = createReadTool<{ id: string }>({ fs, state: createMemoryStore() });
+export const sharedState = createReadTool<{ id: string }>({
+  fs,
+  digest,
+  state: createMemoryStore(),
+});
+
+// A state needs a digest (StateNeedsDigest).
+// @ts-expect-error a state without a digest
+createReadTool({ fs, state: createMemoryStore() });
+// @ts-expect-error a state with a null digest
+createReadTool({ fs, state: createMemoryStore(), digest: null });
+export const noState = createReadTool({ fs, state: null, digest: null });
 export const unknownState: Dependencies<{ id: string }>["state"] = (
   _call: ReadContext<unknown>,
 ): ReadStateStore | null => null;
 createReadTool<{ id: string }>({
   fs,
+  digest,
   // @ts-expect-error the host has no session field
   state: (call) => stores.get(call.host.session) ?? null,
 });

@@ -3,8 +3,15 @@
  * `tsc -b` checks this file; Bun never runs it.
  */
 import { memoryFileSystem } from "@better-fs-tools/fs";
+import type { WritableFileSystem } from "@better-fs-tools/fs";
 import { denyPaths, expandHome, unicodeRepair } from "@better-fs-tools/read";
-import type { Authorizer, ToolAuthorizer, ToolCallContext } from "@better-fs-tools/read";
+import type {
+  Authorizer,
+  Digest,
+  ReadStateStore,
+  ToolAuthorizer,
+  ToolCallContext,
+} from "@better-fs-tools/read";
 
 import {
   askBeforeWrite,
@@ -101,3 +108,11 @@ export const sees: WriteAuthorizer<Host> = {
 declare const readOnly: Authorizer<Host>;
 // @ts-expect-error: the read Authorizer's target has size and mtimeMs, which write targets lack.
 export const notWrite: WriteAuthorizer<Host> = readOnly;
+
+// A state needs a digest (StateNeedsDigest), in the write tools as in read.
+declare const pairedFs: WritableFileSystem;
+declare const pairedStore: ReadStateStore;
+declare const pairedDigest: Digest;
+// @ts-expect-error a state without a digest
+createWriteTool({ fs: pairedFs, state: pairedStore });
+export const paired = createWriteTool({ fs: pairedFs, state: pairedStore, digest: pairedDigest });

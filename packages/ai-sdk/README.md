@@ -98,7 +98,7 @@ export async function change(model: LanguageModel, prompt: string): Promise<stri
 }
 ```
 
-- Each factory takes every option of its core factory, plus `signature`. `fs` is required. `state` and `digest` default to `null`, so without them every update carries a `read-before-write-off` note.
+- Each factory takes every option of its core factory, plus `signature`. `fs` is required. `state` and `digest` default to `null`, so without them every update carries a `read-before-write-off` note. A `state` needs a `digest`: the options type refuses one without the other, and the factory throws `TypeError`.
 - The default signatures are `defaultEditSignature()` (`edit` with `path`, `old_string`, `new_string`, and `replace_all`), `defaultWriteSignature()` (`write` with `path` and `content`), and `defaultPatchSignature()` (`apply_patch` with `patch`). Error texts use the signature's names.
 - The tools are `strict: true`. The schema's `validate` hook runs `signature.toInput` and the core input check.
 - `execute` passes the `ToolExecutionOptions` object as `ctx.call.host`, and returns the whole `MutationResult`. `toModelOutput` gives the model the formatter's text.

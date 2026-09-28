@@ -20,7 +20,7 @@ export type {
   ToolResolveContext,
 } from "./contract/base.ts";
 export type { ReadContext, ReadTool } from "./contract/context.ts";
-export type { Dependencies, ReadToolDeps } from "./contract/deps.ts";
+export type { Dependencies, ReadToolDeps, StateNeedsDigest } from "./contract/deps.ts";
 export type { Clock, Digest, DigestStream } from "./contract/digest.ts";
 export type {
   AfterReadContext,

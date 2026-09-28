@@ -11,6 +11,7 @@ import type {
   ReadContext,
   ReadResult,
   ReadToolDeps,
+  StateNeedsDigest,
 } from "@better-fs-tools/read";
 import { defaultSignature, signatureMessages } from "@better-fs-tools/read/signature";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
@@ -88,6 +89,7 @@ export function buildPiReadTool(
   const limits = resolveLimits(deps.limits);
   const formatter: Formatter<ExtensionContext> = deps.formatter ?? lineNumberFormatter();
   const digest = deps.digest === undefined ? nodeDigest() : deps.digest;
+  // The core checks at run time that a state comes with a digest.
   const read = createReadTool<ExtensionContext>({
     ...deps,
     limits,
@@ -95,7 +97,7 @@ export function buildPiReadTool(
     formatter,
     digest,
     fs: fileSystemFor,
-  });
+  } as ReadToolDeps<ExtensionContext> & StateNeedsDigest);
 
   return Object.freeze<PiReadTool>({
     name: signature.name,

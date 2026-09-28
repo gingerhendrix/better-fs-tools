@@ -1,7 +1,7 @@
 import { jsonSchema } from "ai";
 import type { JSONSchema7, Schema, ToolExecutionOptions } from "ai";
 
-import type { JsonObject, ToolCallContext } from "@better-fs-tools/read";
+import type { JsonObject, StateNeedsDigest, ToolCallContext } from "@better-fs-tools/read";
 import {
   createApplyPatchTool,
   createEditTool,
@@ -75,7 +75,7 @@ type Core<C> = (
 
 /** Builds the core with messages = { ...writeSignatureMessages(signature), ...options.messages }. */
 export function createAiSdkEditTool<C = unknown>(
-  options: CreateAiSdkEditToolOptions<C>,
+  options: CreateAiSdkEditToolOptions<C> & StateNeedsDigest,
 ): AiSdkMutationTool<C> {
   checkOptions(options, "edit");
   const { signature: given, ...deps } = options;
@@ -86,7 +86,7 @@ export function createAiSdkEditTool<C = unknown>(
 
 /** Builds the core with messages = { ...writeSignatureMessages(signature), ...options.messages }. */
 export function createAiSdkWriteTool<C = unknown>(
-  options: CreateAiSdkWriteToolOptions<C>,
+  options: CreateAiSdkWriteToolOptions<C> & StateNeedsDigest,
 ): AiSdkMutationTool<C> {
   checkOptions(options, "write");
   const { signature = defaultWriteSignature(), ...deps } = options;
@@ -100,7 +100,7 @@ export function createAiSdkWriteTool<C = unknown>(
  * even when the signature has a grammar.
  */
 export function createAiSdkApplyPatchTool<C = unknown>(
-  options: CreateAiSdkApplyPatchToolOptions<C>,
+  options: CreateAiSdkApplyPatchToolOptions<C> & StateNeedsDigest,
 ): AiSdkMutationTool<C> {
   checkOptions(options, "apply_patch");
   const { signature = defaultPatchSignature(), ...deps } = options;
@@ -118,11 +118,15 @@ function matchersOf(matchers: EditToolDeps["matchers"]) {
   return matchers === undefined ? {} : { matchers };
 }
 
+/** The rest of a paired options type loses the pairing. The options type checked it. */
 function withMessages<D extends { readonly messages?: object }>(
   deps: D,
   signature: MutationSignature<unknown>,
-): D {
-  return { ...deps, messages: { ...writeSignatureMessages(signature), ...deps.messages } };
+): D & StateNeedsDigest {
+  return {
+    ...deps,
+    messages: { ...writeSignatureMessages(signature), ...deps.messages },
+  } as D & StateNeedsDigest;
 }
 
 function adapt<TInput, C>(

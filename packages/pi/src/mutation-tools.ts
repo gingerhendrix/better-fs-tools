@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import type { TSchema } from "typebox";
 
 import { nodeDigest } from "@better-fs-tools/node";
-import type { JsonObject, ToolCallContext } from "@better-fs-tools/read";
+import type { JsonObject, StateNeedsDigest, ToolCallContext } from "@better-fs-tools/read";
 import { createApplyPatchTool, createEditTool, createWriteTool } from "@better-fs-tools/write";
 import type {
   ApplyPatchToolDeps,
@@ -186,7 +186,8 @@ function withDefaults<D extends { readonly messages?: object; readonly digest?: 
     fs: fileSystemFor,
     digest: deps.digest === undefined ? nodeDigest() : deps.digest,
     messages: { ...writeSignatureMessages(signature), ...deps.messages },
-  } as D & { fs: PiFileSystems };
+    // The core checks at run time that a state comes with a digest.
+  } as D & { fs: PiFileSystems } & StateNeedsDigest;
 }
 
 function adapt(

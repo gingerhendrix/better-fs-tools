@@ -1,6 +1,8 @@
 import type { ToolCallContext } from "@better-fs-tools/read";
 
 import type { ApplyPatchTool, EditTool, WriteTool } from "../contract/context.ts";
+import type { StateNeedsDigest } from "@better-fs-tools/read";
+
 import type { ApplyPatchToolDeps, EditToolDeps, WriteToolDeps } from "../contract/deps.ts";
 import type { MutationResult } from "../contract/result.ts";
 import {
@@ -18,7 +20,9 @@ import { runEdit, runWrite } from "./pipeline.ts";
  * createWriteTool does, plus a non-empty `matchers` list (default
  * defaultEditMatchers()). Each tool instance keeps its own miss counter.
  */
-export function createEditTool<THost = undefined>(deps: EditToolDeps<THost>): EditTool<THost> {
+export function createEditTool<THost = undefined>(
+  deps: EditToolDeps<THost> & StateNeedsDigest,
+): EditTool<THost> {
   const resolved = resolveEditDependencies(deps);
   const misses = new MissCounter();
   const edit = async (input: unknown, ctx?: ToolCallContext<THost>): Promise<MutationResult> => {
@@ -36,7 +40,9 @@ export function createEditTool<THost = undefined>(deps: EditToolDeps<THost>): Ed
  * without digest, or a malformed limit, message, or policy. limits, messages,
  * and preconditions merge key by key. Every other dependency replaces.
  */
-export function createWriteTool<THost = undefined>(deps: WriteToolDeps<THost>): WriteTool<THost> {
+export function createWriteTool<THost = undefined>(
+  deps: WriteToolDeps<THost> & StateNeedsDigest,
+): WriteTool<THost> {
   const resolved = resolveWriteDependencies(deps, "write");
   const write = async (input: unknown, ctx?: ToolCallContext<THost>): Promise<MutationResult> => {
     if (ctx !== undefined && !isRecord(ctx)) throw new TypeError("write context must be an object");
@@ -54,7 +60,7 @@ export function createWriteTool<THost = undefined>(deps: WriteToolDeps<THost>): 
  * codexPatchParser()).
  */
 export function createApplyPatchTool<THost = undefined>(
-  deps: ApplyPatchToolDeps<THost>,
+  deps: ApplyPatchToolDeps<THost> & StateNeedsDigest,
 ): ApplyPatchTool<THost> {
   const resolved = resolveApplyPatchDependencies(deps);
   const applyPatch = async (

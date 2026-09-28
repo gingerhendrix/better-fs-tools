@@ -35,12 +35,20 @@ export interface Dependencies<THost = undefined> {
   readonly budget: ViewBudget | null;
   /** Run in order after verification and before record, for every outcome with a request except ABORTED. */
   readonly hooks: readonly ReadHook<THost>[];
-  /** A store, or a factory called at most once for each read, and only when the core needs it (D20). */
+  /** A store, or a factory called at most once for each read, and only when the core needs it (D20). Needs `digest`. */
   readonly state: ReadStateStore | ((call: ReadContext<THost>) => ReadStateStore | null) | null;
   readonly digest: Digest | null;
   readonly clock: Clock;
   readonly formatter: Formatter<THost>;
 }
+
+/**
+ * `state` needs a `digest`: a stored record names the digest that made it.
+ * Every tool factory takes its dependencies intersected with this type, so
+ * `state` without `digest` does not type-check. At run time the factory
+ * throws TypeError for it.
+ */
+export type StateNeedsDigest = { readonly state?: null } | { readonly digest: Digest };
 
 export type ReadToolDeps<THost = undefined> = {
   readonly fs: Dependencies<THost>["fs"];

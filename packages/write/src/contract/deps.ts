@@ -30,7 +30,7 @@ export interface WriteDependencies<THost = undefined> {
   readonly preconditions: Readonly<PreconditionPolicy>;
   /** The read tool's store. A factory runs at most once for each call. null turns read-before-write off. */
   readonly state: ReadStateStore | ((call: ToolCallContext<THost>) => ReadStateStore | null) | null;
-  /** Required when state is set. */
+  /** Required when state is set. The factories' StateNeedsDigest type says so too. */
   readonly digest: Digest | null;
   readonly clock: Clock;
   readonly locks: LockManager;

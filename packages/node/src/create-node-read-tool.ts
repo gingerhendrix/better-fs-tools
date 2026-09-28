@@ -1,5 +1,5 @@
 import { createReadTool } from "@better-fs-tools/read";
-import type { ReadTool, ReadToolDeps } from "@better-fs-tools/read";
+import type { ReadTool, ReadToolDeps, StateNeedsDigest } from "@better-fs-tools/read";
 
 import { nodeDigest } from "./digest.ts";
 import { nodeFileSystem } from "./filesystem.ts";
@@ -16,11 +16,12 @@ export function createNodeReadTool<THost = undefined>(
     throw new TypeError("read tool dependencies must be an object");
   }
   const { fs, digest, ...rest } = deps;
+  // digest defaults to nodeDigest(). The core checks at run time that a state comes with a digest.
   return createReadTool<THost>({
     ...rest,
     fs: fs ?? defaultFileSystem(),
     digest: digest === undefined ? nodeDigest() : digest,
-  });
+  } as ReadToolDeps<THost> & StateNeedsDigest);
 }
 
 function defaultFileSystem() {

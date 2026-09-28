@@ -1,4 +1,5 @@
 import { memoryFileSystem } from "@better-fs-tools/fs";
+import { nodeDigest } from "@better-fs-tools/node";
 import { askUser, createReadTool } from "@better-fs-tools/read";
 import type { ReadStateStore } from "@better-fs-tools/read";
 import { createMemoryStore } from "@better-fs-tools/read/state";
@@ -18,6 +19,8 @@ const read = createReadTool<Session>({
     if (store === undefined) stores.set(call.host.id, (store = createMemoryStore()));
     return store;
   },
+  // A state needs a digest: a record names the digest that made it.
+  digest: nodeDigest(),
   authorize: askUser<Session>((target, ctx) =>
     ctx.call.host.confirm(`Read ${target.displayPath}?`),
   ),

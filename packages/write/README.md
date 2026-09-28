@@ -133,7 +133,7 @@ With the read tool's `state` store and a `digest`, the write tools check what th
 - `createInvalidator({ fs, state })` returns `invalidate(path)`. Call it when something else, for example a shell tool, may have changed a file. The next edit then needs a read.
 - `preconditions: { requireRead: "off" }` turns the check off. `partialRead` and `onStale` change the other two rules.
 
-`state` without `digest` is a `TypeError`. `state: null` turns the check off, and every update carries a `read-before-write-off` note.
+`state` without `digest` is a `TypeError`, as in the read tool, and the `StateNeedsDigest` type refuses it at compile time. `state: null` turns the check off, and every update carries a `read-before-write-off` note.
 
 ## Dependencies
 

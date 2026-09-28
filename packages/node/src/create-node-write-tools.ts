@@ -8,6 +8,8 @@ import type {
   WriteToolDeps,
 } from "@better-fs-tools/write";
 
+import type { StateNeedsDigest } from "@better-fs-tools/read";
+
 import { nodeDigest } from "./digest.ts";
 import { nodeFileSystem } from "./filesystem.ts";
 
@@ -40,16 +42,17 @@ export function createNodeApplyPatchTool<THost = undefined>(
 function withNodeDefaults<D extends Partial<WriteToolDeps<never>>>(
   deps: D,
   tool: string,
-): D & { fs: NonNullable<D["fs"]> } {
+): D & { fs: NonNullable<D["fs"]> } & StateNeedsDigest {
   if (deps === null || typeof deps !== "object" || Array.isArray(deps)) {
     throw new TypeError(`${tool} tool dependencies must be an object`);
   }
   const { fs, digest } = deps;
+  // digest defaults to nodeDigest(). The core checks at run time that a state comes with a digest.
   return {
     ...deps,
     fs: fs ?? defaultFileSystem(),
     digest: digest === undefined ? nodeDigest() : digest,
-  };
+  } as D & { fs: NonNullable<D["fs"]> } & StateNeedsDigest;
 }
 
 function defaultFileSystem() {

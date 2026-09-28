@@ -636,6 +636,7 @@ With a host type, the context and its `host` are required. With no host type, th
 
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
+import { nodeDigest } from "@better-fs-tools/node";
 import { askUser, createReadTool } from "@better-fs-tools/read";
 import type { ReadStateStore } from "@better-fs-tools/read";
 import { createMemoryStore } from "@better-fs-tools/read/state";
@@ -655,6 +656,8 @@ const read = createReadTool<Session>({
     if (store === undefined) stores.set(call.host.id, (store = createMemoryStore()));
     return store;
   },
+  // A state needs a digest: a record names the digest that made it.
+  digest: nodeDigest(),
   authorize: askUser<Session>((target, ctx) =>
     ctx.call.host.confirm(`Read ${target.displayPath}?`),
   ),
@@ -666,6 +669,7 @@ await read({ path: "/a.txt" }, { host: session, callId: "call-1" });
 ```
 
 - `fs` can be a function of the call. It runs once for each read, before `resolve`. Use it to choose a backend for each call.
+- `state` needs a `digest`, because a record names the digest that made it. `createReadTool` throws `TypeError` for a `state` without a `digest`, and the dependency type (`StateNeedsDigest`) refuses it at compile time.
 - `state` can be a function of the call. It runs at most once for each read, and only when the core needs the store. Return `null` for no store. A factory that throws gives `EXTENSION_FAILED`. A store whose `get` or `put` fails never fails the read.
 - The record key is `file.resolvedPath`. A read stores a `ReadRecord` with `schema: 2` and `origin: "read"`. It holds the backend `version`, the `digest` id, the content and view ids, and the read range. The write tools store records with `origin: "write"` and `request: null` after a commit. A record of another schema counts as absent.
 - `result.file.version` is the backend's change token from `open()`, or `null`. It is kept when the backend has no identity capability.

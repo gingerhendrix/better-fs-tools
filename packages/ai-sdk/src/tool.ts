@@ -2,7 +2,13 @@ import { jsonSchema } from "ai";
 import type { JSONSchema7, Schema, ToolExecutionOptions } from "ai";
 
 import { createReadTool, parseReadInput, resolveLimits } from "@better-fs-tools/read";
-import type { JsonObject, ReadContext, ReadResult, ReadToolDeps } from "@better-fs-tools/read";
+import type {
+  JsonObject,
+  ReadContext,
+  ReadResult,
+  ReadToolDeps,
+  StateNeedsDigest,
+} from "@better-fs-tools/read";
 import { defaultSignature, signatureMessages } from "@better-fs-tools/read/signature";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
 
@@ -31,16 +37,17 @@ export interface AiSdkReadTool<C = unknown> {
 
 /** Builds the core with messages = { ...signatureMessages(signature), ...options.messages }. */
 export function createAiSdkReadTool<C = unknown>(
-  options: CreateAiSdkReadToolOptions<C>,
+  options: CreateAiSdkReadToolOptions<C> & StateNeedsDigest,
 ): AiSdkReadTool<C> {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("AI SDK read tool options must be an object");
   }
   const { signature = defaultSignature(), ...deps } = options;
+  // The rest of a paired type loses the pairing. The options type checked it.
   const read = createReadTool<ToolExecutionOptions<C>>({
     ...deps,
     messages: { ...signatureMessages(signature), ...deps.messages },
-  });
+  } as ReadToolDeps<ToolExecutionOptions<C>> & StateNeedsDigest);
   const limits = resolveLimits(deps.limits);
   const strict = toStrictSchema(signature.schema);
 

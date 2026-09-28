@@ -12,6 +12,7 @@ import type {
   HookContext,
   ReadContext,
   ReadToolDeps,
+  StateNeedsDigest,
 } from "../../src/index.ts";
 import { createMemoryStore } from "../../src/state/index.ts";
 import {
@@ -101,7 +102,7 @@ function tool(
     digest: testDigest(),
     clock: () => FIXED_DATE,
     ...deps,
-  });
+  } as ReadToolDeps & StateNeedsDigest);
   return { read, memory };
 }
 
