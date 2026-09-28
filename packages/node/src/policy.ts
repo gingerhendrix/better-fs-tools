@@ -2,20 +2,23 @@ import type { BigIntStats } from "node:fs";
 import { lstat, realpath } from "node:fs/promises";
 import path from "node:path";
 
-import type { FileSystemError, NodeKind } from "@better-fs-tools/fs";
+import type {
+  FileSystemError,
+  FileSystemRootOptions,
+  NodeKind,
+  SymlinkPolicy,
+} from "@better-fs-tools/fs";
 
 const DEFAULT_DENY_ROOTS = Object.freeze(["/dev", "/proc", "/sys"]);
 
-export interface NodeFileSystemOptions {
-  /** Default process.cwd(). */
-  readonly cwd?: string;
-  /** At least one. A path outside every root is refused. */
-  readonly allowedRoots: readonly string[];
-  /** Added to /dev, /proc, /sys. Refused before any inspection. */
-  readonly denyRoots?: readonly string[];
-  /** Default "follow-within-roots". */
-  readonly symlinks?: "follow-within-roots" | "reject";
-  readonly id?: string;
+/**
+ * The shared root options. `cwd` defaults to process.cwd(), and a relative
+ * `cwd` resolves against it. `denyRoots` are added to /dev, /proc, and /sys
+ * and refused as dangerous-path before any inspection. `symlinks` defaults to
+ * "follow-within-roots". `identity` is always "required": Node reports device
+ * and inode. `id` defaults to "node".
+ */
+export interface NodeFileSystemOptions extends FileSystemRootOptions<SymlinkPolicy, "required"> {
   /** A replace of a file with more than one hard link. Default "refuse" (W12). "in-place" truncates and writes, not atomic. */
   readonly hardLinks?: "refuse" | "in-place";
   /** Mode of a new file. The umask does not apply. Default 0o644. */
@@ -29,7 +32,7 @@ export interface NodeConfig {
   readonly cwd: string;
   readonly allowedRoots: readonly string[];
   readonly denyRoots: readonly string[];
-  readonly symlinks: "follow-within-roots" | "reject";
+  readonly symlinks: SymlinkPolicy;
   readonly hardLinks: "refuse" | "in-place";
   readonly newFileMode: number;
   readonly newDirectoryMode: number;
@@ -126,6 +129,9 @@ function resolveOptions(options: NodeFileSystemOptions): NodeConfig {
     roots.some((root) => typeof root !== "string" || root === "")
   ) {
     throw new TypeError("allowedRoots must contain at least one non-empty path");
+  }
+  if (options.identity !== undefined && options.identity !== "required") {
+    throw new TypeError('identity must be "required": Node always reports device and inode');
   }
   const symlinks = options.symlinks ?? "follow-within-roots";
   if (symlinks !== "follow-within-roots" && symlinks !== "reject") {

@@ -99,7 +99,7 @@ describe("precondition table for write (section 5.3)", () => {
   });
 
   test("row 6: without identity the version alone is not trusted, the content hash is", async () => {
-    const { fs, read, write } = harness({ files: FILE, fsOptions: { identity: false } });
+    const { fs, read, write } = harness({ files: FILE, fsOptions: { identity: "none" } });
     await read({ path: "/a.txt" });
     expect((await write({ path: "/a.txt", content: "x" })).status).toBe("ok");
     // The write record's hash keeps the next write fresh too.

@@ -25,13 +25,9 @@ import type {
   VerifyOutcome,
 } from "@better-fs-tools/fs";
 
-import type {
-  JustBashFileSystem,
-  JustBashIdentityMode,
-  JustBashReadFileSystem,
-  JustBashReadFileSystemOptions,
-  JustBashSymlinkPolicy,
-} from "./contract.ts";
+import type { IdentityMode, SymlinkPolicy } from "@better-fs-tools/fs";
+
+import type { JustBashFileSystem, JustBashFileSystemOptions } from "./contract.ts";
 import {
   AdapterRefusal,
   authorizeCanonical,
@@ -44,6 +40,7 @@ import {
   inspect,
   invalid,
   refuse,
+  refuseSymlinkComponents,
   requireRegularFile,
   requireStatKey,
   requireWithinCeiling,
@@ -59,13 +56,7 @@ import { JUST_BASH_WRITE_CAPABILITIES, justBashWrites } from "./write.ts";
 
 export { justBashCommandRunner } from "./command-runner.ts";
 export type { JustBashCommandRunnerOptions, JustBashShell } from "./command-runner.ts";
-export type {
-  JustBashFileSystem,
-  JustBashIdentityMode,
-  JustBashReadFileSystem,
-  JustBashReadFileSystemOptions,
-  JustBashSymlinkPolicy,
-} from "./contract.ts";
+export type { JustBashFileSystem, JustBashFileSystemOptions } from "./contract.ts";
 
 /**
  * Wrap the exact public `IFileSystem` contract exported by `just-bash`.
@@ -74,27 +65,18 @@ export type {
  * backend promise, but cannot stop one already in flight. Directory backends
  * also return complete arrays: `limit` bounds converted output and fallback
  * `lstat()` calls, not backend traversal or allocation.
- */
-export function justBashReadFileSystem(
-  fs: IFileSystem,
-  options: JustBashReadFileSystemOptions,
-): JustBashReadFileSystem {
-  validateFileSystem(fs);
-  return Object.freeze(readMethods(fs, validateOptions(options)));
-}
-
-/**
- * The same adapter with whole-file writes: `stat`, `write` and `remove` under
- * the same roots, deny roots and symlink policy as `open()`.
  *
- * `writeCapabilities` is `{ atomic: false, compareAndSwap: false,
- * preserveMode: true }`. There is no `stage()`.
+ * `stat`, `write` and `remove` keep the same roots, deny roots and symlink
+ * policy as `open()`. `writeCapabilities` is `{ atomic: false,
+ * compareAndSwap: false, preserveMode: true }`. There is no `stage()`. For a
+ * read-only view, wrap the result in `readOnlyFileSystem()` from
+ * `@better-fs-tools/fs`.
  */
 export function justBashFileSystem(
   fs: IFileSystem,
-  options: JustBashReadFileSystemOptions,
+  options: JustBashFileSystemOptions,
 ): JustBashFileSystem {
-  validateFileSystem(fs, ["writeFile", "mkdir", "rm", "chmod", "utimes"]);
+  validateFileSystem(fs);
   const configured = validateOptions(options);
   return Object.freeze({
     ...readMethods(fs, configured),
@@ -103,23 +85,24 @@ export function justBashFileSystem(
   });
 }
 
-function readMethods(fs: IFileSystem, configured: JustBashSettings): JustBashReadFileSystem {
-  const { id, cwd, allowedRoots, denyRoots, maxBufferedBytes, identityMode, symlinkPolicy } =
-    configured;
+type ReadMethods = Omit<JustBashFileSystem, "writeCapabilities" | "stat" | "write" | "remove">;
+
+function readMethods(fs: IFileSystem, configured: JustBashSettings): ReadMethods {
+  const { id, cwd, allowedRoots, denyRoots, maxBufferedBytes, identity, symlinks } = configured;
 
   return {
     id,
     capabilities: Object.freeze({
       streaming: false,
-      identity: identityMode === "required",
+      identity: identity === "required",
     }),
     paths: posixPaths,
     cwd,
     allowedRoots,
     denyRoots,
     maxBufferedBytes,
-    identityMode,
-    symlinkPolicy,
+    identity,
+    symlinks,
 
     async open(requested: string, callOptions: OpenOptions = {}): Promise<OpenOutcome> {
       const signal = callOptions.signal;
@@ -127,13 +110,8 @@ function readMethods(fs: IFileSystem, configured: JustBashSettings): JustBashRea
 
       try {
         const lexical = authorizeRequested(cwd, requested, allowedRoots, denyRoots);
-        const leaf = await inspect(fs, "lstat", lexical, signal);
-        if (symlinkPolicy === "reject" && leaf.isSymbolicLink) {
-          throw refuse({
-            reason: "denied",
-            detail: "the path is a symbolic link and this adapter refuses it",
-          });
-        }
+        await inspect(fs, "lstat", lexical, signal);
+        if (symlinks === "reject") await refuseSymlinkComponents(fs, lexical, signal);
 
         const resolved = await canonicalPath(fs, lexical, signal);
         authorizeCanonical(resolved, allowedRoots, denyRoots);
@@ -141,7 +119,7 @@ function readMethods(fs: IFileSystem, configured: JustBashSettings): JustBashRea
         const before = await inspect(fs, "stat", resolved, signal, "stat-before");
         requireRegularFile(before, cwd, resolved);
         requireWithinCeiling(before.size, maxBufferedBytes, "reported object");
-        const beforeKey = requireStatKey(before, identityMode);
+        const beforeKey = requireStatKey(before, identity);
 
         const backendBytes = await backendCall(
           () => fs.readFileBuffer(resolved),
@@ -158,7 +136,7 @@ function readMethods(fs: IFileSystem, configured: JustBashSettings): JustBashRea
         const after = await inspect(fs, "stat", resolved, signal, "stat-after");
         requireRegularFile(after, cwd, resolved);
 
-        const afterKey = requireStatKey(after, identityMode);
+        const afterKey = requireStatKey(after, identity);
         const beforeFingerprint = fingerprint(id, resolved, beforeKey, before);
         const openedFingerprint = fingerprint(id, resolved, afterKey, after);
         if (beforeFingerprint !== openedFingerprint || bytes.byteLength !== after.size) {
@@ -179,8 +157,8 @@ function readMethods(fs: IFileSystem, configured: JustBashSettings): JustBashRea
             resolved,
             allowedRoots,
             denyRoots,
-            identityMode,
-            symlinkPolicy,
+            identity,
+            symlinks,
             opened: after,
             openedFingerprint,
             bytes,
@@ -205,13 +183,8 @@ function readMethods(fs: IFileSystem, configured: JustBashSettings): JustBashRea
 
       try {
         const lexical = authorizeRequested(cwd, requested, allowedRoots, denyRoots);
-        const leaf = await inspect(fs, "lstat", lexical, signal);
-        if (symlinkPolicy === "reject" && leaf.isSymbolicLink) {
-          throw refuse({
-            reason: "denied",
-            detail: "the path is a symbolic link and this adapter refuses it",
-          });
-        }
+        await inspect(fs, "lstat", lexical, signal);
+        if (symlinks === "reject") await refuseSymlinkComponents(fs, lexical, signal);
         const resolved = await canonicalPath(fs, lexical, signal);
         authorizeCanonical(resolved, allowedRoots, denyRoots);
         const stat = await inspect(fs, "stat", resolved, signal);
@@ -272,8 +245,8 @@ function justBashOpenFile(context: {
   resolved: string;
   allowedRoots: readonly string[];
   denyRoots: readonly string[];
-  identityMode: JustBashIdentityMode;
-  symlinkPolicy: JustBashSymlinkPolicy;
+  identity: IdentityMode;
+  symlinks: SymlinkPolicy;
   opened: ValidatedStat;
   openedFingerprint: string;
   bytes: Uint8Array;
@@ -288,7 +261,7 @@ function justBashOpenFile(context: {
       displayPath: display(context.cwd, context.resolved),
       size: context.bytes.byteLength,
       mtimeMs: context.opened.mtimeMs,
-      identity: context.identityMode === "required" ? context.openedFingerprint : null,
+      identity: context.identity === "required" ? context.openedFingerprint : null,
       mimeType: null,
       /* The fingerprint verify() compares. Weak in identity mode "none". */
       version: context.openedFingerprint,
@@ -318,15 +291,17 @@ function justBashOpenFile(context: {
 
     async verify(): Promise<VerifyOutcome> {
       try {
-        const leaf = await inspect(
-          context.fs,
-          "lstat",
-          context.lexical,
-          context.signal,
-          "verify-lstat",
-        );
-        if (context.symlinkPolicy === "reject" && leaf.isSymbolicLink) {
-          return { ok: true, changed: true };
+        await inspect(context.fs, "lstat", context.lexical, context.signal, "verify-lstat");
+        if (context.symlinks === "reject") {
+          try {
+            await refuseSymlinkComponents(context.fs, context.lexical, context.signal);
+          } catch (error) {
+            /* A link that appeared on the path since open is a change. */
+            if (error instanceof AdapterRefusal && error.error.reason === "denied") {
+              return { ok: true, changed: true };
+            }
+            throw error;
+          }
         }
         const currentResolved = await canonicalPath(
           context.fs,
@@ -350,7 +325,7 @@ function justBashOpenFile(context: {
           "verify-stat",
         );
         if (!current.isFile) return { ok: true, changed: true };
-        const key = requireStatKey(current, context.identityMode);
+        const key = requireStatKey(current, context.identity);
         return {
           ok: true,
           changed:

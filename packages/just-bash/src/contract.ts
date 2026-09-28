@@ -1,5 +1,7 @@
 import type {
-  FileSystem,
+  BufferedFileSystemOptions,
+  FileSystemRootOptions,
+  FileSystemRootSettings,
   ListOptions,
   ListOutcome,
   MutateOptions,
@@ -7,41 +9,25 @@ import type {
   WritableFileSystem,
 } from "@better-fs-tools/fs";
 
-export type JustBashIdentityMode = "required" | "none";
-export type JustBashSymlinkPolicy = "reject" | "backend-policy";
-
-export interface JustBashReadFileSystemOptions {
-  /** Namespaces public identities and appears in `FileInfo.backend`. */
-  readonly id: string;
-  /** Absolute virtual POSIX working directory. Defaults to `/`. */
-  readonly cwd?: string;
-  /** Virtual roots that may be read. Relative values resolve against `cwd`. */
-  readonly allowedRoots: readonly string[];
-  /** Virtual roots that remain refused even when nested in an allowed root. */
-  readonly denyRoots?: readonly string[];
-  /** Maximum accepted whole-file buffer. Required so buffering is explicit. */
-  readonly maxBufferedBytes: number;
-  /** Stable backend identity is opt-in. Defaults to `none`. */
-  readonly identity?: JustBashIdentityMode;
-  /** Final symlinks are refused unless backend policy is selected explicitly. */
-  readonly symlinks?: JustBashSymlinkPolicy;
-}
-
-export interface JustBashReadFileSystem extends FileSystem {
-  readonly cwd: string;
-  readonly allowedRoots: readonly string[];
-  readonly denyRoots: readonly string[];
-  readonly maxBufferedBytes: number;
-  readonly identityMode: JustBashIdentityMode;
-  readonly symlinkPolicy: JustBashSymlinkPolicy;
-  list(path: string, options: ListOptions): Promise<ListOutcome>;
-}
+/**
+ * The shared root options, with virtual paths. `cwd` must be absolute and
+ * defaults to `/`; relative roots resolve against it. `id` defaults to
+ * `"just-bash"` and namespaces versions and identities, so give two backends
+ * that share one state store two ids. `symlinks` defaults to `"reject"`, which
+ * refuses a link in any component. `identity` defaults to `"none"`.
+ * `maxBufferedBytes` defaults to 16 MiB.
+ */
+export interface JustBashFileSystemOptions
+  extends FileSystemRootOptions, BufferedFileSystemOptions {}
 
 /**
- * `justBashFileSystem()`: the read adapter plus whole-file writes.
  * `writeCapabilities` is `{ atomic: false, compareAndSwap: false, preserveMode: true }`.
+ * The write methods need `writeFile`, `mkdir`, `chmod`, `utimes`, and `rm` on
+ * the backend. They are checked when a write runs, so a backend without them
+ * still serves reads.
  */
-export interface JustBashFileSystem extends JustBashReadFileSystem, WritableFileSystem {
+export interface JustBashFileSystem extends WritableFileSystem, FileSystemRootSettings {
+  readonly maxBufferedBytes: number;
   list(path: string, options: ListOptions): Promise<ListOutcome>;
   remove(path: string, options: MutateOptions): Promise<MutationOutcome>;
 }

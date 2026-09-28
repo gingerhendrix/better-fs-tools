@@ -54,12 +54,12 @@ for (const specifier of ${JSON.stringify(imports)}) {
     throw new Error(specifier + " now exports values: remove it from EMPTY_ENTRIES");
   }
 }
-const { memoryFileSystem } = await import("${SCOPE}/fs");
+const { memoryFileSystem, readOnlyFileSystem } = await import("${SCOPE}/fs");
 const { createReadTool, textOf } = await import("${SCOPE}/read");
 const { createNodeReadTool } = await import("${SCOPE}/node");
 const { createAiSdkReadTool } = await import("${SCOPE}/ai-sdk");
 const { createNodeFsTools } = await import("${SCOPE}/node");
-const { justBashFileSystem, justBashReadFileSystem } = await import("${SCOPE}/just-bash");
+const { justBashFileSystem } = await import("${SCOPE}/just-bash");
 const { createEditTool } = await import("${SCOPE}/write");
 const { readFile } = await import("node:fs/promises");
 const { InMemoryFs } = await import("just-bash");
@@ -72,9 +72,9 @@ const memory = memoryFileSystem({ files: { "/a.txt": "one\\ntwo\\n" } });
 expect("memory", textOf(await createReadTool({ fs: memory })({ path: "/a.txt", offset: 2 })), "2|two");
 const aiSdk = createAiSdkReadTool({ fs: memory });
 expect("ai-sdk", (await aiSdk.execute({ path: "/a.txt" }, { toolCallId: "t", messages: [] })).status, "ok");
-const bash = justBashReadFileSystem(new InMemoryFs({ "/w/a.txt": "x\\n" }), {
-  id: "bash", cwd: "/w", allowedRoots: ["/w"], maxBufferedBytes: 1024,
-});
+const bash = readOnlyFileSystem(justBashFileSystem(new InMemoryFs({ "/w/a.txt": "x\\n" }), {
+  cwd: "/w", allowedRoots: ["/w"],
+}));
 expect("just-bash", textOf(await createReadTool({ fs: bash })({ path: "a.txt" })).split("\\n")[0], "1|x");
 
 const fsTools = createNodeFsTools();
@@ -88,9 +88,7 @@ await fsTools.read({ path: "fixture.txt" });
 expect("node edit", (await fsTools.edit(editFixture)).status, "ok");
 expect("node edited bytes", await readFile("fixture.txt", "utf8"), "alpha\\ngamma\\n");
 const bashBackend = new InMemoryFs({ "/w/b.txt": "y\\n" });
-const writableBash = justBashFileSystem(bashBackend, {
-  id: "bash", cwd: "/w", allowedRoots: ["/w"], maxBufferedBytes: 1024,
-});
+const writableBash = justBashFileSystem(bashBackend, { cwd: "/w", allowedRoots: ["/w"] });
 const bashEdit = createEditTool({ fs: writableBash, preconditions: { requireRead: "off" } });
 expect("just-bash edit", (await bashEdit({ path: "b.txt", edits: [{ oldText: "y", newText: "z" }] })).status, "ok");
 expect("just-bash bytes", await bashBackend.readFile("/w/b.txt"), "z\\n");

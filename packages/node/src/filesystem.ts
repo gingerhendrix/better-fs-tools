@@ -7,6 +7,7 @@ import path from "node:path";
 import { posixPaths } from "@better-fs-tools/fs";
 import type {
   DirectoryEntry,
+  FileSystemRootSettings,
   ListOptions,
   ListOutcome,
   OpenFile,
@@ -15,6 +16,7 @@ import type {
   MutateOptions,
   MutationOutcome,
   StageOutcome,
+  SymlinkPolicy,
   VerifyOutcome,
   WritableFileSystem,
   WriteOptions,
@@ -41,8 +43,9 @@ import { nodeWrites } from "./write.ts";
 
 const DESCRIPTOR_READ_BYTES = 64 * 1024;
 
-/** A WritableFileSystem with every optional method present. */
-export interface NodeFileSystem extends WritableFileSystem {
+/** A WritableFileSystem with every optional method present, and its resolved root options. */
+export interface NodeFileSystem
+  extends WritableFileSystem, FileSystemRootSettings<SymlinkPolicy, "required"> {
   list(path: string, options: ListOptions): Promise<ListOutcome>;
   stage(path: string, bytes: Uint8Array, options: WriteOptions): Promise<StageOutcome>;
   remove(path: string, options: MutateOptions): Promise<MutationOutcome>;
@@ -72,6 +75,11 @@ export function nodeFileSystem(options: NodeFileSystemOptions): NodeFileSystem {
 
   return Object.freeze({
     id: config.id,
+    cwd: config.cwd,
+    allowedRoots: Object.freeze([...config.allowedRoots]),
+    denyRoots: Object.freeze([...config.denyRoots]),
+    symlinks: config.symlinks,
+    identity: "required",
     capabilities: Object.freeze({ streaming: true, identity: true }),
     writeCapabilities: Object.freeze({ atomic: true, compareAndSwap: true, preserveMode: true }),
     paths: posixPaths,

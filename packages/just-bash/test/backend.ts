@@ -1,7 +1,7 @@
 import type { IFileSystem } from "just-bash";
 
-import { justBashFileSystem, justBashReadFileSystem } from "../src/index.ts";
-import type { JustBashReadFileSystemOptions } from "../src/index.ts";
+import { justBashFileSystem } from "../src/index.ts";
+import type { JustBashFileSystemOptions } from "../src/index.ts";
 
 type Method =
   | "lstat"
@@ -15,8 +15,9 @@ type Method =
   | "chmod"
   | "utimes";
 
-export function adapter(fs: IFileSystem, overrides: Partial<JustBashReadFileSystemOptions> = {}) {
-  return justBashReadFileSystem(fs, {
+/** The adapter with the test defaults. The read tests use it for reads only. */
+export function adapter(fs: IFileSystem, overrides: Partial<JustBashFileSystemOptions> = {}) {
+  return justBashFileSystem(fs, {
     id: "test-just-bash",
     cwd: "/workspace",
     allowedRoots: ["/workspace"],
@@ -26,8 +27,8 @@ export function adapter(fs: IFileSystem, overrides: Partial<JustBashReadFileSyst
   });
 }
 
-/** The writable adapter with the same test defaults. */
-export function writable(fs: IFileSystem, overrides: Partial<JustBashReadFileSystemOptions> = {}) {
+/** The same adapter, named for the write tests. */
+export function writable(fs: IFileSystem, overrides: Partial<JustBashFileSystemOptions> = {}) {
   return justBashFileSystem(fs, {
     id: "test-just-bash",
     cwd: "/workspace",

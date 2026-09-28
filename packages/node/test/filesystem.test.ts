@@ -40,6 +40,23 @@ function expectFsError(
 
 const isRoot = process.getuid?.() === 0;
 
+describe("node filesystem options", () => {
+  test("takes the shared root options and exposes the resolved values", () => {
+    const fs = nodeFileSystem({ cwd: root, allowedRoots: ["src"], denyRoots: ["src/private"] });
+    expect(fs.cwd).toBe(root);
+    expect(fs.allowedRoots).toEqual([join(root, "src")]);
+    expect(fs.denyRoots).toEqual(["/dev", "/proc", "/sys", join(root, "src", "private")]);
+    expect(fs.symlinks).toBe("follow-within-roots");
+    expect(fs.identity).toBe("required");
+    expect(nodeFileSystem({ allowedRoots: [root], identity: "required" }).identity).toBe(
+      "required",
+    );
+    expect(() => nodeFileSystem({ allowedRoots: [root], identity: "none" as "required" })).toThrow(
+      "identity",
+    );
+  });
+});
+
 describe("node filesystem reads", () => {
   test("reads a real file with descriptor-backed metadata", async () => {
     const result = await toolFor()({ path: "src/index.ts" });

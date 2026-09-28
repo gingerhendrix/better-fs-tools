@@ -5,8 +5,8 @@ import type { ReadContext } from "@better-fs-tools/read";
 import { InMemoryFs } from "just-bash";
 import type { IFileSystem } from "just-bash";
 
-import { justBashReadFileSystem } from "../src/index.ts";
-import type { JustBashReadFileSystem } from "../src/index.ts";
+import { justBashFileSystem } from "../src/index.ts";
+import type { JustBashFileSystem } from "../src/index.ts";
 import { adapter } from "./backend.ts";
 import { expectFailure, expectOk } from "./helpers.ts";
 
@@ -61,9 +61,9 @@ describe("just-bash through the read tool", () => {
     }
     const calls: ReadContext<Host>[] = [];
     const read = createReadTool<Host>({
-      fs: (call): JustBashReadFileSystem => {
+      fs: (call): JustBashFileSystem => {
         calls.push(call);
-        return justBashReadFileSystem(call.host.fs, {
+        return justBashFileSystem(call.host.fs, {
           id: "per-call",
           cwd: "/workspace",
           allowedRoots: ["/workspace"],

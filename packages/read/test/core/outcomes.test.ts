@@ -105,7 +105,7 @@ describe("capability disclosure", () => {
   test("a buffered backend without identity discloses both", async () => {
     const { read } = harness({
       files: { "/a.txt": "one\n" },
-      fsOptions: { streaming: false, identity: false },
+      fsOptions: { streaming: false, identity: "none" },
     });
     const result = expectOk(await read({ path: "/a.txt" }));
     expect(result.file.identity).toBeNull();
@@ -132,7 +132,7 @@ describe("capability disclosure", () => {
   });
 
   test("file.version is info.version, also without the identity capability", async () => {
-    const { read } = harness({ files: { "/a.txt": "one\n" }, fsOptions: { identity: false } });
+    const { read } = harness({ files: { "/a.txt": "one\n" }, fsOptions: { identity: "none" } });
     const result = expectOk(await read({ path: "/a.txt" }));
     expect(result.file.identity).toBeNull();
     expect(result.file.version).toBe("memory:/a.txt:1");

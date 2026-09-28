@@ -18,6 +18,15 @@ export type {
   TooLargeError,
   VerifyOutcome,
 } from "./contract.ts";
+export { DEFAULT_MAX_BUFFERED_BYTES } from "./options.ts";
+export type {
+  BufferedFileSystemOptions,
+  FileSystemRootOptions,
+  FileSystemRootSettings,
+  IdentityMode,
+  SymlinkPolicy,
+} from "./options.ts";
+export { readOnlyFileSystem } from "./read-only.ts";
 export { containsPosix, posixPaths, resolvePosix } from "./paths.ts";
 export { memoryFileSystem } from "./memory.ts";
 export type { MemoryFileSystem, MemoryFileSystemOptions } from "./memory.ts";

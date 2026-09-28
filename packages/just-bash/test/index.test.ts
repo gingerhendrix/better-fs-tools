@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 
-import { posixPaths } from "@better-fs-tools/fs";
+import { DEFAULT_MAX_BUFFERED_BYTES, posixPaths } from "@better-fs-tools/fs";
 import type { OpenFile, OpenOutcome } from "@better-fs-tools/fs";
 import { InMemoryFs, MountableFs } from "just-bash";
 import type { FsStat } from "just-bash";
 
-import { justBashReadFileSystem } from "../src/index.ts";
+import { justBashFileSystem } from "../src/index.ts";
 import { adapter, intercept } from "./backend.ts";
 import { expectFsError, sourceSpecifiers } from "./helpers.ts";
 
@@ -30,7 +30,7 @@ async function contents(file: OpenFile): Promise<Uint8Array> {
   return joined;
 }
 
-describe("justBashReadFileSystem", () => {
+describe("justBashFileSystem", () => {
   test("validates fixed policy and advertises buffered capabilities", () => {
     const fs = new InMemoryFs({ "/workspace/a.txt": "alpha" });
     const wrapped = adapter(fs, { identity: "none" });
@@ -38,13 +38,37 @@ describe("justBashReadFileSystem", () => {
     expect(typeof wrapped.list).toBe("function");
     expect(wrapped.paths).toBe(posixPaths);
     expect(wrapped.cwd).toBe("/workspace");
-    expect(wrapped.identityMode).toBe("none");
-    expect(wrapped.symlinkPolicy).toBe("reject");
+    expect(wrapped.identity).toBe("none");
+    expect(wrapped.symlinks).toBe("reject");
     expect(adapter(fs).capabilities).toEqual({ streaming: false, identity: true });
 
     expect(() => adapter(fs, { allowedRoots: [] })).toThrow("allowedRoots");
     expect(() => adapter(fs, { maxBufferedBytes: 0 })).toThrow("maxBufferedBytes");
     expect(() => adapter(fs, { cwd: "relative" })).toThrow("cwd");
+    expect(() => adapter(fs, { symlinks: "backend-policy" as never })).toThrow("symlinks");
+  });
+
+  test("defaults id, cwd, and maxBufferedBytes from the shared options", () => {
+    const wrapped = justBashFileSystem(new InMemoryFs(), { allowedRoots: ["/workspace"] });
+    expect(wrapped.id).toBe("just-bash");
+    expect(wrapped.cwd).toBe("/");
+    expect(wrapped.allowedRoots).toEqual(["/workspace"]);
+    expect(wrapped.denyRoots).toEqual([]);
+    expect(wrapped.maxBufferedBytes).toBe(DEFAULT_MAX_BUFFERED_BYTES);
+    expect(wrapped.identity).toBe("none");
+    expect(wrapped.symlinks).toBe("reject");
+  });
+
+  test('"reject" refuses a symlinked parent too; "follow-within-roots" follows it', async () => {
+    const fs = new InMemoryFs({ "/workspace/real/a.txt": "real" });
+    await fs.symlink("/workspace/real", "/workspace/linked");
+    expectFsError(await adapter(fs).open("linked/a.txt", {}), "denied");
+    expectFsError(await adapter(fs).list("linked", { limit: 5 }), "denied");
+    const followed = opened(
+      await adapter(fs, { symlinks: "follow-within-roots" }).open("linked/a.txt", {}),
+    );
+    expect(followed.info.resolvedPath).toBe("/workspace/real/a.txt");
+    await followed.close();
   });
 
   test("opens normal and empty files and enforces both buffered ceiling edges", async () => {
@@ -170,7 +194,7 @@ describe("justBashReadFileSystem", () => {
       "/workspace/private/a.txt": "private",
     });
     await fs.symlink("/workspace/a.txt", "/workspace/link.txt");
-    const wrapped = justBashReadFileSystem(fs, {
+    const wrapped = justBashFileSystem(fs, {
       id: "roots",
       cwd: "/",
       allowedRoots: ["/work"],
@@ -185,7 +209,9 @@ describe("justBashReadFileSystem", () => {
     expectFsError(await adapter(fs).open("link.txt", {}), "denied");
     expectFsError(await adapter(fs).open("a\0.txt", {}), "dangerous-path");
 
-    const followed = opened(await adapter(fs, { symlinks: "backend-policy" }).open("link.txt", {}));
+    const followed = opened(
+      await adapter(fs, { symlinks: "follow-within-roots" }).open("link.txt", {}),
+    );
     expect(DECODER.decode(await contents(followed))).toBe("workspace");
     expect(followed.info.resolvedPath).toBe("/workspace/a.txt");
     await followed.close();
@@ -213,7 +239,7 @@ describe("justBashReadFileSystem", () => {
       base: new InMemoryFs({ "/base.txt": "base" }),
       mounts: [{ mountPoint: "/workspace", filesystem: fs }],
     });
-    const fallback = justBashReadFileSystem(mounted, {
+    const fallback = justBashFileSystem(mounted, {
       id: "mounted-list",
       cwd: "/",
       allowedRoots: ["/"],
@@ -261,11 +287,12 @@ describe("justBashReadFileSystem", () => {
       lstat: async (original, args) => {
         const value = await original(...args);
         lstatCalls += 1;
-        if (lstatCalls === 2) listController.abort();
+        // The leaf lstat, the "reject" walk of /workspace, then the first child.
+        if (lstatCalls === 3) listController.abort();
         return value;
       },
     });
-    const listAdapter = justBashReadFileSystem(abortingList, {
+    const listAdapter = justBashFileSystem(abortingList, {
       id: "abort-list",
       cwd: "/",
       allowedRoots: ["/"],
@@ -345,7 +372,7 @@ describe("justBashReadFileSystem", () => {
         { mountPoint: "/knowledge", filesystem: knowledge },
       ],
     });
-    const wrapped = justBashReadFileSystem(mounted, {
+    const wrapped = justBashFileSystem(mounted, {
       id: "shared-vfs",
       cwd: "/workspace",
       allowedRoots: ["/workspace", "/knowledge"],

@@ -4,14 +4,21 @@
  */
 import type { FsStat, IFileSystem } from "just-bash";
 
-import { containsPosix, posixPaths, resolvePosix } from "@better-fs-tools/fs";
-import type { DirectoryEntry, FileSystemError, NotAFileError } from "@better-fs-tools/fs";
-
+import {
+  containsPosix,
+  DEFAULT_MAX_BUFFERED_BYTES,
+  posixPaths,
+  resolvePosix,
+} from "@better-fs-tools/fs";
 import type {
-  JustBashIdentityMode,
-  JustBashReadFileSystemOptions,
-  JustBashSymlinkPolicy,
-} from "./contract.ts";
+  DirectoryEntry,
+  FileSystemError,
+  IdentityMode,
+  NotAFileError,
+  SymlinkPolicy,
+} from "@better-fs-tools/fs";
+
+import type { JustBashFileSystemOptions } from "./contract.ts";
 
 const MAX_IDENTITY_LENGTH = 1_024;
 
@@ -46,15 +53,16 @@ export interface JustBashSettings {
   readonly allowedRoots: readonly string[];
   readonly denyRoots: readonly string[];
   readonly maxBufferedBytes: number;
-  readonly identityMode: JustBashIdentityMode;
-  readonly symlinkPolicy: JustBashSymlinkPolicy;
+  readonly identity: IdentityMode;
+  readonly symlinks: SymlinkPolicy;
 }
 
-export function validateOptions(options: JustBashReadFileSystemOptions): JustBashSettings {
+export function validateOptions(options: JustBashFileSystemOptions): JustBashSettings {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
-    throw new TypeError("justBashReadFileSystem options must be an object");
+    throw new TypeError("justBashFileSystem options must be an object");
   }
-  if (typeof options.id !== "string" || options.id === "" || options.id.includes("\0")) {
+  const id = options.id ?? "just-bash";
+  if (typeof id !== "string" || id === "" || id.includes("\0")) {
     throw new TypeError("id must be a non-empty string without NUL");
   }
   const cwd = validateAbsolutePath(options.cwd ?? "/", "cwd");
@@ -70,38 +78,32 @@ export function validateOptions(options: JustBashReadFileSystemOptions): JustBas
   const denyRoots = Object.freeze(
     (options.denyRoots ?? []).map((root) => validateConfiguredRoot(cwd, root)),
   );
-  if (!Number.isSafeInteger(options.maxBufferedBytes) || options.maxBufferedBytes <= 0) {
+  const maxBufferedBytes = options.maxBufferedBytes ?? DEFAULT_MAX_BUFFERED_BYTES;
+  if (!Number.isSafeInteger(maxBufferedBytes) || maxBufferedBytes <= 0) {
     throw new TypeError("maxBufferedBytes must be a positive safe integer");
   }
-  const identityMode = options.identity ?? "none";
-  if (identityMode !== "required" && identityMode !== "none") {
+  const identity = options.identity ?? "none";
+  if (identity !== "required" && identity !== "none") {
     throw new TypeError('identity must be "required" or "none"');
   }
-  const symlinkPolicy = options.symlinks ?? "reject";
-  if (symlinkPolicy !== "reject" && symlinkPolicy !== "backend-policy") {
-    throw new TypeError('symlinks must be "reject" or "backend-policy"');
+  const symlinks = options.symlinks ?? "reject";
+  if (symlinks !== "reject" && symlinks !== "follow-within-roots") {
+    throw new TypeError('symlinks must be "reject" or "follow-within-roots"');
   }
-  return {
-    id: options.id,
-    cwd,
-    allowedRoots,
-    denyRoots,
-    maxBufferedBytes: options.maxBufferedBytes,
-    identityMode,
-    symlinkPolicy,
-  };
+  return { id, cwd, allowedRoots, denyRoots, maxBufferedBytes, identity, symlinks };
 }
 
-/** `extra` names the methods writes need on top of the read methods. */
-export function validateFileSystem(
-  fs: IFileSystem,
-  extra: readonly (keyof IFileSystem)[] = [],
-): void {
+/**
+ * Only the read methods are checked here. The write methods are checked when
+ * a write runs (see `requireWriteMethods`), so a read-only backend still serves
+ * reads.
+ */
+export function validateFileSystem(fs: IFileSystem): void {
   if (fs === null || typeof fs !== "object" || Array.isArray(fs)) {
-    throw new TypeError("justBashReadFileSystem needs an IFileSystem object");
+    throw new TypeError("justBashFileSystem needs an IFileSystem object");
   }
   const read = ["lstat", "realpath", "stat", "readFileBuffer", "readdir"] as const;
-  for (const method of [...read, ...extra]) {
+  for (const method of read) {
     if (typeof fs[method] !== "function")
       throw new TypeError(`the IFileSystem must implement ${method}()`);
   }
@@ -165,6 +167,34 @@ export async function canonicalPath(
     throw invalid("realpath returned an invalid absolute POSIX path", phase);
   }
   return resolvePosix("/", value);
+}
+
+export const SYMLINK_REJECTED =
+  "a path component is a symbolic link and this adapter refuses symlinks";
+
+/**
+ * `symlinks: "reject"`: lstat every component of the lexical path from `/`
+ * down, and refuse the first symbolic link. A missing component ends the walk,
+ * since nothing below it exists.
+ */
+export async function refuseSymlinkComponents(
+  fs: IFileSystem,
+  lexical: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  let current = "";
+  for (const segment of lexical.split("/")) {
+    if (segment === "") continue;
+    current = `${current}/${segment}`;
+    let stat: ValidatedStat;
+    try {
+      stat = await inspect(fs, "lstat", current, signal, "lstat-component");
+    } catch (error) {
+      if (error instanceof AdapterRefusal && error.error.reason === "not-found") return;
+      throw error;
+    }
+    if (stat.isSymbolicLink) throw refuse({ reason: "denied", detail: SYMLINK_REJECTED });
+  }
 }
 
 export function display(cwd: string, target: string): string {
@@ -307,7 +337,7 @@ export function requireWithinCeiling(size: number, ceiling: number, subject: str
   }
 }
 
-export function requireStatKey(stat: ValidatedStat, mode: JustBashIdentityMode): string {
+export function requireStatKey(stat: ValidatedStat, mode: IdentityMode): string {
   if (mode === "none") return `weak:${stat.size}:${stat.mtimeMs}`;
   if (stat.identity !== undefined) return `identity:${stat.identity}`;
   if (stat.dev !== undefined && stat.ino !== undefined) {

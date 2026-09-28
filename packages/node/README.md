@@ -70,14 +70,15 @@ export async function afterShell(path: string): Promise<boolean> {
 | `nodeFileSystem(options)`                                                                    | A `WritableFileSystem` over Node file descriptors                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `nodeDigest()`                                                                               | SHA-256 over `node:crypto`. Values look like `sha256:<hex>`, the same as `sha256Digest()` from `@better-fs-tools/read`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-`nodeFileSystem` options:
+`nodeFileSystem` options. The first six are the shared `FileSystemRootOptions` from `@better-fs-tools/fs`. The filesystem also exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, and `identity`:
 
 | Option             | Default                 | Meaning                                                                                                |
 | ------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------ |
 | `allowedRoots`     | required                | At least one root. A path outside every root gives `OUTSIDE_ALLOWED_ROOTS`.                            |
-| `cwd`              | `process.cwd()`         | Base for relative paths                                                                                |
+| `cwd`              | `process.cwd()`         | Base for relative paths. A relative `cwd` resolves against `process.cwd()`                             |
 | `denyRoots`        | none                    | Refused as `DANGEROUS_PATH`, in addition to `/dev`, `/proc`, and `/sys`                                |
 | `symlinks`         | `"follow-within-roots"` | `"reject"` refuses every symlink                                                                       |
+| `identity`         | `"required"`            | The only value: Node always reports device and inode                                                   |
 | `id`               | `"node"`                | Appears in `result.file.backend`                                                                       |
 | `hardLinks`        | `"refuse"`              | A replace of a file with more than one hard link. `"in-place"` writes through the link, not atomically |
 | `newFileMode`      | `0o644`                 | Mode of a new file. The umask does not apply                                                           |

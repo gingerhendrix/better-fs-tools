@@ -36,7 +36,7 @@ describe("memoryFileSystem open", () => {
   });
 
   test("info.version is set without identity and changes with the bytes", async () => {
-    const fs = memoryFileSystem({ files: { "/a.txt": "one" }, identity: false });
+    const fs = memoryFileSystem({ files: { "/a.txt": "one" }, identity: "none" });
     const first = await fs.open("/a.txt", {});
     if (!first.ok) throw new Error("expected ok");
     expect(first.file.info.identity).toBeNull();
@@ -122,7 +122,7 @@ describe("memoryFileSystem open", () => {
   });
 
   test("without identity the handle has no identity", async () => {
-    const fs = memoryFileSystem({ files: { "/a.txt": "x" }, identity: false });
+    const fs = memoryFileSystem({ files: { "/a.txt": "x" }, identity: "none" });
     const opened = await fs.open("/a.txt", {});
     if (!opened.ok) throw new Error("expected ok");
     expect(opened.file.info.identity).toBeNull();

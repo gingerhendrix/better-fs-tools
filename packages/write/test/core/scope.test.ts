@@ -332,7 +332,7 @@ describe("call scope (section 5.1)", () => {
         throw new Error("no fs");
       },
     ],
-    ["returns a read-only filesystem", () => ({ id: "ro", open: async () => ({}) })],
+    ["returns no filesystem", () => ({ id: "none" })],
   ])("an fs factory that %s is EXTENSION_FAILED", async (_name, factory) => {
     const write = createWriteTool({ fs: factory as never });
     const result = await write({ path: "/a.txt", content: "x" });
@@ -342,6 +342,13 @@ describe("call scope (section 5.1)", () => {
       phase: "resolve",
       data: { extension: "fs", phase: "resolve" },
     });
+  });
+
+  test("an fs factory that returns a read-only filesystem is UNSUPPORTED_BACKEND", async () => {
+    const write = createWriteTool({ fs: (() => ({ id: "ro", open: async () => ({}) })) as never });
+    const result = await write({ path: "/a.txt", content: "x" });
+    expect(errorOf(result)).toMatchObject({ code: "UNSUPPORTED_BACKEND", phase: "resolve" });
+    expect(result.notes[0]?.data).toEqual({ detail: "the filesystem has no write methods" });
   });
 
   test("a state factory runs once, and a throw stops the call before any commit", async () => {

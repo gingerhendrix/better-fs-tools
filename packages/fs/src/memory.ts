@@ -8,6 +8,8 @@ import type {
   OpenOutcome,
   VerifyOutcome,
 } from "./contract.ts";
+import { DEFAULT_MAX_BUFFERED_BYTES } from "./options.ts";
+import type { BufferedFileSystemOptions, FileSystemRootOptions, IdentityMode } from "./options.ts";
 import { containsPosix, posixPaths, resolvePosix } from "./paths.ts";
 import { DEFAULT_MODE, memoryWrites } from "./memory-write.ts";
 import type { MemoryEntry, MemoryFaults, MemoryState } from "./memory-write.ts";
@@ -15,23 +17,24 @@ import type { WritableFileSystem, WriteCapabilities } from "./writable.ts";
 
 const ENCODER = new TextEncoder();
 
-export interface MemoryFileSystemOptions {
+/**
+ * The memory filesystem has no allowed roots: every absolute path is inside.
+ * It takes `id`, `denyRoots`, `identity`, and `maxBufferedBytes` from the
+ * shared options.
+ */
+export interface MemoryFileSystemOptions
+  extends Pick<FileSystemRootOptions, "id" | "denyRoots" | "identity">, BufferedFileSystemOptions {
   /** Seed contents keyed by absolute POSIX path. */
   readonly files?: Readonly<Record<string, string | Uint8Array>>;
   readonly directories?: readonly string[];
-  /** Refused as dangerous-path. */
-  readonly denyRoots?: readonly string[];
   /** Bytes per chunk. Default 64 KiB. */
   readonly chunkBytes?: number;
-  /** Refused as too-large above this on open and on write. Default 16 MiB. */
-  readonly maxBufferedBytes?: number;
   /** Default true. */
   readonly streaming?: boolean;
-  /** Default true. */
-  readonly identity?: boolean;
+  /** Default "required". Deny roots are refused as dangerous-path. */
+  readonly identity?: IdentityMode;
   /** Default true. false removes list(). */
   readonly list?: boolean;
-  readonly id?: string;
   /**
    * Default { atomic: true, compareAndSwap: true, preserveMode: true }.
    * preserveMode: false resets the mode on a replace. The other two are reported only.
@@ -64,9 +67,13 @@ export interface MemoryFileSystem extends WritableFileSystem {
 /** An in-memory filesystem for tests and for embedding. */
 export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryFileSystem {
   const chunkBytes = options.chunkBytes ?? 64 * 1024;
-  const maxBufferedBytes = options.maxBufferedBytes ?? 16 * 1024 * 1024;
+  const maxBufferedBytes = options.maxBufferedBytes ?? DEFAULT_MAX_BUFFERED_BYTES;
   const streaming = options.streaming ?? true;
-  const identityCapability = options.identity ?? true;
+  const identity = options.identity ?? "required";
+  if (identity !== "required" && identity !== "none") {
+    throw new TypeError('identity must be "required" or "none"');
+  }
+  const identityCapability = identity === "required";
   const writeCapabilities: WriteCapabilities = Object.freeze({
     atomic: true,
     compareAndSwap: true,

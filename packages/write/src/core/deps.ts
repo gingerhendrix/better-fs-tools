@@ -63,7 +63,11 @@ export function resolveWriteDependencies<THost>(
 
   const { fs } = deps;
   if (typeof fs !== "function" && !isWritable(fs)) {
-    throw new TypeError("fs must be a WritableFileSystem or a function that returns one");
+    throw new TypeError(
+      isReadable(fs)
+        ? "fs has no write methods: a write tool needs a WritableFileSystem"
+        : "fs must be a WritableFileSystem or a function that returns one",
+    );
   }
   const resolve = deps.resolve ?? null;
   if (resolve !== null && (!isRecord(resolve) || typeof resolve.resolve !== "function")) {
@@ -195,6 +199,11 @@ export function isWritable(value: unknown): value is WritableFileSystem {
     typeof value.open === "function" &&
     isWritableFileSystem(value as unknown as WritableFileSystem)
   );
+}
+
+/** A FileSystem, writable or not. */
+export function isReadable(value: unknown): boolean {
+  return isRecord(value) && typeof value.open === "function";
 }
 
 export function isStateStore(value: unknown): value is ReadStateStore {

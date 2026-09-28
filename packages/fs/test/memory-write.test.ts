@@ -76,7 +76,7 @@ describe("memoryFileSystem stat", () => {
   });
 
   test("without identity the stat has no identity but keeps a version", async () => {
-    const fs = memoryFileSystem({ files: { "/a.txt": "one" }, identity: false });
+    const fs = memoryFileSystem({ files: { "/a.txt": "one" }, identity: "none" });
     const stat = await fs.stat("/a.txt", {});
     if (!stat.ok || !stat.stat.exists) throw new Error("expected an existing file");
     expect(stat.stat.identity).toBeNull();

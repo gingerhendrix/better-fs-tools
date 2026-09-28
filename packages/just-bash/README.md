@@ -1,6 +1,6 @@
 # @better-fs-tools/just-bash
 
-A `FileSystem` and a `WritableFileSystem` over a [just-bash](https://www.npmjs.com/package/just-bash) `IFileSystem`, for the Better Read tool and the `edit`, `write`, and `apply_patch` tools in a just-bash sandbox.
+A `WritableFileSystem` over a [just-bash](https://www.npmjs.com/package/just-bash) `IFileSystem`, for the Better Read tool and the `edit`, `write`, and `apply_patch` tools in a just-bash sandbox.
 
 ## Install
 
@@ -14,18 +14,22 @@ npm install @better-fs-tools/just-bash @better-fs-tools/read @better-fs-tools/wr
 
 ```ts
 import { InMemoryFs } from "just-bash";
-import { justBashReadFileSystem } from "@better-fs-tools/just-bash";
+import { readOnlyFileSystem } from "@better-fs-tools/fs";
+import { justBashFileSystem } from "@better-fs-tools/just-bash";
 import { createReadTool, textOf } from "@better-fs-tools/read";
 
 const bash = new InMemoryFs({ "/workspace/src/index.ts": "const a = 1;\n" });
 
+// readOnlyFileSystem drops the write methods, so no write tool can use this view.
 const read = createReadTool({
-  fs: justBashReadFileSystem(bash, {
-    id: "sandbox",
-    cwd: "/workspace",
-    allowedRoots: ["/workspace"],
-    maxBufferedBytes: 4 * 1024 * 1024,
-  }),
+  fs: readOnlyFileSystem(
+    justBashFileSystem(bash, {
+      id: "sandbox",
+      cwd: "/workspace",
+      allowedRoots: ["/workspace"],
+      maxBufferedBytes: 4 * 1024 * 1024,
+    }),
+  ),
 });
 
 console.log(textOf(await read({ path: "src/index.ts" })));
@@ -35,7 +39,7 @@ console.log(textOf(await read({ path: "src/index.ts" })));
 // [read:buffered-backend] The sandbox backend buffers whole objects instead of streaming them.
 ```
 
-`justBashFileSystem()` takes the same options and adds writes:
+The same filesystem, with the write tools:
 
 ```ts
 import { InMemoryFs } from "just-bash";
@@ -67,18 +71,21 @@ console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;
 
 ## What the filesystem does
 
-- `justBashReadFileSystem(fs, options)` checks each path against `allowedRoots` and `denyRoots` before it touches the backend, and again after `realpath()`.
-- `id` and `maxBufferedBytes` are required. `just-bash` returns whole buffers, so reads are buffered and results have a `buffered-backend` note.
+- `justBashFileSystem(fs, options)` takes the shared `FileSystemRootOptions` and `maxBufferedBytes` from `@better-fs-tools/fs`. It checks each path against `allowedRoots` and `denyRoots` before it touches the backend, and again after `realpath()`. `cwd` must be absolute and defaults to `/`.
+- `id` defaults to `"just-bash"`. It namespaces versions, so two backends that share one state store need two ids.
+- `maxBufferedBytes` defaults to 16 MiB. `just-bash` returns whole buffers, so reads are buffered and results have a `buffered-backend` note. A larger file gives `too-large`, which the tools report as `TOO_LARGE`.
 - `identity` defaults to `"none"`: change detection compares size and modification time, and results have a `weak-identity` note. With `identity: "required"`, the backend's `stat()` must give an identity or a device and inode for every file. A file without one is refused as `UNSUPPORTED_BACKEND`.
-- `symlinks` defaults to `"reject"`, which refuses a final symlink. `"backend-policy"` leaves symlinks to the backend.
+- `symlinks` defaults to `"reject"`, which refuses a symlink in any component of the path, as in the Node and Cloudflare adapters. `"follow-within-roots"` follows links, and the real path must still be inside the roots.
+- The resolved options are on the filesystem as `cwd`, `allowedRoots`, `denyRoots`, `maxBufferedBytes`, `identity`, and `symlinks`.
+- For a read-only view, wrap it: `readOnlyFileSystem(justBashFileSystem(bash, options))` from `@better-fs-tools/fs` drops the write methods.
 - Backend errors are reduced to a POSIX code and a phase. Raw messages, which can contain paths, are not passed on.
 - `list()` lists directories, so suggestions and `directoryListing()` work.
 
 ## How it writes
 
-`justBashFileSystem(fs, options)` is the read adapter plus `stat()`, `write()`, and `remove()`. `justBashReadFileSystem()` stays read-only. The backend must have `writeFile`, `mkdir`, `rm`, `chmod`, and `utimes`.
+`stat()`, `write()`, and `remove()` need `writeFile`, `mkdir`, `chmod`, and `utimes` (write) and `rm` (remove) on the backend. They are checked when a write runs, not when the filesystem is built, so a backend without them still serves reads. A write to such a backend gives `unsupported`, which the tools report as `UNSUPPORTED_BACKEND`.
 
-- Writes apply the same roots, deny roots, and symlink policy as `open()`. Under `"reject"`, a final symlink is refused. Under `"backend-policy"`, a link inside the roots is followed to its real path and the link stays. A link out of the roots and a dangling link are refused.
+- Writes apply the same roots, deny roots, and symlink policy as `open()`. Under `"reject"`, a symlink anywhere on the path is refused. Under `"follow-within-roots"`, a link inside the roots is followed to its real path and the link stays. A link out of the roots and a dangling link are refused.
 - `writeCapabilities` is `{ atomic: false, compareAndSwap: false, preserveMode: true }`. A write is `writeFile` and then `chmod`, and `IFileSystem` has no version check, so the adapter checks the precondition with a fresh stat just before the write. The write tools add a `not-atomic` and a `no-compare-and-swap` note.
 - `InMemoryFs` resets the mode to `0o644` on every write, so a replace calls `chmod` with the old mode.
 - `InMemoryFs` keeps `mtime` when two writes fall in one millisecond. When a replace leaves `mtime` where it was, the adapter moves it on by one millisecond with `utimes`, so every write through the adapter changes the version.

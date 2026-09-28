@@ -81,7 +81,7 @@ describe("write tool dependencies (section 4.4)", () => {
   test.each([
     ["an unknown key", { fs, matchers: [] }, "Unknown write tool dependency: matchers"],
     ["a missing fs", {}, "fs must be"],
-    ["a read-only fs", { fs: { id: "ro", open: async () => ({}) } }, "fs must be"],
+    ["a read-only fs", { fs: { id: "ro", open: async () => ({}) } }, "fs has no write methods"],
     ["state without a digest", { fs, state: createMemoryStore() }, "state needs a digest"],
     ["an empty classifier list", { fs, classifiers: [] }, "classifiers"],
     ["an empty codec list", { fs, codecs: [] }, "codecs"],

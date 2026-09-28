@@ -41,6 +41,7 @@ import {
   fingerprint,
   inspect,
   refuse,
+  refuseSymlinkComponents,
   requireRegularFile,
   requireStatKey,
   toFileSystemError,
@@ -73,8 +74,7 @@ type Located =
     };
 
 export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): JustBashWrites {
-  const { id, cwd, allowedRoots, denyRoots, maxBufferedBytes, identityMode, symlinkPolicy } =
-    settings;
+  const { id, cwd, allowedRoots, denyRoots, maxBufferedBytes, identity, symlinks } = settings;
 
   const lstatOrNull = async (path: string, signal?: AbortSignal): Promise<ValidatedStat | null> => {
     try {
@@ -89,26 +89,21 @@ export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): Jus
   const existing = async (resolved: string, signal?: AbortSignal): Promise<Located> => {
     const stat = await inspect(fs, "stat", resolved, signal);
     requireRegularFile(stat, cwd, resolved);
-    const version = fingerprint(id, resolved, requireStatKey(stat, identityMode), stat);
+    const version = fingerprint(id, resolved, requireStatKey(stat, identity), stat);
     return { exists: true, resolved, stat, version };
   };
 
   /**
    * The same checks as `open()`: roots and deny roots on the requested path,
-   * a leaf symlink refused under `"reject"`, then `realpath` and the roots
+   * every symlink on the path refused under `"reject"`, then `realpath` and the roots
    * again on the canonical path. A missing leaf resolves through its nearest
    * existing ancestor, which must be a directory inside the roots.
    */
   const locate = async (requested: string, signal?: AbortSignal): Promise<Located> => {
     const lexical = authorizeRequested(cwd, requested, allowedRoots, denyRoots);
+    if (symlinks === "reject") await refuseSymlinkComponents(fs, lexical, signal);
     const leaf = await lstatOrNull(lexical, signal);
     if (leaf !== null) {
-      if (leaf.isSymbolicLink && symlinkPolicy === "reject") {
-        throw refuse({
-          reason: "denied",
-          detail: "the path is a symbolic link and this adapter refuses it",
-        });
-      }
       let resolved: string;
       try {
         resolved = await canonicalPath(fs, lexical, signal);
@@ -149,7 +144,7 @@ export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): Jus
           displayPath: display(cwd, located.resolved),
           size: located.stat.size,
           mtimeMs: located.stat.mtimeMs,
-          identity: identityMode === "required" ? located.version : null,
+          identity: identity === "required" ? located.version : null,
           version: located.version,
           mode: located.stat.mode ?? null,
           hardLinks: null,
@@ -183,7 +178,7 @@ export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): Jus
     resolvedPath: resolved,
     displayPath: display(cwd, resolved),
     version: after?.exists === true ? after.version : null,
-    identity: after?.exists === true && identityMode === "required" ? after.version : null,
+    identity: after?.exists === true && identity === "required" ? after.version : null,
     size: after?.exists === true ? after.stat.size : null,
     createdDirectories: created,
     atomic: JUST_BASH_WRITE_CAPABILITIES.atomic,
@@ -206,6 +201,7 @@ export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): Jus
     ): Promise<MutationOutcome> {
       if (options.signal?.aborted) return { ok: false, error: { reason: "aborted" } };
       try {
+        requireWriteMethods(fs, WRITE_METHODS);
         if (bytes.byteLength > maxBufferedBytes) {
           throw new WriteRefusal({
             reason: "too-large",
@@ -243,6 +239,7 @@ export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): Jus
     async remove(requested: string, options: MutateOptions): Promise<MutationOutcome> {
       if (options.signal?.aborted) return { ok: false, error: { reason: "aborted" } };
       try {
+        requireWriteMethods(fs, ["rm"]);
         const located = await locate(requested, options.signal);
         refuseConflict(located, options.precondition);
         if (!located.exists) throw refuse({ reason: "not-found" });
@@ -254,6 +251,24 @@ export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): Jus
       }
     },
   };
+}
+
+/** Every method a write may call. All are checked first, so a write never stops half done. */
+const WRITE_METHODS = ["writeFile", "mkdir", "chmod", "utimes"] as const;
+
+/**
+ * Decision W4: the backend's write methods are checked when a write runs, not
+ * when the adapter is built, so a backend without them still serves reads.
+ */
+function requireWriteMethods(fs: IFileSystem, methods: readonly (keyof IFileSystem)[]): void {
+  for (const method of methods) {
+    if (typeof fs[method] !== "function") {
+      throw new WriteRefusal({
+        reason: "unsupported",
+        detail: `the IFileSystem has no ${method}(), so this backend cannot write`,
+      });
+    }
+  }
 }
 
 /** The adapter's own precondition check. Not atomic with the backend call. */

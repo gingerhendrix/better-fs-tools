@@ -6,7 +6,7 @@ import type { WriteHookContext } from "../contract/extensions.ts";
 import type { MutationRequest } from "../contract/input.ts";
 import type { WriteErrorCode, WritePhase } from "../contract/result.ts";
 import { AbortStop, raceAbort } from "./abort.ts";
-import { isStateStore, isWritable } from "./deps.ts";
+import { isReadable, isStateStore, isWritable } from "./deps.ts";
 import { WriteStop, backendErrorNote, errorNote, failure } from "./outcomes.ts";
 
 /**
@@ -70,8 +70,15 @@ export class MutationScope<THost> {
     } catch {
       throw this.extensionFailure("fs");
     }
-    if (!isWritable(produced)) throw this.extensionFailure("fs");
-    return (this.resolvedFs = produced);
+    if (isWritable(produced)) return (this.resolvedFs = produced);
+    // A read-only backend, such as readOnlyFileSystem(fs), is a configuration problem, not a bug.
+    if (isReadable(produced)) {
+      throw this.backendFailure(this.path ?? "the patch", {
+        reason: "unsupported",
+        detail: "the filesystem has no write methods",
+      });
+    }
+    throw this.extensionFailure("fs");
   }
 
   /** `deps.state`, or the result of `state(call)`. The factory runs at most once for each call. */

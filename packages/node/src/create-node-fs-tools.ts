@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import type { SymlinkPolicy } from "@better-fs-tools/fs";
+
 import { createMemoryStore, createReadTool } from "@better-fs-tools/read";
 import type { Digest, ReadStateStore, ReadTool, ReadToolDeps } from "@better-fs-tools/read";
 import {
@@ -66,7 +68,7 @@ export interface CreateNodeFsToolsOptions<THost = undefined> {
   /** Default [cwd]. */
   readonly allowedRoots?: readonly string[];
   readonly denyRoots?: readonly string[];
-  readonly symlinks?: "follow-within-roots" | "reject";
+  readonly symlinks?: SymlinkPolicy;
   readonly hardLinks?: "refuse" | "in-place";
   /** Default createMemoryStore(). null turns read-before-write off. */
   readonly state?: ReadStateStore | null;

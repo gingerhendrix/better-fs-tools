@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import { isWritableFileSystem } from "@better-fs-tools/fs";
+import { isWritableFileSystem, readOnlyFileSystem } from "@better-fs-tools/fs";
 import type { WriteOptions } from "@better-fs-tools/fs";
 import { InMemoryFs } from "just-bash";
 import type { IFileSystem } from "just-bash";
 
 import { justBashFileSystem } from "../src/index.ts";
-import { adapter, intercept, writable } from "./backend.ts";
+import { intercept, writable } from "./backend.ts";
 import { expectMutationError } from "./helpers.ts";
 
 const ENCODER = new TextEncoder();
@@ -37,7 +37,7 @@ async function versionOf(fs: ReturnType<typeof writable>, path: string): Promise
 }
 
 describe("just-bash writes: shape", () => {
-  test("justBashFileSystem writes; justBashReadFileSystem stays read-only", () => {
+  test("justBashFileSystem writes; readOnlyFileSystem gives a read-only view", () => {
     const fs = new InMemoryFs();
     const wrapped = writable(fs);
     expect(isWritableFileSystem(wrapped)).toBe(true);
@@ -48,24 +48,47 @@ describe("just-bash writes: shape", () => {
     });
     expect(typeof wrapped.remove).toBe("function");
     expect("stage" in wrapped).toBe(false);
-    expect(isWritableFileSystem(adapter(fs))).toBe(false);
+    expect(isWritableFileSystem(readOnlyFileSystem(wrapped))).toBe(false);
   });
 
-  test("rejects a backend without a write method", () => {
-    const fs = new InMemoryFs();
+  test("a backend without a write method still reads, and a write reports unsupported", async () => {
+    const fs = new InMemoryFs({ "/a.txt": "alpha\n" });
     for (const method of ["writeFile", "mkdir", "rm", "chmod", "utimes"]) {
       const without = new Proxy(fs, {
         get: (target, property) =>
           property === method ? undefined : Reflect.get(target, property, target),
       });
-      expect(() =>
-        justBashFileSystem(without, {
-          id: "x",
-          allowedRoots: ["/"],
-          maxBufferedBytes: 10,
-        }),
-      ).toThrow(new RegExp(`must implement ${method}`, "u"));
+      const wrapped = justBashFileSystem(without, { allowedRoots: ["/"] });
+      const read = await wrapped.open("/a.txt", {});
+      expect(read.ok).toBe(true);
+      if (read.ok) await read.file.close();
+      const outcome =
+        method === "rm"
+          ? await wrapped.remove("/a.txt", ANY)
+          : await wrapped.write("/b.txt", ENCODER.encode("x"), CREATE);
+      expect(outcome).toEqual({
+        ok: false,
+        error: {
+          reason: "unsupported",
+          detail: `the IFileSystem has no ${method}(), so this backend cannot write`,
+        },
+      });
     }
+    expect(await fs.exists("/b.txt")).toBe(false);
+  });
+});
+
+describe("just-bash writes: symlinked parents", () => {
+  test('"reject" refuses a write through a symlinked parent before any backend write', async () => {
+    const fs = new InMemoryFs({ "/workspace/real/a.txt": "real" });
+    await fs.symlink("/workspace/real", "/workspace/linked");
+    const wrapped = writable(fs);
+    expectMutationError(await wrapped.write("linked/b.txt", ENCODER.encode("x"), CREATE), "denied");
+    expectMutationError(await wrapped.stat("linked/a.txt", {}), "denied");
+    expect(await fs.exists("/workspace/real/b.txt")).toBe(false);
+    const followed = writable(fs, { symlinks: "follow-within-roots" });
+    const outcome = await followed.write("linked/b.txt", ENCODER.encode("x"), CREATE);
+    expect(outcome.ok && outcome.file.resolvedPath).toBe("/workspace/real/b.txt");
   });
 });
 
@@ -138,12 +161,12 @@ describe("just-bash writes: symlinks", () => {
     expect(await fs.readFile("/workspace/real.txt")).toBe("real\n");
   });
 
-  test('"backend-policy" writes the target inside the roots and keeps the link', async () => {
+  test('"follow-within-roots" writes the target inside the roots and keeps the link', async () => {
     const fs = new InMemoryFs({ "/workspace/real.txt": "real\n", "/outside/x.txt": "x\n" });
     await fs.symlink("/workspace/real.txt", "/workspace/link.txt");
     await fs.symlink("/outside/x.txt", "/workspace/out.txt");
     await fs.symlink("/workspace/nowhere.txt", "/workspace/dangling.txt");
-    const wrapped = writable(fs, { symlinks: "backend-policy" });
+    const wrapped = writable(fs, { symlinks: "follow-within-roots" });
 
     const outcome = await wrapped.write("link.txt", ENCODER.encode("new\n"), ANY);
     if (!outcome.ok) throw new Error(`write failed with ${outcome.error.reason}`);

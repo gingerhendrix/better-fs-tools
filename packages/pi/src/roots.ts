@@ -1,7 +1,7 @@
 import path from "node:path";
 
 import { nodeFileSystem } from "@better-fs-tools/node";
-import type { NodeFileSystem } from "@better-fs-tools/node";
+import type { NodeFileSystem, NodeFileSystemOptions } from "@better-fs-tools/node";
 import type { ToolCallContext } from "@better-fs-tools/read";
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -16,7 +16,7 @@ const FORBIDDEN_OPTIONS = ["fs", "cwd", "allowedRoots"] as const;
 export interface PiRootOptions {
   /** Added to /dev, /proc, /sys. */
   readonly denyRoots?: readonly string[];
-  readonly symlinks?: "follow-within-roots" | "reject";
+  readonly symlinks?: NodeFileSystemOptions["symlinks"];
   /** A replace of a file with more than one hard link. Default "refuse" (W12). */
   readonly hardLinks?: "refuse" | "in-place";
 }

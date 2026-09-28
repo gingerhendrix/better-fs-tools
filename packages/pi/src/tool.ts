@@ -3,6 +3,7 @@ import { Type } from "typebox";
 import type { TSchema } from "typebox";
 
 import { nodeDigest } from "@better-fs-tools/node";
+import type { NodeFileSystemOptions } from "@better-fs-tools/node";
 import { createReadTool, lineNumberFormatter, resolveReadLimits } from "@better-fs-tools/read";
 import type {
   JsonObject,
@@ -38,7 +39,7 @@ export interface CreatePiReadToolOptions extends Omit<ReadToolDeps<ExtensionCont
   readonly promptGuidelines?: readonly string[];
   /** Added to /dev, /proc, /sys. */
   readonly denyRoots?: readonly string[];
-  readonly symlinks?: "follow-within-roots" | "reject";
+  readonly symlinks?: NodeFileSystemOptions["symlinks"];
 }
 
 export interface PiReadToolResult {
