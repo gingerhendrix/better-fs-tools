@@ -14,6 +14,8 @@ export interface LoopOptions {
   readonly prompt: string;
   readonly tools: ToolSet;
   readonly maxSteps: number;
+  /** Abort one model call (with its retries) after this long. */
+  readonly stepTimeoutMs: number;
   /** JSONL file that gets one line per step. */
   readonly stepLog: string;
   /** Called after each step with tool results. true stops the loop early (the OMP early stop). */
@@ -47,6 +49,7 @@ export async function runLoop(options: LoopOptions): Promise<LoopResult> {
         tools: options.tools,
         stopWhen: isStepCount(1),
         maxRetries: 3,
+        abortSignal: AbortSignal.timeout(options.stepTimeoutMs),
       });
     } catch (error) {
       const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);

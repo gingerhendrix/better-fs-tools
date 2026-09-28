@@ -7,6 +7,7 @@ export interface GroupSummary {
   readonly runs: number;
   readonly passed: number;
   readonly providerErrors: number;
+  readonly providerHttpErrors: number;
   readonly maxSteps: number;
   readonly meanSteps: number;
   readonly toolErrorsPerRun: number;
@@ -40,6 +41,7 @@ export function summarise(results: readonly CellResult[]): GroupSummary[] {
         runs: n,
         passed: rs.filter((r) => r.passed).length,
         providerErrors: rs.filter((r) => r.end === "error").length,
+        providerHttpErrors: rs.reduce((a, r) => a + (r.providerHttpErrors ?? 0), 0),
         maxSteps: rs.filter((r) => r.end === "max-steps").length,
         meanSteps: mean((r) => r.metrics.steps),
         toolErrorsPerRun: mean((r) => totalErrors(r.metrics)),
@@ -57,7 +59,7 @@ export function summarise(results: readonly CellResult[]): GroupSummary[] {
 export function markdownReport(results: readonly CellResult[]): string {
   const rows = summarise(results);
   const lines = [
-    "| Model | Arm | Runs | Pass | Provider err | Max steps | Steps | Tool err / run | Runs with tool err | Input tok | Output tok | Tool input chars | Wall s |",
+    "| Model | Arm | Runs | Pass | Provider err (HTTP) | Max steps | Steps | Tool err / run | Runs with tool err | Input tok | Output tok | Tool input chars | Wall s |",
     "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ...rows
       .map((s) =>
@@ -66,7 +68,7 @@ export function markdownReport(results: readonly CellResult[]): string {
           s.arm,
           s.runs,
           `${s.passed} (${pct(s.passed, s.runs)})`,
-          s.providerErrors,
+          `${s.providerErrors} (${s.providerHttpErrors})`,
           s.maxSteps,
           s.meanSteps.toFixed(1),
           s.toolErrorsPerRun.toFixed(2),

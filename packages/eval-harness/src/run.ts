@@ -29,6 +29,8 @@ export interface CellResult {
   readonly linesChanged: number;
   readonly end: EndState;
   readonly loopError: string | null;
+  /** Non-200 HTTP responses. AI SDK retried them; they add wall time but no tokens. */
+  readonly providerHttpErrors: number;
   readonly wallMs: number;
   readonly metrics: RunMetrics;
 }
@@ -36,6 +38,7 @@ export interface CellResult {
 export interface RunOptions {
   readonly outDir: string;
   readonly maxSteps: number;
+  readonly stepTimeoutMs: number;
   readonly earlyStop: boolean;
   readonly keepWorkspace: boolean;
 }
@@ -72,6 +75,7 @@ export async function runCell(cell: Cell, options: RunOptions): Promise<CellResu
     prompt: cell.task.prompt,
     tools: cell.arm.tools(workspace),
     maxSteps: options.maxSteps,
+    stepTimeoutMs: options.stepTimeoutMs,
     stepLog: join(dir, "steps.jsonl"),
     ...(options.earlyStop ? { isSolved: async () => (await verify()).passed } : {}),
   });
@@ -90,12 +94,21 @@ export async function runCell(cell: Cell, options: RunOptions): Promise<CellResu
     linesChanged: verification.linesChanged,
     end: loop.end,
     loopError: loop.error,
+    providerHttpErrors: await countHttpErrors(join(dir, "http.jsonl")),
     wallMs,
     metrics: loop.metrics,
   };
   await writeFile(join(dir, "result.json"), `${JSON.stringify(result, null, 2)}\n`);
   if (!options.keepWorkspace) await rm(workspace, { recursive: true, force: true });
   return result;
+}
+
+async function countHttpErrors(file: string): Promise<number> {
+  const text = await readFile(file, "utf8").catch(() => "");
+  return text
+    .split("\n")
+    .filter((line) => line !== "")
+    .filter((line) => (JSON.parse(line) as { status: number }).status !== 200).length;
 }
 
 /**

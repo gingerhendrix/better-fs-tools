@@ -30,6 +30,7 @@ const { positionals, values } = parseArgs({
     attempts: { type: "string", default: "1" },
     concurrency: { type: "string", default: "4" },
     "max-steps": { type: "string", default: "20" },
+    "step-timeout": { type: "string", default: "600" },
     "no-early-stop": { type: "boolean", default: false },
     "keep-workspace": { type: "boolean", default: false },
   },
@@ -86,6 +87,7 @@ const results = await runMatrix(
   {
     outDir,
     maxSteps: Number(values["max-steps"]),
+    stepTimeoutMs: Number(values["step-timeout"]) * 1000,
     earlyStop: !values["no-early-stop"],
     keepWorkspace: values["keep-workspace"]!,
     concurrency: Number(values.concurrency),
