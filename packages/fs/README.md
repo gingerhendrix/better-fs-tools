@@ -2,7 +2,7 @@
 
 The filesystem contract for Better FS Tools, for reads and for writes. It also has POSIX path helpers, an in-memory filesystem, and conformance suites for your own adapters.
 
-The read tool in [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read) reads through a `FileSystem`. The filesystem packages (`node`, `cloudflare-shell`, `cloudflare-computer`, `just-bash`) implement it. This package has no dependencies and no peers, and imports no `node:` module.
+The read tool in [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read) reads through a `FileSystem`. The `edit`, `write`, and `apply_patch` tools in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) write through a `WritableFileSystem`. The filesystem packages (`node`, `cloudflare-shell`, `cloudflare-computer`, `just-bash`) implement both. This package has no dependencies and no peers, and imports no `node:` module.
 
 ## Install
 
@@ -75,6 +75,16 @@ if (stat.ok && stat.stat.exists) {
 - `writeCapabilities` reports `atomic`, `compareAndSwap`, and `preserveMode`.
 - Mutation errors add four reasons to the read reasons: `changed`, `exists`, `read-only`, and `no-space`.
 
+The write tools turn each `false` in `writeCapabilities` into a note for the model, and check the precondition themselves just before the write when `compareAndSwap` is false. `docs/architecture.md` in `@better-fs-tools/write` has a guide to writing a writable adapter.
+
+| Adapter                      | `atomic` | `compareAndSwap`    | `preserveMode` | `stage()` | `remove()` |
+| ---------------------------- | -------- | ------------------- | -------------- | --------- | ---------- |
+| `memoryFileSystem()`         | yes      | yes                 | yes            | yes       | yes        |
+| `nodeFileSystem()`           | yes      | yes, in one process | yes            | yes       | yes        |
+| `shellWorkspaceFileSystem()` | no       | no                  | no             | no        | yes        |
+| `computerFileSystem()`       | yes      | no                  | yes            | no        | yes        |
+| `justBashFileSystem()`       | no       | no                  | yes            | no        | yes        |
+
 `memoryFileSystem` checks the precondition and publishes in one synchronous step. Its options `readOnly`, `faults`, `stage: false`, `remove: false`, and `writeCapabilities` let tests simulate other backends.
 
 Paths are POSIX only in this release.
@@ -82,4 +92,5 @@ Paths are POSIX only in this release.
 ## Links
 
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): the read tool, and a guide to writing a filesystem adapter
+- [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the write tools
 - [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node): the Node filesystem

@@ -1,16 +1,23 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createPiReadTool } from "@better-fs-tools/pi";
+import { createPiFsTools } from "@better-fs-tools/pi";
 import { denyPaths, unicodeRepair } from "@better-fs-tools/read";
 import { hashlineFormat } from "@better-fs-tools/read/formats";
-import { renamedSignature } from "@better-fs-tools/read/signature";
+import { protectPaths } from "@better-fs-tools/write";
 
-export default function readExtension(pi: ExtensionAPI): void {
-  pi.registerTool(
-    createPiReadTool({
-      signature: renamedSignature({ name: "read", names: { path: "file_path" } }),
+export default function fsToolsExtension(pi: ExtensionAPI): void {
+  // Four tools with one read store, so edit and write need a read first.
+  const tools = createPiFsTools({
+    read: {
       resolve: unicodeRepair({ note: false }),
       authorize: denyPaths(["**/.env", "**/.env.*"]),
       formatter: hashlineFormat(),
-    }),
-  );
+    },
+    edit: { authorize: protectPaths() },
+    write: { authorize: protectPaths() },
+    applyPatch: { authorize: protectPaths() },
+  });
+  pi.registerTool(tools.read);
+  pi.registerTool(tools.edit);
+  pi.registerTool(tools.write);
+  pi.registerTool(tools.applyPatch);
 }

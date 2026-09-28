@@ -1,11 +1,11 @@
 # @better-fs-tools/node
 
-The Node filesystem for Better FS Tools, a SHA-256 digest, and `createNodeReadTool()`, the zero-config local read tool. It works on Node 24 or later, and on Bun.
+The Node filesystem for Better FS Tools, a SHA-256 digest, `createNodeReadTool()`, the zero-config local read tool, and `createNodeFsTools()`, which adds `edit`, `write`, and `apply_patch` over the same filesystem and read store. It works on Node 24 or later, and on Bun.
 
 ## Install
 
 ```sh
-npm install @better-fs-tools/node @better-fs-tools/read
+npm install @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write
 ```
 
 The package has no peers. It needs Node 24 or later (`engines.node` is `>=24`), or Bun.
@@ -31,13 +31,42 @@ export const docsOnly = createNodeReadTool({
 });
 ```
 
+All four tools, with one read store, so `edit` and `write` need a read first:
+
+```ts
+import { createNodeFsTools } from "@better-fs-tools/node";
+import { textOf } from "@better-fs-tools/read";
+import { protectPaths } from "@better-fs-tools/write";
+
+// read, edit, write, and apply_patch over one nodeFileSystem rooted at
+// process.cwd(), with one read store, one SHA-256 digest, and one lock manager.
+const tools = createNodeFsTools({
+  edit: { authorize: protectPaths() },
+  write: { authorize: protectPaths() },
+  applyPatch: { authorize: protectPaths() },
+});
+
+export async function bump(path: string): Promise<string> {
+  await tools.read({ path });
+  const result = await tools.edit({ path, edits: [{ oldText: "a = 1", newText: "a = 2" }] });
+  return textOf(result);
+}
+
+// A shell tool changed the file: the next edit must read it first.
+export async function afterShell(path: string): Promise<void> {
+  await tools.invalidate(path);
+}
+```
+
 ## Contents
 
-| Export                         | Use                                                                                                                                                                                                                                                      |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `createNodeReadTool(options?)` | `createReadTool()` from `@better-fs-tools/read` with Node defaults. `fs` defaults to `nodeFileSystem` rooted at `process.cwd()`. `digest` defaults to `nodeDigest()`. Pass `digest: null` to turn observations off. Every other option goes to the core. |
-| `nodeFileSystem(options)`      | A `WritableFileSystem` over Node file descriptors                                                                                                                                                                                                        |
-| `nodeDigest()`                 | SHA-256 over `node:crypto`. Values look like `sha256:<hex>`.                                                                                                                                                                                             |
+| Export                                                                                       | Use                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `createNodeReadTool(options?)`                                                               | `createReadTool()` from `@better-fs-tools/read` with Node defaults. `fs` defaults to `nodeFileSystem` rooted at `process.cwd()`. `digest` defaults to `nodeDigest()`. Pass `digest: null` to turn observations off. Every other option goes to the core.                                                                                                                                                                                        |
+| `createNodeFsTools(options?)`                                                                | `read`, `edit`, `write`, and `apply_patch` over one `nodeFileSystem`, one `createMemoryStore()`, one `nodeDigest()`, and one `memoryLocks()`. Options: `cwd`, `allowedRoots` (default `[cwd]`), `denyRoots`, `symlinks`, `hardLinks`, `state` (`null` turns read-before-write off), `digest`, `locks`, and per-tool options under `read`, `edit`, `write`, and `applyPatch`. The result also has `fs`, `state`, `locks`, and `invalidate(path)` |
+| `createNodeEditTool(deps?)`, `createNodeWriteTool(deps?)`, `createNodeApplyPatchTool(deps?)` | One write tool each. `fs` defaults to `nodeFileSystem` rooted at `process.cwd()`, `digest` to `nodeDigest()`. `state` stays `null`, so every update carries a `read-before-write-off` note                                                                                                                                                                                                                                                      |
+| `nodeFileSystem(options)`                                                                    | A `WritableFileSystem` over Node file descriptors                                                                                                                                                                                                                                                                                                                                                                                               |
+| `nodeDigest()`                                                                               | SHA-256 over `node:crypto`. Values look like `sha256:<hex>`.                                                                                                                                                                                                                                                                                                                                                                                    |
 
 `nodeFileSystem` options:
 
@@ -62,7 +91,12 @@ export const docsOnly = createNodeReadTool({
 
 A write goes to a `0o600` temp file next to the target. The bytes are written and synced, and the file gets the old mode or the new-file mode. Publishing takes an in-process lock for the real path and checks the precondition against a fresh `lstat`. A create is published with `link()`, so a concurrent creator makes it fail with `exists`. A replace is published with `rename()`. Any failure removes the temp file and the directories the write created. The version token is the read identity: device, inode, size, and both change times. `EROFS` gives `read-only`, and `ENOSPC` and `EDQUOT` give `no-space`.
 
-The lock orders writes inside one process. Another process can still change the file between the final check and the rename, and that change is then lost.
+`writeCapabilities` is `{ atomic: true, compareAndSwap: true, preserveMode: true }`, and `stage()` and `remove()` exist. Some of this holds with limits:
+
+- `compareAndSwap` holds inside one process only. The lock orders writes inside one process. Another process can still change the file between the final check and the rename, and that change is then lost.
+- A replace keeps the permission bits only. The owner, the group, extended attributes, and ACLs are not kept, because `rename()` publishes a new file owned by the writing user.
+- A process that dies between `stage()` and `publish()` leaves a `.<name>.<random>.tmp` file next to the target. Nothing removes it later. An `apply_patch` call stages every file first, so a process killed during its commit can leave several.
+- A create links the temp file to the target, then removes the temp name. For those two system calls the new file has two links.
 
 ## Links
 

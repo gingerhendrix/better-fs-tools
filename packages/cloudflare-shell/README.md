@@ -1,11 +1,11 @@
 # @better-fs-tools/cloudflare-shell
 
-A read-only `FileSystem` over a [Cloudflare Shell](https://www.npmjs.com/package/@cloudflare/shell) `Workspace`, for the Better Read tool in a Worker or a Cloudflare Agent.
+A `WritableFileSystem` over a [Cloudflare Shell](https://www.npmjs.com/package/@cloudflare/shell) `Workspace`, for the Better Read tool and the `edit`, `write`, and `apply_patch` tools in a Worker or a Cloudflare Agent.
 
 ## Install
 
 ```sh
-npm install @better-fs-tools/cloudflare-shell @better-fs-tools/read
+npm install @better-fs-tools/cloudflare-shell @better-fs-tools/read @better-fs-tools/write
 ```
 
 The package has no peers. It declares the Workspace methods that it uses as a structural type, so `@cloudflare/shell`'s `Workspace` fits without an import. It imports no `node:` module.
@@ -26,6 +26,32 @@ export function workspaceReadTool(workspace: Workspace) {
 }
 ```
 
+With the write tools. The read tool and the write tools share one store and one digest. A `Digest` is synchronous and a Worker has no `node:crypto`, so the host passes a pure JavaScript hash:
+
+```ts
+import type { Workspace } from "@cloudflare/shell";
+import {
+  createAiSdkEditTool,
+  createAiSdkReadTool,
+  createAiSdkWriteTool,
+} from "@better-fs-tools/ai-sdk";
+import { shellWorkspaceFileSystem } from "@better-fs-tools/cloudflare-shell";
+import type { Digest } from "@better-fs-tools/read";
+import { createMemoryStore } from "@better-fs-tools/read/state";
+import { memoryLocks } from "@better-fs-tools/write";
+
+// A Digest is synchronous, and a Worker has no node:crypto: pass a pure JavaScript hash.
+export function workspaceTools(workspace: Workspace, digest: Digest) {
+  const fs = shellWorkspaceFileSystem(workspace, { root: "/workspace" });
+  const shared = { fs, state: createMemoryStore(), digest };
+  const locks = memoryLocks();
+  const read = createAiSdkReadTool(shared);
+  const edit = createAiSdkEditTool({ ...shared, locks });
+  const write = createAiSdkWriteTool({ ...shared, locks });
+  return { [read.name]: read, [edit.name]: edit, [write.name]: write };
+}
+```
+
 ## What the filesystem does
 
 - `shellWorkspaceFileSystem(workspace, { root, maxBufferedBytes?, id? })` refuses every path outside `root` before it calls the Workspace.
@@ -34,8 +60,19 @@ export function workspaceReadTool(workspace: Workspace) {
 - `verify()` compares size and modification time. A same-size edit within the same millisecond is not detected. Results have a `weak-identity` note.
 - `list()` lists directories, so suggestions and `directoryListing()` work. Opening a directory gives a `not-a-file` error with `kind: "directory"`.
 
+## How it writes
+
+- `stat()`, `write()`, and `remove()` use `lstat`, `writeFileBytes`, `mkdir`, and `rm`. They check the root and refuse every symlink on the path before any Workspace write, as `open()` does. `writeFileBytes` would create missing parents and follow a link by itself, so the adapter checks both first.
+- `writeCapabilities` is `{ atomic: false, compareAndSwap: false, preserveMode: false }`. A large file spills to R2 in several steps, so a reader can see a partial file. Shell has no version check, so the adapter checks the precondition with a fresh `lstat` just before the write. Shell has no modes. The write tools add a `not-atomic`, a `no-compare-and-swap`, and on a replace a `mode-not-kept` note.
+- There is no `stage()`: Shell's `mv` removes the destination first. `apply_patch` writes each file in turn, and undoes them on a failure.
+- The version is the size and `updatedAt`. Shell stores whole seconds, so two same-size writes in one second keep the version. The write tools also compare the content hash of what the model read, so a change after the read is still `STALE`. Between the adapter's last check and the write, it is not seen.
+- A replace passes the file's mime type back, since Shell would reset it. A new file gets Shell's default, `application/octet-stream`.
+- A write over `maxBufferedBytes` gives `no-space`, since the adapter could not read the file back.
+- Shell's errors carry their POSIX code in the message. The adapter reads the code and drops the message: `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` gives `no-space`.
+
 ## Links
 
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option
-- [`@better-fs-tools/ai-sdk`](https://www.npmjs.com/package/@better-fs-tools/ai-sdk): the AI SDK tool
+- [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the write tools
+- [`@better-fs-tools/ai-sdk`](https://www.npmjs.com/package/@better-fs-tools/ai-sdk): the AI SDK tools
 - [`@better-fs-tools/fs`](https://www.npmjs.com/package/@better-fs-tools/fs): the filesystem contract

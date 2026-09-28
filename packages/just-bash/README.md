@@ -1,11 +1,11 @@
 # @better-fs-tools/just-bash
 
-A read-only `FileSystem` over a [just-bash](https://www.npmjs.com/package/just-bash) `IFileSystem`, for the Better Read tool in a just-bash sandbox.
+A `FileSystem` and a `WritableFileSystem` over a [just-bash](https://www.npmjs.com/package/just-bash) `IFileSystem`, for the Better Read tool and the `edit`, `write`, and `apply_patch` tools in a just-bash sandbox.
 
 ## Install
 
 ```sh
-npm install @better-fs-tools/just-bash @better-fs-tools/read just-bash
+npm install @better-fs-tools/just-bash @better-fs-tools/read @better-fs-tools/write just-bash
 ```
 
 `just-bash` is a required peer, pinned to `3.4.2`.
@@ -35,6 +35,37 @@ console.log(textOf(await read({ path: "src/index.ts" })));
 // [read:buffered-backend] The sandbox backend buffers whole objects instead of streaming them.
 ```
 
+`justBashFileSystem()` takes the same options and adds writes:
+
+```ts
+import { InMemoryFs } from "just-bash";
+import { justBashFileSystem } from "@better-fs-tools/just-bash";
+import { nodeDigest } from "@better-fs-tools/node";
+import { createReadTool, textOf } from "@better-fs-tools/read";
+import { createMemoryStore } from "@better-fs-tools/read/state";
+import { createEditTool, memoryLocks } from "@better-fs-tools/write";
+
+const bash = new InMemoryFs({ "/workspace/src/index.ts": "const a = 1;\n" });
+const fs = justBashFileSystem(bash, {
+  id: "sandbox",
+  cwd: "/workspace",
+  allowedRoots: ["/workspace"],
+  maxBufferedBytes: 4 * 1024 * 1024,
+});
+const shared = { fs, state: createMemoryStore(), digest: nodeDigest() };
+const read = createReadTool(shared);
+const edit = createEditTool({ ...shared, locks: memoryLocks() });
+
+await read({ path: "src/index.ts" });
+console.log(textOf(await edit({ path: "src/index.ts", edits: [{ oldText: "1", newText: "2" }] })));
+// Edited src/index.ts: 1 replacement at line 1.
+// 1|const a = 2;
+//
+// [edit:not-atomic] The sandbox backend does not replace files atomically, ...
+// [edit:no-compare-and-swap] The sandbox backend cannot check the file version ...
+console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;
+```
+
 ## What the filesystem does
 
 - `justBashReadFileSystem(fs, options)` checks each path against `allowedRoots` and `denyRoots` before it touches the backend, and again after `realpath()`.
@@ -44,7 +75,20 @@ console.log(textOf(await read({ path: "src/index.ts" })));
 - Backend errors are reduced to a POSIX code and a phase. Raw messages, which can contain paths, are not passed on.
 - `list()` lists directories, so suggestions and `directoryListing()` work.
 
+## How it writes
+
+`justBashFileSystem(fs, options)` is the read adapter plus `stat()`, `write()`, and `remove()`. `justBashReadFileSystem()` stays read-only. The backend must have `writeFile`, `mkdir`, `rm`, `chmod`, and `utimes`.
+
+- Writes apply the same roots, deny roots, and symlink policy as `open()`. Under `"reject"`, a final symlink is refused. Under `"backend-policy"`, a link inside the roots is followed to its real path and the link stays. A link out of the roots and a dangling link are refused.
+- `writeCapabilities` is `{ atomic: false, compareAndSwap: false, preserveMode: true }`. A write is `writeFile` and then `chmod`, and `IFileSystem` has no version check, so the adapter checks the precondition with a fresh stat just before the write. The write tools add a `not-atomic` and a `no-compare-and-swap` note.
+- `InMemoryFs` resets the mode to `0o644` on every write, so a replace calls `chmod` with the old mode.
+- `InMemoryFs` keeps `mtime` when two writes fall in one millisecond. When a replace leaves `mtime` where it was, the adapter moves it on by one millisecond with `utimes`, so every write through the adapter changes the version.
+- `identity: "required"` makes the write tools trust the version, which is the identity, size, and `mtime`. Another writer that changes a file to the same size inside the same millisecond is then not seen. With the default, `identity: "none"`, the write tools also compare the content hash of what the model read.
+- There is no `stage()`. `apply_patch` writes each file in turn, and undoes them on a failure.
+- `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` gives `no-space`.
+
 ## Links
 
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option
+- [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the write tools
 - [`@better-fs-tools/fs`](https://www.npmjs.com/package/@better-fs-tools/fs): the filesystem contract

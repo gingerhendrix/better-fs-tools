@@ -1,11 +1,11 @@
 # @better-fs-tools/ai-sdk
 
-The Better Read tool for [AI SDK 7](https://ai-sdk.dev). `createAiSdkReadTool()` gives a tool object that you put in a `ToolSet`.
+The Better Read tool and the `edit`, `write`, and `apply_patch` tools for [AI SDK 7](https://ai-sdk.dev). Each factory gives a tool object that you put in a `ToolSet`.
 
 ## Install
 
 ```sh
-npm install @better-fs-tools/ai-sdk @better-fs-tools/read ai
+npm install @better-fs-tools/ai-sdk @better-fs-tools/read @better-fs-tools/write ai
 ```
 
 `ai` is a required peer (`^7.0.77`). Add a filesystem package too, for example `@better-fs-tools/node` or `@better-fs-tools/cloudflare-shell`.
@@ -51,7 +51,61 @@ export async function ask(model: LanguageModel, prompt: string): Promise<string>
 
 For a Cloudflare Agents host, pass `fs: shellWorkspaceFileSystem(workspace, { root })` from `@better-fs-tools/cloudflare-shell`. No other wrapper is needed.
 
+## Write tools
+
+`createAiSdkEditTool()`, `createAiSdkWriteTool()`, and `createAiSdkApplyPatchTool()` wrap the tools from [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write). Give the read tool and the write tools the same `state` and `digest`, so `edit` and `write` know what the model has read:
+
+```ts
+import { generateText, isStepCount } from "ai";
+import type { LanguageModel } from "ai";
+import {
+  createAiSdkApplyPatchTool,
+  createAiSdkEditTool,
+  createAiSdkReadTool,
+  createAiSdkWriteTool,
+} from "@better-fs-tools/ai-sdk";
+import { nodeDigest, nodeFileSystem } from "@better-fs-tools/node";
+import { createMemoryStore } from "@better-fs-tools/read/state";
+import { memoryLocks } from "@better-fs-tools/write";
+
+const cwd = process.cwd();
+// One filesystem, store, and digest for all four tools. One lock manager for the three writers.
+const shared = {
+  fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
+  state: createMemoryStore(),
+  digest: nodeDigest(),
+};
+const locks = memoryLocks();
+
+const read = createAiSdkReadTool(shared);
+const edit = createAiSdkEditTool({ ...shared, locks });
+const write = createAiSdkWriteTool({ ...shared, locks });
+const applyPatch = createAiSdkApplyPatchTool({ ...shared, locks });
+
+export async function change(model: LanguageModel, prompt: string): Promise<string> {
+  const result = await generateText({
+    model,
+    prompt,
+    tools: {
+      [read.name]: read,
+      [edit.name]: edit,
+      [write.name]: write,
+      [applyPatch.name]: applyPatch,
+    },
+    stopWhen: isStepCount(10),
+  });
+  return result.text;
+}
+```
+
+- Each factory takes every option of its core factory, plus `signature`. `fs` is required. `state` and `digest` default to `null`, so without them every update carries a `read-before-write-off` note.
+- The default signatures are `defaultEditSignature()` (`edit` with `path`, `old_string`, `new_string`, and `replace_all`), `defaultWriteSignature()` (`write` with `path` and `content`), and `defaultPatchSignature()` (`apply_patch` with `patch`). Error texts use the signature's names.
+- The tools are `strict: true`. The schema's `validate` hook runs `signature.toInput` and the core input check.
+- `execute` passes the `ToolExecutionOptions` object as `ctx.call.host`, and returns the whole `MutationResult`. `toModelOutput` gives the model the formatter's text.
+- AI SDK tools take JSON only. A signature with a grammar, such as `freeformPatchSignature()`, still works, but the grammar is not sent.
+
 ## Links
 
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option, and the signature builders
+- [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): every write option, and the write signatures
 - [`@better-fs-tools/cloudflare-shell`](https://www.npmjs.com/package/@better-fs-tools/cloudflare-shell): a filesystem for Cloudflare Agents
