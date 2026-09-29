@@ -106,9 +106,20 @@ describe("defaultBashSignature", () => {
     expect(() => defaultBashSignature({ names: { timeout: "command" } })).toThrow(
       "Parameter name command is used twice",
     );
-    expect(() => defaultBashSignature({ cwd: false, names: { cwd: "dir" } })).toThrow(
-      "Unknown parameter in names: cwd",
+    expect(() => defaultBashSignature({ names: { nope: "x" } as never })).toThrow(
+      "Unknown parameter in names: nope",
     );
+  });
+
+  test("with cwd: false, names.cwd and describe.cwd are ignored", () => {
+    const signature = defaultBashSignature({
+      cwd: false,
+      names: { cwd: "dir" },
+      describe: { cwd: "Where." },
+    });
+    expect(signature.schema).toEqual(defaultBashSignature({ cwd: false }).schema);
+    expect(signature.toInput({ command: "ls" })).toEqual({ command: "ls" });
+    expect(() => signature.toInput({ command: "ls", dir: "/" })).toThrow(TypeError);
   });
 
   test("option errors are TypeErrors", () => {

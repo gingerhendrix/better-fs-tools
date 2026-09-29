@@ -18,10 +18,12 @@ export interface BashSignature extends ToolSignature<BashInput, ShellCanonicalPa
 /** The parameter names of `defaultBashSignature`. */
 export type BashParam = "command" | "timeout" | "cwd";
 
+const ALL_PARAMS: readonly BashParam[] = ["command", "timeout", "cwd"];
+
 export interface BashSignatureOptions extends SignatureDocs<BashParam> {
   /** Unit of the timeout parameter. Default "ms" (S2). */
   readonly timeoutUnit?: "ms" | "s";
-  /** Add the cwd parameter. Default true. */
+  /** Add the cwd parameter. Default true. With false, `names.cwd` and `describe.cwd` are ignored. */
   readonly cwd?: boolean;
   /** Put the runner id in the description, for example "just-bash (emulated)". */
   readonly runner?: string;
@@ -62,8 +64,9 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
   const own: readonly BashParam[] = withCwd
     ? ["command", "timeout", "cwd"]
     : ["command", "timeout"];
-  checkKeys(describe, "describe", own);
-  checkKeys(names, "names", own);
+  // names.cwd and describe.cwd type-check with cwd: false, so they are ignored, not refused.
+  checkKeys(describe, "describe", ALL_PARAMS);
+  checkKeys(names, "names", ALL_PARAMS);
   const host = {} as Record<BashParam, string>;
   for (const param of own) {
     const value = names[param] ?? param;
