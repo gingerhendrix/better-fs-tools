@@ -84,7 +84,7 @@ export default function readExtension(pi: ExtensionAPI): void {
 
 ## Bash tool
 
-`createPiBashTool()` is a `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell) with Pi's own shape: `{ command, timeout }` with the timeout in seconds, and Pi's prompt snippet. It runs in `ctx.cwd` on every call. The extension entry does not register it, so Pi's own `bash` stays unless you register this one:
+`createPiBashTool()` is a `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell) with Pi's own shape: `{ command, timeout }` with the timeout in seconds, and Pi's prompt snippet. It runs in `ctx.cwd` on every call, also with a `runner` you pass: the runner gets `ctx.cwd` as the request's `cwd`, not its own. A relative `ctx.cwd` throws `TypeError`. The extension entry does not register it, so Pi's own `bash` stays unless you register this one:
 
 ```ts
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";

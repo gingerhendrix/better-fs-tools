@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import type { CommandRunner } from "@better-fs-tools/shell";
+
 import { createPiBashTool } from "../src/index.ts";
 import { fixtures, piContext } from "./helpers.ts";
 
@@ -92,6 +94,35 @@ describe("createPiBashTool", () => {
     } as never);
     expect(tool.description).toContain("Commands run in: sandbox.");
     expect(createPiBashTool().description).not.toContain("Commands run in:");
+  });
+
+  test("a supplied runner runs in ctx.cwd, not in its own cwd", async () => {
+    const seen: string[] = [];
+    const runner: CommandRunner = {
+      id: "sandbox",
+      cwd: "/runner",
+      run(request) {
+        seen.push(request.cwd);
+        return {
+          output: (async function* () {})(),
+          exit: Promise.resolve({ code: 0, signal: null }),
+        };
+      },
+    };
+    const tool = createPiBashTool({ runner });
+    for (const cwd of ["/context/one", "/context/two"]) {
+      await tool.execute("c6", { command: "pwd" }, undefined, undefined, piContext(cwd));
+    }
+    const made = createPiBashTool({ runner: () => runner });
+    await made.execute("c7", { command: "pwd" }, undefined, undefined, piContext("/context/three"));
+    expect(seen).toEqual(["/context/one", "/context/two", "/context/three"]);
+  });
+
+  test("refuses a relative ctx.cwd", async () => {
+    const tool = createPiBashTool();
+    await expect(
+      tool.execute("c8", { command: "true" }, undefined, undefined, piContext("relative")),
+    ).rejects.toThrow("Pi bash execution requires an absolute ctx.cwd");
   });
 
   test("refuses cwd in options and a context without cwd", async () => {

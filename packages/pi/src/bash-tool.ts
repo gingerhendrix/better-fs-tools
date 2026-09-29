@@ -1,3 +1,5 @@
+import { isAbsolute } from "node:path";
+
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import type { TSchema } from "typebox";
@@ -68,7 +70,9 @@ export interface PiBashTool {
 
 /**
  * The bash tool over ctx.cwd. Throws TypeError on fs, cwd, or allowedRoots
- * in options: the directory is bound to ctx.cwd on every call. env defaults
+ * in options: the directory is bound to ctx.cwd on every call, also with a
+ * supplied runner, whose own cwd is not used. execute throws TypeError when
+ * ctx.cwd is not an absolute path. env defaults
  * to process.env with defaultShellEnv over it. The Pi extension entry does
  * not register this tool, so Pi's own bash stays in place unless a host
  * registers it.
@@ -94,6 +98,7 @@ export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashT
   const bash = createBashTool<ExtensionContext>({
     ...deps,
     runner,
+    cwd: (call) => call.host.cwd,
     env: deps.env ?? shellEnv(() => process.env),
     messages: { ...bashSignatureMessages(signature), ...deps.messages },
   });
@@ -106,6 +111,8 @@ export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashT
     parameters: Type.Unsafe(signature.schema),
     async execute(toolCallId, input, signal, _onUpdate, ctx) {
       checkPiContext(ctx, "bash");
+      if (!isAbsolute(ctx.cwd))
+        throw new TypeError("Pi bash execution requires an absolute ctx.cwd");
       // Pi's ctx itself is the host: no copy, no spread, no freeze.
       const call: ToolCallContext<ExtensionContext> = {
         ...(signal === undefined ? {} : { signal }),
