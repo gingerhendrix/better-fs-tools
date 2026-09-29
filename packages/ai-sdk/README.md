@@ -43,7 +43,7 @@ export async function ask(model: LanguageModel, prompt: string): Promise<string>
 ## What the tool does
 
 - `createAiSdkReadTool(options)` takes every `createReadTool()` option, plus `signature`. `fs` is required. `digest` defaults to `null`, as in the core.
-- The model sees the signature's name, description, and JSON Schema. The tool is `strict: true`. For strict mode, the provider schema lists every property in `required`, makes each optional property nullable, and sets `additionalProperties: false` on every object. An optional `enum` or `const` gets `null` too. The same rules apply inside `anyOf`, `oneOf`, `allOf`, array items, and `$defs`; a local `$ref` stays as it is. The tool maps a `null` back to an absent parameter before the signature reads the input. A custom schema that strict mode cannot express throws a `TypeError` with the tool name and the schema path when you create the tool: an object that allows other properties, `not`, `if`, `patternProperties`, tuple items, `allOf` over two object schemas, or a `$ref` outside the schema. The default signature is `defaultReadSignature()`: `read` with `path`, `offset`, and `limit`.
+- The model sees the signature's name, description, and JSON Schema. The tool is `strict: true`, and the provider schema stays inside the JSON Schema subset that [OpenAI strict mode](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas) documents. See [Strict provider schema](#strict-provider-schema). The default signature is `defaultReadSignature()`: `read` with `path`, `offset`, and `limit`.
 - The schema's `validate` hook runs `signature.toInput` and then the core input check. A refusal names the host's parameters, and `generateText` reports it as a tool error.
 - `execute` passes AI SDK's `ToolExecutionOptions` object to the core as `ctx.call.host`, with `abortSignal` as the signal and `toolCallId` as `callId`. Host functions can read `ctx.call.host.context`. `execute` returns the whole `ReadResult`. If `toInput` refuses an input that reached `execute`, `execute` rejects with that `TypeError`.
 - Retry text in notes uses the signature's names. `result.continuation.next` stays canonical.
@@ -78,6 +78,17 @@ export async function change(model: LanguageModel, prompt: string): Promise<stri
 - The tools are `strict: true`. The schema's `validate` hook runs `signature.toInput` and the core input check.
 - `execute` passes the `ToolExecutionOptions` object as `ctx.call.host`, and returns the whole `MutationResult`. `toModelOutput` gives the model the formatter's text.
 - AI SDK tools take JSON only. A signature with a grammar, such as `freeformPatchSignature()`, still works, but the grammar is not sent.
+
+## Strict provider schema
+
+Every tool is `strict: true`. The adapter turns the signature's JSON Schema into a provider schema that OpenAI strict mode accepts:
+
+- Every object lists every property in `required` and has `additionalProperties: false`. An optional property becomes required and nullable: `null` joins its `type` and its `enum`, or the schema is wrapped in `anyOf` with `{ type: "null" }`. The tool maps a `null` back to an absent parameter before the signature reads the input.
+- `oneOf` becomes `anyOf`. `allOf` is merged into its schema. `const` becomes a one-value `enum`. A root `definitions` becomes `$defs`. A local `$ref` stays as it is.
+- The schema keeps only `type`, `description`, `properties`, `required`, `additionalProperties`, `items`, `anyOf`, `$ref`, `$defs`, `enum`, `pattern`, `format`, `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `minItems`, and `maxItems`. Other keywords, such as `minLength`, `maxLength`, `title`, and `default`, and a `format` that strict mode does not list, are dropped. The schema's `validate` hook runs the signature's parse, so a dropped check still applies to the input.
+- The same rules apply inside `anyOf`, `oneOf`, `allOf`, array items, and `$defs`.
+
+A custom schema that strict mode cannot express throws a `TypeError` with the tool name and the schema path when you create the tool: a root that is not an object, an object that allows other properties, a schema with no type, `not`, `if`, `patternProperties`, `dependentRequired`, tuple items, both `anyOf` and `oneOf`, an `allOf` over two object schemas, with a `$ref`, or with a keyword that differs from its schema, or a `$ref` outside the schema.
 
 ## Bash tool
 
