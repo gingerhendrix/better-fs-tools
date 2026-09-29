@@ -48,7 +48,7 @@ A tool call is `tool(input, ctx?)`. `ctx` is the read tool's call context: `{ si
 
 ## One bundle for every tool
 
-`createFsTools(options)` takes a `WritableFileSystem`, or a factory that returns one for each call, and builds `read`, `edit`, `write`, and `apply_patch`. They share one `state` (default `createMemoryStore({ clock })`, `null` turns read-before-write off), one `digest` (default `sha256Digest()`), one `locks` (default `memoryLocks()`), and one `clock`. It imports no `node:` module, so a Worker needs no host digest. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`.
+`createFsTools(options)` takes a `WritableFileSystem`, or a factory that returns one for each call, and builds `read`, `edit`, `write`, and `apply_patch`. They share one `state` (one store, not a per-call factory; default `createMemoryStore({ clock })`, `null` turns read-before-write off), one `digest` (default `sha256Digest()`), one `locks` (default `memoryLocks()`), and one `clock`. It imports no `node:` module, so a Worker needs no host digest. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`.
 
 Bash is off unless you ask. `bash: { runner, env, ... }` adds a bash tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell) that gets the same `digest` and `clock`. The allowed roots of the filesystem do not limit a command.
 

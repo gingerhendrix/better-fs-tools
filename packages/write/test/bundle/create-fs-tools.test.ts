@@ -131,6 +131,13 @@ describe("createFsTools", () => {
     }
   });
 
+  test("a per-call state factory throws TypeError that names createFsTools", () => {
+    const factory = () => createMemoryStore();
+    expect(() => createFsTools({ fs: memoryFileSystem(), state: factory } as never)).toThrow(
+      "createFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory",
+    );
+  });
+
   test("the three writers take the one lock manager", async () => {
     const locks = spyLocks();
     const tools = createFsTools({

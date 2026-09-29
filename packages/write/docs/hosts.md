@@ -32,7 +32,7 @@ The just-bash, Cloudflare Shell, and Cloudflare Computer packages are backends, 
 | `symlinks`, `identity`, buffering | the backend's                                                         | `"follow-within-roots"`, `"required"`, streams                                                    | as Node                                                                                    | the backend's                                                         |
 | `invalidate`                      | `(path, call?)`                                                       | `(path, call?)`, `call` ignored                                                                   | `(path, call?)`, pass the call                                                             | `(path, call?)`                                                       |
 
-In every bundle, a shared key (`fs`, `state`, `digest`, `locks`, `clock`) inside one tool's options throws `TypeError`, and so does an unknown option key. The bash tool gets the bundle's digest and clock, so `ctx.digest` and `ctx.clock` in a bash hook match the file tools. The allowed roots never limit what a bash command touches.
+In every bundle, a shared key (`fs`, `state`, `digest`, `locks`, `clock`) inside one tool's options throws `TypeError`, and so does an unknown option key. A bundle takes `state` as one store or `null`. The single tools also take a per-call store factory; a bundle does not, and throws a `TypeError` that names the bundle. The bash tool gets the bundle's digest and clock, so `ctx.digest` and `ctx.clock` in a bash hook match the file tools. The allowed roots never limit what a bash command touches.
 
 ### Tool signatures
 

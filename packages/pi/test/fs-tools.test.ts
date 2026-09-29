@@ -6,7 +6,7 @@ import path from "node:path";
 import { defaultEditSignature } from "@better-fs-tools/write/signature";
 
 import { nodeDigest } from "@better-fs-tools/node";
-import { sha256Digest } from "@better-fs-tools/read";
+import { createMemoryStore, sha256Digest } from "@better-fs-tools/read";
 import { memoryLocks } from "@better-fs-tools/write";
 
 import { createPiBashTool, createPiFsTools } from "../src/index.ts";
@@ -64,6 +64,13 @@ describe("createPiFsTools", () => {
     expect((await run(tools.edit, EDIT("one", "1"), cwd)).details?.firstChangedLine).toBe(1);
     expect(() => createPiFsTools({ read: { digest } } as never)).toThrow(
       "createPiFsTools read options cannot set digest: set it once at the top level",
+    );
+  });
+
+  test("a per-call state factory throws TypeError that names createPiFsTools", () => {
+    const factory = () => createMemoryStore();
+    expect(() => createPiFsTools({ state: factory } as never)).toThrow(
+      "createPiFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory",
     );
   });
 

@@ -4,7 +4,7 @@ import { generateText, isStepCount } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { sha256Digest } from "@better-fs-tools/read";
+import { createMemoryStore, sha256Digest } from "@better-fs-tools/read";
 import type { Digest } from "@better-fs-tools/read";
 import { lineRangeSignature } from "@better-fs-tools/read/signature";
 import { shellEnv } from "@better-fs-tools/shell";
@@ -59,6 +59,13 @@ describe("createAiSdkFsTools", () => {
     expect(await tools.state?.get("/a.txt")).not.toBeNull();
     now += 31 * 60 * 1_000;
     expect(await tools.state?.get("/a.txt")).toBeNull();
+  });
+
+  test("a per-call state factory throws TypeError that names createAiSdkFsTools", () => {
+    const factory = () => createMemoryStore();
+    expect(() => createAiSdkFsTools({ fs: memoryFileSystem(), state: factory } as never)).toThrow(
+      "createAiSdkFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory",
+    );
   });
 
   test("each tool takes its own signature; tools is keyed by the signature names", async () => {

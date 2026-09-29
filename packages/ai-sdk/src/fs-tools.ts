@@ -253,6 +253,12 @@ function checkOptions(options: unknown): void {
   for (const key of Object.keys(options)) {
     if (!KNOWN.has(key)) throw new TypeError(`Unknown createAiSdkFsTools option: ${key}`);
   }
+  const state: unknown = (options as Record<string, unknown>).state;
+  if (state !== undefined && state !== null && !isStore(state)) {
+    throw new TypeError(
+      `createAiSdkFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory`,
+    );
+  }
   for (const [tool, keys] of Object.entries(SHARED_KEYS)) {
     const part: unknown = (options as Record<string, unknown>)[tool];
     if (part === undefined || (tool === "bash" && part === false)) continue;
@@ -272,4 +278,11 @@ function checkOptions(options: unknown): void {
       }
     }
   }
+}
+
+/** A read state store: an object with get, put, and delete. A per-call factory is not one. */
+function isStore(value: unknown): boolean {
+  if (value === null || typeof value !== "object") return false;
+  const store = value as Record<string, unknown>;
+  return ["get", "put", "delete"].every((key) => typeof store[key] === "function");
 }

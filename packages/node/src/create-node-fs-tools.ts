@@ -184,6 +184,12 @@ function checkOptions(options: unknown): void {
   for (const key of Object.keys(options)) {
     if (!KNOWN.has(key)) throw new TypeError(`Unknown createNodeFsTools option: ${key}`);
   }
+  const state: unknown = (options as Record<string, unknown>).state;
+  if (state !== undefined && state !== null && !isStore(state)) {
+    throw new TypeError(
+      `createNodeFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory`,
+    );
+  }
   for (const [tool, keys] of Object.entries(SHARED_KEYS)) {
     const part: unknown = (options as Record<string, unknown>)[tool];
     if (part === undefined || (tool === "bash" && typeof part === "boolean")) continue;
@@ -225,4 +231,11 @@ function bashDeps<THost>(
   const deps = withNodeShellDefaults(bash, cwd);
   if (bash.runner === undefined || given === undefined || bash.cwd !== undefined) return deps;
   return { ...deps, cwd };
+}
+
+/** A read state store: an object with get, put, and delete. A per-call factory is not one. */
+function isStore(value: unknown): boolean {
+  if (value === null || typeof value !== "object") return false;
+  const store = value as Record<string, unknown>;
+  return ["get", "put", "delete"].every((key) => typeof store[key] === "function");
 }

@@ -87,6 +87,12 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
   for (const key of Object.keys(options)) {
     if (!KNOWN.has(key)) throw new TypeError(`Unknown createPiFsTools option: ${key}`);
   }
+  const state: unknown = (options as Record<string, unknown>).state;
+  if (state !== undefined && state !== null && !isStore(state)) {
+    throw new TypeError(
+      `createPiFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory`,
+    );
+  }
   const given = {
     read: options.read ?? {},
     edit: options.edit ?? {},
@@ -159,4 +165,11 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
     clock: core.clock,
     invalidate: (path, call) => core.invalidate(path, call),
   });
+}
+
+/** A read state store: an object with get, put, and delete. A per-call factory is not one. */
+function isStore(value: unknown): boolean {
+  if (value === null || typeof value !== "object") return false;
+  const store = value as Record<string, unknown>;
+  return ["get", "put", "delete"].every((key) => typeof store[key] === "function");
 }

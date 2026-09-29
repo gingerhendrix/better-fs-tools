@@ -4,7 +4,7 @@ import { link, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { textOf } from "@better-fs-tools/read";
+import { createMemoryStore, textOf } from "@better-fs-tools/read";
 import type { ToolCallContext } from "@better-fs-tools/read";
 import { memoryLocks } from "@better-fs-tools/write";
 import type { Guard } from "@better-fs-tools/write";
@@ -266,6 +266,13 @@ describe("createNodeFsTools sharing", () => {
     expect(await tools.state?.get(join(cwd, "app.ts"))).not.toBeNull();
     now += 31 * 60 * 1_000;
     expect(await tools.state?.get(join(cwd, "app.ts"))).toBeNull();
+  });
+
+  test("a per-call state factory throws TypeError that names createNodeFsTools", () => {
+    const factory = () => createMemoryStore();
+    expect(() => createNodeFsTools({ state: factory } as never)).toThrow(
+      "createNodeFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory",
+    );
   });
 
   test("a per-tool object that sets a shared dependency throws TypeError", () => {
