@@ -12,27 +12,27 @@ import type { AiSdkToolOutput } from "./output.ts";
 import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
 export type CreateAiSdkBashToolOptions<C = unknown> = ShellToolDeps<ToolExecutionOptions<C>> & {
-  /** Default defaultBashSignature({ runner: runner.id, limits }). */
+  /** Defaults to defaultBashSignature() for the runner's id and the limits. */
   readonly signature?: BashSignature;
 };
 
-/** Assignable to Tool<JsonObject, ShellResult, C> from ai 7.0.77. */
+/** An AI SDK bash tool, assignable to `Tool<JsonObject, ShellResult, C>` from ai 7.0.77. */
 export interface AiSdkBashTool<C = unknown> {
   readonly name: string;
   readonly description: string;
   readonly strict: true;
-  /** jsonSchema(toStrictSchema(signature.schema, signature.name), { validate }). validate maps null to absent first. validate runs toInput and the core parse. */
+  /** The strict input schema. A `null` for an optional parameter means absent. */
   readonly inputSchema: Schema<JsonObject>;
-  /** bash(signature.toInput(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
+  /** Runs the command. The AI SDK execution options are the call's host. */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ShellResult>;
   toModelOutput(options: { output: ShellResult }): AiSdkToolOutput;
 }
 
 /**
- * Builds the core with messages = { ...bashSignatureMessages(signature),
- * ...options.messages }. The runner and env are required: this package does
- * not start processes and does not read process.env. Use nodeCommandRunner()
- * from @better-fs-tools/node, or justBashCommandRunner() from
+ * Creates an AI SDK bash tool. `options.messages` override the signature's
+ * messages. The runner and env are required: this package starts no process
+ * and does not read process.env. Use nodeCommandRunner() from
+ * @better-fs-tools/node or justBashCommandRunner() from
  * @better-fs-tools/just-bash, and shellEnv() from @better-fs-tools/shell.
  */
 export function createAiSdkBashTool<C = unknown>(
@@ -50,7 +50,6 @@ export function createAiSdkBashTool<C = unknown>(
   return adaptBashTool(signature, bash, deps.limits);
 }
 
-/** defaultBashSignature({ runner: runner.id, limits }), from the options. */
 export function defaultAiSdkBashSignature(deps: {
   readonly runner?: ShellToolDeps<never>["runner"];
   readonly limits?: Partial<ShellLimits>;
@@ -62,10 +61,6 @@ export function defaultAiSdkBashSignature(deps: {
   });
 }
 
-/**
- * The AI SDK face of a bash tool that is already built with the signature's
- * messages. createAiSdkFsTools uses it too.
- */
 export function adaptBashTool<C>(
   signature: BashSignature,
   bash: BashTool<ToolExecutionOptions<C>>,
@@ -93,7 +88,6 @@ export function adaptBashTool<C>(
       },
     }),
     async execute(input, execution) {
-      // The ToolExecutionOptions object itself is the host: no copy, no spread.
       const call: ToolCallContext<ToolExecutionOptions<C>> = {
         ...(execution.abortSignal === undefined ? {} : { signal: execution.abortSignal }),
         callId: execution.toolCallId,

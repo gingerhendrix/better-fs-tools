@@ -12,14 +12,13 @@ export interface AiSdkToolOutput {
   value: AiSdkContentPart[];
 }
 
-/** Text parts as text. Media parts as base64 file parts. Takes a read, a mutation, or a bash result. */
+/** Converts a read, mutation, or bash result to AI SDK tool output. Media parts become base64 file parts. */
 export function toAiSdkOutput(result: {
   readonly content: readonly ContentPart[];
 }): AiSdkToolOutput {
   return { type: "content", value: result.content.map(toAiSdkPart) };
 }
 
-/** One case for each ContentPart type. */
 function toAiSdkPart(part: ContentPart): AiSdkContentPart {
   switch (part.type) {
     case "text":

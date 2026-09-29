@@ -11,7 +11,6 @@ import type { FileConverter, ReadHookContext, ReadResult } from "@better-fs-tool
 import { createAiSdkReadTool, toAiSdkOutput } from "../src/index.ts";
 import { CLOCK, executeOptions, expectOk } from "./helpers.ts";
 
-/** A real 1x1 PNG from the shared fixtures in the read package. */
 const PNG = new Uint8Array(
   await readFile(new URL("../../read/test/fixtures/files/pixel.png", import.meta.url)),
 );

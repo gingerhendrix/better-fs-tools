@@ -7,7 +7,6 @@ import { defaultBashSignature } from "@better-fs-tools/shell/signature";
 import { createAiSdkBashTool } from "../src/index.ts";
 import { executeOptions } from "./helpers.ts";
 
-/** Echoes the command back on stdout and exits 0. Records each request. */
 function echoRunner(): CommandRunner & { commands: string[]; timeouts: AbortSignal[] } {
   const commands: string[] = [];
   const timeouts: AbortSignal[] = [];
@@ -83,7 +82,7 @@ describe("createAiSdkBashTool", () => {
   test("options must be an object with a runner and an env", () => {
     expect(() => createAiSdkBashTool(null as never)).toThrow(TypeError);
     expect(() => createAiSdkBashTool({} as never)).toThrow(TypeError);
-    // @ts-expect-error: env is required, as in the core (Q4).
+    // @ts-expect-error: env is required.
     expect(() => createAiSdkBashTool({ runner: echoRunner() })).toThrow("env is required");
   });
 });

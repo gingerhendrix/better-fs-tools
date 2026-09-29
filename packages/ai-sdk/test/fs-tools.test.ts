@@ -162,7 +162,7 @@ describe("createAiSdkFsTools", () => {
     expect(errorOf(await tools.edit.execute(EDIT, executeOptions()))?.code).toBe("NOT_READ");
   });
 
-  test("throws TypeError on an unknown key or a shared key in a tool (GA-16)", () => {
+  test("throws TypeError on an unknown key or a shared key in a tool", () => {
     const fs = memoryFileSystem();
     expect(() => createAiSdkFsTools(null as never)).toThrow(
       "createAiSdkFsTools options must be an object",
@@ -176,12 +176,10 @@ describe("createAiSdkFsTools", () => {
     expect(() =>
       createAiSdkFsTools({ fs, bash: { runner, env: shellEnv(), clock: null } } as never),
     ).toThrow("createAiSdkFsTools bash options cannot set clock: set it once at the top level");
-    // The same message as createFsTools, with this factory's name.
     expect(() => createAiSdkFsTools({ fs, bash: true } as never)).toThrow(
       "createAiSdkFsTools bash must be an object with a runner and an env: the portable bundle has no default runner",
     );
     expect(() => createAiSdkFsTools({ fs, bash: { runner } } as never)).toThrow("env is required");
-    // tools is keyed by name, so two tools with one name would hide one of them.
     expect(() =>
       createAiSdkFsTools({ fs, read: { signature: lineRangeSignature({ name: "edit" }) } }),
     ).toThrow("createAiSdkFsTools has two tools named edit");

@@ -6,7 +6,6 @@ import type { ReadErrorCode, ReadOk, ReadResult } from "@better-fs-tools/read";
 
 export const CLOCK = (): Date => new Date("2026-08-22T00:00:00.000Z");
 
-/** The options object the AI SDK passes to execute. */
 export function executeOptions(
   signal?: AbortSignal,
 ): ToolExecutionOptions<Record<string, unknown>> {
@@ -30,10 +29,7 @@ export function expectFailure(result: ReadResult, code: ReadErrorCode): ReadResu
   return result;
 }
 
-/**
- * A filesystem whose byte source stalls after its first chunk, so an abort can
- * land while the core is mid-scan rather than before it starts.
- */
+/** Stalls after the first chunk so an abort lands mid-scan, not before the scan starts. */
 export function stallingFileSystem(
   path: string,
   first: string,
@@ -70,7 +66,6 @@ export function stallingFileSystem(
   };
 }
 
-/** The error of a result, or null when its status is not "error". */
 export function errorOf<T extends { readonly status: string }>(
   result: T,
 ): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {

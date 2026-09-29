@@ -150,8 +150,7 @@ describe("ai sdk execute", () => {
   });
 
   test("forwards the host abort signal into a pending scan", async () => {
-    // The first chunk covers the sample, so the stall and the abort land in
-    // the scan itself rather than before any filesystem work.
+    // The first chunk covers the sample, so the abort lands in the scan itself.
     const { fs, stalled, release } = stallingFileSystem("/big.txt", "alpha\n".repeat(4_000));
     const read = createAiSdkReadTool({ fs, clock: CLOCK });
     const controller = new AbortController();

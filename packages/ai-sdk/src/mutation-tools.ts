@@ -35,48 +35,47 @@ import { toAiSdkOutput } from "./output.ts";
 import type { AiSdkToolOutput } from "./output.ts";
 import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
-/** The edit tool's dependencies, a state only with a digest, and the signature. */
+/** Options for createAiSdkEditTool. A state store requires a digest. */
 export type CreateAiSdkEditToolOptions<C = unknown> = EditToolDeps<ToolExecutionOptions<C>> &
   StateNeedsDigest & {
-    /** Default defaultEditSignature({ matchers: options.matchers }). */
+    /** Defaults to defaultEditSignature() for `options.matchers`. */
     readonly signature?: EditSignature;
   };
 
-/** The write tool's dependencies, a state only with a digest, and the signature. */
+/** Options for createAiSdkWriteTool. A state store requires a digest. */
 export type CreateAiSdkWriteToolOptions<C = unknown> = WriteToolDeps<ToolExecutionOptions<C>> &
   StateNeedsDigest & {
-    /** Default defaultWriteSignature(). */
+    /** Defaults to defaultWriteSignature(). */
     readonly signature?: WriteSignature;
   };
 
-/** The apply_patch tool's dependencies, a state only with a digest, and the signature. */
+/** Options for createAiSdkApplyPatchTool. A state store requires a digest. */
 export type CreateAiSdkApplyPatchToolOptions<C = unknown> = ApplyPatchToolDeps<
   ToolExecutionOptions<C>
 > &
   StateNeedsDigest & {
-    /** Default defaultPatchSignature(). A grammar on the signature is ignored: AI SDK tools take JSON only. */
+    /** Defaults to defaultPatchSignature(). A grammar on the signature is ignored: AI SDK tools take JSON only. */
     readonly signature?: PatchSignature;
   };
 
-/** Assignable to Tool<JsonObject, MutationResult, C> from ai 7.0.77. */
+/** An AI SDK edit, write, or apply_patch tool, assignable to `Tool<JsonObject, MutationResult, C>` from ai 7.0.77. */
 export interface AiSdkMutationTool<C = unknown> {
   readonly name: string;
   readonly description: string;
   readonly strict: true;
-  /** jsonSchema(toStrictSchema(signature.schema, signature.name), { validate }). validate maps null to absent first. validate runs toInput and the core parse. */
+  /** The strict input schema. A `null` for an optional parameter means absent. */
   readonly inputSchema: Schema<JsonObject>;
-  /** tool(signature.toInput(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
+  /** Runs the change. The AI SDK execution options are the call's host. */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<MutationResult>;
   toModelOutput(options: { output: MutationResult }): AiSdkToolOutput;
 }
 
-/** A built edit, write, or apply_patch tool. */
-export type MutationCore<C> = (
+export type BuiltMutationTool<C> = (
   input: never,
   ctx: ToolCallContext<ToolExecutionOptions<C>>,
 ) => Promise<MutationResult>;
 
-/** Builds the core with messages = { ...writeSignatureMessages(signature), ...options.messages }. */
+/** Creates an AI SDK edit tool. `options.messages` override the signature's messages. */
 export function createAiSdkEditTool<C = unknown>(
   options: CreateAiSdkEditToolOptions<C>,
 ): AiSdkMutationTool<C> {
@@ -90,7 +89,7 @@ export function createAiSdkEditTool<C = unknown>(
   return adaptMutationTool(signature, edit, parseEditInput, deps.limits);
 }
 
-/** Builds the core with messages = { ...writeSignatureMessages(signature), ...options.messages }. */
+/** Creates an AI SDK write tool. `options.messages` override the signature's messages. */
 export function createAiSdkWriteTool<C = unknown>(
   options: CreateAiSdkWriteToolOptions<C>,
 ): AiSdkMutationTool<C> {
@@ -104,9 +103,9 @@ export function createAiSdkWriteTool<C = unknown>(
 }
 
 /**
- * Builds the core with messages = { ...writeSignatureMessages(signature), ...options.messages }.
- * The AI SDK has no freeform tool input (plan section 10), so the model sends JSON
- * even when the signature has a grammar.
+ * Creates an AI SDK apply_patch tool. `options.messages` override the
+ * signature's messages. The model sends JSON even when the signature has a
+ * grammar, because the AI SDK has no freeform tool input.
  */
 export function createAiSdkApplyPatchTool<C = unknown>(
   options: CreateAiSdkApplyPatchToolOptions<C>,
@@ -130,13 +129,9 @@ export function matchersOf(matchers: EditToolDeps["matchers"]) {
   return matchers === undefined ? {} : { matchers };
 }
 
-/**
- * The AI SDK face of an edit, write, or apply_patch tool that is already
- * built with the signature's messages. createAiSdkFsTools uses it too.
- */
 export function adaptMutationTool<TInput, C>(
   signature: MutationSignature<TInput>,
-  tool: MutationCore<C>,
+  tool: BuiltMutationTool<C>,
   parse: (input: TInput, limits: Readonly<WriteLimits>) => unknown,
   limitOverrides: Partial<WriteLimits> | undefined,
 ): AiSdkMutationTool<C> {
@@ -151,7 +146,6 @@ export function adaptMutationTool<TInput, C>(
       validate(model) {
         try {
           const value = fromStrictInput(signature.schema, model);
-          // The core parse checks the canonical input the signature produced.
           parse(signature.toInput(value), limits);
           return { success: true, value: value as JsonObject };
         } catch (error) {
@@ -163,7 +157,6 @@ export function adaptMutationTool<TInput, C>(
       },
     }),
     async execute(input, execution) {
-      // The ToolExecutionOptions object itself is the host: no copy, no spread.
       const call: ToolCallContext<ToolExecutionOptions<C>> = {
         ...(execution.abortSignal === undefined ? {} : { signal: execution.abortSignal }),
         callId: execution.toolCallId,

@@ -47,7 +47,6 @@ const runner: CommandRunner = {
   },
 };
 
-/** Every tool with every shipped signature preset, as the AI SDK tool set a host would pass. */
 function allTools() {
   const fs = memoryFileSystem();
   return {
@@ -85,11 +84,7 @@ function allTools() {
   };
 }
 
-/**
- * OpenAI strict function schema rules that this adapter owns: every object has
- * `additionalProperties: false` and lists every property in `required`, at
- * every level. Returns the breaches with their JSON path.
- */
+/** OpenAI strict rules: every object is closed and requires every property, at every level. */
 function strictBreaches(schema: unknown, at = "$"): string[] {
   if (schema === null || typeof schema !== "object" || Array.isArray(schema)) return [];
   const node = schema as Record<string, unknown>;
@@ -113,9 +108,8 @@ function strictBreaches(schema: unknown, at = "$"): string[] {
 }
 
 /**
- * The JSON Schema keywords and string formats that OpenAI strict mode documents
- * (https://developers.openai.com/api/docs/guides/structured-outputs, "Supported
- * schemas", read 2026-09-29). Kept apart from the adapter's own list on purpose.
+ * From https://developers.openai.com/api/docs/guides/structured-outputs ("Supported schemas").
+ * Kept separate from the adapter's own list on purpose.
  */
 const OPENAI_STRICT_KEYWORDS = new Set([
   "type",
@@ -150,7 +144,6 @@ const OPENAI_STRICT_FORMATS = new Set([
   "uuid",
 ]);
 
-/** Every keyword or format outside the OpenAI strict subset, with its JSON path. */
 function outsideSubset(schema: unknown, at = "$"): string[] {
   if (schema === null || typeof schema !== "object" || Array.isArray(schema)) {
     return [`${at}: not a schema object`];
@@ -346,7 +339,6 @@ describe("strict provider schema", () => {
     expect(fromStrictInput(signature.schema, { path: "/a.txt", mode: null, kind: null })).toEqual({
       path: "/a.txt",
     });
-    // The custom signature's own schema is not changed or frozen.
     expect(Object.isFrozen(signature.schema.properties.mode)).toBe(false);
   });
 
@@ -496,7 +488,6 @@ describe("strict provider schema", () => {
       path: "a",
       limit: 3,
     });
-    // A null for a required property is left for the signature to refuse.
     expect(fromStrictInput(read, { path: null })).toEqual({ path: null });
   });
 

@@ -18,26 +18,26 @@ import { toAiSdkOutput } from "./output.ts";
 import type { AiSdkToolOutput } from "./output.ts";
 import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
-/** The read tool's dependencies, a state only with a digest, and the signature. */
+/** Options for createAiSdkReadTool. A state store requires a digest. */
 export type CreateAiSdkReadToolOptions<C = unknown> = ReadToolDeps<ToolExecutionOptions<C>> &
   StateNeedsDigest & {
-    /** Default defaultReadSignature(). */
+    /** Defaults to defaultReadSignature(). */
     readonly signature?: ReadSignature;
   };
 
-/** Assignable to Tool<JsonObject, ReadResult, C> from ai 7.0.77. */
+/** An AI SDK read tool, assignable to `Tool<JsonObject, ReadResult, C>` from ai 7.0.77. */
 export interface AiSdkReadTool<C = unknown> {
   readonly name: string;
   readonly description: string;
   readonly strict: true;
-  /** jsonSchema(toStrictSchema(signature.schema, signature.name), { validate }). validate maps null to absent first. validate runs toInput and parseReadInput. */
+  /** The strict input schema. A `null` for an optional parameter means absent. */
   readonly inputSchema: Schema<JsonObject>;
-  /** read(signature.toInput(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
+  /** Runs the read. The AI SDK execution options are the call's host. */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ReadResult>;
   toModelOutput(options: { output: ReadResult }): AiSdkToolOutput;
 }
 
-/** Builds the core with messages = { ...readSignatureMessages(signature), ...options.messages }. */
+/** Creates an AI SDK read tool. `options.messages` override the signature's messages. */
 export function createAiSdkReadTool<C = unknown>(
   options: CreateAiSdkReadToolOptions<C>,
 ): AiSdkReadTool<C> {
@@ -52,10 +52,6 @@ export function createAiSdkReadTool<C = unknown>(
   return adaptReadTool(signature, read, deps.limits);
 }
 
-/**
- * The AI SDK face of a read tool that is already built with the signature's
- * messages. createAiSdkFsTools uses it for the bundle's read tool.
- */
 export function adaptReadTool<C>(
   signature: ReadSignature,
   read: ReadTool<ToolExecutionOptions<C>>,
@@ -72,7 +68,6 @@ export function adaptReadTool<C>(
       validate(model) {
         try {
           const value = fromStrictInput(signature.schema, model);
-          // The core parse checks the canonical input the signature produced.
           parseReadInput(signature.toInput(value), limits);
           return { success: true, value: value as JsonObject };
         } catch (error) {
@@ -84,7 +79,6 @@ export function adaptReadTool<C>(
       },
     }),
     async execute(input, execution) {
-      // The ToolExecutionOptions object itself is the host: no copy, no spread.
       const call: ReadContext<ToolExecutionOptions<C>> = {
         ...(execution.abortSignal === undefined ? {} : { signal: execution.abortSignal }),
         callId: execution.toolCallId,

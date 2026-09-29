@@ -1,7 +1,6 @@
 import type { JsonObject, JsonValue } from "@better-fs-tools/read";
 
-/** Keywords that hold a schema or a condition strict mode cannot express. */
-const UNSUPPORTED = [
+const UNSUPPORTED_KEYWORDS = [
   "not",
   "if",
   "then",
@@ -18,11 +17,7 @@ const UNSUPPORTED = [
   "contains",
 ] as const;
 
-/**
- * The keywords OpenAI strict mode documents. The provider schema keeps only
- * these; any other keyword is a value check that the signature's parse still
- * makes, so it is dropped.
- */
+/** Keywords OpenAI strict mode supports. Others are dropped; the signature's parse still checks them. */
 const STRICT_KEYWORDS: ReadonlySet<string> = new Set([
   "type",
   "description",
@@ -45,7 +40,7 @@ const STRICT_KEYWORDS: ReadonlySet<string> = new Set([
   "maxItems",
 ]);
 
-/** The string formats OpenAI strict mode documents. */
+/** String formats OpenAI strict mode supports. */
 const STRICT_FORMATS: ReadonlySet<string> = new Set([
   "date-time",
   "time",
@@ -59,31 +54,15 @@ const STRICT_FORMATS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The provider schema for a strict tool, in the JSON Schema subset that OpenAI
- * strict mode documents. Every object lists every property in `required` and
- * has `additionalProperties: false`. A property the signature leaves optional
- * becomes required and nullable, so the model sends `null` for "absent";
- * `fromStrictInput` maps it back. Nullable adds `null` to `type` and `enum`,
- * or wraps a schema with no `type`, an `anyOf`, or a `$ref` in `anyOf` with
- * `{ type: "null" }`.
- *
- * To stay in the subset, `oneOf` becomes `anyOf`, `allOf` is merged into its
- * schema, `const` becomes a one-value `enum`, a root `definitions` becomes
- * `$defs`, and keywords outside `STRICT_KEYWORDS` (such as `minLength`) or a
- * `format` outside `STRICT_FORMATS` are dropped. The tool's validate runs the
- * signature's parse, so a dropped check still applies to the input.
- *
- * Returns a frozen copy and leaves `schema` unchanged. Throws TypeError that
- * names `tool` and the schema path for a form strict mode cannot express: a
- * root that is not an object, an open object, a schema with no type, a keyword
- * such as `not` or `patternProperties`, tuple items, both `anyOf` and `oneOf`,
- * an `allOf` over more than one object schema or with a conflicting keyword or
- * a `$ref`, or a `$ref` that is not a local pointer into the schema.
+ * Converts a signature schema to the JSON Schema subset OpenAI strict mode
+ * accepts. Optional properties become required and nullable. Throws TypeError
+ * naming the tool and schema path for a form strict mode cannot express.
  */
 export function toStrictSchema(schema: JsonObject, tool: string): JsonObject {
   const root = structuredClone(schema) as JsonObject;
-  const walk: Walk = { tool, root, renamed: "definitions" in root };
-  if (walk.renamed && "$defs" in root) refuse(walk, "#/definitions", "both $defs and definitions");
+  const walk: Walk = { tool, root, renamesDefinitions: "definitions" in root };
+  if (walk.renamesDefinitions && "$defs" in root)
+    refuse(walk, "#/definitions", "both $defs and definitions");
   const strict = strictNode(root, walk, "#");
   if (strict.type !== "object" || "anyOf" in strict) {
     refuse(walk, "#", "a root schema that is not an object");
@@ -91,13 +70,7 @@ export function toStrictSchema(schema: JsonObject, tool: string): JsonObject {
   return deepFreeze(strict);
 }
 
-/**
- * Drops each `null` that stands for an optional property the signature left
- * out of `required`, at every level `toStrictSchema` changed. Follows local
- * `$ref`s, merges `allOf` as `toStrictSchema` does, and picks the `anyOf` or
- * `oneOf` branch whose properties hold every key of the input. Other values
- * pass through, so the signature's own parse still refuses a bad `null`.
- */
+/** Turns each `null` that toStrictSchema allows for an optional property back into an absent key. */
 export function fromStrictInput(schema: JsonObject, input: unknown): unknown {
   return restore(schema, input, schema);
 }
@@ -105,13 +78,12 @@ export function fromStrictInput(schema: JsonObject, input: unknown): unknown {
 interface Walk {
   readonly tool: string;
   readonly root: JsonObject;
-  /** The root has `definitions`, which the provider schema calls `$defs`. */
-  readonly renamed: boolean;
+  readonly renamesDefinitions: boolean;
 }
 
 function strictNode(input: JsonObject, walk: Walk, at: string): JsonObject {
   const schema = mergeAllOf(input, (form, where) => refuse(walk, `${at}${where}`, form));
-  for (const key of UNSUPPORTED) {
+  for (const key of UNSUPPORTED_KEYWORDS) {
     if (key in schema) refuse(walk, `${at}/${key}`, `the "${key}" keyword`);
   }
   if ("anyOf" in schema && "oneOf" in schema) refuse(walk, `${at}/oneOf`, "both anyOf and oneOf");
@@ -126,10 +98,10 @@ function strictNode(input: JsonObject, walk: Walk, at: string): JsonObject {
   if ("const" in schema) next.enum = [schema.const!];
   const ref = schema.$ref;
   if (ref !== undefined) {
-    if (typeof ref !== "string" || lookup(ref, walk.root) === undefined) {
+    if (typeof ref !== "string" || resolvePointer(ref, walk.root) === undefined) {
       refuse(walk, `${at}/$ref`, "a $ref that is not a local pointer into the schema");
     }
-    if (walk.renamed && ref.startsWith("#/definitions/")) {
+    if (walk.renamesDefinitions && ref.startsWith("#/definitions/")) {
       next.$ref = `#/$defs/${ref.slice("#/definitions/".length)}`;
     }
   }
@@ -185,12 +157,6 @@ function strictChild(child: JsonValue, walk: Walk, at: string): JsonObject {
   return strictNode(child, walk, at);
 }
 
-/**
- * `schema` with each `allOf` branch merged in: `required` lists are joined,
- * `properties` maps are joined, the outer `description` wins, and any other
- * keyword must not differ. Calls `conflict` with the form and the path below
- * `schema` for a form it cannot merge.
- */
 function mergeAllOf(schema: JsonObject, conflict: (form: string, at: string) => never): JsonObject {
   const allOf = schema.allOf;
   if (allOf === undefined) return schema;
@@ -219,10 +185,6 @@ function mergeAllOf(schema: JsonObject, conflict: (form: string, at: string) => 
   return merged;
 }
 
-/**
- * Adds null to `type` and `enum`, or wraps a schema with no `type`, an
- * `anyOf`, or a `$ref` in `anyOf` with null.
- */
 function nullable(schema: JsonObject): JsonObject {
   const type = schema.type;
   const composed = "anyOf" in schema || "$ref" in schema;
@@ -245,12 +207,12 @@ function nullable(schema: JsonObject): JsonObject {
 }
 
 function restore(schema: JsonObject, input: unknown, root: JsonObject): unknown {
-  const node = merged(follow(schema, root));
+  const node = mergedOrAsIs(resolveRef(schema, root));
   let value = input;
   for (const key of ["anyOf", "oneOf"] as const) {
     const branches = node[key];
     if (!Array.isArray(branches)) continue;
-    const branch = pick(branches, value, root);
+    const branch = findBranchFitting(branches, value, root);
     if (branch !== undefined) value = restore(branch, value, root);
   }
   if (Array.isArray(value)) {
@@ -270,8 +232,7 @@ function restore(schema: JsonObject, input: unknown, root: JsonObject): unknown 
   return output;
 }
 
-/** `schema` with its `allOf` merged, or as it is when the merge fails. */
-function merged(schema: JsonObject): JsonObject {
+function mergedOrAsIs(schema: JsonObject): JsonObject {
   try {
     return mergeAllOf(schema, (form) => {
       throw new TypeError(form);
@@ -281,13 +242,12 @@ function merged(schema: JsonObject): JsonObject {
   }
 }
 
-/** The branch an input came from: the first one whose shape fits it. */
-function pick(
+function findBranchFitting(
   branches: readonly JsonValue[],
   value: unknown,
   root: JsonObject,
 ): JsonObject | undefined {
-  const nodes = branches.filter(isObject).map((branch) => merged(follow(branch, root)));
+  const nodes = branches.filter(isObject).map((branch) => mergedOrAsIs(resolveRef(branch, root)));
   if (Array.isArray(value)) return nodes.find((node) => isObject(node.items));
   if (!isObject(value)) return undefined;
   const keys = Object.keys(value);
@@ -297,19 +257,19 @@ function pick(
   });
 }
 
-/** Follows `$ref` to its target, at most 32 times. */
-function follow(schema: JsonObject, root: JsonObject): JsonObject {
+const MAX_REF_HOPS = 32;
+
+function resolveRef(schema: JsonObject, root: JsonObject): JsonObject {
   let node = schema;
-  for (let hops = 0; hops < 32 && typeof node.$ref === "string"; hops++) {
-    const target = lookup(node.$ref, root);
+  for (let hops = 0; hops < MAX_REF_HOPS && typeof node.$ref === "string"; hops++) {
+    const target = resolvePointer(node.$ref, root);
     if (target === undefined) break;
     node = target;
   }
   return node;
 }
 
-/** The schema a local JSON pointer such as `#/$defs/Edit` names. */
-function lookup(ref: string, root: JsonObject): JsonObject | undefined {
+function resolvePointer(ref: string, root: JsonObject): JsonObject | undefined {
   if (ref === "#") return root;
   if (!ref.startsWith("#/")) return undefined;
   let node: JsonValue = root;

@@ -1,7 +1,6 @@
-/** Bytes per String.fromCharCode call: well under every engine's argument limit. */
+// Keeps each String.fromCharCode spread under engine argument-count limits.
 const CHUNK = 0x8000;
 
-/** Standard base64 with padding. btoa exists in Node, Bun, browsers, and Workers. */
 export function toBase64(bytes: Uint8Array): string {
   let binary = "";
   for (let offset = 0; offset < bytes.byteLength; offset += CHUNK) {

@@ -1,7 +1,3 @@
-/**
- * Type tests. `tsc -b` checks this file through the package tsconfig. Bun never
- * runs it: the name does not match Bun's test file pattern.
- */
 import type { Tool, ToolExecutionOptions, ToolSet } from "ai";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
@@ -20,7 +16,6 @@ import type { AiSdkMutationTool, AiSdkToolOutput } from "../../src/index.ts";
 
 const fs = memoryFileSystem();
 
-// AiSdkMutationTool is assignable to the ai Tool type and fits a ToolSet with read.
 declare const edit: AiSdkMutationTool;
 export const asTool: Tool<JsonObject, MutationResult, unknown> = edit;
 export const inSet: ToolSet = {
@@ -37,7 +32,6 @@ type ModelOutput = Awaited<
 declare const output: AiSdkToolOutput;
 export const asOutput: ModelOutput = output;
 
-// The host type is ToolExecutionOptions<C>, so the context is typed.
 export const typed = createAiSdkEditTool<{ user: string }>({
   fs: (call) => {
     const user: string = call.host.context.user;
@@ -51,7 +45,6 @@ createAiSdkWriteTool<{ user: string }>({
   fs: (call) => (call.host.context.session === "" ? fs : fs),
 });
 
-// Host-free helpers typed with unknown fit, and so do host-typed ones.
 declare const hostGuard: Guard<ToolExecutionOptions<{ user: string }>>;
 declare const hostFormatter: WriteFormatter<ToolExecutionOptions<{ user: string }>>;
 export const helpers = createAiSdkApplyPatchTool<{ user: string }>({
@@ -67,6 +60,5 @@ export const unknownFormatter = createAiSdkWriteTool<{ user: string }>({
   authorize: askBeforeWrite(async (_plan, ctx) => ctx.call.host.context.user === "admin"),
 });
 
-// fs is required, as in the core.
 // @ts-expect-error fs is missing
 createAiSdkEditTool({});

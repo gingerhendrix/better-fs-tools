@@ -29,11 +29,6 @@ if (apiKey === undefined || apiKey === "") {
 const modelId = process.env.BFT_E2E_OPENAI_MODEL || "gpt-5.4-mini";
 const model = createOpenAI({ apiKey })(modelId);
 
-/**
- * Runs one model turn with `toolName` forced, and returns the tool's output.
- * Fails when the provider refuses the schema, the input does not parse, or the
- * tool throws.
- */
 async function callTool(tools: ToolSet, toolName: string, prompt: string): Promise<unknown> {
   const result = await generateText({
     model,

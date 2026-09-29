@@ -48,51 +48,51 @@ import type { AiSdkReadTool } from "./tool.ts";
 
 type Host<C> = ToolExecutionOptions<C>;
 
-/** A tool's options in the bundle: its core options less the shared ones, and its signature. */
+/** Read tool options for createAiSdkFsTools. Shared keys are set once at the top level. */
 export type AiSdkFsToolsReadOptions<C = unknown> = Omit<
   Partial<ReadToolDeps<Host<C>>>,
   FsToolsSharedKey
 > & {
-  /** Default defaultReadSignature(). */
+  /** Defaults to defaultReadSignature(). */
   readonly signature?: ReadSignature;
 };
 export type AiSdkFsToolsEditOptions<C = unknown> = Omit<
   Partial<EditToolDeps<Host<C>>>,
   FsToolsSharedKey
 > & {
-  /** Default defaultEditSignature({ matchers }). */
+  /** Defaults to defaultEditSignature() for `matchers`. */
   readonly signature?: EditSignature;
 };
 export type AiSdkFsToolsWriteOptions<C = unknown> = Omit<
   Partial<WriteToolDeps<Host<C>>>,
   FsToolsSharedKey
 > & {
-  /** Default defaultWriteSignature(). */
+  /** Defaults to defaultWriteSignature(). */
   readonly signature?: WriteSignature;
 };
 export type AiSdkFsToolsApplyPatchOptions<C = unknown> = Omit<
   Partial<ApplyPatchToolDeps<Host<C>>>,
   FsToolsSharedKey
 > & {
-  /** Default defaultPatchSignature(). */
+  /** Defaults to defaultPatchSignature(). */
   readonly signature?: PatchSignature;
 };
-/** The bash dependencies with `runner` and `env` required, less the shared digest and clock. */
+/** Bash tool options for createAiSdkFsTools. `runner` and `env` are required. */
 export type AiSdkFsToolsBashOptions<C = unknown> = FsToolsBashOptions<Host<C>> & {
-  /** Default defaultBashSignature({ runner: runner.id, limits }). */
+  /** Defaults to defaultBashSignature() for the runner's id and the limits. */
   readonly signature?: BashSignature;
 };
 
 export interface CreateAiSdkFsToolsOptions<C = unknown> {
-  /** Required. A backend, or a factory called once for each call with the AI SDK options as host. */
+  /** Required. A backend, or a factory called once for each tool call with the AI SDK options as host. */
   readonly fs: CreateFsToolsOptions<Host<C>>["fs"];
-  /** Default memoryStore({ clock }), on the bundle clock. null turns read-before-write off. */
+  /** Defaults to memoryStore({ clock }). null turns read-before-write off. */
   readonly state?: ReadStateStore | null;
-  /** Default sha256Digest() from @better-fs-tools/read: plain JavaScript, so it runs in a Worker. */
+  /** Defaults to sha256Digest() from @better-fs-tools/read, which runs in a Worker. */
   readonly digest?: Digest;
-  /** Default memoryLocks(). */
+  /** Defaults to memoryLocks(). */
   readonly locks?: LockManager;
-  /** Default () => new Date(). */
+  /** Defaults to () => new Date(). */
   readonly clock?: Clock;
   readonly read?: AiSdkFsToolsReadOptions<C>;
   readonly edit?: AiSdkFsToolsEditOptions<C>;
@@ -117,11 +117,11 @@ export interface AiSdkFsTools<C = unknown> {
   readonly digest: Digest;
   readonly locks: LockManager;
   readonly clock: Clock;
-  /** As createFsTools: when fs is a factory, pass the call context. */
+  /** Same as createFsTools().invalidate. When fs is a factory, pass the call context. */
   invalidate(path: string, call?: ToolCallContext<Host<C>>): Promise<InvalidateOutcome>;
 }
 
-/** The result when options.bash is an object: bash is there. */
+/** The createAiSdkFsTools result when `bash` is set: `bash` is never null. */
 export interface AiSdkFsToolsWithBash<C = unknown> extends AiSdkFsTools<C> {
   readonly bash: AiSdkBashTool<C>;
 }
@@ -139,7 +139,6 @@ const KNOWN: ReadonlySet<string> = new Set([
   "bash",
 ]);
 
-/** The keys each tool's options may not set, because the bundle shares them. */
 const SHARED_KEYS = {
   read: ["fs", "state", "digest", "clock"],
   edit: ["fs", "state", "digest", "locks", "clock"],
@@ -149,12 +148,10 @@ const SHARED_KEYS = {
 } as const;
 
 /**
- * createFsTools from @better-fs-tools/write, with each tool adapted as the
- * single AI SDK factories adapt it. One call gives read, edit, write, and
- * apply_patch over one backend, with one store, one digest (sha256Digest()
- * by default), one lock manager, and one clock. It needs no Node module, so
- * an AI SDK host on Workers gets shared state in one call. With `bash`, a
- * bash tool with the same digest and clock.
+ * Creates AI SDK read, edit, write, and apply_patch tools over one backend,
+ * sharing one read state store, digest, lock manager, and clock. Needs no
+ * Node module, so it runs in a Worker. With `bash`, also creates a bash tool
+ * with the same digest and clock.
  *
  * Throws TypeError on an unknown option key, and on a shared key (fs, state,
  * digest, locks, clock) inside a tool's options.
@@ -245,7 +242,6 @@ export function createAiSdkFsTools<C = unknown>(
   });
 }
 
-/** An object, known keys, and no shared key inside a tool's options (GA-16). */
 function checkOptions(options: unknown): void {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("createAiSdkFsTools options must be an object");
@@ -280,7 +276,6 @@ function checkOptions(options: unknown): void {
   }
 }
 
-/** A read state store: an object with get, put, and delete. A per-call factory is not one. */
 function isStore(value: unknown): boolean {
   if (value === null || typeof value !== "object") return false;
   const store = value as Record<string, unknown>;
