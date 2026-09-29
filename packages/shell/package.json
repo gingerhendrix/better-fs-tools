@@ -4,7 +4,8 @@
   "description": "A bash tool for TypeScript agents: a small run core with hooks and defaults.",
   "license": "MIT",
   "files": [
-    "dist"
+    "dist",
+    "docs"
   ],
   "type": "module",
   "sideEffects": false,

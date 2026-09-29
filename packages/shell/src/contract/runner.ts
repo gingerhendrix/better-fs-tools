@@ -1,6 +1,7 @@
 /**
- * The runner is the only required dependency of the bash tool. It starts one
- * command. The core owns the timeout, the abort, and the output budget.
+ * The runner and `env` are the required dependencies of the bash tool. The
+ * runner starts one command. The core owns the timeout, the abort, and the
+ * output budget.
  */
 export interface CommandRunner {
   /** Shown in the tool description, for example "node" or "just-bash (emulated)". */
