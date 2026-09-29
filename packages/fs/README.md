@@ -119,7 +119,7 @@ An adapter narrows a union where its backend cannot do the rest, and says so in 
 
 `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) compares the backends side by side: how each reads, what it fetches before the read tool authorizes, its write methods, and its new file modes.
 
-`readOnlyFileSystem(fs)` wraps any backend and keeps only `id`, `capabilities`, `paths`, `open`, and `list`. The result is a plain `FileSystem`, so a write tool refuses it when it is built:
+`readOnlyFileSystem(fs)` wraps any backend. It keeps `open`, `list`, and every member that is not a function except `writeCapabilities`: `id`, `capabilities`, `paths`, and the root settings (`cwd`, `allowedRoots`, `denyRoots`, `symlinks`, `identity`, `maxBufferedBytes`) when the adapter has them. The type is `ReadOnlyFileSystem<typeof fs>`. It has no write method, so a write tool refuses it when it is built:
 
 ```ts
 import { isWritableFileSystem, memoryFileSystem, readOnlyFileSystem } from "@better-fs-tools/fs";

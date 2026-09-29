@@ -86,7 +86,7 @@ Every backend takes the shared `FileSystemRootOptions` from `@better-fs-tools/fs
 - "Checked at use": the adapter builds over a backend object without its write methods. Reads work, and a write gives `unsupported`, which the write tools report as `UNSUPPORTED_BACKEND`.
 - A deny root gives `dangerous-path` in every backend.
 - A file over `maxBufferedBytes` gives `too-large`, which the tools report as `TOO_LARGE`.
-- `readOnlyFileSystem(fs)` from `@better-fs-tools/fs` works over every backend. It keeps `id`, `capabilities`, `paths`, `open`, and `list`, so a read tool works and a write tool refuses it when it is built.
+- `readOnlyFileSystem(fs)` from `@better-fs-tools/fs` works over every backend. It keeps `open`, `list`, and the value members except `writeCapabilities`, such as `id`, `capabilities`, `paths`, and the root settings, so a read tool works and a write tool refuses it when it is built.
 
 ### Buffered reads and authorization
 

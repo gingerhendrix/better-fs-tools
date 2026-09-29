@@ -46,7 +46,7 @@ The `feature-api-fixes` branch changed the public API of every package after `ma
 - New shared adapter options: `FileSystemRootOptions`, `BufferedFileSystemOptions`, `FileSystemRootSettings`, `SymlinkPolicy`, `IdentityMode`, and one 16 MiB `DEFAULT_MAX_BUFFERED_BYTES`.
 - `memoryFileSystem({ identity })` takes `"required"` or `"none"`, not a boolean.
 - A backend byte ceiling is the new reason `too-large`, not `denied` or `no-space`. A deny root is `dangerous-path` in every backend.
-- New: `readOnlyFileSystem(fs)`.
+- New: `readOnlyFileSystem(fs)`, which keeps the root settings, and its type `ReadOnlyFileSystem<T>`.
 
 ## `@better-fs-tools/node`
 

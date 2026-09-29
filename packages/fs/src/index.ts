@@ -27,6 +27,7 @@ export type {
   SymlinkPolicy,
 } from "./options.ts";
 export { readOnlyFileSystem } from "./read-only.ts";
+export type { ReadOnlyFileSystem } from "./read-only.ts";
 export { containsPosix, posixPaths, resolvePosix } from "./paths.ts";
 export { memoryFileSystem } from "./memory.ts";
 export type { MemoryFileSystem, MemoryFileSystemOptions } from "./memory.ts";
