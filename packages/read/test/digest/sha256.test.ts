@@ -101,8 +101,8 @@ describe("sha256Digest", () => {
 
   test("backs the read tool and gives the node:crypto content hash", async () => {
     const { memoryFileSystem } = await import("@better-fs-tools/fs");
-    const { createMemoryStore, createReadTool } = await import("../../src/index.ts");
-    const state = createMemoryStore();
+    const { createReadTool, memoryStore } = await import("../../src/index.ts");
+    const state = memoryStore();
     const read = createReadTool({
       fs: memoryFileSystem({ files: { "/a.txt": "one\ntwo\n" } }),
       state,

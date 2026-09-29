@@ -19,7 +19,7 @@ export interface MemoryStoreOptions {
  * Scope belongs to the store, not to its call signatures: one session gets one
  * store, and a shared store namespaces its own keys.
  */
-export function createMemoryStore(options: MemoryStoreOptions = {}): ReadStateStore {
+export function memoryStore(options: MemoryStoreOptions = {}): ReadStateStore {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("memory store options must be an object");
   }

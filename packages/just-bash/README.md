@@ -45,7 +45,7 @@ The same filesystem, with the write tools:
 import { InMemoryFs } from "just-bash";
 import { justBashFileSystem } from "@better-fs-tools/just-bash";
 import { nodeDigest } from "@better-fs-tools/node";
-import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
+import { createReadTool, memoryStore, textOf } from "@better-fs-tools/read";
 import { createEditTool, memoryLocks } from "@better-fs-tools/write";
 
 const bash = new InMemoryFs({ "/workspace/src/index.ts": "const a = 1;\n" });
@@ -55,7 +55,7 @@ const fs = justBashFileSystem(bash, {
   allowedRoots: ["/workspace"],
   maxBufferedBytes: 4 * 1024 * 1024,
 });
-const shared = { fs, state: createMemoryStore(), digest: nodeDigest() };
+const shared = { fs, state: memoryStore(), digest: nodeDigest() };
 const read = createReadTool(shared);
 const edit = createEditTool({ ...shared, locks: memoryLocks() });
 

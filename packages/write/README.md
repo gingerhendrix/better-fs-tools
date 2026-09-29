@@ -48,7 +48,7 @@ A tool call is `tool(input, ctx?)`. `ctx` is the read tool's call context: `{ si
 
 ## One bundle for every tool
 
-`createFsTools(options)` takes a `WritableFileSystem`, or a factory that returns one for each call, and builds `read`, `edit`, `write`, and `apply_patch`. They share one `state` (one store, not a per-call factory; default `createMemoryStore({ clock })`, `null` turns read-before-write off), one `digest` (default `sha256Digest()`), one `locks` (default `memoryLocks()`), and one `clock`. It imports no `node:` module, so a Worker needs no host digest. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`.
+`createFsTools(options)` takes a `WritableFileSystem`, or a factory that returns one for each call, and builds `read`, `edit`, `write`, and `apply_patch`. They share one `state` (one store, not a per-call factory; default `memoryStore({ clock })`, `null` turns read-before-write off), one `digest` (default `sha256Digest()`), one `locks` (default `memoryLocks()`), and one `clock`. It imports no `node:` module, so a Worker needs no host digest. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`.
 
 Bash is off unless you ask. `bash: { runner, env, ... }` adds a bash tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell) that gets the same `digest` and `clock`. The allowed roots of the filesystem do not limit a command.
 
@@ -89,13 +89,13 @@ When a pair does not match, the error shows the closest region of the file with 
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { nodeDigest } from "@better-fs-tools/node";
-import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
+import { createReadTool, memoryStore, textOf } from "@better-fs-tools/read";
 import { createApplyPatchTool } from "@better-fs-tools/write";
 
 const fs = memoryFileSystem({
   files: { "/src/app.ts": "const a = 1;\nconst b = 2;\n", "/src/old.ts": "gone\n" },
 });
-const state = createMemoryStore();
+const state = memoryStore();
 const digest = nodeDigest();
 const read = createReadTool({ fs, state, digest });
 const applyPatch = createApplyPatchTool({ fs, state, digest });
@@ -395,7 +395,7 @@ Without compare-and-swap, the core checks the version with a fresh `stat` just b
 - Undoing a create removes the file but leaves the parent folders the create made.
 - The repeated-miss count lives in each tool instance. A host that builds a new tool for each call never sees the `repeated-miss` note.
 - After-commit hooks are not raced against the abort signal. A hook that never settles holds the call open. From the first commit step on, the signal is ignored, so a started commit finishes.
-- `createMemoryStore()` forgets a read after 30 minutes, and keeps at most 1 000 records. A file read longer ago needs a new read before `edit`, and the result says so (`NOT_READ`).
+- `memoryStore()` forgets a read after 30 minutes, and keeps at most 1 000 records. A file read longer ago needs a new read before `edit`, and the result says so (`NOT_READ`).
 - A match with a loose matcher writes the model's new text as given. When the normalized matcher matched ASCII quotes against curly quotes, the model's ASCII quotes are written.
 
 ## Entries

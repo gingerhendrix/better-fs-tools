@@ -18,7 +18,7 @@ The `feature-api-fixes` branch changed the public API of every package after `ma
 - Read names that write and shell share get the `Read` prefix: `ReadDependencies`, `ReadAuthorizer`, `ReadFormatter`, `ReadHookContext`, `ReadMessageCatalog`, `defaultReadLimits`, `resolveReadLimits`, `defaultReadMessages`, `readAuthorizers`, and the others.
 - `ReadOutcome` is `ReadReport`. `result.code` on an error is `result.error.code`.
 - `./signature`: `defaultSignature` is `defaultReadSignature`, `renamedSignature` is gone (use `defaultReadSignature({ names })`), `signatureMessages` is `readSignatureMessages`, and `toRead`/`fromRead` are `toInput`/`fromInput`.
-- The `./state` subpath is gone. `createMemoryStore` is on the root, and its `clock` is the core `Clock` (`() => Date`).
+- The `./state` subpath is gone. `memoryStore` is on the root, and its `clock` is the core `Clock` (`() => Date`).
 - `createReadTool({ fs, state })` without a `digest` throws `TypeError`.
 - New: `sha256Digest()`, `StateNeedsDigest`, `StateNeedsDigestOrDefault`, `ToolError`, and `TOO_LARGE` for a backend byte ceiling.
 

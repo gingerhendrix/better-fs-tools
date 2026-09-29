@@ -465,11 +465,11 @@ For a size ceiling that refuses a whole file, use the `sizeCeiling` authorizer.
 
 ```ts
 import { createNodeReadTool } from "@better-fs-tools/node";
-import { createMemoryStore, redact, repeatReadGuard } from "@better-fs-tools/read";
+import { memoryStore, redact, repeatReadGuard } from "@better-fs-tools/read";
 
 // createNodeReadTool sets digest to nodeDigest(), which repeatReadGuard needs.
 export const read = createNodeReadTool({
-  state: createMemoryStore(),
+  state: memoryStore(),
   hooks: [repeatReadGuard(), redact({ patterns: [/AKIA[0-9A-Z]{16}/g] })],
 });
 ```
@@ -637,7 +637,7 @@ With a host type, the context and its `host` are required. With no host type, th
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { nodeDigest } from "@better-fs-tools/node";
-import { askUser, createMemoryStore, createReadTool } from "@better-fs-tools/read";
+import { askUser, createReadTool, memoryStore } from "@better-fs-tools/read";
 import type { ReadStateStore } from "@better-fs-tools/read";
 
 interface Session {
@@ -652,7 +652,7 @@ const read = createReadTool<Session>({
   // Called at most once for each read, and only when the core needs a store.
   state: (call) => {
     let store = stores.get(call.host.id);
-    if (store === undefined) stores.set(call.host.id, (store = createMemoryStore()));
+    if (store === undefined) stores.set(call.host.id, (store = memoryStore()));
     return store;
   },
   // A state needs a digest: a record names the digest that made it.
@@ -673,7 +673,7 @@ await read({ path: "/a.txt" }, { host: session, callId: "call-1" });
 - `state` can be a function of the call. It runs at most once for each read, and only when the core needs the store. Return `null` for no store. A factory that throws gives `EXTENSION_FAILED`. A store whose `get` or `put` fails never fails the read.
 - The record key is `file.resolvedPath`. A read stores a `ReadRecord` with `schema: 2` and `origin: "read"`. It holds the backend `version`, the `digest` id, the content and view ids, and the read range. The write tools store records with `origin: "write"` and `request: null` after a commit. A record of another schema counts as absent.
 - `result.file.version` is the backend's change token from `open()`, or `null`. It is kept when the backend has no identity capability.
-- `createMemoryStore()` from `@better-fs-tools/read` keeps records in memory, with a size cap and a TTL. Its `clock` option is the same `Clock` (`() => Date`) that the tools take, so one fake clock fits both. It sits on the root of the package that owns `ReadStateStore`, as `memoryLocks()` sits on the root of `@better-fs-tools/write`, which owns `LockManager`.
+- `memoryStore()` from `@better-fs-tools/read` keeps records in memory, with a size cap and a TTL. Its `clock` option is the same `Clock` (`() => Date`) that the tools take, so one fake clock fits both. It sits on the root of the package that owns `ReadStateStore`, as `memoryLocks()` sits on the root of `@better-fs-tools/write`, which owns `LockManager`.
 - The helpers in this package are typed with `unknown` for the host, so they fit a tool with any host type. `askUser`, `imageConverter`, and `textConverter` can take your host type, as `askUser<Session>` does above.
 
 ## Security guarantees
@@ -706,11 +706,11 @@ Cloudflare Agents hosts use `@better-fs-tools/ai-sdk` with `cloudflareShellFileS
 
 ## Exports
 
-| Entry                             | Contents                                                                                                                                                                                        |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@better-fs-tools/read`           | `createReadTool`, `textOf`, `parseReadInput`, `createMemoryStore`, limits, messages, classifiers, resolvers, suggestions, authorizers, converters, hooks, the budget, formatters, and the types |
-| `@better-fs-tools/read/signature` | `defaultReadSignature`, `lineRangeSignature`, `readSignatureMessages`, and the read signature types                                                                                             |
-| `@better-fs-tools/read/formats`   | `opencodeFormat`, `deepAgentsFormat`, `hashlineFormat`, `hermesFormat`                                                                                                                          |
+| Entry                             | Contents                                                                                                                                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@better-fs-tools/read`           | `createReadTool`, `textOf`, `parseReadInput`, `memoryStore`, limits, messages, classifiers, resolvers, suggestions, authorizers, converters, hooks, the budget, formatters, and the types |
+| `@better-fs-tools/read/signature` | `defaultReadSignature`, `lineRangeSignature`, `readSignatureMessages`, and the read signature types                                                                                       |
+| `@better-fs-tools/read/formats`   | `opencodeFormat`, `deepAgentsFormat`, `hashlineFormat`, `hermesFormat`                                                                                                                    |
 
 The package has no peers and imports no `node:` module, so it runs in Node, Bun, browsers, and Cloudflare Workers. It does not re-export the `fs` types. Import `FileSystem` and the other filesystem types from `@better-fs-tools/fs`. `ReadStateStore` and `ReadRecord` come from `@better-fs-tools/read`.
 
@@ -726,12 +726,12 @@ import { createPiReadTool } from "@better-fs-tools/pi";
 import { lineRangeSignature } from "@better-fs-tools/read/signature";
 import {
   askUser,
-  createMemoryStore,
   denyPaths,
   directoryListing,
   eofFooter,
   imageConverter,
   lineNumberFormatter,
+  memoryStore,
   pathResolvers,
   readAuthorizers,
   redact,
@@ -741,7 +741,7 @@ import {
   unicodeRepair,
 } from "@better-fs-tools/read";
 
-const stores = new Map<string, ReturnType<typeof createMemoryStore>>();
+const stores = new Map<string, ReturnType<typeof memoryStore>>();
 
 export const read = createPiReadTool({
   signature: lineRangeSignature({
@@ -762,7 +762,7 @@ export const read = createPiReadTool({
   state: (call) => {
     const id = call.host.sessionManager.getSessionId();
     let store = stores.get(id);
-    if (store === undefined) stores.set(id, (store = createMemoryStore()));
+    if (store === undefined) stores.set(id, (store = memoryStore()));
     return store;
   },
   hooks: [repeatReadGuard(), redact({ patterns: [/AKIA[0-9A-Z]{16}/g] })],

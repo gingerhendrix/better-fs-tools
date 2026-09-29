@@ -4,7 +4,7 @@ import { generateText, isStepCount } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { createMemoryStore, sha256Digest } from "@better-fs-tools/read";
+import { memoryStore, sha256Digest } from "@better-fs-tools/read";
 import type { Digest } from "@better-fs-tools/read";
 import { lineRangeSignature } from "@better-fs-tools/read/signature";
 import { shellEnv } from "@better-fs-tools/shell";
@@ -62,7 +62,7 @@ describe("createAiSdkFsTools", () => {
   });
 
   test("a per-call state factory throws TypeError that names createAiSdkFsTools", () => {
-    const factory = () => createMemoryStore();
+    const factory = () => memoryStore();
     expect(() => createAiSdkFsTools({ fs: memoryFileSystem(), state: factory } as never)).toThrow(
       "createAiSdkFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory",
     );

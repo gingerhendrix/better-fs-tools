@@ -86,7 +86,7 @@ export type AiSdkFsToolsBashOptions<C = unknown> = FsToolsBashOptions<Host<C>> &
 export interface CreateAiSdkFsToolsOptions<C = unknown> {
   /** Required. A backend, or a factory called once for each call with the AI SDK options as host. */
   readonly fs: CreateFsToolsOptions<Host<C>>["fs"];
-  /** Default createMemoryStore({ clock }), on the bundle clock. null turns read-before-write off. */
+  /** Default memoryStore({ clock }), on the bundle clock. null turns read-before-write off. */
   readonly state?: ReadStateStore | null;
   /** Default sha256Digest() from @better-fs-tools/read: plain JavaScript, so it runs in a Worker. */
   readonly digest?: Digest;

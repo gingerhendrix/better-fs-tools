@@ -3,12 +3,12 @@ import { createPiReadTool } from "@better-fs-tools/pi";
 import { lineRangeSignature } from "@better-fs-tools/read/signature";
 import {
   askUser,
-  createMemoryStore,
   denyPaths,
   directoryListing,
   eofFooter,
   imageConverter,
   lineNumberFormatter,
+  memoryStore,
   pathResolvers,
   readAuthorizers,
   redact,
@@ -18,7 +18,7 @@ import {
   unicodeRepair,
 } from "@better-fs-tools/read";
 
-const stores = new Map<string, ReturnType<typeof createMemoryStore>>();
+const stores = new Map<string, ReturnType<typeof memoryStore>>();
 
 export const read = createPiReadTool({
   signature: lineRangeSignature({
@@ -39,7 +39,7 @@ export const read = createPiReadTool({
   state: (call) => {
     const id = call.host.sessionManager.getSessionId();
     let store = stores.get(id);
-    if (store === undefined) stores.set(id, (store = createMemoryStore()));
+    if (store === undefined) stores.set(id, (store = memoryStore()));
     return store;
   },
   hooks: [repeatReadGuard(), redact({ patterns: [/AKIA[0-9A-Z]{16}/g] })],

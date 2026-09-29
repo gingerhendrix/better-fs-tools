@@ -1,6 +1,6 @@
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { nodeDigest } from "@better-fs-tools/node";
-import { askUser, createMemoryStore, createReadTool } from "@better-fs-tools/read";
+import { askUser, createReadTool, memoryStore } from "@better-fs-tools/read";
 import type { ReadStateStore } from "@better-fs-tools/read";
 
 interface Session {
@@ -15,7 +15,7 @@ const read = createReadTool<Session>({
   // Called at most once for each read, and only when the core needs a store.
   state: (call) => {
     let store = stores.get(call.host.id);
-    if (store === undefined) stores.set(call.host.id, (store = createMemoryStore()));
+    if (store === undefined) stores.set(call.host.id, (store = memoryStore()));
     return store;
   },
   // A state needs a digest: a record names the digest that made it.

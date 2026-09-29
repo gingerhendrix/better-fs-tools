@@ -4,12 +4,12 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 
 import { createReadTool, repeatReadGuard, textOf } from "../../src/index.ts";
 import type { ReadRecord } from "../../src/index.ts";
-import { createMemoryStore } from "../../src/state/index.ts";
+import { memoryStore } from "../../src/state/index.ts";
 import { expectOk, harness, lineText, note, testDigest } from "../helpers.ts";
 
 const FILE = "one\ntwo\nthree\n";
 
-function guarded(options: Parameters<typeof repeatReadGuard>[0] = {}, state = createMemoryStore()) {
+function guarded(options: Parameters<typeof repeatReadGuard>[0] = {}, state = memoryStore()) {
   return harness({
     files: { "/a.txt": FILE },
     deps: { hooks: [repeatReadGuard(options)], state },
@@ -52,7 +52,7 @@ describe("repeatReadGuard", () => {
   });
 
   test("ignores a record a write tool stored, even with the same content", async () => {
-    const state = createMemoryStore();
+    const state = memoryStore();
     const { read } = guarded({}, state);
     const first = expectOk(await read({ path: "/a.txt" }));
     const stored = await state.get("/a.txt");
@@ -94,7 +94,7 @@ describe("repeatReadGuard", () => {
     const { read } = harness({
       files: { "/a.txt": FILE },
       limits: { maxScanBytes: 5 },
-      deps: { hooks: [repeatReadGuard()], state: createMemoryStore() },
+      deps: { hooks: [repeatReadGuard()], state: memoryStore() },
     });
     expectOk(await read({ path: "/a.txt" }));
     const again = expectOk(await read({ path: "/a.txt" }));

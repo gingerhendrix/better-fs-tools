@@ -4,7 +4,7 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 
 import { createReadTool, textOf } from "../../src/index.ts";
 import type { ReadContext, ReadRecord, ReadStateStore } from "../../src/index.ts";
-import { createMemoryStore } from "../../src/state/index.ts";
+import { memoryStore } from "../../src/state/index.ts";
 import { expectFailure, expectOk, harness, testDigest } from "../helpers.ts";
 
 interface Host {
@@ -29,7 +29,7 @@ function spyStore(): ReadStateStore & { puts: [string, ReadRecord][] } {
 
 describe("record", () => {
   test("a whole-file read records an observation in the store", async () => {
-    const state = createMemoryStore();
+    const state = memoryStore();
     const { read } = harness({ files: { "/a.txt": "one\ntwo\n" }, deps: { state } });
     const result = expectOk(await read({ path: "/a.txt" }));
 
@@ -118,7 +118,7 @@ describe("state(call)", () => {
 
   test("runs at most once for each read, with the caller's call object", async () => {
     const calls: ReadContext<Host>[] = [];
-    const store = createMemoryStore();
+    const store = memoryStore();
     const read = hostTool((call) => {
       calls.push(call);
       return store;
@@ -136,7 +136,7 @@ describe("state(call)", () => {
     let built = 0;
     const read = hostTool(() => {
       built += 1;
-      return createMemoryStore();
+      return memoryStore();
     });
     const call: ReadContext<Host> = { host: { session: "s1", secret: SENTINEL } };
     expectFailure(await read({ path: "/missing.txt" }, call), "NOT_FOUND");
@@ -150,7 +150,7 @@ describe("state(call)", () => {
         fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
         state: () => {
           built += 1;
-          return createMemoryStore();
+          return memoryStore();
         },
       } as never),
     ).toThrow("state needs a digest");
@@ -224,7 +224,7 @@ describe("state dependency", () => {
 
   test("a state without a digest throws TypeError, as in the write tools", () => {
     const fs = memoryFileSystem({ files: {} });
-    const state = createMemoryStore();
+    const state = memoryStore();
     expect(() => createReadTool({ fs, state } as never)).toThrow(
       "state needs a digest: records name the digest that made them",
     );

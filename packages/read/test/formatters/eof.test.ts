@@ -7,7 +7,7 @@ import {
   repeatReadGuard,
   textOf,
 } from "../../src/index.ts";
-import { createMemoryStore } from "../../src/state/index.ts";
+import { memoryStore } from "../../src/state/index.ts";
 import { harness } from "../helpers.ts";
 
 const formatter = lineNumberFormatter({ footer: eofFooter() });
@@ -68,7 +68,7 @@ describe("eofFooter", () => {
 
     const { read: guarded } = harness({
       files: { "/a.txt": "one\n" },
-      deps: { formatter, state: createMemoryStore(), hooks: [repeatReadGuard()] },
+      deps: { formatter, state: memoryStore(), hooks: [repeatReadGuard()] },
     });
     await guarded({ path: "/a.txt" });
     expect(textOf(await guarded({ path: "/a.txt" }))).not.toContain("End of file");

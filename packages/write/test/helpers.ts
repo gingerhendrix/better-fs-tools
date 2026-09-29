@@ -5,7 +5,7 @@ import type {
   WritableFileSystem,
   WriteOptions,
 } from "@better-fs-tools/fs";
-import { createMemoryStore, createReadTool } from "@better-fs-tools/read";
+import { createReadTool, memoryStore } from "@better-fs-tools/read";
 import type {
   Digest,
   Note,
@@ -84,7 +84,7 @@ export interface Harness {
  */
 export function harness(options: HarnessOptions = {}): Harness {
   const fs = memoryFileSystem({ files: options.files ?? {}, ...options.fsOptions });
-  const state = createMemoryStore();
+  const state = memoryStore();
   const digest = testDigest();
   const clock = () => FIXED_DATE;
   const read = createReadTool({ fs, state, digest, clock });

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { ToolCallContext } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read";
+import { memoryStore } from "@better-fs-tools/read";
 
 import {
   createApplyPatchTool,
@@ -20,7 +20,7 @@ interface Host {
 describe("call scope (section 5.1)", () => {
   test("every extension point gets the same call object the caller passed", async () => {
     const fs = memoryFileSystem({ files: { "/a.txt": "one\n" } });
-    const store = createMemoryStore();
+    const store = memoryStore();
     const seen = new Map<string, unknown[]>();
     const saw = (point: string, call: unknown) => {
       seen.set(point, [...(seen.get(point) ?? []), call]);
@@ -185,7 +185,7 @@ describe("call scope (section 5.1)", () => {
 
   test("apply_patch: every extension point gets the same call object the caller passed", async () => {
     const fs = memoryFileSystem({ files: { "/a.txt": "one\n" } });
-    const store = createMemoryStore();
+    const store = memoryStore();
     const seen = new Map<string, unknown[]>();
     const saw = (point: string, call: unknown) => {
       seen.set(point, [...(seen.get(point) ?? []), call]);
@@ -359,7 +359,7 @@ describe("call scope (section 5.1)", () => {
       digest: testDigest(),
       state: () => {
         runs += 1;
-        return createMemoryStore();
+        return memoryStore();
       },
     });
     await ok({ path: "/a.txt", content: "x" });
@@ -415,7 +415,7 @@ describe("call scope (section 5.1)", () => {
   test("the lock is released after an error", async () => {
     const fs = memoryFileSystem({ files: { "/a.txt": "one" } });
     const locks = memoryLocks({ timeoutMs: 50 });
-    const store = createMemoryStore();
+    const store = memoryStore();
     const write = createWriteTool({ fs, locks, state: store, digest: testDigest() });
     expect(errorCode(await write({ path: "/a.txt", content: "x" }))).toBe("NOT_READ");
     expect(errorCode(await write({ path: "/a.txt", content: "x" }))).toBe("NOT_READ");

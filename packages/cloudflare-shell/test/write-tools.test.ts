@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
+import { createReadTool, memoryStore, textOf } from "@better-fs-tools/read";
 import {
   createApplyPatchTool,
   createEditTool,
@@ -17,7 +17,7 @@ const DECODER = new TextDecoder();
 /** The read tool and the three write tools over one Shell adapter, store, digest and lock manager. */
 function toolsFor(files: Record<string, string> = {}) {
   const { workspace, fs } = fsFor(files);
-  const shared = { fs, state: createMemoryStore(), digest: testDigest(), locks: memoryLocks() };
+  const shared = { fs, state: memoryStore(), digest: testDigest(), locks: memoryLocks() };
   return {
     workspace,
     read: createReadTool({ fs, state: shared.state, digest: shared.digest }),

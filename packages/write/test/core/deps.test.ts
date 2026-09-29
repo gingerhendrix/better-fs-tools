@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { createMemoryStore } from "@better-fs-tools/read";
+import { memoryStore } from "@better-fs-tools/read";
 
 import {
   resolveApplyPatchDependencies,
@@ -82,7 +82,7 @@ describe("write tool dependencies (section 4.4)", () => {
     ["an unknown key", { fs, matchers: [] }, "Unknown write tool dependency: matchers"],
     ["a missing fs", {}, "fs must be"],
     ["a read-only fs", { fs: { id: "ro", open: async () => ({}) } }, "fs has no write methods"],
-    ["state without a digest", { fs, state: createMemoryStore() }, "state needs a digest"],
+    ["state without a digest", { fs, state: memoryStore() }, "state needs a digest"],
     ["an empty classifier list", { fs, classifiers: [] }, "classifiers"],
     ["an empty codec list", { fs, codecs: [] }, "codecs"],
     ["a malformed codec", { fs, codecs: [{ id: "x" }] }, "codecs"],
@@ -106,9 +106,7 @@ describe("write tool dependencies (section 4.4)", () => {
   });
 
   test("a store with a digest is accepted", () => {
-    expect(() =>
-      createWriteTool({ fs, state: createMemoryStore(), digest: testDigest() }),
-    ).not.toThrow();
+    expect(() => createWriteTool({ fs, state: memoryStore(), digest: testDigest() })).not.toThrow();
   });
 
   test("edit: matchers default to defaultEditMatchers() and replace as a whole", () => {
@@ -129,7 +127,7 @@ describe("write tool dependencies (section 4.4)", () => {
     ["a malformed matcher", { fs, matchers: [{ id: "m", find: () => [] }] }, "matchers"],
     ["a bad adapt", { fs, matchers: [{ ...exactMatcher(), adapt: 1 }] }, "matchers"],
     ["an unknown key", { fs, patchParser: {} }, "Unknown edit tool dependency: patchParser"],
-    ["a shared rule", { fs, state: createMemoryStore() }, "state needs a digest"],
+    ["a shared rule", { fs, state: memoryStore() }, "state needs a digest"],
   ])("edit rejects %s", (_name, deps, message) => {
     expect(() => createEditTool(deps as never)).toThrow(message);
   });

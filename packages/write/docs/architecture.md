@@ -167,7 +167,7 @@ Hooks run after the whole commit, once for each committed file, in order. `newFi
 
 After a commit, each committed file gets a record with `schema: 2`, `origin: "write"`, the new version, and the content hash of the written bytes. `request` is `null`, and `viewId` equals `contentId`. `wholeFileVisible` is true after a `write` and a patch Add. After an `edit` or a patch Update it keeps the previous record's value. It is false when an authorizer replaced the content, a hook rewrote the file, or an edit went ahead on a stale record: the model has not seen those bytes, so a later `write` needs a read. A move stores the destination and deletes the source key. A Delete deletes the key. `no-change` stores nothing.
 
-`createMemoryStore()` keeps 1 000 records for 30 minutes. A read older than that needs a new read before an edit.
+`memoryStore()` keeps 1 000 records for 30 minutes. A read older than that needs a new read before an edit.
 
 ## Errors
 

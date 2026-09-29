@@ -5,7 +5,7 @@ import type { JSONSchema7, ToolExecutionOptions } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
+import { createReadTool, memoryStore, textOf } from "@better-fs-tools/read";
 import type { ToolCallContext } from "@better-fs-tools/read";
 import { exactMatcher } from "@better-fs-tools/write";
 import type { MutationResult } from "@better-fs-tools/write";
@@ -40,7 +40,7 @@ const PATCH = [
 
 function tools(files: Record<string, string> = { "/a.txt": "alpha\nbeta\nalpha\n" }) {
   const fs = memoryFileSystem({ files });
-  const state = createMemoryStore();
+  const state = memoryStore();
   const digest = {
     id: "len",
     create() {

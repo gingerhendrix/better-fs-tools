@@ -6,7 +6,7 @@ import path from "node:path";
 import { defaultEditSignature } from "@better-fs-tools/write/signature";
 
 import { nodeDigest } from "@better-fs-tools/node";
-import { createMemoryStore, sha256Digest } from "@better-fs-tools/read";
+import { memoryStore, sha256Digest } from "@better-fs-tools/read";
 import { memoryLocks } from "@better-fs-tools/write";
 
 import { createPiBashTool, createPiFsTools } from "../src/index.ts";
@@ -68,7 +68,7 @@ describe("createPiFsTools", () => {
   });
 
   test("a per-call state factory throws TypeError that names createPiFsTools", () => {
-    const factory = () => createMemoryStore();
+    const factory = () => memoryStore();
     expect(() => createPiFsTools({ state: factory } as never)).toThrow(
       "createPiFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory",
     );

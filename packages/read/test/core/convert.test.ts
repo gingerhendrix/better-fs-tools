@@ -14,7 +14,7 @@ import type {
   ReadToolDeps,
   StateNeedsDigest,
 } from "../../src/index.ts";
-import { createMemoryStore } from "../../src/state/index.ts";
+import { memoryStore } from "../../src/state/index.ts";
 import {
   FIXED_DATE,
   expectFailure,
@@ -500,7 +500,7 @@ describe("media outcomes", () => {
   });
 
   test("a media outcome is recorded in the store", async () => {
-    const store = createMemoryStore();
+    const store = memoryStore();
     const { read } = tool({ "/a.png": PNG }, { converters: [media(PNG)], state: store });
     const result = expectMedia(await read({ path: "/a.png" }));
     expect(await store.get("/a.png")).toMatchObject({

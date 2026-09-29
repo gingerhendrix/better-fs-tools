@@ -13,7 +13,7 @@ import type {
   ReadReport,
   ReadStateStore,
 } from "../../src/index.ts";
-import { createMemoryStore } from "../../src/state/index.ts";
+import { memoryStore } from "../../src/state/index.ts";
 import {
   FIXED_DATE,
   expectFailure,
@@ -163,7 +163,7 @@ describe("hooks", () => {
   });
 
   test("a hook may refuse an ok read", async () => {
-    const state = createMemoryStore();
+    const state = memoryStore();
     const refuse = hook("refuse", (outcome) => ({
       tool: "read",
       status: "error",
@@ -198,7 +198,7 @@ describe("hook rules", () => {
   });
 
   test("a hook that changes totals gives EXTENSION_FAILED", async () => {
-    const state = createMemoryStore();
+    const state = memoryStore();
     const lie = hook("lie", (outcome) =>
       outcome.status === "ok" ? { ...outcome, totals: { ...outcome.totals, lines: 99 } } : outcome,
     );
@@ -276,7 +276,7 @@ describe("hook rules", () => {
 
   test("an abort while a hook waits gives ABORTED in the hooks phase", async () => {
     const controller = new AbortController();
-    const state = createMemoryStore();
+    const state = memoryStore();
     const wait = hook("wait", () => {
       controller.abort();
       return new Promise(() => {});
@@ -295,7 +295,7 @@ describe("view edits", () => {
   const digest = testDigest();
 
   test("recompute viewId, set wholeFileVisible false, and add a view-modified note", async () => {
-    const state = createMemoryStore();
+    const state = memoryStore();
     const shout = hook("shout", upper);
     const { read } = harness({
       files: { "/a.txt": "one\ntwo\n" },
@@ -385,7 +385,7 @@ describe("view edits", () => {
 
 describe("previous", () => {
   test("is the record from before this read, and record then stores the new one", async () => {
-    const state = createMemoryStore();
+    const state = memoryStore();
     const { seen, hook: spy } = spyHook();
     const { read, fs } = harness({ files: { "/a.txt": "one\n" }, deps: { hooks: [spy], state } });
     const first = expectOk(await read({ path: "/a.txt" }));
@@ -432,7 +432,7 @@ describe("previous", () => {
   });
 
   test("a schema 1 record from an older store gives null", async () => {
-    const state = createMemoryStore();
+    const state = memoryStore();
     const legacy = {
       schema: 1,
       observationId: "obs-old",
@@ -454,7 +454,7 @@ describe("previous", () => {
   });
 
   test("state(call) runs once when both previous and record need it", async () => {
-    const store = createMemoryStore();
+    const store = memoryStore();
     const calls: ReadContext<Host>[] = [];
     const read = createReadTool<Host>({
       fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),

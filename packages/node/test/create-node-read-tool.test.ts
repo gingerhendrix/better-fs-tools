@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { createMemoryStore, jsonFormatter, textOf } from "@better-fs-tools/read";
+import { jsonFormatter, memoryStore, textOf } from "@better-fs-tools/read";
 import type { ReadContext, ReadStateStore } from "@better-fs-tools/read";
 
 import { createNodeReadTool, nodeFileSystem } from "../src/index.ts";
@@ -71,7 +71,7 @@ describe("createNodeReadTool", () => {
     interface Host {
       readonly session: string;
     }
-    const store = createMemoryStore();
+    const store = memoryStore();
     const calls: ReadContext<Host>[] = [];
     const read = createNodeReadTool<Host>({
       fs: nodeFileSystem({ cwd: root, allowedRoots: [root] }),

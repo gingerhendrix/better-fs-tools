@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
+import { createReadTool, memoryStore, textOf } from "@better-fs-tools/read";
 import {
   createApplyPatchTool,
   createEditTool,
@@ -18,7 +18,7 @@ function toolsFor(files: Record<string, string>) {
   const backend = new InMemoryFs(files);
   // The default identity mode. The core then also compares content hashes.
   const fs = writable(backend, { identity: "none", maxBufferedBytes: 1024 * 1024 });
-  const shared = { fs, state: createMemoryStore(), digest: testDigest(), locks: memoryLocks() };
+  const shared = { fs, state: memoryStore(), digest: testDigest(), locks: memoryLocks() };
   return {
     backend,
     read: createReadTool({ fs, state: shared.state, digest: shared.digest }),

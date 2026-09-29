@@ -14,7 +14,7 @@ import type {
   ReadStateStore,
   ReadTool,
 } from "../../src/index.ts";
-import { createMemoryStore } from "../../src/state/index.ts";
+import { memoryStore } from "../../src/state/index.ts";
 
 declare const plain: ReadTool<undefined>;
 declare const hosted: ReadTool<{ id: string }>;
@@ -74,14 +74,14 @@ export const hostState = createReadTool<{ id: string }>({
 export const sharedState = createReadTool<{ id: string }>({
   fs,
   digest,
-  state: createMemoryStore(),
+  state: memoryStore(),
 });
 
 // A state needs a digest (StateNeedsDigest).
 // @ts-expect-error a state without a digest
-createReadTool({ fs, state: createMemoryStore() });
+createReadTool({ fs, state: memoryStore() });
 // @ts-expect-error a state with a null digest
-createReadTool({ fs, state: createMemoryStore(), digest: null });
+createReadTool({ fs, state: memoryStore(), digest: null });
 export const noState = createReadTool({ fs, state: null, digest: null });
 export const unknownState: ReadDependencies<{ id: string }>["state"] = (
   _call: ReadContext<unknown>,

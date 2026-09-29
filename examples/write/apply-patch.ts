@@ -1,12 +1,12 @@
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { nodeDigest } from "@better-fs-tools/node";
-import { createMemoryStore, createReadTool, textOf } from "@better-fs-tools/read";
+import { createReadTool, memoryStore, textOf } from "@better-fs-tools/read";
 import { createApplyPatchTool } from "@better-fs-tools/write";
 
 const fs = memoryFileSystem({
   files: { "/src/app.ts": "const a = 1;\nconst b = 2;\n", "/src/old.ts": "gone\n" },
 });
-const state = createMemoryStore();
+const state = memoryStore();
 const digest = nodeDigest();
 const read = createReadTool({ fs, state, digest });
 const applyPatch = createApplyPatchTool({ fs, state, digest });

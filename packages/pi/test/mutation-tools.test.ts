@@ -10,7 +10,7 @@ import {
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import type { ToolCallContext } from "@better-fs-tools/read";
-import { createMemoryStore } from "@better-fs-tools/read";
+import { memoryStore } from "@better-fs-tools/read";
 import { exactMatcher } from "@better-fs-tools/write";
 import { CODEX_PATCH_GRAMMAR } from "@better-fs-tools/write/patch";
 import {
@@ -254,7 +254,7 @@ describe("pi write tools: execute", () => {
 
   test("a given store turns read-before-write on", async () => {
     const cwd = await fixture({ "a.txt": "x\n" });
-    const edit = createPiEditTool({ state: createMemoryStore() });
+    const edit = createPiEditTool({ state: memoryStore() });
     const result = await run(edit, { path: "a.txt", edits: [{ oldText: "x", newText: "y" }] }, cwd);
     expect(textOf(result)).toBe(
       "[edit:not-read] Read a.txt with the read tool before changing it.",

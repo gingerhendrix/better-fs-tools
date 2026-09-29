@@ -5,7 +5,7 @@
 import type { ToolSet } from "ai";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { createMemoryStore } from "@better-fs-tools/read";
+import { memoryStore } from "@better-fs-tools/read";
 import { shellEnv } from "@better-fs-tools/shell";
 import type { CommandRunner } from "@better-fs-tools/shell";
 
@@ -29,10 +29,10 @@ export const bash: AiSdkBashTool = createAiSdkFsTools({
 createAiSdkFsTools({ fs, bash: true });
 
 // The bundle has a default digest, so a state needs no digest here.
-export const withState = createAiSdkFsTools({ fs, state: createMemoryStore() });
+export const withState = createAiSdkFsTools({ fs, state: memoryStore() });
 
 // The single factories carry the pairing in their options type.
 // @ts-expect-error: a state needs a digest.
-createAiSdkReadTool({ fs, state: createMemoryStore() });
+createAiSdkReadTool({ fs, state: memoryStore() });
 // @ts-expect-error: a state needs a digest.
-createAiSdkEditTool({ fs, state: createMemoryStore() });
+createAiSdkEditTool({ fs, state: memoryStore() });

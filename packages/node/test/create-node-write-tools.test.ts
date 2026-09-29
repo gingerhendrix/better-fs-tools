@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { createMemoryStore, textOf } from "@better-fs-tools/read";
+import { memoryStore, textOf } from "@better-fs-tools/read";
 import type { ToolCallContext } from "@better-fs-tools/read";
 
 import {
@@ -66,11 +66,9 @@ describe("createNode*Tool defaults", () => {
 
   test("a state without a digest is refused, as in the core", () => {
     // @ts-expect-error: StateNeedsDigestOrDefault refuses a state with digest null.
-    expect(() => createNodeEditTool({ state: createMemoryStore(), digest: null })).toThrow(
-      TypeError,
-    );
+    expect(() => createNodeEditTool({ state: memoryStore(), digest: null })).toThrow(TypeError);
     // Without digest, the default nodeDigest() pairs with the state.
-    expect(() => createNodeEditTool({ state: createMemoryStore() })).not.toThrow();
+    expect(() => createNodeEditTool({ state: memoryStore() })).not.toThrow();
   });
 
   test("other dependencies pass through with the same call object", async () => {

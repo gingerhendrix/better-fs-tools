@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { WritableFileSystem } from "@better-fs-tools/fs";
-import { createMemoryStore, sha256Digest } from "@better-fs-tools/read";
+import { memoryStore, sha256Digest } from "@better-fs-tools/read";
 import type { Clock, Digest, Note, ToolAuthorizer, ToolCallContext } from "@better-fs-tools/read";
 import { shellEnv } from "@better-fs-tools/shell";
 import type { CommandRunner, RunExit } from "@better-fs-tools/shell";
@@ -132,7 +132,7 @@ describe("createFsTools", () => {
   });
 
   test("a per-call state factory throws TypeError that names createFsTools", () => {
-    const factory = () => createMemoryStore();
+    const factory = () => memoryStore();
     expect(() => createFsTools({ fs: memoryFileSystem(), state: factory } as never)).toThrow(
       "createFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory",
     );
@@ -270,7 +270,7 @@ describe("createFsTools", () => {
       "env is required",
     );
     expect(() => createFsTools({ fs: {} as never })).toThrow(TypeError);
-    expect(() => createFsTools({ fs, state: createMemoryStore(), digest: {} as never })).toThrow(
+    expect(() => createFsTools({ fs, state: memoryStore(), digest: {} as never })).toThrow(
       TypeError,
     );
   });

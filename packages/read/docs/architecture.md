@@ -77,7 +77,7 @@ The core owns line scanning, view selection, clamping, the byte limit, continuat
 | `src/core/outcomes.ts`, `extension-error.ts`, `format.ts`                                                   | Failures, `EXTENSION_FAILED`, the formatter call, and `textOf`                                              |
 | `src/classifiers/`, `resolve/`, `suggest/`, `authorize/`, `converters/`, `hooks/`, `budget/`, `formatters/` | The built-in helpers, one file for each                                                                     |
 | `src/signature/`, `src/formats/`                                                                            | The `./signature` and `./formats` subpaths                                                                  |
-| `src/state/`, `src/digest/`                                                                                 | `createMemoryStore` and `sha256Digest`, exported from the root                                              |
+| `src/state/`, `src/digest/`                                                                                 | `memoryStore` and `sha256Digest`, exported from the root                                                    |
 
 ## One call, one context
 

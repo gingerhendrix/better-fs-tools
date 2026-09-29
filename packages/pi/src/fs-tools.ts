@@ -39,7 +39,7 @@ const KNOWN: ReadonlySet<string> = new Set([
 const SHARED_KEYS = ["state", "digest", "locks", "clock", ...PI_ROOT_KEYS] as const;
 
 export interface CreatePiFsToolsOptions extends PiRootOptions {
-  /** Default createMemoryStore({ clock }), on the bundle clock. null turns read-before-write off. */
+  /** Default memoryStore({ clock }), on the bundle clock. null turns read-before-write off. */
   readonly state?: ReadStateStore | null;
   /** Default nodeDigest(), as in createNodeFsTools. */
   readonly digest?: Digest;
