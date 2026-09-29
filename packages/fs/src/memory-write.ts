@@ -28,18 +28,15 @@ export interface MemoryEntry {
   mode: number;
 }
 
-/** The state of one memoryFileSystem that the write methods share with open and list. */
 export interface MemoryState {
   readonly files: Map<string, MemoryEntry>;
   readonly directories: Set<string>;
   readonly identity: boolean;
   readonly maxBufferedBytes: number;
-  /** The access decision open, stat, and every mutation share: abort, deny roots, type. */
-  gate(absolute: string, signal: AbortSignal | undefined): FileSystemError | null;
+  checkAccess(absolute: string, signal: AbortSignal | undefined): FileSystemError | null;
   versionOf(absolute: string, entry: MemoryEntry): string;
-  /** Sets the bytes under a new generation. mode undefined keeps the old mode, else DEFAULT_MODE. */
+  /** An undefined mode keeps the existing file's mode, else DEFAULT_MODE. */
   put(absolute: string, bytes: Uint8Array, mode: number | undefined): MemoryEntry;
-  /** Deletes the file under a new generation. */
   drop(absolute: string): void;
 }
 
@@ -52,11 +49,9 @@ export interface MemoryWriteSettings {
 type MemoryWrites = Pick<WritableFileSystem, "stat" | "write"> &
   Required<Pick<WritableFileSystem, "stage" | "remove">>;
 
-/** stat, write, stage, and remove over the state of one memoryFileSystem. */
 export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings): MemoryWrites {
   const { writeCapabilities, readOnly, faults } = settings;
-  /** Targets of staged writes not yet published or discarded. They keep their directory non-empty. */
-  const pending: string[] = [];
+  const unsettledStagedPaths: string[] = [];
 
   /** Missing ancestors, outermost first. null when an ancestor is a file. */
   const missingParents = (absolute: string): string[] | null => {
@@ -72,7 +67,7 @@ export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings):
 
   const stat = async (path: string, callOptions: OpenOptions = {}): Promise<StatOutcome> => {
     const absolute = resolvePosix("/", path);
-    const refused = state.gate(absolute, callOptions.signal);
+    const refused = state.checkAccess(absolute, callOptions.signal);
     if (refused !== null) return { ok: false, error: refused };
     const entry = state.files.get(absolute);
     if (entry === undefined) {
@@ -121,15 +116,14 @@ export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings):
     }
   };
 
-  /** Every check before a write or a stage. Returns the missing parents to create. */
-  const prepare = (
+  const checkBeforeWrite = (
     operation: "write" | "stage",
     absolute: string,
     bytes: Uint8Array,
     writeOptions: WriteOptions,
   ): { readonly missing: readonly string[] } | { readonly error: MutationError } => {
     const refused =
-      state.gate(absolute, writeOptions.signal) ??
+      state.checkAccess(absolute, writeOptions.signal) ??
       (readOnly ? { reason: "read-only" as const } : null) ??
       conflict(absolute, writeOptions.precondition);
     if (refused !== null) return { error: refused };
@@ -161,13 +155,8 @@ export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings):
     created: readonly string[],
   ): MutatedFile => {
     for (const directory of created) state.directories.add(directory);
-    const replaced = state.files.has(absolute);
-    // A replace keeps the mode when preserveMode. Otherwise it takes the new-file mode.
-    const entry = state.put(
-      absolute,
-      bytes,
-      replaced && writeCapabilities.preserveMode ? undefined : (mode ?? DEFAULT_MODE),
-    );
+    const keepExistingMode = state.files.has(absolute) && writeCapabilities.preserveMode;
+    const entry = state.put(absolute, bytes, keepExistingMode ? undefined : (mode ?? DEFAULT_MODE));
     const version = state.versionOf(absolute, entry);
     return {
       resolvedPath: absolute,
@@ -186,7 +175,7 @@ export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings):
     writeOptions: WriteOptions,
   ): Promise<MutationOutcome> => {
     const absolute = resolvePosix("/", path);
-    const prepared = prepare("write", absolute, bytes, writeOptions);
+    const prepared = checkBeforeWrite("write", absolute, bytes, writeOptions);
     if ("error" in prepared) return { ok: false, error: prepared.error };
     return {
       ok: true,
@@ -198,7 +187,7 @@ export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings):
     const inside = (path: string) => path !== directory && posixPaths.dirname(path) === directory;
     for (const path of state.files.keys()) if (inside(path)) return false;
     for (const path of state.directories) if (inside(path)) return false;
-    return !pending.some(inside);
+    return !unsettledStagedPaths.some(inside);
   };
 
   const stage = async (
@@ -207,38 +196,36 @@ export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings):
     writeOptions: WriteOptions,
   ): Promise<StageOutcome> => {
     const absolute = resolvePosix("/", path);
-    const prepared = prepare("stage", absolute, bytes, writeOptions);
+    const prepared = checkBeforeWrite("stage", absolute, bytes, writeOptions);
     if ("error" in prepared) return { ok: false, error: prepared.error };
     const { missing } = prepared;
     const staged = Uint8Array.from(bytes);
-    // Like a temp file next to the target: the parents exist from stage() on.
+    // Parents exist from stage() on, like a temp file next to the target.
     for (const directory of missing) state.directories.add(directory);
-    pending.push(absolute);
-    /** publish() was called. */
-    let used = false;
-    /** Published or discarded. Nothing is left to clean up. */
-    let settled = false;
-    const release = () => pending.splice(pending.indexOf(absolute), 1);
+    unsettledStagedPaths.push(absolute);
+    let publishCalled = false;
+    let publishedOrDiscarded = false;
+    const release = () => unsettledStagedPaths.splice(unsettledStagedPaths.indexOf(absolute), 1);
     return {
       ok: true,
       staged: Object.freeze({
         resolvedPath: absolute,
         async publish(): Promise<MutationOutcome> {
-          if (used || settled) throw new TypeError("memory staged write: publish() is single-use");
-          used = true;
+          if (publishCalled || publishedOrDiscarded)
+            throw new TypeError("memory staged write: publish() is single-use");
+          publishCalled = true;
           const refused =
-            state.gate(absolute, undefined) ??
+            state.checkAccess(absolute, undefined) ??
             conflict(absolute, writeOptions.precondition) ??
             faults("publish", absolute);
-          // A failed publish keeps the stage. discard() cleans it up.
           if (refused !== null) return { ok: false, error: refused };
-          settled = true;
+          publishedOrDiscarded = true;
           release();
           return { ok: true, file: commit(absolute, staged, writeOptions.mode, missing) };
         },
         async discard(): Promise<void> {
-          if (settled) return;
-          settled = true;
+          if (publishedOrDiscarded) return;
+          publishedOrDiscarded = true;
           release();
           for (const directory of [...missing].reverse()) {
             if (state.directories.has(directory) && isEmptyDirectory(directory)) {
@@ -253,7 +240,7 @@ export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings):
   const remove = async (path: string, removeOptions: MutateOptions): Promise<MutationOutcome> => {
     const absolute = resolvePosix("/", path);
     const refused =
-      state.gate(absolute, removeOptions.signal) ??
+      state.checkAccess(absolute, removeOptions.signal) ??
       (readOnly ? { reason: "read-only" as const } : null) ??
       conflict(absolute, removeOptions.precondition) ??
       (state.files.has(absolute) ? null : { reason: "not-found" as const }) ??

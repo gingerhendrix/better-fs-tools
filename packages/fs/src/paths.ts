@@ -1,9 +1,6 @@
 import type { PathOps } from "./contract.ts";
 
-/**
- * The three namespace operations the read core needs. Implemented without
- * a Node path module, so the contract stays runtime neutral.
- */
+/** POSIX path operations that do not depend on a runtime path module. */
 export const posixPaths: PathOps = Object.freeze({
   dirname(path: string): string {
     const normalized = stripTrailingSlashes(path);

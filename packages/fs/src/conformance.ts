@@ -35,9 +35,9 @@ export const POLICY_REASONS: readonly FileSystemError["reason"][] = [
 ];
 
 /**
- * The public contract for a filesystem adapter. An adapter that passes this
- * suite keeps the promises the read core relies on: a single-use byte stream,
- * change-aware verification, safe cleanup, and a typed error for every refusal.
+ * Checks that a filesystem adapter keeps the read contract: a single-use byte
+ * stream, change-aware verification, safe cleanup, and a typed error for every
+ * refusal.
  */
 export async function runFileSystemConformance(
   fs: FileSystem,
@@ -229,7 +229,7 @@ export async function runFileSystemConformance(
   return { adapter: fs.id, passed: checks.every((entry) => entry.ok), checks };
 }
 
-/** Collects named checks. A check returns null on success or a problem. A throw is a failure. */
+/** A check returns null on success, else a problem. A throw counts as a failure. */
 export function checkRunner(): {
   readonly checks: ConformanceCheck[];
   readonly check: (name: string, run: () => Promise<string | null>) => Promise<void>;
@@ -250,7 +250,6 @@ export function checkRunner(): {
   return { checks, check };
 }
 
-/** The read contract's shape: id, open, list, capabilities. */
 export function shapeProblem(fs: FileSystem): string | null {
   if (typeof fs.id !== "string" || fs.id === "") return "id must be a non-empty string";
   if (typeof fs.open !== "function") return "open must be a function";

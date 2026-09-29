@@ -8,7 +8,7 @@ export interface FileSystem {
   readonly id: string;
   readonly capabilities: FileSystemCapabilities;
   readonly paths: PathOps;
-  /** Resolve, authorize against roots, check the type, and open. One call, one decision. */
+  /** Resolves the path, checks it against the roots and its type, and opens it. */
   open(path: string, options: OpenOptions): Promise<OpenOutcome>;
   /** Present when the backend can list. Absence disables suggestions and directory listings. */
   list?(path: string, options: ListOptions): Promise<ListOutcome>;
@@ -48,7 +48,7 @@ export interface OpenFileInfo {
   /**
    * Change token for the object that was opened. Any change to the bytes
    * changes it. May be weak (size and mtime). Present on every
-   * WritableFileSystem. Optional so read-only adapters keep compiling.
+   * WritableFileSystem.
    */
   readonly version?: string | null;
 }
@@ -127,7 +127,7 @@ export interface DirectoryEntry {
   readonly type: "file" | "directory" | "other";
 }
 
-/** POSIX only in this release. */
+/** POSIX path operations. */
 export interface PathOps {
   dirname(path: string): string;
   basename(path: string): string;

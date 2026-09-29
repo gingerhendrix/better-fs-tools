@@ -17,11 +17,7 @@ import type { WritableFileSystem, WriteCapabilities } from "./writable.ts";
 
 const ENCODER = new TextEncoder();
 
-/**
- * The memory filesystem has no allowed roots: every absolute path is inside.
- * It takes `id`, `denyRoots`, `identity`, and `maxBufferedBytes` from the
- * shared options.
- */
+/** Options for `memoryFileSystem`. It has no allowed roots: every absolute path is inside. */
 export interface MemoryFileSystemOptions
   extends Pick<FileSystemRootOptions, "id" | "denyRoots" | "identity">, BufferedFileSystemOptions {
   /** Seed contents keyed by absolute POSIX path. */
@@ -31,7 +27,7 @@ export interface MemoryFileSystemOptions
   readonly chunkBytes?: number;
   /** Default true. */
   readonly streaming?: boolean;
-  /** Default "required". Deny roots are refused as dangerous-path. */
+  /** Default "required". */
   readonly identity?: IdentityMode;
   /** Default true. false removes list(). */
   readonly list?: boolean;
@@ -50,11 +46,11 @@ export interface MemoryFileSystemOptions
   readonly faults?: MemoryFaults;
 }
 
-/** The test helpers are named setFile and deleteFile so write() and remove() can be the contract methods. */
+/** An in-memory WritableFileSystem with helpers for tests. */
 export interface MemoryFileSystem extends WritableFileSystem {
-  /** Test helper. Sets the bytes and bumps the version. Creates parents. Keeps the mode of an existing file, else 0o644. */
+  /** Sets the file's bytes and gives it a new version. Creates parents. Keeps the mode of an existing file, else 0o644. */
   setFile(path: string, contents: string | Uint8Array, options?: { readonly mode?: number }): void;
-  /** Test helper. Removes the file and bumps the generation. */
+  /** Removes the file. */
   deleteFile(path: string): void;
   makeDirectory(path: string): void;
   setMimeType(path: string, value: string | null): void;
@@ -88,7 +84,6 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
   ]);
   let generation = 0;
 
-  // The version is the identity string, also without the identity capability.
   const versionOf = (absolute: string, entry: MemoryEntry): string =>
     `memory:${absolute}:${entry.generation}`;
 
@@ -127,8 +122,10 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
 
   const fail = (error: FileSystemError): OpenOutcome => ({ ok: false, error });
 
-  /** The access decision open, stat, and every mutation share: abort, deny roots, type. */
-  const gate = (absolute: string, signal: AbortSignal | undefined): FileSystemError | null => {
+  const checkAccess = (
+    absolute: string,
+    signal: AbortSignal | undefined,
+  ): FileSystemError | null => {
     if (signal?.aborted) return { reason: "aborted" };
     const denied = denyRoots.find((root) => containsPosix(root, absolute));
     if (denied !== undefined) return { reason: "dangerous-path", detail: denied };
@@ -144,7 +141,7 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
 
   const open = async (path: string, callOptions: OpenOptions = {}): Promise<OpenOutcome> => {
     const absolute = resolvePosix("/", path);
-    const refused = gate(absolute, callOptions.signal);
+    const refused = checkAccess(absolute, callOptions.signal);
     if (refused !== null) return fail(refused);
     const entry = files.get(absolute);
     if (entry === undefined) return fail({ reason: "not-found" });
@@ -195,7 +192,7 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
     directories,
     identity: identityCapability,
     maxBufferedBytes,
-    gate,
+    checkAccess,
     versionOf,
     put,
     drop(absolute) {

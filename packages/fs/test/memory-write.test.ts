@@ -311,7 +311,6 @@ describe("memoryFileSystem write", () => {
     });
     expect(errorOf(outcome)).toEqual({ reason: "no-space", detail: "disk full" });
     expect(calls).toEqual(["write /a.txt"]);
-    // A failed precondition never reaches the fault hook.
     await fs.write("/a.txt", bytes("two"), { precondition: ABSENT, createParents: false });
     expect(calls).toEqual(["write /a.txt"]);
     expect(textOf(fs, "/a.txt")).toBe("one");

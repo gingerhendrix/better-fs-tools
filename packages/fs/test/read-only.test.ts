@@ -33,7 +33,6 @@ describe("readOnlyFileSystem", () => {
   });
 
   test("keeps the root settings of an adapter, in the type too", async () => {
-    // The shape every adapter exposes: a writable filesystem with its root settings.
     const backing = {
       ...memoryFileSystem({ files: { "/w/a.txt": "one\n" } }),
       cwd: "/w",

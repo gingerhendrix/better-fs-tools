@@ -129,7 +129,7 @@ export interface OtherMutationError {
   readonly cause?: BackendCause;
 }
 
-/** Read errors stay FileSystemError. Only mutation methods return the four new reasons. */
+/** An error from a mutation method. Read errors are FileSystemError. */
 export type MutationError = NotAFileError | TooLargeError | OtherMutationError;
 
 /** True when `fs` has writeCapabilities, stat, and write. */

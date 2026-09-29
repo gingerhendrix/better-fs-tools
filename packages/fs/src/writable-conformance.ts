@@ -22,8 +22,7 @@ const ANY: Precondition = { kind: "any" };
 const ABSENT: Precondition = { kind: "absent" };
 
 /**
- * The write contract. Runs the read suite's shape check first. An adapter
- * that passes keeps the promises the write core relies on: stat agrees with
+ * Checks that a writable adapter keeps the write contract: stat agrees with
  * open, every precondition is enforced, parents are created and reported,
  * refusals are typed, and a staged write stays invisible until publish.
  */
@@ -187,7 +186,6 @@ export async function runWritableFileSystemConformance(
     const outcome = await write(modeTarget, "x\n", ABSENT, { mode: 0o600 });
     if (!outcome.ok) return `write failed with ${outcome.error.reason}`;
     const mode = (await existing(modeTarget)).mode;
-    // A backend without modes reports null and passes.
     return mode === null || mode === 0o600 ? null : `mode was ${mode.toString(8)}`;
   });
 

@@ -1,10 +1,9 @@
 import type { FileSystem } from "./contract.ts";
 
 /**
- * What `readOnlyFileSystem(fs)` keeps from `fs`: every member that is not a
- * function, except `writeCapabilities`, and `open` and `list`. So the root
- * settings (`cwd`, `allowedRoots`, `denyRoots`, `symlinks`, `identity`,
- * `maxBufferedBytes`) of an adapter stay on the view.
+ * The result of `readOnlyFileSystem(fs)`: `open`, `list`, and every
+ * non-function member of `fs` except `writeCapabilities`, so an adapter's
+ * root settings stay visible.
  */
 export type ReadOnlyFileSystem<T extends FileSystem = FileSystem> = FileSystem & {
   readonly [
@@ -17,11 +16,9 @@ export type ReadOnlyFileSystem<T extends FileSystem = FileSystem> = FileSystem &
 };
 
 /**
- * A view of `fs` with only the read members: every value member but
- * `writeCapabilities`, `open`, and `list` when `fs` has it. The write methods
- * are dropped, not refused, so the result is not a `WritableFileSystem`: a
- * write tool refuses it when it is built, and a read tool works as before.
- * Policy stays in `fs`.
+ * A view of `fs` without its write methods. The result is not a
+ * `WritableFileSystem`, so a write tool refuses it when it is built, and a
+ * read tool works as before.
  */
 export function readOnlyFileSystem<T extends FileSystem>(fs: T): ReadOnlyFileSystem<T> {
   if (fs === null || typeof fs !== "object" || typeof fs.open !== "function") {

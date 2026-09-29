@@ -1,10 +1,4 @@
 /**
- * Options that every filesystem adapter takes for the same ideas, with the
- * same names and the same meaning. An adapter extends these and narrows a
- * union where its backend cannot do the rest.
- */
-
-/**
  * How an adapter treats a symbolic link on a requested path.
  *
  * - `"reject"`: a link in any component of the path, parent or leaf, is
@@ -40,7 +34,7 @@ export interface FileSystemRootOptions<
   readonly allowedRoots: readonly string[];
   /**
    * Refused even inside an allowed root, with reason `dangerous-path` and the
-   * deny root as the detail. The same reason in every adapter.
+   * deny root as the detail.
    */
   readonly denyRoots?: readonly string[];
   readonly symlinks?: TSymlinks;
