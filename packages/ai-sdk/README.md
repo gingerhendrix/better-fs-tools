@@ -118,6 +118,16 @@ export async function run(model: LanguageModel, prompt: string): Promise<string>
 }
 ```
 
+## End-to-end tests
+
+`packages/ai-sdk/test/e2e/openai.e2e.ts` calls OpenAI for real with the strict `read`, `write`, `apply_patch`, and `bash` tools, over a memory filesystem and a just-bash shell. Each test forces one tool call and checks that the provider took the schema, the input parsed, and the result is right. `bun test` and `bun run check` do not run them. From the repository root:
+
+```sh
+OPENAI_API_KEY=sk-... bun run test:e2e
+```
+
+`BFT_E2E_OPENAI_MODEL` picks the model (default `gpt-5.4-mini`). Without `OPENAI_API_KEY` the run fails and names the variable.
+
 ## Links
 
 - `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the defaults of every host and bundle, and what each backend can do
