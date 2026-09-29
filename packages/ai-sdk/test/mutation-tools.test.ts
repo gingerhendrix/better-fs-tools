@@ -80,7 +80,7 @@ describe("ai sdk mutation tools: schema", () => {
       expect(tool.name).toBe(signature.name);
       expect(tool.description).toBe(signature.description);
       expect(await tool.inputSchema.jsonSchema).toEqual(
-        toStrictSchema(signature.schema) as JSONSchema7,
+        toStrictSchema(signature.schema, signature.name) as JSONSchema7,
       );
       expect(Object.isFrozen(tool)).toBe(true);
     }
@@ -96,7 +96,7 @@ describe("ai sdk mutation tools: schema", () => {
     const signature = freeformPatchSignature();
     const tool = createAiSdkApplyPatchTool({ fs: memoryFileSystem(), signature });
     expect(await tool.inputSchema.jsonSchema).toEqual(
-      toStrictSchema(signature.schema) as JSONSchema7,
+      toStrictSchema(signature.schema, signature.name) as JSONSchema7,
     );
     expect(Object.keys(tool).sort()).toEqual([
       "description",

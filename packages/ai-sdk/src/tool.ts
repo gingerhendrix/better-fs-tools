@@ -30,7 +30,7 @@ export interface AiSdkReadTool<C = unknown> {
   readonly name: string;
   readonly description: string;
   readonly strict: true;
-  /** jsonSchema(toStrictSchema(signature.schema), { validate }). validate maps null to absent first. validate runs toInput and parseReadInput. */
+  /** jsonSchema(toStrictSchema(signature.schema, signature.name), { validate }). validate maps null to absent first. validate runs toInput and parseReadInput. */
   readonly inputSchema: Schema<JsonObject>;
   /** read(signature.toInput(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ReadResult>;
@@ -62,7 +62,7 @@ export function adaptReadTool<C>(
   limitOverrides: Partial<ReadLimits> | undefined,
 ): AiSdkReadTool<C> {
   const limits = resolveReadLimits(limitOverrides);
-  const strict = toStrictSchema(signature.schema);
+  const strict = toStrictSchema(signature.schema, signature.name);
 
   return Object.freeze<AiSdkReadTool<C>>({
     name: signature.name,

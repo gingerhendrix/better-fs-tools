@@ -21,7 +21,7 @@ export interface AiSdkBashTool<C = unknown> {
   readonly name: string;
   readonly description: string;
   readonly strict: true;
-  /** jsonSchema(toStrictSchema(signature.schema), { validate }). validate maps null to absent first. validate runs toInput and the core parse. */
+  /** jsonSchema(toStrictSchema(signature.schema, signature.name), { validate }). validate maps null to absent first. validate runs toInput and the core parse. */
   readonly inputSchema: Schema<JsonObject>;
   /** bash(signature.toInput(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ShellResult>;
@@ -72,7 +72,7 @@ export function adaptBashTool<C>(
   limitOverrides: Partial<ShellLimits> | undefined,
 ): AiSdkBashTool<C> {
   const limits = resolveShellLimits(limitOverrides);
-  const strict = toStrictSchema(signature.schema);
+  const strict = toStrictSchema(signature.schema, signature.name);
 
   return Object.freeze<AiSdkBashTool<C>>({
     name: signature.name,

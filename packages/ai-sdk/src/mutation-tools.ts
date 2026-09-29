@@ -63,7 +63,7 @@ export interface AiSdkMutationTool<C = unknown> {
   readonly name: string;
   readonly description: string;
   readonly strict: true;
-  /** jsonSchema(toStrictSchema(signature.schema), { validate }). validate maps null to absent first. validate runs toInput and the core parse. */
+  /** jsonSchema(toStrictSchema(signature.schema, signature.name), { validate }). validate maps null to absent first. validate runs toInput and the core parse. */
   readonly inputSchema: Schema<JsonObject>;
   /** tool(signature.toInput(fromStrictInput(signature.schema, input)), { signal: abortSignal, callId: toolCallId, host: options }). */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<MutationResult>;
@@ -141,7 +141,7 @@ export function adaptMutationTool<TInput, C>(
   limitOverrides: Partial<WriteLimits> | undefined,
 ): AiSdkMutationTool<C> {
   const limits = resolveWriteLimits(limitOverrides);
-  const strict = toStrictSchema(signature.schema);
+  const strict = toStrictSchema(signature.schema, signature.name);
 
   return Object.freeze<AiSdkMutationTool<C>>({
     name: signature.name,

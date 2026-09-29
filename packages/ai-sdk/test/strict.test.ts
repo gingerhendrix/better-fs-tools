@@ -5,7 +5,7 @@ import type { JSONSchema7 } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import type { ReadResult } from "@better-fs-tools/read";
+import type { JsonObject, ReadResult } from "@better-fs-tools/read";
 import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
 import { shellEnv } from "@better-fs-tools/shell";
 import type { CommandRunner, RunExit } from "@better-fs-tools/shell";
@@ -139,7 +139,7 @@ describe("strict provider schema", () => {
   });
 
   test("an optional property becomes required and nullable; a required one does not", () => {
-    const schema = toStrictSchema(defaultReadSignature().schema) as JSONSchema7;
+    const schema = toStrictSchema(defaultReadSignature().schema, "read") as JSONSchema7;
     const properties = schema.properties as Record<string, JSONSchema7>;
     expect(schema.required).toEqual(["path", "offset", "limit"]);
     expect(properties.path?.type).toBe("string");
@@ -149,14 +149,154 @@ describe("strict provider schema", () => {
   });
 
   test("a property with no type is wrapped in anyOf with null, keeping its description", () => {
-    const schema = toStrictSchema({
-      type: "object",
-      properties: { mode: { enum: ["a", "b"], description: "The mode." } },
-      required: [],
-    });
+    const schema = toStrictSchema(
+      {
+        type: "object",
+        properties: { mode: { enum: ["a", "b"], description: "The mode." } },
+        required: [],
+      },
+      "t",
+    );
     expect(schema.properties).toEqual({
       mode: { description: "The mode.", anyOf: [{ enum: ["a", "b"] }, { type: "null" }] },
     });
+  });
+
+  test("an optional enum or const takes null too, so the model can say absent", () => {
+    const fs = memoryFileSystem({ files: { "/a.txt": "one\n" } });
+    const base = defaultReadSignature();
+    const signature = {
+      ...base,
+      schema: {
+        type: "object",
+        properties: {
+          path: { type: "string" },
+          mode: { type: "string", enum: ["text", "raw"] },
+          kind: { type: "string", const: "file" },
+        },
+        required: ["path"],
+      },
+    };
+    const read = createAiSdkReadTool({ fs, signature });
+    const properties = (read.inputSchema.jsonSchema as JSONSchema7).properties as Record<
+      string,
+      JSONSchema7
+    >;
+    expect(properties.mode).toEqual({ type: ["string", "null"], enum: ["text", "raw", null] });
+    expect(properties.kind).toEqual({ type: ["string", "null"], enum: ["file", null] });
+    expect(fromStrictInput(signature.schema, { path: "/a.txt", mode: null, kind: null })).toEqual({
+      path: "/a.txt",
+    });
+    // The custom signature's own schema is not changed or frozen.
+    expect(Object.isFrozen(signature.schema.properties.mode)).toBe(false);
+  });
+
+  test("objects inside anyOf, oneOf, allOf, and $defs are made strict", () => {
+    const edit: JsonObject = {
+      type: "object",
+      properties: { old: { type: "string" }, note: { type: "string" } },
+      required: ["old"],
+    };
+    const schema: JsonObject = {
+      type: "object",
+      $defs: { edit },
+      properties: {
+        choice: { anyOf: [edit, { type: "string" }] },
+        one: { oneOf: [{ $ref: "#/$defs/edit" }, { type: "integer" }] },
+        both: { allOf: [edit, { description: "An edit." }] },
+        list: { type: "array", items: { $ref: "#/$defs/edit" } },
+      },
+      required: ["choice", "one", "both", "list"],
+    };
+    const strict = toStrictSchema(schema, "custom");
+    expect(strictBreaches(strict)).toEqual([]);
+    const closed: JsonObject = {
+      type: "object",
+      properties: { old: { type: "string" }, note: { type: ["string", "null"] } },
+      required: ["old", "note"],
+      additionalProperties: false,
+    };
+    expect((strict.$defs as Record<string, unknown>).edit).toEqual(closed);
+    const properties = strict.properties as Record<string, JsonObject & JSONSchema7>;
+    expect(properties.choice?.anyOf?.[0]).toEqual(closed);
+    expect(properties.both?.allOf?.[0]).toEqual(closed);
+    expect(properties.one?.oneOf?.[0]).toEqual({ $ref: "#/$defs/edit" });
+
+    const model = {
+      choice: { old: "a", note: null },
+      one: { old: "b", note: null },
+      both: { old: "c", note: null },
+      list: [
+        { old: "d", note: null },
+        { old: "e", note: "kept" },
+      ],
+    };
+    expect(fromStrictInput(schema, model)).toEqual({
+      choice: { old: "a" },
+      one: { old: "b" },
+      both: { old: "c" },
+      list: [{ old: "d" }, { old: "e", note: "kept" }],
+    });
+    expect(fromStrictInput(schema, { ...model, choice: "text", one: 3 })).toMatchObject({
+      choice: "text",
+      one: 3,
+    });
+  });
+
+  test("an optional $ref or anyOf is wrapped in anyOf with null", () => {
+    const strict = toStrictSchema(
+      {
+        type: "object",
+        $defs: { mode: { type: "string" } },
+        properties: {
+          mode: { $ref: "#/$defs/mode" },
+          either: { anyOf: [{ type: "string" }, { type: "integer" }] },
+        },
+      },
+      "t",
+    );
+    expect(strict.properties).toEqual({
+      mode: { anyOf: [{ $ref: "#/$defs/mode" }, { type: "null" }] },
+      either: { anyOf: [{ anyOf: [{ type: "string" }, { type: "integer" }] }, { type: "null" }] },
+    });
+  });
+
+  test("a form strict mode cannot express throws a TypeError with the tool and path", () => {
+    const cases: [unknown, string][] = [
+      [{ type: "object", properties: { a: { not: { type: "string" } } } }, "#/properties/a/not"],
+      [{ type: "object", properties: {}, additionalProperties: true }, "#/additionalProperties"],
+      [{ type: "object", properties: { a: { type: "object" } } }, "#/properties/a"],
+      [
+        { type: "object", properties: { a: { type: "array", items: [{ type: "string" }] } } },
+        "#/properties/a/items",
+      ],
+      [
+        { type: "object", properties: { a: { patternProperties: { x: {} } } } },
+        "#/properties/a/patternProperties",
+      ],
+      [{ type: "object", properties: { a: { $ref: "other.json#/x" } } }, "#/properties/a/$ref"],
+      [{ type: "object", properties: { a: { $ref: "#/$defs/missing" } } }, "#/properties/a/$ref"],
+      [
+        {
+          type: "object",
+          properties: { a: { allOf: [{ properties: { x: {} } }, { properties: { y: {} } }] } },
+        },
+        "#/properties/a/allOf",
+      ],
+    ];
+    for (const [schema, at] of cases) {
+      expect(() => toStrictSchema(schema as never, "custom_tool")).toThrow(TypeError);
+      expect(() => toStrictSchema(schema as never, "custom_tool")).toThrow(
+        new RegExp(`^custom_tool: strict mode cannot express .* at ${at.replaceAll("$", "\\$")}$`),
+      );
+    }
+    const signature = {
+      ...defaultReadSignature(),
+      schema: { type: "object", properties: { path: { type: "string" } }, patternProperties: {} },
+    };
+    expect(() => createAiSdkReadTool({ fs: memoryFileSystem(), signature })).toThrow(
+      "read: strict mode cannot express",
+    );
   });
 
   test("fromStrictInput drops only the null of an optional property", () => {

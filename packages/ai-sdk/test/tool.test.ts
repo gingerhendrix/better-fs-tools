@@ -37,7 +37,9 @@ describe("ai sdk input schema", () => {
     expect(read.strict).toBe(true);
     expect(read.name).toBe("read");
     expect(read.description).toBe(signature.description);
-    expect(await schemaOf(read)).toEqual(toStrictSchema(signature.schema) as JSONSchema7);
+    expect(await schemaOf(read)).toEqual(
+      toStrictSchema(signature.schema, signature.name) as JSONSchema7,
+    );
     expect(read.description).toMatch(/one-based/u);
     expect(read.description).toMatch(/continuation/u);
   });
