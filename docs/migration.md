@@ -52,7 +52,7 @@ The `feature-api-fixes` branch changed the public API of every package after `ma
 
 - `createNodeFsTools()` has no bash unless you pass `bash: true` or bash options. `bash` is `null` otherwise.
 - New files are `0o666` and new directories `0o777`, less the process umask. `newFileMode` and `newDirectoryMode` set them exactly.
-- `invalidate(path)` returns an `InvalidateOutcome`. The bundle also returns `digest` and `clock`, and takes `clock`, `newFileMode`, and `newDirectoryMode`. A `clock` inside a tool's options throws.
+- `invalidate(path, call?)` returns an `InvalidateOutcome`. Every bundle has this signature. Node ignores `call`. The bundle also returns `digest` and `clock`, and takes `clock`, `newFileMode`, and `newDirectoryMode`. A `clock` inside a tool's options throws.
 - `nodeCommandRunner({ cwd })` resolves a relative `cwd` against `process.cwd()`.
 - Unknown option keys throw `TypeError`.
 
@@ -66,7 +66,7 @@ The `feature-api-fixes` branch changed the public API of every package after `ma
 ## `@better-fs-tools/pi`
 
 - `CreatePiBashToolOptions` has no `cwd`.
-- `createPiFsTools()` returns `state`, `digest`, `locks`, `clock`, and `invalidate(path, call)`, and takes `locks`, `clock`, `newFileMode`, and `newDirectoryMode`. Unknown option keys throw `TypeError`.
+- `createPiFsTools()` returns `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, and takes `locks`, `clock`, `newFileMode`, and `newDirectoryMode`. Unknown option keys throw `TypeError`.
 
 ## Backends
 

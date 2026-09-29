@@ -169,6 +169,15 @@ describe("createPiFsTools", () => {
     expect(createPiFsTools({ state: null }).state).toBeNull();
   });
 
+  test("invalidate without the call reports unsupported: there is no ctx.cwd", async () => {
+    const tools = createPiFsTools();
+    expect(await tools.invalidate("a.txt")).toMatchObject({
+      ok: false,
+      phase: "stat",
+      error: { reason: "unsupported" },
+    });
+  });
+
   test("a bash afterRun hook can invalidate a read record with ctx.call (CF-16)", async () => {
     const cwd = await fixture({ "a.txt": "one\n" });
     const tools = createPiFsTools();

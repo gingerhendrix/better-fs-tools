@@ -2,7 +2,14 @@ import path from "node:path";
 
 import type { SymlinkPolicy } from "@better-fs-tools/fs";
 
-import type { Clock, Digest, ReadStateStore, ReadTool, ReadToolDeps } from "@better-fs-tools/read";
+import type {
+  Clock,
+  Digest,
+  ReadStateStore,
+  ReadTool,
+  ReadToolDeps,
+  ToolCallContext,
+} from "@better-fs-tools/read";
 import { createFsTools } from "@better-fs-tools/write";
 import type {
   ApplyPatchTool,
@@ -107,8 +114,12 @@ export interface NodeFsTools<THost = undefined> {
   readonly digest: Digest;
   readonly locks: LockManager;
   readonly clock: Clock;
-  /** Deletes the record for a path. With state null it still stats, and reports recorded: false. */
-  invalidate(path: string): Promise<InvalidateOutcome>;
+  /**
+   * Deletes the record for a path. With state null it still stats, and
+   * reports recorded: false. `call` is ignored: the Node filesystem is fixed.
+   * It is there so every bundle takes (path, call?).
+   */
+  invalidate(path: string, call?: ToolCallContext<THost>): Promise<InvalidateOutcome>;
 }
 
 /** The result when options.bash is true or an object: bash is there. */

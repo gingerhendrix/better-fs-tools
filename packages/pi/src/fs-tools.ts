@@ -63,9 +63,11 @@ export interface PiFsTools {
   /**
    * Deletes the record for a path under the call's ctx.cwd, so the next edit
    * needs a read. Pass the call: in a bash afterRun hook it is ctx.call.
+   * Without it there is no ctx.cwd, so the outcome is { ok: false } with
+   * reason "unsupported", as in the portable bundle over an fs factory.
    * Never throws. With state null it still stats, and reports recorded: false.
    */
-  invalidate(path: string, call: ToolCallContext<ExtensionContext>): Promise<InvalidateOutcome>;
+  invalidate(path: string, call?: ToolCallContext<ExtensionContext>): Promise<InvalidateOutcome>;
 }
 
 /**

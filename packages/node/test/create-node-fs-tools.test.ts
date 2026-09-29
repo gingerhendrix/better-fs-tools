@@ -51,6 +51,13 @@ describe("createNodeFsTools on disk", () => {
       recorded: true,
     });
 
+    // The same (path, call?) shape as every bundle. Node ignores the call.
+    await tools.read({ path: "app.ts" });
+    expect(await tools.invalidate("app.ts", { callId: "c1", host: undefined })).toMatchObject({
+      ok: true,
+      recorded: true,
+    });
+
     const result = await tools.edit(edit("x", "y"));
     expect(errorOf(result)?.code).toBe("NOT_READ");
     expect(textOf(result)).toBe(
