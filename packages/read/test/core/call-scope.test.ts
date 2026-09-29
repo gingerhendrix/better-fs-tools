@@ -14,8 +14,7 @@ interface Host {
 
 const SENTINEL = "host-sentinel-7f3a";
 
-/** True when `needle` appears anywhere inside `value`, by identity or as a string. */
-function contains(
+function deepContains(
   value: unknown,
   needle: object,
   text: string,
@@ -25,7 +24,7 @@ function contains(
   if (typeof value === "string") return value.includes(text);
   if (value === null || typeof value !== "object" || seen.has(value)) return false;
   seen.add(value);
-  return Object.values(value).some((entry) => contains(entry, needle, text, seen));
+  return Object.values(value).some((entry) => deepContains(entry, needle, text, seen));
 }
 
 describe("fs(call)", () => {
@@ -131,7 +130,7 @@ describe("host", () => {
       "error",
     ]);
     for (const result of results) {
-      expect(contains(result, host, SENTINEL)).toBe(false);
+      expect(deepContains(result, host, SENTINEL)).toBe(false);
       expect(JSON.stringify(result)).not.toContain(SENTINEL);
     }
   });

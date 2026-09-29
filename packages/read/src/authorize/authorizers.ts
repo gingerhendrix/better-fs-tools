@@ -3,12 +3,9 @@ import type { ReadNote } from "../contract/result.ts";
 import { stepFailure } from "../core/extension-error.ts";
 
 /**
- * Left to right. First deny wins, with that step's note. Allow notes from
- * every step are kept, in order. No steps allows. A step that throws is named
- * by its id in EXTENSION_FAILED.
- *
- * THost comes from where the chain is used, not from the steps, so a step
- * such as askUser(...) gets the tool's host type with no type argument.
+ * Runs authorizers left to right. The first deny wins, with that step's note.
+ * Allow notes from every step are kept in order. An empty chain allows. A step
+ * that throws fails the read with EXTENSION_FAILED, naming the step's id.
  */
 export function readAuthorizers<THost = unknown>(
   ...steps: readonly ReadAuthorizer<NoInfer<THost>>[]

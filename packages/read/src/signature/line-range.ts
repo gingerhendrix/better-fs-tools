@@ -16,9 +16,8 @@ import {
 const PARAMS: readonly LineRangeParam[] = ["path", "start", "end"];
 
 /**
- * read({ path, start?, end? }). Inclusive start and end. toInput: limit = end -
- * start + 1. fromInput: end = offset + limit - 1. param("limit") is "": no
- * parameter holds a line count.
+ * A read({ path, start?, end? }) signature with one-based, inclusive start and
+ * end lines. param("limit") is "", because no parameter holds a line count.
  */
 export function lineRangeSignature(options: SignatureDocs<LineRangeParam> = {}): ReadSignature {
   if (options === null || typeof options !== "object") {

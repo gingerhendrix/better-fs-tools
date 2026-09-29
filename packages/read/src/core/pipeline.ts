@@ -30,7 +30,6 @@ import { missOutcome } from "./suggest.ts";
 import { textOutcome } from "./text-outcome.ts";
 import { checkSize, verifyHandle } from "./verify.ts";
 
-/** One read, start to end. This file holds the stage order only. */
 export async function runRead<THost>(
   deps: ReadDependencies<THost>,
   input: unknown,
@@ -52,10 +51,7 @@ async function readOutcome<THost>(
   }
 
   const scope = new CallScope(deps, request, call);
-  const clampNote = limitNote(deps, input, request);
-  // A resolver note travels with every outcome after the resolve stage, and
-  // stays last before the hooks. Allow notes from the authorizer come just
-  // before it, and a clamped note from the input before them.
+  const clampNote = clampedLimitNote(deps, input, request);
   let resolveNote: ReadNote | null = null;
   const finish = (outcome: ReadReport): ReadReport =>
     withNotes(outcome, [
@@ -69,21 +65,19 @@ async function readOutcome<THost>(
       resolveNote = note;
     });
   } catch (error) {
-    outcome = stopped(deps, request, scope, error);
+    outcome = outcomeFromError(deps, request, scope, error);
   }
   outcome = finish(outcome);
-  // The caller gave up: no host code runs after an abort.
-  if (outcome.status === "error" && outcome.error.code === "ABORTED") return outcome;
+  if (isAborted(outcome)) return outcome;
   try {
     const hooked = await runHooks(scope, outcome);
     await recordOutcome(scope, hooked);
     return hooked;
   } catch (error) {
-    return finish(stopped(deps, request, scope, error));
+    return finish(outcomeFromError(deps, request, scope, error));
   }
 }
 
-/** Resolve, open, then read the file or the directory. Throws ReadStop to end early. */
 async function readStages<THost>(
   deps: ReadDependencies<THost>,
   request: ReadRequest,
@@ -108,7 +102,7 @@ async function readStages<THost>(
     return convertDirectory({
       fs,
       request,
-      path: resolved.path,
+      openedPath: resolved.path,
       error,
       resolvedFrom: resolved.resolvedFrom,
       converter,
@@ -121,13 +115,11 @@ async function readStages<THost>(
     await authorizeRead(deps.authorize, request, file, scope);
     return await readOpenFile(deps, fs, request, file, handle, scope);
   } finally {
-    // Cleanup is unconditional: EOF, scan limit, abort, denial, refusal, or adapter defect.
     await handle.close().catch(() => {});
   }
 }
 
-/** The outcome for a stage that threw. */
-function stopped<THost>(
+function outcomeFromError<THost>(
   deps: ReadDependencies<THost>,
   request: ReadRequest,
   scope: CallScope<THost>,
@@ -138,8 +130,7 @@ function stopped<THost>(
   return ioError(deps.messages, request, scope.phase, error);
 }
 
-/** The clamped info note when parse cut the requested limit to maxLines, else null. */
-function limitNote<THost>(
+function clampedLimitNote<THost>(
   deps: ReadDependencies<THost>,
   input: unknown,
   request: ReadRequest,
@@ -153,6 +144,10 @@ function limitNote<THost>(
     message: deps.messages.limitClamped({ requested, max }),
     data: { param: "limit", requested, max },
   };
+}
+
+function isAborted(outcome: ReadReport): boolean {
+  return outcome.status === "error" && outcome.error.code === "ABORTED";
 }
 
 function withNotes(outcome: ReadReport, notes: readonly ReadNote[]): ReadReport {

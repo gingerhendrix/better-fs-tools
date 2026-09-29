@@ -5,11 +5,6 @@ import type { ReadInput } from "../contract/input.ts";
 
 export const ALLOW: ReadAuthorizeDecision = Object.freeze({ allow: true });
 
-/**
- * A denial with the catalog's `denied` text, so host wording applies. Takes
- * the tool-neutral context, so every tool's authorizer can use it. The result
- * fits both ReadAuthorizeDecision and AccessDecision.
- */
 export function deny(
   ctx: ToolHookContext<unknown>,
   target: AccessTarget,

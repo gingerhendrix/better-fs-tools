@@ -9,9 +9,8 @@ import type { ReadNote } from "../contract/result.ts";
 import { startsWith, unsupported } from "./shared.ts";
 
 /**
- * Decodes the sample as UTF-8. This is the only built-in that returns text. It
- * also owns the UNKNOWN_ENCODING refusal for invalid bytes that the scan finds
- * after the sample looked clean.
+ * Accepts UTF-8 text and refuses invalid UTF-8 with UNKNOWN_ENCODING, also when
+ * the invalid bytes come after the sample. The only built-in that returns text.
  */
 export function utf8Classifier(options: { note?: NoteOverride } = {}): Classifier {
   const refuse = (sample: ClassificationSample): UnsupportedClassification =>

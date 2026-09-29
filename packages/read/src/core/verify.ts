@@ -6,7 +6,6 @@ import type { FileInfo } from "../contract/result.ts";
 import type { CallScope } from "./call-scope.ts";
 import { ReadStop, changedDuringRead, fromFileSystemError } from "./outcomes.ts";
 
-/** At EOF the byte count must match the size open() reported. */
 export function checkSize(
   messages: Readonly<ReadMessageCatalog>,
   request: ReadRequest,
@@ -18,7 +17,6 @@ export function checkSize(
   }
 }
 
-/** Change detection after the scan: the object behind the handle must be the one that was opened. */
 export async function verifyHandle<THost>(
   handle: OpenFile,
   messages: Readonly<ReadMessageCatalog>,

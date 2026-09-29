@@ -20,18 +20,11 @@ export interface ReadHookContext<THost = undefined> extends ToolHookContext<THos
   readonly call: ReadContext<THost>;
 }
 
-/* Resolve */
-
-/**
- * What the core passes to a resolver. It fits ToolResolveContext, the type
- * resolvers take, so a resolver works for every tool.
- */
+/** Given to a resolver. It fits ToolResolveContext, so one resolver works for every tool. */
 export interface ReadResolveContext<THost = undefined>
   extends ReadHookContext<THost>, Pick<ToolResolveContext<THost>, "paths" | "list"> {}
 
 export type { PathResolver, ResolveOutcome } from "./base.ts";
-
-/* Suggest */
 
 export type Suggest<THost = undefined> = (ctx: SuggestContext<THost>) => readonly string[];
 
@@ -41,16 +34,14 @@ export interface SuggestContext<THost = undefined> {
   readonly name: string;
   readonly entries: readonly DirectoryEntry[];
   readonly entriesTruncated: boolean;
-  /** limits.maxSuggestions. The core also cuts the result to this. */
+  /** limits.maxSuggestions. Names past it are dropped. */
   readonly max: number;
   readonly call: ReadContext<THost>;
 }
 
-/* Authorize */
-
 export interface ReadAuthorizer<THost = undefined> {
   readonly id: string;
-  /** A function property, so a read authorizer does not fit a write or shell tool. */
+  // A function property, not a method, so a read authorizer does not fit a write or shell tool.
   readonly authorize: (
     target: ReadAuthorizeTarget,
     ctx: ReadHookContext<THost>,
@@ -70,8 +61,6 @@ export type ReadAuthorizeDecision =
   | { readonly allow: true; readonly notes?: readonly ReadNote[] }
   | { readonly allow: false; readonly note?: ReadNote };
 
-/* Converters */
-
 export type Converter<THost = undefined> = FileConverter<THost> | DirectoryConverter<THost>;
 
 export interface ConverterMatch {
@@ -83,7 +72,7 @@ export interface ConverterMatch {
 export interface FileConverter<THost = undefined> {
   readonly id: string;
   readonly target: "file";
-  /** Sync. The only place a converter may decline. */
+  /** Whether this converter handles the match. The only place a converter may decline. */
   accepts(match: ConverterMatch): boolean;
   convert(input: FileConvertInput, ctx: ReadHookContext<THost>): Promise<ConvertOutcome>;
 }
@@ -92,7 +81,7 @@ export interface FileConvertInput {
   readonly info: Readonly<OpenFileInfo>;
   readonly classification: Classification;
   readonly sample: ClassificationSample;
-  /** Whole source from byte 0. Counted, hashed, capped at limits.maxConvertBytes. Single use. */
+  /** The whole file from byte 0, capped at limits.maxConvertBytes. Call it once. */
   bytes(): AsyncIterable<Uint8Array>;
 }
 
@@ -106,7 +95,7 @@ export interface DirectoryConvertInput {
   /** Lexical path that open() reported as a directory. */
   readonly path: string;
   readonly target: { readonly resolvedPath: string; readonly displayPath: string } | null;
-  /** authorize(list) + one bounded fs.list. Single use. */
+  /** Authorizes and lists the directory, up to limits.maxDirectoryEntries. Call it once. */
   list(): Promise<ListOutcome>;
 }
 
@@ -124,8 +113,6 @@ export type ConvertOutcome =
     }
   | { readonly kind: "refuse"; readonly code: string; readonly note: ReadNote };
 
-/* Hooks */
-
 export interface ReadHook<THost = undefined> {
   readonly id: string;
   afterRead(outcome: ReadReport, ctx: AfterReadContext<THost>): ReadReport | Promise<ReadReport>;
@@ -135,8 +122,6 @@ export interface AfterReadContext<THost = undefined> extends ReadHookContext<THo
   /** The stored record from before this read. null with no state or no record. */
   readonly previous: ReadRecord | null;
 }
-
-/* Budget */
 
 export interface ViewBudget {
   readonly id: string;

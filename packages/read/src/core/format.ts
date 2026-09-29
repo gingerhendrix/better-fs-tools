@@ -5,11 +5,6 @@ import type { ContentPart, ReadReport, ReadResult } from "../contract/result.ts"
 import { lineNumberFormatter } from "../formatters/index.ts";
 import { extensionId } from "./extension-error.ts";
 
-/**
- * Runs the formatter last, in "model" mode. A string becomes one text part.
- * A formatter that throws or returns something else gives an extension-failed
- * warning, and the default formatter formats the outcome. The status stays.
- */
 export function formatResult<THost>(
   deps: ReadDependencies<THost>,
   call: ReadContext<THost>,
@@ -24,9 +19,7 @@ export function formatResult<THost>(
   let content: readonly ContentPart[] | null = null;
   try {
     content = toContent(deps.formatter.format(outcome, ctx));
-  } catch {
-    // Falls through to the default formatter.
-  }
+  } catch {}
   if (content !== null) return { ...outcome, content };
   const id = extensionId(deps.formatter);
   const failed: ReadReport = {
@@ -49,7 +42,7 @@ function toContent(output: unknown): readonly ContentPart[] | null {
   return Array.isArray(output) ? [...(output as ContentPart[])] : null;
 }
 
-/** Joins the text parts of `result.content` with "\n". Works on any tool's result. */
+/** The text parts of any tool result's `content`, joined with newlines. */
 export function textOf(result: { readonly content: readonly ContentPart[] }): string {
   return result.content
     .filter((part) => part.type === "text")

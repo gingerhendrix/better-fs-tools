@@ -11,5 +11,5 @@ export interface DigestStream {
   digest(): string;
 }
 
-/** The time now. Every tool and `memoryStore` take this one clock type. */
+/** Returns the current time. Every tool and `memoryStore` take this clock type. */
 export type Clock = () => Date;

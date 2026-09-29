@@ -3,15 +3,7 @@ import type { ListOutcome, PathOps } from "@better-fs-tools/fs";
 import type { Clock, Digest } from "./digest.ts";
 import type { JsonObject } from "./json.ts";
 
-/*
- * Tool-neutral types. The read tool and the write tools share them, so a
- * resolver or authorizer written against these works for every tool.
- */
-
-/**
- * Built by the adapter for each tool call. Every tool passes it by reference
- * to every stage and never reads `host`.
- */
+/** Per-call context. Tools pass `host` through to extensions and never read it. */
 export interface ToolCallContext<THost = undefined> {
   readonly signal?: AbortSignal;
   /** The framework's tool call id, when it has one. */
@@ -64,7 +56,7 @@ export interface ToolHookContext<THost = undefined> {
 
 export interface ToolResolveContext<THost = undefined> extends ToolHookContext<THost> {
   readonly paths: PathOps;
-  /** authorize("list") and one bounded fs.list. A second call in the same stage gets an error outcome. */
+  /** Authorizes and lists a directory. A second call in the same stage returns an error outcome. */
   list(dir: string): Promise<ListOutcome>;
 }
 
@@ -92,7 +84,7 @@ export type AccessDecision =
 /** An authorizer that works for every tool. It sees only the fields every target has. */
 export interface ToolAuthorizer<THost = undefined> {
   readonly id: string;
-  /** A function property, not a method, so TypeScript checks the target type strictly. */
+  // A function property, not a method, so TypeScript checks the target type strictly.
   readonly authorize: (
     target: AccessTarget,
     ctx: ToolHookContext<THost>,
@@ -101,16 +93,16 @@ export interface ToolAuthorizer<THost = undefined> {
 
 /**
  * The model-facing side of a tool: its name, description, JSON Schema, and the
- * map from model input to the tool's canonical input. Adapter level: the core
- * never sees it. `TParam` is the tool's canonical parameter names.
+ * map from model input to the tool's canonical input. `TParam` is the tool's
+ * canonical parameter names.
  */
 export interface ToolSignature<TInput, TParam extends string = string> {
-  /** Pi uses it as name and label. AI SDK hosts use it as the ToolSet key. */
+  /** The tool name the model sees. */
   readonly name: string;
   readonly description: string;
   /** Plain JSON Schema with a description on each parameter. */
   readonly schema: JsonObject;
-  /** Validates model input and maps it to canonical input. Pure. Throws TypeError that names host parameters. */
+  /** Validates model input and maps it to canonical input. Throws TypeError that names host parameters. */
   toInput(input: unknown): TInput;
   /**
    * Host name for a canonical parameter, for messages. An empty string means

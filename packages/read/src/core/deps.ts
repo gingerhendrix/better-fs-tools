@@ -10,7 +10,7 @@ import { isRecord } from "./input.ts";
 import { resolveReadLimits } from "./limits.ts";
 import { resolveReadMessages } from "./messages.ts";
 
-const KNOWN: ReadonlySet<string> = new Set([
+const KNOWN_DEPENDENCY_KEYS: ReadonlySet<string> = new Set([
   "fs",
   "limits",
   "messages",
@@ -27,15 +27,11 @@ const KNOWN: ReadonlySet<string> = new Set([
   "formatter",
 ]);
 
-/**
- * Validates and resolves dependencies once, synchronously. `limits` and
- * `messages` merge over their defaults key by key. Every other dependency
- * replaces its default. The core has no filesystem default: `fs` is required.
- */
 export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): ReadDependencies<THost> {
   if (!isRecord(deps)) throw new TypeError("read tool dependencies must be an object");
   for (const key of Object.keys(deps)) {
-    if (!KNOWN.has(key)) throw new TypeError(`Unknown read tool dependency: ${key}`);
+    if (!KNOWN_DEPENDENCY_KEYS.has(key))
+      throw new TypeError(`Unknown read tool dependency: ${key}`);
   }
 
   const { fs } = deps;

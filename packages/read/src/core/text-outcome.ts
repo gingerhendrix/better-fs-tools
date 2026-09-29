@@ -16,24 +16,16 @@ import type { ScanOutcome } from "./scan.ts";
 
 export interface TextOutcomeInput<THost> {
   readonly deps: ReadDependencies<THost>;
-  /** The backend, for capability notes. null for a directory: it has no observation. */
   readonly fs: FileSystem | null;
   readonly request: ReadRequest;
   readonly file: FileInfo;
   readonly classification: ClassificationInfo;
-  /** Set when a converter produced the text. */
   readonly conversion: ConversionInfo | null;
   readonly scan: Extract<ScanOutcome, { kind: "scanned" }>;
-  /** Hash of the source bytes. For converted text this is the source, not the text. */
   readonly contentId: string | null;
-  /** From the classifier or the converter. They follow the view notes. */
   readonly notes: readonly ReadNote[];
 }
 
-/**
- * Builds the ok outcome from a finished, verified scan of file text or
- * converted text. A directory (fs null) gets no observation.
- */
 export function textOutcome<THost>(input: TextOutcomeInput<THost>): ReadOk {
   const { deps, fs, request, file, classification, conversion, scan } = input;
   const { scanner, scanCapped, reachedEof, scannedBytes } = scan;

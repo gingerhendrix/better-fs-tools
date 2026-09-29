@@ -1,8 +1,4 @@
-/**
- * Type tests for the resolve, suggest, and authorize contract. `tsc -b` checks this file;
- * Bun never runs it. Deviation 1 of batch 1: a host-free helper typed with
- * unknown must fit a tool with a typed host.
- */
+// Type tests: `tsc -b` checks this file; Bun never runs it.
 import { memoryFileSystem } from "@better-fs-tools/fs";
 
 import {

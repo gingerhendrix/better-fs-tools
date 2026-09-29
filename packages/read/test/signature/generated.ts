@@ -1,8 +1,4 @@
-/**
- * Deterministic model-like inputs for signature tests. A seeded generator keeps
- * failures reproducible. Values are JSON values only: a model never sends
- * undefined, NaN, or a function.
- */
+// JSON values only: a model never sends undefined, NaN, or a function.
 const STRINGS = [
   "a.txt",
   "dir/a b.txt",
@@ -56,7 +52,6 @@ function value(random: () => number): unknown {
   return pick(random, OTHERS);
 }
 
-/** `count` inputs over the given keys, with extra keys and non-objects mixed in. */
 export function generatedInputs(keys: readonly string[], count: number, seed = 1): unknown[] {
   const random = generator(seed);
   const pool = [...keys, "file_path", "extra"];

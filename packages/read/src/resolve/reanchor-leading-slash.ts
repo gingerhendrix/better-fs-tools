@@ -1,9 +1,9 @@
 import type { PathResolver } from "../contract/base.ts";
 
 /**
- * "/src/x.ts" to "src/x.ts" when "/src" is missing and "src" exists under the
- * tool root. The host's `firstSegmentExists` makes that call: it should return
- * true only for a segment that exists under the tool root and not at "/".
+ * Rewrites "/src/x.ts" to "src/x.ts" when `firstSegmentExists("src")` is true.
+ * It should return true only for a segment that exists under the tool root and
+ * not at "/".
  */
 export function reanchorLeadingSlash(options: {
   firstSegmentExists: (segment: string) => boolean;

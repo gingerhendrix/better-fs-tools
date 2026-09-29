@@ -26,11 +26,6 @@ import { ReadStop } from "./outcomes.ts";
 import { textOutcome } from "./text-outcome.ts";
 import { checkSize, verifyHandle } from "./verify.ts";
 
-/**
- * The first file converter that accepts the match, in order, or null.
- * `accepts` is sync and the only place a converter may decline. A throw gives
- * EXTENSION_FAILED.
- */
 export function selectFileConverter<THost>(
   scope: CallScope<THost>,
   decision: Decision<Classification>,
@@ -68,13 +63,6 @@ export interface ConvertFileInput<THost> {
   readonly scope: CallScope<THost>;
 }
 
-/**
- * Runs one file converter on the capped source stream, then reads what the
- * converter left, then runs the size check and handle.verify(). Text goes
- * through the LineScanner. Media over maxMediaBytes, or source over
- * maxConvertBytes (even when the converter caught the error), gives TOO_LARGE.
- * contentId hashes the source bytes.
- */
 export async function convertFile<THost>(input: ConvertFileInput<THost>): Promise<ReadReport> {
   const { deps, request, file, handle, sample, decision, converter, scope } = input;
   const { limits, messages } = deps;
@@ -87,18 +75,17 @@ export async function convertFile<THost>(input: ConvertFileInput<THost>): Promis
     scope,
   );
 
-  /** Abort, then the cap, then a backend failure: each wins over what the converter did. */
-  const settle = (): void => {
+  const throwIfSourceFailed = (): void => {
     scope.checkAbort();
     if (source.exceeded) {
       throw new ReadStop(
         tooLarge(messages, request, file, classification, "convert", limits.maxConvertBytes),
       );
     }
-    if (source.failure !== null) throw source.failure;
+    if (source.backendFailure !== null) throw source.backendFailure;
   };
   const failed = (error?: unknown): ReadStop => {
-    settle();
+    throwIfSourceFailed();
     return scope.extensionFailure("converters", extensionId(converter, error));
   };
 
@@ -118,7 +105,7 @@ export async function convertFile<THost>(input: ConvertFileInput<THost>): Promis
   } catch (error) {
     throw failed(error);
   }
-  settle();
+  throwIfSourceFailed();
   const outcome = checkConvertOutcome(produced);
   if (outcome === null) throw failed();
   if (outcome.kind === "refuse") {
@@ -129,7 +116,7 @@ export async function convertFile<THost>(input: ConvertFileInput<THost>): Promis
     if (mediaBytes(outcome.parts) > limits.maxMediaBytes) {
       return tooLarge(messages, request, file, classification, "media", limits.maxMediaBytes);
     }
-    await finishSource(source, handle, input, settle);
+    await drainAndVerify(source, handle, input, throwIfSourceFailed);
     return mediaOutcome(input, classification, outcome.parts, outcome.notes ?? [], source);
   }
 
@@ -140,7 +127,7 @@ export async function convertFile<THost>(input: ConvertFileInput<THost>): Promis
     if (error instanceof ReadStop || error instanceof AbortReadError) throw error;
     throw failed(error);
   }
-  await finishSource(source, handle, input, settle);
+  await drainAndVerify(source, handle, input, throwIfSourceFailed);
   return textOutcome({
     deps,
     fs: input.fs,
@@ -154,22 +141,21 @@ export async function convertFile<THost>(input: ConvertFileInput<THost>): Promis
   });
 }
 
-/** Drain, then the size check and handle.verify(): change detection covers conversions too. */
-async function finishSource<THost>(
+async function drainAndVerify<THost>(
   source: ConvertSource<THost>,
   handle: OpenFile,
   input: ConvertFileInput<THost>,
-  settle: () => void,
+  throwIfSourceFailed: () => void,
 ): Promise<void> {
   const { deps, request, file, scope } = input;
   try {
     await source.drain();
   } catch (error) {
-    settle();
+    throwIfSourceFailed();
     throw error;
   }
   scope.enter("verification");
-  checkSize(deps.messages, request, file, source.count);
+  checkSize(deps.messages, request, file, source.bytesRead);
   await verifyHandle(handle, deps.messages, request, file, scope);
 }
 
@@ -194,7 +180,7 @@ function mediaOutcome<THost>(
       contentId: source.contentId(),
       view: parts,
       observedAt: deps.clock().toISOString(),
-      // The model saw media, not source text: nothing here backs a text edit.
+      // Media is not source text, so it cannot back a text edit.
       wholeFileVisible: false,
     }),
     notes: [...notes, ...capabilityNotes(fs, deps.messages)],

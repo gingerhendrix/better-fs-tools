@@ -1,4 +1,4 @@
-/** Canonical core input. Model-facing names live in adapter signatures. */
+/** Canonical read input. A signature maps the model's parameter names to it. */
 export interface ReadInput {
   readonly path: string;
   /** One-based source line. Default 1. */

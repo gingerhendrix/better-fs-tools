@@ -6,7 +6,7 @@ import type { ContentPart, ReadReport } from "./result.ts";
 export interface ReadFormatContext<THost = undefined> {
   readonly digest: Digest | null;
   readonly limits: Readonly<ReadLimits>;
-  /** "view" = body only, no notes. Pi uses it for details.truncation.content. */
+  /** "view" formats the body only, without notes. */
   readonly mode: "model" | "view";
   readonly call: ReadContext<THost>;
 }

@@ -18,7 +18,6 @@ describe("lineNumberFormatter", () => {
     });
     const result = expectOk(await read({ path: "/a.txt" }));
     expect(textOf(result).split("\n")[0]).toBe("   1  abc >>>");
-    // The byte ceiling measures source text, not the rendered gutter.
     expect(result.view.bytes).toBe(3);
   });
 

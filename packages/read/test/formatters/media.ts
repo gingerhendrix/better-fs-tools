@@ -3,7 +3,6 @@ import type { ReadFormatContext, ReadMedia } from "../../src/index.ts";
 
 export const PIXELS = Uint8Array.from([0x89, 0x50, 0x4e, 0x47]);
 
-/** A media outcome with a caption part, an image part, and one note. */
 export const mediaOutcome: ReadMedia = {
   tool: "read",
   status: "media",

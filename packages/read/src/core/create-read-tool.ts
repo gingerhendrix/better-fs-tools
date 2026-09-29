@@ -6,9 +6,8 @@ import { isRecord } from "./input.ts";
 import { runRead } from "./pipeline.ts";
 
 /**
- * Validates and resolves dependencies once, synchronously. Throws TypeError on
- * an unknown key, a missing fs, an empty classifier list, a malformed limit
- * or message, or a state without a digest.
+ * Creates the read tool. Throws TypeError on an unknown or malformed dependency,
+ * a missing `fs`, an empty `classifiers` list, or a `state` without a `digest`.
  */
 export function createReadTool<THost = undefined>(
   deps: ReadToolDeps<THost> & StateNeedsDigest,
@@ -18,7 +17,6 @@ export function createReadTool<THost = undefined>(
     if (ctx !== undefined && !isRecord(ctx)) {
       throw new TypeError("read context must be an object");
     }
-    // One call object for every stage of this read.
     const call = ctx ?? ({} as ReadContext<THost>);
     return runRead(resolved, input, call);
   };

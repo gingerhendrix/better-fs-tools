@@ -13,11 +13,6 @@ type Authorization =
   | { readonly allow: true }
   | { readonly allow: false; readonly note: ReadNote | null };
 
-/**
- * `action: "read"`, after open() succeeds and before any content byte is read.
- * A denial gives DENIED. The pipeline closes the handle in its finally block,
- * on a denial, a throw, and an abort alike.
- */
 export async function authorizeRead<THost>(
   authorizer: ReadAuthorizer<THost> | null,
   request: ReadRequest,
@@ -38,13 +33,7 @@ export async function authorizeRead<THost>(
   if (!result.allow) throw new ReadStop(denied(scope.deps.messages, request, result.note));
 }
 
-/**
- * `action: "list"`, before an fs.list, in the phase of the stage that lists.
- * Returns null to go on, or the error outcome the listing gives. Never throws:
- * an authorizer failure is held on the scope for the stage to raise, and an
- * abort becomes an aborted outcome that the stage's abort check turns into
- * ABORTED.
- */
+/** null when the listing may go ahead. An authorizer failure is held on the scope, not thrown. */
 export async function authorizeList<THost>(
   authorizer: ReadAuthorizer<THost> | null,
   request: ReadRequest,
@@ -73,11 +62,6 @@ export async function authorizeList<THost>(
   }
 }
 
-/**
- * One authorizer call, raced against the signal. Allow notes go on the scope,
- * and the pipeline keeps them on the outcome. A throw or a malformed decision
- * gives EXTENSION_FAILED. An abort throws AbortReadError.
- */
 async function runAuthorizer<THost>(
   authorizer: ReadAuthorizer<THost>,
   target: ReadAuthorizeTarget,

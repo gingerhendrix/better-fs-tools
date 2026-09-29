@@ -7,7 +7,7 @@ import { defaultReadSignature } from "../../src/signature/index.ts";
 import type { ReadSignature } from "../../src/signature/index.ts";
 import { generatedInputs } from "./generated.ts";
 
-/** The path pattern before batch 6. It used a lookahead, which strict grammar engines may refuse. */
+// Strict grammar engines may refuse lookaheads, so the default pattern must not use one.
 const LOOKAHEAD_PATH_PATTERN = "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$";
 
 const PATH_TABLE = [
@@ -151,7 +151,6 @@ describe("defaultReadSignature", () => {
       }
       if (schema) accepted += 1;
     }
-    // Both outcomes are well represented, so the comparison means something.
     expect(accepted).toBeGreaterThan(300);
     expect(inputs.length - accepted).toBeGreaterThan(300);
   });

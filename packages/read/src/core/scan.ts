@@ -21,7 +21,6 @@ export type ScanOutcome =
       readonly scannedBytes: number;
       readonly scanCapped: boolean;
       readonly reachedEof: boolean;
-      /** Hash of every source byte. null without a digest or when the scan stopped before EOF. */
       readonly contentId: string | null;
     }
   | { readonly kind: "invalid-utf8" };
@@ -35,12 +34,6 @@ export interface ScanInput<THost> {
   readonly scope: CallScope<THost>;
 }
 
-/**
- * Decodes and scans the sample, then the rest of the stream, up to
- * `limits.maxScanBytes`. The view budget, when set, applies to every scan. The scanner keeps only the view and counters, so a
- * large file stays flat in memory. The scan keeps counting after the view
- * closes, so totals and the content hash are exact when the scan reaches EOF.
- */
 export async function scanText<THost>(input: ScanInput<THost>): Promise<ScanOutcome> {
   const { cursor, sample, request, limits, digest, scope } = input;
   const scanner = new LineScanner(request, limits, scanBudget(scope));
@@ -93,7 +86,7 @@ export async function scanText<THost>(input: ScanInput<THost>): Promise<ScanOutc
       if (trailing) scanner.push(trailing);
       scanner.finish();
     } else {
-      scanner.cap(unscannedBytesKnown);
+      scanner.stopAtScanLimit(unscannedBytesKnown);
     }
   } catch (error) {
     if (error instanceof DecoderFailureError) return { kind: "invalid-utf8" };

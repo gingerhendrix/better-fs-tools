@@ -1,7 +1,6 @@
 import { defaultReadLimits, defaultReadMessages } from "../../src/index.ts";
 import type { ReadAuthorizeTarget, ReadHookContext, ReadRequest } from "../../src/index.ts";
 
-/** A hook context for unit tests of one authorizer. */
 export function hookContext(request: Partial<ReadRequest> = {}): ReadHookContext<unknown> {
   return {
     tool: "read",

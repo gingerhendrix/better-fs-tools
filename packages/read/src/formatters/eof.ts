@@ -2,9 +2,9 @@ import type { ReadReport } from "../contract/result.ts";
 import type { LineNumberFormatterOptions } from "./line-number.ts";
 
 /**
- * Shown only when the view reaches EOF: an ok file outcome whose last line is
- * the file's last line, with an exact total. An empty file counts. Directory
- * listings and views a hook emptied do not.
+ * An end-of-file footer, shown only when the view ends at the file's last line
+ * and the total is exact. An empty file counts. Directory listings and views a
+ * hook emptied do not.
  */
 export function eofFooter(
   text: (totalLines: number) => string = (n) => `(End of file - total ${n} lines)`,

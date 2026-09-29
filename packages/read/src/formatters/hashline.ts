@@ -6,10 +6,9 @@ export interface HashlineGutterOptions {
 }
 
 /**
- * "12:a3|" style. Hashes line.text with ctx.digest, so the id is stable across
- * reads and changes when the line changes. The id is the start of the digest
- * value after its last ":" (the algorithm prefix). With no digest the gutter is
- * the number alone: "12|".
+ * A "12:a3|" gutter: the line number and the start of the line's hash, so the
+ * id is stable across reads and changes when the line changes. With no digest
+ * the gutter is the number alone: "12|".
  */
 export function hashlineGutter(
   options: HashlineGutterOptions = {},
@@ -21,7 +20,7 @@ export function hashlineGutter(
   return (line, ctx) => {
     if (ctx.digest === null) return `${line.number}|`;
     const value = ctx.digest.hash(line.text);
-    const start = value.lastIndexOf(":") + 1;
-    return `${line.number}:${value.slice(start, start + width)}|`;
+    const afterAlgorithmPrefix = value.lastIndexOf(":") + 1;
+    return `${line.number}:${value.slice(afterAlgorithmPrefix, afterAlgorithmPrefix + width)}|`;
   };
 }

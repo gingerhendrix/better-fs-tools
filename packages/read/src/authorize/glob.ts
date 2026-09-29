@@ -3,10 +3,10 @@ const GLOBSTAR = Symbol("globstar");
 type Segment = RegExp | typeof GLOBSTAR;
 
 /**
- * A matcher over "/"-separated paths. A "**" segment matches zero or more
- * whole segments. "*" matches any run of characters within a segment, and "?"
- * one character. Dot names get no special case. Every other character matches
- * itself. Linear in pattern times path segments: no backtracking across "/".
+ * Compiles a glob into a matcher for "/"-separated paths. A "**" segment
+ * matches zero or more whole segments. "*" matches any run of characters within
+ * a segment, and "?" one character. Dot names get no special case. Every other
+ * character matches itself. Matching time is linear in pattern and path length.
  */
 export function compileGlob(pattern: string): (path: string) => boolean {
   const segments: readonly Segment[] = pattern
@@ -26,23 +26,22 @@ function segmentPattern(segment: string): RegExp {
 }
 
 function matches(segments: readonly Segment[], parts: readonly string[]): boolean {
-  // reach[j]: the segments so far match the first j parts.
-  let reach: boolean[] = parts.map(() => false).concat(false);
-  reach[0] = true;
+  let segmentsMatchFirstParts: boolean[] = parts.map(() => false).concat(false);
+  segmentsMatchFirstParts[0] = true;
   for (const segment of segments) {
-    const next: boolean[] = reach.map(() => false);
+    const next: boolean[] = segmentsMatchFirstParts.map(() => false);
     if (segment === GLOBSTAR) {
-      let any = false;
+      let anyEarlierMatched = false;
       for (let j = 0; j <= parts.length; j += 1) {
-        any ||= reach[j] === true;
-        next[j] = any;
+        anyEarlierMatched ||= segmentsMatchFirstParts[j] === true;
+        next[j] = anyEarlierMatched;
       }
     } else {
       for (let j = 1; j <= parts.length; j += 1) {
-        next[j] = reach[j - 1] === true && segment.test(parts[j - 1] ?? "");
+        next[j] = segmentsMatchFirstParts[j - 1] === true && segment.test(parts[j - 1] ?? "");
       }
     }
-    reach = next;
+    segmentsMatchFirstParts = next;
   }
-  return reach[parts.length] === true;
+  return segmentsMatchFirstParts[parts.length] === true;
 }

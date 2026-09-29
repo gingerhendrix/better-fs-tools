@@ -72,7 +72,7 @@ describe("unicodeRepair through the tool", () => {
     expect(textOf(result)).toContain("[read:path-repaired]");
   });
 
-  // Stored NFC, requested NFD. The POC repaired this by default.
+  // Stored NFC, requested NFD.
   test("an NFD request for an NFC name is repaired", async () => {
     const { read } = harness({
       files: { "/dir/café.txt": "hello\n" },

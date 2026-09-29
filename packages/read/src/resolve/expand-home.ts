@@ -1,6 +1,6 @@
 import type { PathResolver } from "../contract/base.ts";
 
-/** "~" and "~/x". Other "~user" forms pass through unchanged. */
+/** Expands "~" and "~/x" to `home`. Other "~user" forms pass through unchanged. */
 export function expandHome(options: { home: string }): PathResolver<unknown> {
   const home = options?.home;
   if (typeof home !== "string" || home === "") {

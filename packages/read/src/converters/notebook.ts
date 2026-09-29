@@ -1,7 +1,7 @@
 import type { FileConverter } from "../contract/extensions.ts";
 import type { ReadNote } from "../contract/result.ts";
 import { isRecord } from "../core/input.ts";
-import { collect, hasCode } from "./shared.ts";
+import { collect, isUnsupportedWithCode } from "./shared.ts";
 
 export interface NotebookConverterOptions {
   /** Render cell outputs after each code cell. Default true. */
@@ -21,7 +21,7 @@ export function notebookConverter(options: NotebookConverterOptions = {}): FileC
   return Object.freeze<FileConverter<unknown>>({
     id: "notebook",
     target: "file",
-    accepts: (match) => hasCode(match.classification, "NOTEBOOK"),
+    accepts: (match) => isUnsupportedWithCode(match.classification, "NOTEBOOK"),
     async convert(input) {
       const cells = parseCells(await collect(input.bytes()));
       if (cells === null) {
@@ -50,7 +50,7 @@ function parseCells(bytes: Uint8Array): Cell[] | null {
   const cells: Cell[] = [];
   for (const cell of notebook.cells) {
     if (!isRecord(cell) || typeof cell.cell_type !== "string") return null;
-    const source = multiline(cell.source);
+    const source = jupyterText(cell.source);
     if (source === null) return null;
     cells.push({
       type: cell.cell_type,
@@ -73,17 +73,16 @@ function renderCell(cell: Cell, number: number, outputs: boolean): string {
   return lines.join("\n");
 }
 
-/** stream text, text/plain data, or an error line. Other data types are named only. */
 function renderOutput(output: unknown): string | null {
   if (!isRecord(output)) return null;
   switch (output.output_type) {
     case "stream":
-      return multiline(output.text);
+      return jupyterText(output.text);
     case "execute_result":
     case "display_data": {
       if (!isRecord(output.data)) return null;
       const plain =
-        output.data["text/plain"] === undefined ? null : multiline(output.data["text/plain"]);
+        output.data["text/plain"] === undefined ? null : jupyterText(output.data["text/plain"]);
       if (plain !== null) return plain;
       const types = Object.keys(output.data);
       return types.length === 0 ? null : `[${types.join(", ")} output not shown]`;
@@ -95,8 +94,7 @@ function renderOutput(output: unknown): string | null {
   }
 }
 
-/** Jupyter text: a string, or an array of strings that already hold their newlines. */
-function multiline(value: unknown): string | null {
+function jupyterText(value: unknown): string | null {
   if (value === undefined) return "";
   if (typeof value === "string") return value;
   if (Array.isArray(value) && value.every((part) => typeof part === "string")) {

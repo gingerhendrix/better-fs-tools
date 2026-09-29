@@ -7,7 +7,7 @@ export interface CharsPerTokenOptions {
   max: number;
 }
 
-/** A token estimate with no tokenizer: measure = ceil(text.length / ratio) + 1 for the newline. */
+/** Estimates tokens without a tokenizer: ceil(text.length / ratio) + 1 per line. */
 export function charsPerToken(options: CharsPerTokenOptions): ViewBudget {
   const { ratio, max } = options ?? {};
   if (typeof ratio !== "number" || !Number.isFinite(ratio) || ratio <= 0) {

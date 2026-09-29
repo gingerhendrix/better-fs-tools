@@ -4,10 +4,6 @@ import type { FileInfo } from "../contract/result.ts";
 import type { CallScope } from "./call-scope.ts";
 import type { ByteCursor } from "./cursor.ts";
 
-/**
- * Reads at most `limits.sampleBytes` from the cursor. Bytes past the sample go
- * back to the cursor, so the scan sees every byte once.
- */
 export async function takeSample<THost>(
   cursor: ByteCursor,
   limits: Readonly<ReadLimits>,

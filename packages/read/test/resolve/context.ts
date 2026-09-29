@@ -4,7 +4,6 @@ import type { DirectoryEntry, ListOutcome } from "@better-fs-tools/fs";
 import { defaultReadLimits, defaultReadMessages } from "../../src/index.ts";
 import type { ReadResolveContext } from "../../src/index.ts";
 
-/** A resolve context over a fixed listing, for unit tests of one resolver. */
 export function resolveContext(
   names: readonly string[] = [],
   lists: string[] = [],

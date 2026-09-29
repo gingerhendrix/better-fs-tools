@@ -10,7 +10,7 @@ export interface LineNumberFormatterOptions extends LayoutOptions {
   clampMarker?: (line: ReadLine) => string;
 }
 
-/** Numbered lines, then notes. Media outcomes: note text part, then media parts. */
+/** Numbered lines, then notes. A media outcome gives a text part with the notes, then the media parts. */
 export function lineNumberFormatter(
   options: LineNumberFormatterOptions = {},
 ): ReadFormatter<unknown> {

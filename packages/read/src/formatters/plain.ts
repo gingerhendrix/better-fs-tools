@@ -3,8 +3,8 @@ import { layout, withParts } from "./layout.ts";
 import type { LineNumberFormatterOptions } from "./line-number.ts";
 
 /**
- * Source text with no gutter and no clamp marker. A host that pastes model
- * output back into an edit call wants this. It trades line numbers for exact text.
+ * Source text with no gutter and no clamp marker, then notes. It trades line
+ * numbers for exact text, for hosts whose model pastes output into an edit call.
  */
 export function plainFormatter(
   options: Omit<LineNumberFormatterOptions, "gutter" | "clampMarker"> = {},

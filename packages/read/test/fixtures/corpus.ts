@@ -1,8 +1,3 @@
-/**
- * The fixture corpus. The POC kept these inputs inline in its tests. They live
- * here as data so the golden tests and the POC comparison script read the same
- * bytes. Keys are file names. Each file is written under CORPUS_ROOT.
- */
 import type { ReadLimits } from "../../src/index.ts";
 
 export const CORPUS_ROOT = "/corpus";
@@ -68,11 +63,9 @@ export const corpus: Readonly<Record<string, Uint8Array>> = {
   "icon.svg": text('<svg xmlns="http://www.w3.org/2000/svg"></svg>\n'),
 };
 
-/** Directories in the corpus filesystem. */
 export const corpusDirectories: readonly string[] = [`${CORPUS_ROOT}/folder`];
 
 export interface CorpusRequest {
-  /** Snapshot and report key. */
   readonly id: string;
   readonly input: { readonly path: string; readonly offset?: number; readonly limit?: number };
   readonly limits?: Partial<ReadLimits>;
@@ -80,7 +73,6 @@ export interface CorpusRequest {
 
 const at = (name: string): string => `${CORPUS_ROOT}/${name}`;
 
-/** A default read of every corpus file, then ranged reads and small limits. */
 export const corpusRequests: readonly CorpusRequest[] = [
   ...Object.keys(corpus).map((name) => ({ id: `file ${name}`, input: { path: at(name) } })),
   { id: "range interior", input: { path: at("plain.txt"), offset: 2, limit: 1 } },

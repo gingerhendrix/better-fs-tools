@@ -6,11 +6,9 @@ import type {
 import { ALLOW, deny } from "./shared.ts";
 
 /**
- * Calls prompt for each "read". Anything but true, or a throw from prompt,
- * denies. A "list" is allowed without a prompt. There is no remember option
- * (G11): a host keeps answers through ctx.call.host. The core races the
- * prompt against the call's signal, so an abort ends the read even when the
- * prompt ignores it.
+ * Asks `prompt` before each file read. Anything but `true`, or a throw, denies.
+ * Directory listings are allowed without asking. To remember answers, keep
+ * them in ctx.call.host. An abort ends the read even when the prompt ignores it.
  */
 export function askUser<THost>(
   prompt: (target: ReadAuthorizeTarget, ctx: ReadHookContext<THost>) => Promise<boolean>,

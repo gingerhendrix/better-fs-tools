@@ -1,7 +1,7 @@
 import { posixPaths } from "@better-fs-tools/fs";
 
 import type { FileConverter, ReadHookContext } from "../contract/extensions.ts";
-import { collect, hasCode } from "./shared.ts";
+import { collect, isUnsupportedWithCode } from "./shared.ts";
 
 export interface ImageConverterOptions<THost = unknown> {
   /** Resize or re-encode before the image goes to the model. The media type stays the same. */
@@ -12,7 +12,7 @@ export interface ImageConverterOptions<THost = unknown> {
   ) => Promise<Uint8Array>;
 }
 
-/** Accepts classification code "IMAGE". Emits one media part. Output size is capped by limits.maxMediaBytes. */
+/** Converts an image (classification code "IMAGE") into one media part, capped by limits.maxMediaBytes. */
 export function imageConverter<THost = unknown>(
   options: ImageConverterOptions<THost> = {},
 ): FileConverter<THost> {
@@ -23,7 +23,7 @@ export function imageConverter<THost = unknown>(
   return Object.freeze<FileConverter<THost>>({
     id: "image",
     target: "file",
-    accepts: (match) => hasCode(match.classification, "IMAGE"),
+    accepts: (match) => isUnsupportedWithCode(match.classification, "IMAGE"),
     async convert(input, ctx) {
       const mediaType =
         input.classification.mimeType ?? input.info.mimeType ?? "application/octet-stream";

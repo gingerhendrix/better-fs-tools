@@ -30,7 +30,6 @@ function files(): MemoryFileSystem {
   });
 }
 
-/** Records every list() path. */
 function listed(inner: FileSystem) {
   const lists: string[] = [];
   const list = inner.list?.bind(inner);
@@ -86,7 +85,6 @@ describe("directory reads", () => {
       resolvedFrom: null,
       version: null,
     });
-    // No handle, so no change detection and no observation.
     expect(result.observation).toBeNull();
     expect(textOf(result)).toBe("1|a.txt\n2|b.txt\n3|c.txt\n4|empty\n5|sub");
   });
@@ -198,8 +196,7 @@ describe("directory reads", () => {
 });
 
 describe("target null", () => {
-  /** A virtual adapter's EISDIR: a directory with no target paths. */
-  function targetless(inner: FileSystem) {
+  function virtualFsWithoutDirectoryTargets(inner: FileSystem) {
     const lists: string[] = [];
     const fs: FileSystem = {
       id: "virtual",
@@ -219,7 +216,7 @@ describe("target null", () => {
   }
 
   test("the lexical path is listed and shown", async () => {
-    const { fs, lists } = targetless(files());
+    const { fs, lists } = virtualFsWithoutDirectoryTargets(files());
     const inputs: DirectoryConvertInput[] = [];
     const listing = directoryListing();
     const read = createReadTool({
@@ -245,7 +242,7 @@ describe("target null", () => {
   });
 
   test("the authorizer sees the lexical path", async () => {
-    const { fs } = targetless(files());
+    const { fs } = virtualFsWithoutDirectoryTargets(files());
     const targets: ReadAuthorizeTarget[] = [];
     const read = createReadTool({
       fs,
@@ -278,7 +275,7 @@ describe("authorize list", () => {
     const { fs, lists } = listed({
       ...inner,
       async open(path, options) {
-        // "/link" is a symlink to "/d". The target holds the realpath and a display path.
+        // Simulates "/link" as a symlink to "/d".
         const opened = await inner.open(path === "/link" ? "/d" : path, options);
         if (opened.ok || opened.error.reason !== "not-a-file") return opened;
         return {

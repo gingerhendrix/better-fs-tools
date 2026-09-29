@@ -5,8 +5,7 @@ import type { FileSystem, OpenFile } from "@better-fs-tools/fs";
 import { createReadTool } from "../../src/index.ts";
 import { expectFailure, expectOk, harness } from "../helpers.ts";
 
-/** Wraps fs so each opened handle can be changed. */
-function wrapOpen(fs: FileSystem, change: (file: OpenFile) => OpenFile): FileSystem {
+function mapOpenedFiles(fs: FileSystem, change: (file: OpenFile) => OpenFile): FileSystem {
   return {
     ...fs,
     async open(path, options) {
@@ -38,7 +37,7 @@ describe("change detection", () => {
   test("verify runs after the scan, on every text read", async () => {
     const { fs } = harness({ files: { "/a.txt": "one\n" } });
     const events: string[] = [];
-    const tracing = wrapOpen(fs, (file) => ({
+    const tracing = mapOpenedFiles(fs, (file) => ({
       ...file,
       bytes: () => {
         events.push("bytes");
@@ -59,13 +58,13 @@ describe("change detection", () => {
 
   test("a byte count that disagrees with the reported size fails the read", async () => {
     const { fs } = harness({ files: { "/a.txt": "one\n" } });
-    const lying = wrapOpen(fs, (file) => ({ ...file, info: { ...file.info, size: 99 } }));
+    const lying = mapOpenedFiles(fs, (file) => ({ ...file, info: { ...file.info, size: 99 } }));
     expectFailure(await createReadTool({ fs: lying })({ path: "/a.txt" }), "CHANGED_DURING_READ");
   });
 
   test("a verify error maps through the filesystem error", async () => {
     const { fs } = harness({ files: { "/a.txt": "one\n" } });
-    const failing = wrapOpen(fs, (file) => ({
+    const failing = mapOpenedFiles(fs, (file) => ({
       ...file,
       verify: async () => ({ ok: false, error: { reason: "io", detail: "gone" } }),
     }));
@@ -87,7 +86,7 @@ describe("handle cleanup", () => {
     test(`closes the handle for ${name}`, async () => {
       const { fs } = harness({ files });
       let closed = 0;
-      const counting = wrapOpen(fs, (file) => ({
+      const counting = mapOpenedFiles(fs, (file) => ({
         ...file,
         close: async () => {
           closed += 1;
@@ -106,7 +105,7 @@ describe("handle cleanup", () => {
   test("closes the handle when the byte source throws", async () => {
     const { fs } = harness({ files: { "/f": "x\n" } });
     let closed = 0;
-    const throwing = wrapOpen(fs, (file) => ({
+    const throwing = mapOpenedFiles(fs, (file) => ({
       ...file,
       bytes: () => {
         throw new Error("adapter defect");
@@ -123,7 +122,7 @@ describe("handle cleanup", () => {
     const { fs } = harness({ files: { "/f": "x\n".repeat(100) } });
     const controller = new AbortController();
     let closed = 0;
-    const aborting = wrapOpen(fs, (file) => ({
+    const aborting = mapOpenedFiles(fs, (file) => ({
       ...file,
       bytes: () =>
         (async function* abortAfterFirst() {

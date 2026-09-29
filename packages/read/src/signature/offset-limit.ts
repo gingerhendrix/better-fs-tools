@@ -16,9 +16,9 @@ import {
 const PARAMS: readonly ReadParam[] = ["path", "offset", "limit"];
 
 /**
- * read({ path, offset?, limit? }): integer offset and limit, NUL-free non-blank
- * path. Without `names`, the mapping is the identity. `names` renames any of
- * the three parameters.
+ * A read({ path, offset?, limit? }) signature: a non-blank path without NUL,
+ * and positive integer offset and limit. `names` renames any of the three
+ * parameters.
  */
 export function defaultReadSignature(
   options?: SignatureDocs<ReadParam> & { readonly names?: undefined },

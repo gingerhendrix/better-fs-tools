@@ -2,9 +2,9 @@ import type { PathResolver } from "../contract/base.ts";
 import { canonicalizeFileName } from "../suggest/canonicalize.ts";
 
 /**
- * Lists the parent once. Returns the unique Unicode-equivalent name, else the
- * path unchanged. An exact match, several matches, or a failed listing leave
- * the path unchanged. Note default true.
+ * Repairs a file name that matches exactly one entry in its directory up to
+ * Unicode equivalence. An exact match, several matches, or a failed listing
+ * leave the path unchanged. `note` (default true) adds a path-repaired note.
  */
 export function unicodeRepair(options: { note?: boolean } = {}): PathResolver<unknown> {
   const withNote = options.note ?? true;

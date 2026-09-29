@@ -33,7 +33,6 @@ interface Host {
 const ENCODER = new TextEncoder();
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
-/** A file converter for every file, or for the given classification code. */
 function converter(
   convert: (input: FileConvertInput, ctx: ReadHookContext<unknown>) => Promise<ConvertOutcome>,
   accepts: (match: ConverterMatch) => boolean = () => true,
@@ -54,7 +53,6 @@ function sourceHash(bytes: Uint8Array): string {
   return stream.digest();
 }
 
-/** Records bytes(), verify(), and close() on every opened file, in order. */
 function spied(inner: MemoryFileSystem) {
   const log: string[] = [];
   const fs: FileSystem = {

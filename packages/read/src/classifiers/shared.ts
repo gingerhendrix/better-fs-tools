@@ -16,14 +16,13 @@ export function classifier(
   return Object.freeze({ id, classify });
 }
 
-/** A built-in refusal. `action` names the kind of tool that can handle the content. */
 export function unsupported(
   code: BuiltInUnsupportedCode,
   mimeType: string | null,
   reasons: readonly string[],
   sample: ClassificationSample,
   override: NoteOverride | undefined,
-  action: string,
+  suggestedTool: string,
 ): UnsupportedClassification {
   return refusal({
     code,
@@ -32,7 +31,7 @@ export function unsupported(
     reasons,
     sample,
     override,
-    message: `This content is not supported as UTF-8 text. Use ${action}.`,
+    message: `This content is not supported as UTF-8 text. Use ${suggestedTool}.`,
   });
 }
 

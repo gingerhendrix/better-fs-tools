@@ -106,7 +106,6 @@ describe("resolve stage", () => {
       error: { reason: "denied", detail: "listing budget spent" },
     });
 
-    // The budget is for each read, not for the tool.
     expectOk(await read({ path: "/src/a.ts" }));
     expect(lists).toEqual(["/src", "/src"]);
   });
@@ -200,7 +199,7 @@ describe("resolve stage", () => {
       resolve: {
         id: "spy",
         resolve(path, ctx) {
-          // Resolvers are typed on ToolResolveContext. The read core passes the full ReadResolveContext.
+          // Resolvers are typed on ToolResolveContext; read passes a ReadResolveContext.
           seen.push(ctx as ReadResolveContext<Host>);
           return { kind: "path", path };
         },

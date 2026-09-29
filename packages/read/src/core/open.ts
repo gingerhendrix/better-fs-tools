@@ -17,11 +17,6 @@ export type Opened<THost> =
       readonly converter: DirectoryConverter<THost>;
     };
 
-/**
- * One fs.open() for each read, on the resolved path. A refusal ends the read. A
- * not-found refusal goes to suggest, which lists but never opens. A directory
- * goes to the directory converter when there is one and the backend can list.
- */
 export async function openFile<THost>(
   deps: ReadDependencies<THost>,
   fs: FileSystem,

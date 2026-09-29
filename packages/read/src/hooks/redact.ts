@@ -12,9 +12,9 @@ export interface RedactOptions {
 
 /**
  * Replaces matches in view line text and in text parts. A match must lie
- * inside one line: the view holds lines, and a clamped line holds only its
- * first limits.maxCharsPerLine characters. Returns the outcome unchanged when
- * nothing matched, so the core adds no view-modified note.
+ * inside one line, and a clamped line holds only its first
+ * limits.maxCharsPerLine characters. When nothing matches, the outcome is
+ * unchanged and gets no view-modified note.
  */
 export function redact(options: RedactOptions): ReadHook<unknown> {
   const { patterns, replacement = "[REDACTED]" } = options ?? {};
@@ -54,7 +54,6 @@ export function redact(options: RedactOptions): ReadHook<unknown> {
   });
 }
 
-/** UTF-8 bytes of the line text plus one newline between lines, as the scanner counts them. */
 function viewBytes(lines: readonly ReadLine[]): number {
   let total = Math.max(0, lines.length - 1);
   for (const line of lines) total += ENCODER.encode(line.text).byteLength;

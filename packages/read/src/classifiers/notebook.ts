@@ -1,7 +1,7 @@
 import type { Classifier, NoteOverride } from "../contract/classify.ts";
 import { classifier, unsupported } from "./shared.ts";
 
-/** Jupyter JSON: an object with nbformat and a cells array, plus an .ipynb name or metadata. */
+/** Refuses Jupyter notebooks: JSON with nbformat and a cells array, plus an .ipynb name or metadata. */
 export function notebookClassifier(options: { note?: NoteOverride } = {}): Classifier {
   return classifier("notebook", (sample) => {
     const text = new TextDecoder("utf-8").decode(sample.bytes.subarray(0, 8_192));

@@ -74,7 +74,6 @@ describe("imageConverter", () => {
     });
     const result = expectMedia(await read({ path: "/a.png" }, call));
     expect(seen[0]?.call).toBe(call);
-    // The cap applies to the transformed bytes.
     expect(result.parts[0]).toMatchObject({
       data: fixture("image.png").subarray(0, 2),
     });

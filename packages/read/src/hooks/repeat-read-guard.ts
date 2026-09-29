@@ -7,12 +7,10 @@ export interface RepeatReadGuardOptions {
 }
 
 /**
- * When previous is a read record (origin "read", not a record a write tool
- * stored) with the same contentId (not null), offset, and limit, replaces
- * the view with an empty view and adds a "repeat-read" note. Does nothing when
- * the observation is null (no digest) or previous is null (no state). Needs
- * both a digest and a state store to fire. The core then marks the view as
- * modified, so the stored record says the whole file was not visible.
+ * Empties the view and adds a "repeat-read" note when the same range of the
+ * same content was already read. Needs a digest and a state store. A record a
+ * write tool stored does not count. The stored record then says the whole file
+ * was not visible.
  */
 export function repeatReadGuard(options: RepeatReadGuardOptions = {}): ReadHook<unknown> {
   const { message } = options ?? {};

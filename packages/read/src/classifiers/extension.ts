@@ -11,9 +11,9 @@ export interface ExtensionClassifierOptions {
 }
 
 /**
- * Extension-only detection (Deep Agents, Mastra). Place it before
- * defaultClassifiers(). It never reads the bytes, so its confidence is
- * "medium". An extension it does not know gets no opinion.
+ * Classifies by file extension alone, as Deep Agents and Mastra do. Place it
+ * before defaultClassifiers(). Its confidence is "medium", and an extension it
+ * does not know gets no opinion.
  */
 export function extensionClassifier(options: ExtensionClassifierOptions): Classifier {
   const unsupported = new Map(

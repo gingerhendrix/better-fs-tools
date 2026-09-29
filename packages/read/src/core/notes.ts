@@ -16,11 +16,6 @@ export interface ViewNoteContext {
   readonly scanCapped: boolean;
 }
 
-/**
- * Every bound the core applied is disclosed here. A truncation without a note
- * is a defect: the model has no other way to learn that it saw a partial view.
- * Retry text always comes from `messages.retry`.
- */
 export function buildViewNotes(context: ViewNoteContext): ReadNote[] {
   const { scanner, request, limits, messages, scanCapped } = context;
   const notes: ReadNote[] = [];
@@ -33,7 +28,7 @@ export function buildViewNotes(context: ViewNoteContext): ReadNote[] {
 
   if (offsetUnreached) {
     const reachedLine = scanner.totalLines + 1;
-    const retry = next(request, reachedLine);
+    const retry = retryFrom(request, reachedLine);
     notes.push({
       code: "offset-unreached",
       severity: "warning",
@@ -47,7 +42,7 @@ export function buildViewNotes(context: ViewNoteContext): ReadNote[] {
     scanner.firstUnshown !== null
   ) {
     const line = scanner.firstUnshown;
-    const retry = next(request, line + 1);
+    const retry = retryFrom(request, line + 1);
     notes.push({
       code: "first-line-exceeds-byte-limit",
       severity: "warning",
@@ -60,7 +55,7 @@ export function buildViewNotes(context: ViewNoteContext): ReadNote[] {
       data: { line },
     });
   } else if (scanner.firstUnshown !== null) {
-    const retry = next(request, scanner.firstUnshown);
+    const retry = retryFrom(request, scanner.firstUnshown);
     const reason = scanner.selectionStop ?? "scan-limit";
     notes.push({
       code: "continue",
@@ -101,7 +96,7 @@ export function buildViewNotes(context: ViewNoteContext): ReadNote[] {
     request.offset > scanner.totalLines &&
     scanner.totalLines > 0
   ) {
-    const retry = next(request, Math.max(1, scanner.totalLines));
+    const retry = retryFrom(request, Math.max(1, scanner.totalLines));
     notes.push({
       code: "offset-past-eof",
       severity: "info",
@@ -122,7 +117,6 @@ export function emptyNote(messages: Readonly<ReadMessageCatalog>, path: string):
   return { code: "empty", severity: "info", message: messages.empty({ path }) };
 }
 
-/** Discloses backend limits that weaken what an observation can promise. */
 export function capabilityNotes(
   fs: FileSystem,
   messages: Readonly<ReadMessageCatalog>,
@@ -147,6 +141,6 @@ export function capabilityNotes(
   return notes;
 }
 
-function next(request: ReadRequest, offset: number): ReadInput {
+function retryFrom(request: ReadRequest, offset: number): ReadInput {
   return { path: request.path, offset, limit: request.limit };
 }

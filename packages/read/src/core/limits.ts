@@ -1,9 +1,6 @@
 import type { ReadLimits } from "../contract/limits.ts";
 
-/**
- * Defaults, not package ceilings. A host may raise any of these. A supplied
- * value must be a positive safe integer.
- */
+/** The default read limits. They are not ceilings: a host may raise any of them. */
 export const defaultReadLimits: Readonly<ReadLimits> = Object.freeze({
   maxLines: 2_000,
   maxViewBytes: 128 * 1_024,
@@ -19,9 +16,9 @@ export const defaultReadLimits: Readonly<ReadLimits> = Object.freeze({
 const LIMIT_KEYS = Object.keys(defaultReadLimits) as (keyof ReadLimits)[];
 
 /**
- * Merges key by key. Throws TypeError on an unknown key, a value that is not
- * a positive safe integer, or a `sampleBytes` you set above `maxScanBytes`.
- * A default `sampleBytes` over a `maxScanBytes` you set is lowered to it.
+ * Merges overrides over `defaultReadLimits`. Throws TypeError on an unknown key,
+ * a value that is not a positive safe integer, or a `sampleBytes` you set above
+ * `maxScanBytes`. A default `sampleBytes` above your `maxScanBytes` is lowered to it.
  */
 export function resolveReadLimits(overrides: Partial<ReadLimits> = {}): Readonly<ReadLimits> {
   if (overrides === null || typeof overrides !== "object" || Array.isArray(overrides)) {

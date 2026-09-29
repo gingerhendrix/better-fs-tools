@@ -10,7 +10,6 @@ import { FIXED_DATE, testDigest } from "../helpers.ts";
 const MAX_TEXT_LINES = 60;
 const EDGE_LINES = 10;
 
-/** Long texts keep their edges, their line count, and a digest of the whole text. */
 function goldenText(text: string) {
   const lines = text.split("\n");
   if (lines.length <= MAX_TEXT_LINES) return text;
@@ -22,8 +21,7 @@ function goldenText(text: string) {
   };
 }
 
-/** The parts of a result a reviewer checks in a golden file. */
-function summary(result: ReadResult) {
+function goldenSummary(result: ReadResult) {
   const base = {
     status: result.status,
     ...(result.status === "error" ? { code: result.error.code } : {}),
@@ -59,7 +57,7 @@ describe("golden corpus, default formatter", () => {
         clock: () => FIXED_DATE,
         ...(request.limits === undefined ? {} : { limits: request.limits }),
       });
-      expect(summary(await read(request.input))).toMatchSnapshot();
+      expect(goldenSummary(await read(request.input))).toMatchSnapshot();
     });
   }
 });

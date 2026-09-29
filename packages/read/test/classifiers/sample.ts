@@ -1,6 +1,5 @@
 import type { ClassificationSample } from "../../src/index.ts";
 
-/** A complete sample with a neutral path, for classifier unit tests. */
 export function sample(
   bytes: Uint8Array | string,
   overrides: Partial<ClassificationSample> = {},

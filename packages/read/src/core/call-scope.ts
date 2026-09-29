@@ -12,26 +12,14 @@ import { AbortReadError } from "./cursor.ts";
 import { isFileSystem, isStateStore } from "./deps.ts";
 import { ReadStop, extensionFailed, messageOf } from "./outcomes.ts";
 
-/**
- * The two listings a read may make. `resolver` is the one `ctx.list` call a
- * resolver gets. `open` is the one listing after open: suggestions on a miss,
- * or the directory converter's listing.
- */
+/** `resolver`: the resolver's `ctx.list`. `open`: suggestions on a miss, or a directory converter. */
 export type ListingSlot = "resolver" | "open";
 
-/**
- * Per-read state: the call object, the current phase, the filesystem, the
- * state store, the listing budget, and the authorizer's allow notes.
- * The core passes `call` on by reference and never reads `call.host`.
- */
 export class CallScope<THost> {
   phase: ReadPhase = "input";
-  /** Notes from every allow decision in this read, in order. */
   readonly allowNotes: ReadNote[] = [];
-  /** A failure a listing could not throw. See hold(). */
-  private held: ReadStop | null = null;
+  private heldFailure: ReadStop | null = null;
   private resolvedFs: FileSystem | null = null;
-  /** undefined until the core first needs the store. */
   private resolvedState: ReadStateStore | null | undefined = undefined;
   private hook: ReadHookContext<THost> | null = null;
   private readonly listed = new Set<ListingSlot>();
@@ -50,12 +38,10 @@ export class CallScope<THost> {
     this.phase = phase;
   }
 
-  /** Throws AbortReadError when the caller aborted. The pipeline maps it to ABORTED with the phase. */
   checkAbort(): void {
     if (this.call.signal?.aborted) throw new AbortReadError("aborted");
   }
 
-  /** `deps.fs`, or the result of `fs(call)`. The factory runs at most once for each read. */
   fileSystem(): FileSystem {
     if (this.resolvedFs !== null) return this.resolvedFs;
     const { fs } = this.deps;
@@ -70,10 +56,6 @@ export class CallScope<THost> {
     return (this.resolvedFs = produced);
   }
 
-  /**
-   * `deps.state`, or the result of `state(call)`. The factory runs at most once
-   * for each read, and only when a stage asks for the store.
-   */
   stateStore(): ReadStateStore | null {
     if (this.resolvedState !== undefined) return this.resolvedState;
     const { state } = this.deps;
@@ -88,7 +70,6 @@ export class CallScope<THost> {
     return (this.resolvedState = produced);
   }
 
-  /** The context every host function gets. One object for each read. */
   hookContext(): ReadHookContext<THost> {
     if (this.hook !== null) return this.hook;
     const { limits, messages, digest, clock } = this.deps;
@@ -103,15 +84,8 @@ export class CallScope<THost> {
     }));
   }
 
-  /**
-   * Every fs.list in a read goes through here. One bounded listing for each
-   * slot; a second request in the same slot gets an error outcome. authorize
-   * with action "list" runs before the fs.list. Never throws: a missing
-   * list(), a spent slot, a denial, an abort, or a throwing backend becomes an
-   * error outcome. A throwing authorizer is held; see hold(). `display` is the
-   * authorizer's displayPath, when it differs from `dir`.
-   */
-  async list(slot: ListingSlot, dir: string, display: string = dir): Promise<ListOutcome> {
+  /** One bounded, authorized listing per slot. Never throws: every failure is an error outcome. */
+  async list(slot: ListingSlot, dir: string, displayPath: string = dir): Promise<ListOutcome> {
     if (this.listed.has(slot)) {
       return { ok: false, error: { reason: "denied", detail: "listing budget spent" } };
     }
@@ -120,7 +94,7 @@ export class CallScope<THost> {
     if (typeof fs.list !== "function") {
       return { ok: false, error: { reason: "unsupported", detail: "the backend cannot list" } };
     }
-    const refused = await authorizeList(this.deps.authorize, this.request, dir, display, this);
+    const refused = await authorizeList(this.deps.authorize, this.request, dir, displayPath, this);
     if (refused !== null) return refused;
     const signal = this.signal;
     const limit = this.deps.limits.maxDirectoryEntries;
@@ -131,22 +105,15 @@ export class CallScope<THost> {
     }
   }
 
-  /**
-   * Keeps the first failure from a stage that must not throw (a listing), so
-   * host code cannot swallow it. The stage that asked raises it with throwHeld().
-   */
+  /** Keeps a listing failure out of reach of host code that might catch and ignore it. */
   hold(stop: ReadStop): void {
-    this.held ??= stop;
+    this.heldFailure ??= stop;
   }
 
   throwHeld(): void {
-    if (this.held !== null) throw this.held;
+    if (this.heldFailure !== null) throw this.heldFailure;
   }
 
-  /**
-   * A ReadStop with EXTENSION_FAILED for the named dependency in the current
-   * phase. `id` is the extension object's id, when it has one.
-   */
   extensionFailure(extension: string, id: string | null = null): ReadStop {
     return new ReadStop(
       extensionFailed(this.deps.messages, this.request, extension, this.phase, id),

@@ -17,9 +17,9 @@ const TYPE_ORDER: Readonly<Record<DirectoryEntry["type"], number>> = {
 };
 
 /**
- * One entry per line. The core scans the lines, so offset, limit, and
- * continuation page over entries. The listing holds at most
- * limits.maxDirectoryEntries entries; a cut listing has a note.
+ * Lists a directory, one entry per line, so offset, limit, and continuation
+ * page over entries. The listing holds at most limits.maxDirectoryEntries
+ * entries; a cut listing has a note.
  */
 export function directoryListing(
   options: DirectoryListingOptions = {},
@@ -38,7 +38,7 @@ export function directoryListing(
     async convert(input, ctx) {
       const path = input.target?.displayPath ?? input.path;
       const listed = await input.list();
-      // The core reports a failed listing itself; this refusal is never shown.
+      // The read tool reports a failed listing itself; this refusal is never shown.
       if (!listed.ok) {
         return {
           kind: "refuse",

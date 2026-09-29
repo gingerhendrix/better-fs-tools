@@ -46,7 +46,6 @@ const FILES = {
   "/image.png": corpus["image.png"] ?? new Uint8Array(),
 };
 
-/** One case for each outcome shape the presets must handle. */
 const CASES = {
   ok: { path: "/src/app.ts" },
   truncated: { path: "/long.txt", offset: 2, limit: 2 },
@@ -71,7 +70,6 @@ function tool(formatter: ReadFormatter<unknown>) {
   }).read;
 }
 
-/** Text parts as they are, media parts as one line with their type and size. */
 function render(content: readonly ContentPart[]): string {
   return content
     .map((part) =>

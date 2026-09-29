@@ -1,8 +1,8 @@
 import type { LineNumberFormatterOptions } from "./line-number.ts";
 
 /**
- * "file-hash: <contentId>". Uses observation.contentId, the hash of the source
- * bytes. Returns null when it is unknown: no digest, a scan that stopped
+ * A "file-hash: <contentId>" header, where contentId is the hash of the source
+ * bytes. Shows nothing when the hash is unknown: no digest, a scan that stopped
  * before EOF, or an outcome with no observation.
  */
 export function fileHashHeader(): NonNullable<LineNumberFormatterOptions["header"]> {

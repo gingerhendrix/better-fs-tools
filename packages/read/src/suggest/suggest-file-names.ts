@@ -1,4 +1,4 @@
-/** Bounded edit distance and stem match over one listing. */
+/** Up to `maximum` names close to `requested`: same stem, a shared prefix, or a small edit distance. */
 export function suggestFileNames(
   requested: string,
   names: readonly string[],

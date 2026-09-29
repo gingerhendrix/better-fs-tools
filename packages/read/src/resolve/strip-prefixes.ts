@@ -19,7 +19,6 @@ export function stripPrefixes(
   } satisfies PathResolver<unknown>);
 }
 
-/** The path of a file URL, or null when it does not decode to a usable path. */
 function fromFileUrl(url: string): string | null {
   let rest = url.slice(FILE_URL.length);
   if (rest.startsWith("localhost/")) rest = rest.slice("localhost".length);

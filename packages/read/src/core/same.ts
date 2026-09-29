@@ -1,8 +1,4 @@
-/**
- * Structural equality for outcome fields: plain objects, arrays, byte arrays,
- * and primitives. Keys must match exactly. Used for the frozen-field checks
- * after a hook.
- */
+/** Structural equality for plain objects, arrays, byte arrays, and primitives. */
 export function same(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
   if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;

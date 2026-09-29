@@ -17,7 +17,7 @@ export type ReadPhase =
   | "hooks";
 
 /**
- * Wording for every note the core owns. Classifiers own their own refusals.
+ * Wording for every note the read tool writes. Classifiers word their own refusals.
  * Every message that suggests a retry gets `retry`, the text from `retry(next)`.
  */
 export interface ReadMessageCatalog extends ToolMessages {
@@ -38,9 +38,9 @@ export interface ReadMessageCatalog extends ToolMessages {
   dangerousPath(c: { request: ReadRequest; detail: string | null }): string;
   outsideAllowedRoots(c: { request: ReadRequest; detail: string | null }): string;
   permissionDenied(c: { request: ReadRequest; detail: string | null }): string;
-  /** Tool-neutral: shared authorizers such as denyPaths use it for every tool. */
+  /** Used by shared authorizers such as denyPaths, for every tool. */
   denied(c: { path: string; detail: string | null }): string;
-  /** "backend" is a byte ceiling of the filesystem backend, before any byte reached the core. */
+  /** `stage` "backend" means the filesystem backend refused the size before any byte was read. */
   tooLarge(c: {
     request: ReadRequest;
     stage: "convert" | "media" | "backend";

@@ -20,10 +20,9 @@ const INITIAL = [
 const ENCODER = new TextEncoder();
 
 /**
- * SHA-256 in plain JavaScript. It is synchronous and incremental, and it needs
- * no Node module, so it works in a Cloudflare Worker. The id and the output
- * format are the same as `nodeDigest()` from `@better-fs-tools/node`, so both
- * give the same hash for the same bytes and can share one state store.
+ * SHA-256 in plain JavaScript, with no Node module, so it works in a Cloudflare
+ * Worker. It gives the same hashes as `nodeDigest()` from
+ * `@better-fs-tools/node`, so both can share one state store.
  */
 export function sha256Digest(): Digest {
   return Object.freeze({
@@ -42,13 +41,13 @@ class Sha256Stream implements DigestStream {
   private readonly block = new Uint8Array(64);
   private readonly words = new Uint32Array(64);
   private filled = 0;
-  /* Total length in bytes. A double holds every length below 2^53 exactly. */
-  private length = 0;
+  // A double holds every length below 2^53 exactly.
+  private totalBytes = 0;
   private finished = false;
 
   update(bytes: Uint8Array): void {
     if (this.finished) throw new TypeError("sha256 stream is already finished");
-    this.length += bytes.byteLength;
+    this.totalBytes += bytes.byteLength;
     let offset = 0;
     if (this.filled > 0) {
       const take = Math.min(64 - this.filled, bytes.byteLength);
@@ -69,17 +68,14 @@ class Sha256Stream implements DigestStream {
   digest(): string {
     if (this.finished) throw new TypeError("sha256 stream is already finished");
     this.finished = true;
-    const bits = this.length * 8;
+    const bits = this.totalBytes * 8;
     this.block[this.filled] = 0x80;
     this.block.fill(0, this.filled + 1);
     if (this.filled >= 56) {
       this.compress(this.block, 0);
       this.block.fill(0);
     }
-    /* The bit length as a 64-bit big-endian integer. */
-    const view = new DataView(this.block.buffer);
-    view.setUint32(56, Math.floor(bits / 0x1_0000_0000));
-    view.setUint32(60, bits >>> 0);
+    setUint64BigEndian(new DataView(this.block.buffer), 56, bits);
     this.compress(this.block, 0);
     let hex = "sha256:";
     for (const word of this.state) hex += word.toString(16).padStart(8, "0");
@@ -130,6 +126,11 @@ class Sha256Stream implements DigestStream {
     s[6] = s[6]! + g;
     s[7] = s[7]! + h;
   }
+}
+
+function setUint64BigEndian(view: DataView, offset: number, value: number): void {
+  view.setUint32(offset, Math.floor(value / 0x1_0000_0000));
+  view.setUint32(offset + 4, value >>> 0);
 }
 
 function rotr(value: number, bits: number): number {

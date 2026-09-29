@@ -35,7 +35,6 @@ function hook(id: string, edit: Edit): ReadHook<unknown> {
   return { id, afterRead: (outcome, ctx) => edit(outcome, ctx) as ReadReport };
 }
 
-/** Records every outcome and context it sees, and returns the outcome unchanged. */
 function spyHook(id = "spy") {
   const seen: { outcome: ReadReport; ctx: AfterReadContext<unknown> }[] = [];
   return {

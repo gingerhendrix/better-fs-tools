@@ -2,11 +2,6 @@ const INTERNAL_CHUNK_BYTES = 64 * 1_024;
 
 export class AbortReadError extends Error {}
 
-/**
- * Splits adapter chunks into bounded pieces, supports one piece of pushback,
- * validates adapter output, and races iteration against an abort signal so a
- * blocking backend cannot outlive a cancelled read.
- */
 export class ByteCursor {
   private iterator: AsyncIterator<Uint8Array> | null;
   private chunk: Uint8Array | null = null;
@@ -48,7 +43,6 @@ export class ByteCursor {
     return { done: false, value: piece };
   }
 
-  /** Best-effort release of the adapter iterator. */
   async close(): Promise<void> {
     const iterator = this.iterator;
     this.iterator = null;
@@ -68,11 +62,6 @@ export class ByteCursor {
   }
 }
 
-/**
- * Runs `start` and settles with it, or rejects with AbortReadError as soon as
- * the signal aborts. An aborted signal rejects before `start` runs, so host
- * code that ignores the signal cannot hold the read open.
- */
 export async function raceAbort<T>(
   start: () => T | Promise<T>,
   signal: AbortSignal | undefined,

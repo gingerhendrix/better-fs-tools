@@ -1,8 +1,4 @@
-/**
- * Notebook fixtures for the notebook converter. The corpus notebook
- * (`analysis.ipynb`) has no cells; this one has markdown, code, and each
- * output type the converter renders.
- */
+// The corpus notebook has no cells; this one covers every cell and output type.
 export const notebook = {
   nbformat: 4,
   nbformat_minor: 5,

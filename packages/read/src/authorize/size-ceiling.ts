@@ -2,9 +2,9 @@ import type { ReadAuthorizer } from "../contract/extensions.ts";
 import { ALLOW, deny } from "./shared.ts";
 
 /**
- * Denies a "read" when size > maxBytes. With unrangedOnly, only when
- * request.ranged is false, and the note offers a ranged retry. An unknown
- * size is allowed. Never denies a "list".
+ * Denies reading a file larger than `maxBytes`. With `unrangedOnly`, denies
+ * only whole-file reads, and the note offers a ranged retry. Unknown sizes and
+ * directory listings are allowed.
  */
 export function sizeCeiling(options: {
   maxBytes: number;

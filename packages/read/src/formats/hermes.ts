@@ -6,20 +6,22 @@ import { isDirectory } from "./shared.ts";
 
 /**
  * Hermes style: one JSON object. Text gives `content` with `12|text` lines,
- * `total_lines`, `file_size`, `truncated` (any cut, a clamped line too), `next_offset`
- * (when more lines follow), and the notes joined
- * as `hint`. Failures and refusals give `error`, and a miss adds
- * `similar_files`. Media gives the JSON, then the media parts. "view" mode
- * leaves out the hint.
+ * `total_lines`, `file_size`, `truncated` (any cut, a clamped line too),
+ * `next_offset` (when more lines follow), and the notes joined as `hint`.
+ * Failures and refusals give `error`, and a miss adds `similar_files`. Media
+ * gives the JSON, then the media parts. "view" mode leaves out the hint.
  */
 export function hermesFormat(): ReadFormatter<unknown> {
   const json = jsonFormatter({ pick: hermesFields });
   return Object.freeze<ReadFormatter<unknown>>({
     id: "hermes",
-    // "view" mode is the body only, so the notes do not become a hint.
     format: (outcome, ctx) =>
-      json.format(ctx.mode === "view" ? { ...outcome, notes: [] } : outcome, ctx),
+      json.format(ctx.mode === "view" ? withoutNotes(outcome) : outcome, ctx),
   });
+}
+
+function withoutNotes(outcome: ReadReport): ReadReport {
+  return { ...outcome, notes: [] };
 }
 
 function hermesFields(outcome: ReadReport): JsonObject {
@@ -43,7 +45,6 @@ function hermesFields(outcome: ReadReport): JsonObject {
         content,
         ...(total === null ? {} : { [directory ? "total_entries" : "total_lines"]: total }),
         ...fileSize,
-        // Any cut, including a clamped line at EOF. next_offset says whether more lines follow.
         truncated: outcome.truncation.truncated,
         ...(offset === undefined ? {} : { next_offset: offset }),
         ...hint,

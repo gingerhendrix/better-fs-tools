@@ -14,10 +14,6 @@ export function defaultNoteLine(note: ReadNote): string {
   return `[read:${note.code}] ${note.message}`;
 }
 
-/**
- * Header, body, and footer, one per line, then a blank line and the note lines.
- * "view" mode returns the body only.
- */
 export function layout(
   outcome: ReadReport,
   ctx: ReadFormatContext<unknown>,
@@ -48,11 +44,6 @@ export function join(main: string, lines: readonly string[]): string {
   return main || notes;
 }
 
-/**
- * A media outcome gives a text part with the header, footer, and notes, then
- * the outcome's parts in order. An empty text part is left out, so "view" mode
- * gives the parts alone. Other outcomes give the text.
- */
 export function withParts(outcome: ReadReport, text: string): string | readonly ContentPart[] {
   if (outcome.status !== "media") return text;
   return text === "" ? [...outcome.parts] : [{ type: "text", text }, ...outcome.parts];

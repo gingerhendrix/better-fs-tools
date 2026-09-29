@@ -29,7 +29,6 @@ function authorizer(
   return { id: "test", authorize };
 }
 
-/** Records every open, bytes(), close(), and list, in order, in one log. */
 function spied(inner: FileSystem) {
   const log: string[] = [];
   const list = inner.list?.bind(inner);
@@ -225,7 +224,7 @@ describe("authorize read", () => {
     const controller = new AbortController();
     const read = createReadTool({
       fs,
-      // Ignores the signal and never settles: the core must not wait for it.
+      // Never settles and ignores the signal, so only the abort can end the read.
       authorize: authorizer(() => {
         controller.abort();
         return new Promise<never>(() => {});

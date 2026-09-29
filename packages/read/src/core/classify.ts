@@ -11,7 +11,6 @@ export interface Decision<T> {
   readonly classification: T;
 }
 
-/** The first classifier with an opinion wins. null when none has one. */
 export function classifySample(
   classifiers: readonly Classifier[],
   sample: ClassificationSample,
@@ -23,10 +22,6 @@ export function classifySample(
   return null;
 }
 
-/**
- * The refusal for invalid UTF-8 found after the sample was accepted as text.
- * Asks the chain for the first encodingFailure opinion. Never re-runs classify.
- */
 export function encodingRefusal(
   classifiers: readonly Classifier[],
   sample: ClassificationSample,
@@ -38,7 +33,6 @@ export function encodingRefusal(
   return null;
 }
 
-/** The result's view of a classifier decision. `code` is null for text. */
 export function classificationInfo(decision: Decision<Classification>): ClassificationInfo {
   const { classifier, classification } = decision;
   return {

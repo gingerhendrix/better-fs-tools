@@ -14,7 +14,6 @@ interface Host {
 
 const SENTINEL = "host-sentinel-5c21";
 
-/** A store that records every put. */
 function spyStore(): ReadStateStore & { puts: [string, ReadRecord][] } {
   const puts: [string, ReadRecord][] = [];
   return {
@@ -144,7 +143,6 @@ describe("state(call)", () => {
     expect((await read({ path: "" }, call)).status).toBe("error");
     expect(built).toBe(0);
 
-    // A state without a digest throws when the tool is built, before any factory runs.
     expect(() =>
       createReadTool<Host>({
         fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),

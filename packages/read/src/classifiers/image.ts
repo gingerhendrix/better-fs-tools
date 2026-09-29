@@ -1,7 +1,7 @@
 import type { Classifier, NoteOverride } from "../contract/classify.ts";
 import { asciiProjection, classifier, startsWith, startsWithAscii, unsupported } from "./shared.ts";
 
-/** PNG, JPEG, GIF, and WebP magic bytes. */
+/** Refuses PNG, JPEG, GIF, and WebP files, detected by their magic bytes. */
 export function imageClassifier(options: { note?: NoteOverride } = {}): Classifier {
   return classifier("image", (sample) => {
     const mimeType = imageSignature(sample.bytes);

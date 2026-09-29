@@ -1,7 +1,4 @@
-/**
- * Type tests. `tsc -b` checks this file through the package tsconfig. Bun never
- * runs it: the name does not match Bun's test file pattern.
- */
+// Type tests: `tsc -b` checks this file; Bun never runs it.
 import { memoryFileSystem } from "@better-fs-tools/fs";
 
 import { createReadTool, jsonFormatter, lineNumberFormatter } from "../../src/index.ts";
@@ -77,7 +74,7 @@ export const sharedState = createReadTool<{ id: string }>({
   state: memoryStore(),
 });
 
-// A state needs a digest (StateNeedsDigest).
+// A state needs a digest.
 // @ts-expect-error a state without a digest
 createReadTool({ fs, state: memoryStore() });
 // @ts-expect-error a state with a null digest

@@ -14,10 +14,8 @@ export interface MemoryStoreOptions {
 }
 
 /**
- * A process-local, capped, TTL store.
- *
- * Scope belongs to the store, not to its call signatures: one session gets one
- * store, and a shared store namespaces its own keys.
+ * A process-local store with an entry cap and a TTL. Use one store per
+ * session, or namespace the keys of a shared store.
  */
 export function memoryStore(options: MemoryStoreOptions = {}): ReadStateStore {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
@@ -43,6 +41,14 @@ export function memoryStore(options: MemoryStoreOptions = {}): ReadStateStore {
     }
   };
 
+  const markRecentlyUsed = (
+    key: string,
+    entry: { record: ReadRecord; expiresAt: number },
+  ): void => {
+    entries.delete(key);
+    entries.set(key, entry);
+  };
+
   return Object.freeze({
     async get(key: string): Promise<ReadRecord | null> {
       assertKey(key);
@@ -50,9 +56,7 @@ export function memoryStore(options: MemoryStoreOptions = {}): ReadStateStore {
       prune(time);
       const entry = entries.get(key);
       if (entry === undefined) return null;
-      // Refresh recency without extending the TTL.
-      entries.delete(key);
-      entries.set(key, entry);
+      markRecentlyUsed(key, entry);
       return entry.record;
     },
     async put(key: string, record: ReadRecord): Promise<void> {

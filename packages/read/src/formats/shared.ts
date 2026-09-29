@@ -5,7 +5,6 @@ export function isDirectory(outcome: ReadReport): boolean {
   return outcome.status === "ok" && outcome.classification.kind === "directory";
 }
 
-/** A named formatter that gives directory listings to `directory` and every other outcome to `file`. */
 export function preset(
   id: string,
   file: ReadFormatter<unknown>,

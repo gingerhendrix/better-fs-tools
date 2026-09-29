@@ -15,7 +15,7 @@ export interface ClassificationSample {
   readonly complete: boolean;
   /** Display path, for extension hints. */
   readonly path: string;
-  /** Backend hint. */
+  /** MIME type reported by the backend, if any. */
   readonly mimeType: string | null;
 }
 

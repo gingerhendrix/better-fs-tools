@@ -1,8 +1,4 @@
-/**
- * Type tests for the tool-neutral base types (W2). `tsc -b` checks this file;
- * Bun never runs it. A tool-neutral helper must fit the read tool, and read
- * types must extend the base types.
- */
+// Type tests: `tsc -b` checks this file; Bun never runs it.
 import { memoryFileSystem } from "@better-fs-tools/fs";
 
 import { createReadTool, defaultReadMessages, denyPaths, expandHome } from "../../src/index.ts";

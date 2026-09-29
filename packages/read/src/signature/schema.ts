@@ -1,10 +1,5 @@
 import type { JsonObject } from "../contract/json.ts";
 
-/**
- * Refuses an empty or blank path and any path that holds NUL, in the schema
- * itself, so a strict-mode provider never emits one. `\s` has the same meaning
- * in JSON Schema (ECMA-262) and in the check below.
- */
 // No lookaround: strict grammar engines may refuse one.
 export const PATH_PATTERN = "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$";
 const PATH_REGEX = new RegExp(PATH_PATTERN, "u");
@@ -19,24 +14,18 @@ export function lineSchema(description: string): JsonObject {
   return { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER, description };
 }
 
-/** An object schema with no extra keys. Only `path` is required. */
 export function objectSchema(
   properties: readonly (readonly [string, JsonObject])[],
-  path: string,
+  requiredKey: string,
 ): JsonObject {
   return deepFreeze({
     type: "object",
     additionalProperties: false,
     properties: Object.fromEntries(properties),
-    required: [path],
+    required: [requiredKey],
   });
 }
 
-/**
- * The runtime twin of `objectSchema`. Returns the input as a record once every
- * key is known.
- * Throws TypeError that names the host parameters.
- */
 export function readObject(input: unknown, keys: readonly string[]): Record<string, unknown> {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     throw new TypeError(`Read input must be an object with ${list(keys)}`);
@@ -58,7 +47,6 @@ export function readPath(value: unknown, name: string): string {
   return value;
 }
 
-/** A positive safe integer, or undefined when absent. */
 export function readLine(value: unknown, name: string): number | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
@@ -67,7 +55,6 @@ export function readLine(value: unknown, name: string): number | undefined {
   return value;
 }
 
-/** Host names for each canonical parameter. Throws TypeError on a blank or repeated name. */
 export function resolveNames<TParam extends string>(
   params: readonly TParam[],
   names: Partial<Record<TParam, string>> = {},

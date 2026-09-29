@@ -10,11 +10,7 @@ import { withEditedView } from "./observation.ts";
 import { isNote } from "./outcomes.ts";
 import { same } from "./same.ts";
 
-/**
- * Fields a hook must return with the same values. The core owns the
- * observation: it recomputes it after a hook edits the view.
- */
-const FROZEN = [
+const HOOK_FROZEN_FIELDS = [
   "tool",
   "request",
   "file",
@@ -28,14 +24,6 @@ const FROZEN = [
 
 const STATUSES: ReadonlySet<unknown> = new Set(["ok", "media", "unsupported", "error"]);
 
-/**
- * Runs the hooks in order, after verification and before record. After each
- * hook the core checks the rules: status cannot move from error or
- * unsupported to ok or media, and the frozen fields keep their values. A
- * throw or a broken rule gives EXTENSION_FAILED with extension "hooks" and the
- * hook id. When a hook changed the view text or the parts, the core
- * recomputes the observation and adds a view-modified note naming the hook.
- */
 export async function runHooks<THost>(
   scope: CallScope<THost>,
   outcome: ReadReport,
@@ -74,7 +62,6 @@ async function runHook<THost>(
   return markEdited(scope, hook.id, produced);
 }
 
-/** Adds the view-modified note, and recomputes viewId with wholeFileVisible false. */
 function markEdited<THost>(
   scope: CallScope<THost>,
   hookId: string,
@@ -94,12 +81,6 @@ function markEdited<THost>(
   return { ...outcome, notes, observation: withEditedView(digest, outcome.observation, view) };
 }
 
-/**
- * The stored record for this file from before this read. Asks for the store
- * (state(call) at most once for each read, shared with record). A failing get
- * gives null: session state is a cache. A record of another schema, such as a
- * schema 1 record from an older store, also gives null.
- */
 async function previousRecord<THost>(
   scope: CallScope<THost>,
   outcome: ReadReport,
@@ -111,19 +92,19 @@ async function previousRecord<THost>(
   try {
     record = await store.get(outcome.file.resolvedPath);
   } catch {
+    // Session state is a cache: a failing store never fails the read.
     return null;
   }
   return isRecord(record) && record.schema === 2 ? (record as unknown as ReadRecord) : null;
 }
 
-/** The hook's return has the outcome shape, keeps the status rule, and keeps the frozen fields. */
 function keepsRules(before: ReadReport, after: unknown): after is ReadReport {
   if (!isRecord(after) || !STATUSES.has(after.status)) return false;
   if (!Array.isArray(after.notes) || !after.notes.every(isNote)) return false;
   const refused = before.status === "error" || before.status === "unsupported";
   if (refused && (after.status === "ok" || after.status === "media")) return false;
-  if (!hasShape(after)) return false;
-  for (const key of FROZEN) {
+  if (!editableFieldsWellTyped(after)) return false;
+  for (const key of HOOK_FROZEN_FIELDS) {
     const had = Object.hasOwn(before, key);
     const has = Object.hasOwn(after, key);
     if (had && has && !same((before as unknown as Record<string, unknown>)[key], after[key]))
@@ -133,8 +114,7 @@ function keepsRules(before: ReadReport, after: unknown): after is ReadReport {
   return true;
 }
 
-/** The fields a hook may change have the right types. */
-function hasShape(after: Record<string, unknown>): boolean {
+function editableFieldsWellTyped(after: Record<string, unknown>): boolean {
   switch (after.status) {
     case "ok": {
       const { view } = after;
@@ -167,7 +147,6 @@ function hasShape(after: Record<string, unknown>): boolean {
   }
 }
 
-/** True when the model would see other view text or other parts. */
 function viewChanged(before: ReadReport, after: ReadReport): boolean {
   if (before.status === "ok" && after.status === "ok") {
     const lines = (outcome: typeof before) =>
@@ -179,7 +158,6 @@ function viewChanged(before: ReadReport, after: ReadReport): boolean {
   return false;
 }
 
-/** The view text, joined as the scanner joins it for the first viewId. */
 function viewText(outcome: Extract<ReadReport, { status: "ok" }>): string {
   return outcome.view.lines.map((line) => line.text).join("\n");
 }

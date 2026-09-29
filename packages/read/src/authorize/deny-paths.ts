@@ -3,9 +3,9 @@ import { compileGlob } from "./glob.ts";
 import { ALLOW, deny } from "./shared.ts";
 
 /**
- * Globs on resolvedPath: "**", "*", "?". Denies every action of every tool.
- * For a read the resolvedPath is the realpath, so a symlink to a denied file
- * is denied. Tool-neutral: it fits the ReadAuthorizer too.
+ * Denies any action, in any tool, on a resolvedPath that matches one of the
+ * globs ("**", "*", "?"). For a read the resolvedPath is the realpath, so a
+ * symlink to a denied file is denied.
  */
 export function denyPaths(patterns: readonly string[]): ToolAuthorizer<unknown> {
   if (

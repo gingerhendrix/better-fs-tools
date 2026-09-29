@@ -7,8 +7,7 @@ import { expectMedia, expectOk, harness, lineText, note, testDigest } from "../h
 const SECRET = "AKIAABCDEFGHIJKLMNOP";
 const FILE = `key=${SECRET}\nplain\nagain ${SECRET} and ${SECRET}\n`;
 
-/** A store that keeps every put as JSON text, as a remote store would. */
-function jsonStore(): ReadStateStore & { texts: string[] } {
+function jsonRoundTripStore(): ReadStateStore & { texts: string[] } {
   const texts: string[] = [];
   const records = new Map<string, string>();
   return {
@@ -30,7 +29,7 @@ function jsonStore(): ReadStateStore & { texts: string[] } {
 
 describe("redact", () => {
   test("replaces matches in view lines, and the store never holds the secret", async () => {
-    const state = jsonStore();
+    const state = jsonRoundTripStore();
     const { read } = harness({
       files: { "/a.txt": FILE },
       deps: { hooks: [redact({ patterns: [/AKIA[0-9A-Z]{16}/g] })], state },

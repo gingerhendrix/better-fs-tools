@@ -7,12 +7,6 @@ import type { ReadFailure } from "../contract/result.ts";
 import type { CallScope } from "./call-scope.ts";
 import { errorData, notFound } from "./outcomes.ts";
 
-/**
- * NOT_FOUND for the path that missed, with names from `suggest` over one
- * listing of its parent. A suggested name is never opened: the model must send
- * a new call. A throw or a malformed return from `suggest` gives
- * EXTENSION_FAILED. A failed or denied listing gives no suggestions.
- */
 export async function missOutcome<THost>(
   deps: ReadDependencies<THost>,
   request: ReadRequest,

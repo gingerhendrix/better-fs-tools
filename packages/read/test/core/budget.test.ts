@@ -4,8 +4,7 @@ import { directoryListing, textOf } from "../../src/index.ts";
 import type { ViewBudget } from "../../src/index.ts";
 import { expectFailure, expectOk, harness, lineText, note } from "../helpers.ts";
 
-/** Each line costs its length plus one. Records every measured text. */
-function lengthBudget(max: number): ViewBudget & { measured: string[] } {
+function lengthPlusOneBudget(max: number): ViewBudget & { measured: string[] } {
   const measured: string[] = [];
   return {
     id: "length",
@@ -22,7 +21,7 @@ const FILE = "aaaa\nbbbb\ncccc\ndddd\n";
 
 describe("view budget", () => {
   test("stops at a line boundary with a continuation and reason budget", async () => {
-    const budget = lengthBudget(12);
+    const budget = lengthPlusOneBudget(12);
     const { read } = harness({ files: { "/a.txt": FILE }, deps: { budget } });
     const result = expectOk(await read({ path: "/a.txt" }));
 
@@ -40,7 +39,10 @@ describe("view budget", () => {
   });
 
   test("the continuation reads the next lines under the same budget", async () => {
-    const { read } = harness({ files: { "/a.txt": FILE }, deps: { budget: lengthBudget(12) } });
+    const { read } = harness({
+      files: { "/a.txt": FILE },
+      deps: { budget: lengthPlusOneBudget(12) },
+    });
     const first = expectOk(await read({ path: "/a.txt" }));
     const next = first.continuation.next;
     if (next === null) throw new Error("expected a continuation");
@@ -51,7 +53,7 @@ describe("view budget", () => {
   });
 
   test("measure runs once for each shown or stopping line, on the clamped text", async () => {
-    const budget = lengthBudget(100);
+    const budget = lengthPlusOneBudget(100);
     const { read } = harness({
       files: { "/a.txt": `${"x".repeat(30)}\nshort\n` },
       limits: { maxCharsPerLine: 10 },
@@ -63,7 +65,10 @@ describe("view budget", () => {
   });
 
   test("the first line of the view is always shown", async () => {
-    const { read } = harness({ files: { "/a.txt": FILE }, deps: { budget: lengthBudget(2) } });
+    const { read } = harness({
+      files: { "/a.txt": FILE },
+      deps: { budget: lengthPlusOneBudget(2) },
+    });
     const result = expectOk(await read({ path: "/a.txt", offset: 2 }));
     expect(lineText(result)).toEqual(["bbbb"]);
     expect(result.truncation.primary).toBe("budget");
@@ -71,7 +76,7 @@ describe("view budget", () => {
   });
 
   test("the line limit and the byte limit stop the view first", async () => {
-    const budget = lengthBudget(10);
+    const budget = lengthPlusOneBudget(10);
     const lines = harness({ files: { "/a.txt": FILE }, deps: { budget } });
     const byLines = expectOk(await lines.read({ path: "/a.txt", limit: 1 }));
     expect(byLines.truncation.reasons).toEqual(["lines"]);
@@ -80,7 +85,7 @@ describe("view budget", () => {
     const bytes = harness({
       files: { "/a.txt": FILE },
       limits: { maxViewBytes: 8 },
-      deps: { budget: lengthBudget(10) },
+      deps: { budget: lengthPlusOneBudget(10) },
     });
     const byBytes = expectOk(await bytes.read({ path: "/a.txt" }));
     expect(lineText(byBytes)).toEqual(["aaaa"]);
@@ -95,7 +100,7 @@ describe("view budget", () => {
   test("applies to converted text, such as a directory listing", async () => {
     const { read } = harness({
       files: { "/d/a.txt": "", "/d/b.txt": "", "/d/c.txt": "" },
-      deps: { budget: lengthBudget(12), converters: [directoryListing()] },
+      deps: { budget: lengthPlusOneBudget(12), converters: [directoryListing()] },
     });
     const result = expectOk(await read({ path: "/d" }));
     expect(lineText(result)).toEqual(["a.txt", "b.txt"]);

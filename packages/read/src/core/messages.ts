@@ -3,10 +3,6 @@ import type { NodeKind } from "@better-fs-tools/fs";
 import type { ReadMessageCatalog } from "../contract/messages.ts";
 import type { TruncationReason } from "../contract/result.ts";
 
-/**
- * Wording for every note the core owns. No message names a parameter: text
- * that suggests a retry prints the `retry` string, which `retry(next)` built.
- */
 const catalog: ReadMessageCatalog = {
   retry: (next) => JSON.stringify(next),
   continuation: ({ retry, reason }) =>
@@ -67,6 +63,7 @@ const catalog: ReadMessageCatalog = {
     `The ${formatter} formatter failed, so the default formatter formatted this result.`,
 };
 
+/** The default wording of every read message. */
 export const defaultReadMessages: Readonly<ReadMessageCatalog> = Object.freeze(catalog);
 
 function quoted(values: readonly string[]): string {
@@ -87,7 +84,10 @@ function kindLabel(kind: NodeKind): string {
   return kind;
 }
 
-/** Merges key by key. Throws TypeError on an unknown key or a non-function value. */
+/**
+ * Merges overrides over `defaultReadMessages`. Throws TypeError on an unknown key
+ * or a value that is not a function.
+ */
 export function resolveReadMessages(
   overrides: Partial<ReadMessageCatalog> = {},
 ): Readonly<ReadMessageCatalog> {

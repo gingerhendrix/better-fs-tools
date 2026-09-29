@@ -6,7 +6,7 @@ export interface TextConverterOptions<THost = unknown> {
   accepts: (match: ConverterMatch) => boolean;
   /** Media type of the text. */
   mimeType: string | null;
-  /** Source bytes in, text out. The core scans the text as it arrives. */
+  /** Turns the source bytes into text. The text may arrive in chunks. */
   run: (source: AsyncIterable<Uint8Array>, ctx: ReadHookContext<THost>) => AsyncIterable<string>;
 }
 

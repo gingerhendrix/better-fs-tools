@@ -2,11 +2,7 @@ import type { ToolCallContext } from "./base.ts";
 import type { ReadInput } from "./input.ts";
 import type { ReadResult } from "./result.ts";
 
-/**
- * Built by the adapter for each tool call. The core passes it by reference to
- * every stage and never reads `host`. A direct caller with no host leaves
- * `host` out; see ReadTool.
- */
+/** Per-call context for the read tool. The tool passes `host` through to extensions and never reads it. */
 export interface ReadContext<THost = undefined> extends ToolCallContext<THost> {}
 
 /**

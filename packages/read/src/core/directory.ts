@@ -26,7 +26,6 @@ const DIRECTORY: ClassificationInfo = Object.freeze({
   reasons: Object.freeze(["directory"]),
 });
 
-/** The first directory converter, when the backend can list. Else null: the read gives NOT_A_FILE. */
 export function directoryConverter<THost>(
   scope: CallScope<THost>,
   fs: FileSystem,
@@ -41,27 +40,19 @@ export function directoryConverter<THost>(
 export interface ConvertDirectoryInput<THost> {
   readonly fs: FileSystem;
   readonly request: ReadRequest;
-  /** The lexical path that went into open(). */
-  readonly path: string;
+  readonly openedPath: string;
   readonly error: NotAFileError;
   readonly resolvedFrom: string | null;
   readonly converter: DirectoryConverter<THost>;
   readonly scope: CallScope<THost>;
 }
 
-/**
- * Runs the directory converter. Its list() is the read's one listing after
- * open, through CallScope.list, so authorize with action "list" runs first.
- * The target paths come from open(). A backend that gives target null (a
- * virtual adapter's EISDIR) gets the lexical path. A failed listing ends the
- * read with that failure. Directories have no handle, so no change detection
- * and no observation.
- */
 export async function convertDirectory<THost>(
   input: ConvertDirectoryInput<THost>,
 ): Promise<ReadReport> {
-  const { fs, request, path, error, converter, scope } = input;
+  const { fs, request, openedPath: path, error, converter, scope } = input;
   const { limits, messages } = scope.deps;
+  // A virtual backend's EISDIR has no target, so the opened path stands in.
   const dir = error.target?.resolvedPath ?? path;
   const file: FileInfo = {
     requestedPath: request.path,
@@ -87,8 +78,7 @@ export async function convertDirectory<THost>(
     },
   });
 
-  /** Abort, a held authorizer failure, then a failed listing: each wins over what the converter did. */
-  const settle = (): void => {
+  const throwIfListingFailed = (): void => {
     scope.checkAbort();
     scope.throwHeld();
     const listed: ListOutcome | null = listing;
@@ -97,7 +87,7 @@ export async function convertDirectory<THost>(
     }
   };
   const failed = (thrown?: unknown): ReadStop => {
-    settle();
+    throwIfListingFailed();
     return scope.extensionFailure("converters", extensionId(converter, thrown));
   };
 
@@ -111,7 +101,7 @@ export async function convertDirectory<THost>(
   } catch (thrown) {
     throw failed(thrown);
   }
-  settle();
+  throwIfListingFailed();
   const outcome = checkConvertOutcome(produced);
   if (outcome === null) throw failed();
   if (outcome.kind === "refuse") {

@@ -13,8 +13,7 @@ interface Host {
 
 const DECODER = new TextDecoder();
 
-/** A stand-in for a pdftotext process: upper-cases the source text, line by line. */
-async function* upper(source: AsyncIterable<Uint8Array>): AsyncIterable<string> {
+async function* fakePdfToText(source: AsyncIterable<Uint8Array>): AsyncIterable<string> {
   for await (const chunk of source) yield DECODER.decode(chunk, { stream: true }).toUpperCase();
 }
 
@@ -27,7 +26,7 @@ describe("textConverter", () => {
       files: { "/a.pdf": corpus["document.pdf"] ?? "" },
       deps: {
         converters: [
-          textConverter({ id: "pdf", accepts: isPdf, mimeType: "text/plain", run: upper }),
+          textConverter({ id: "pdf", accepts: isPdf, mimeType: "text/plain", run: fakePdfToText }),
         ],
       },
     });
@@ -41,7 +40,7 @@ describe("textConverter", () => {
       files: { "/a.pdf": corpus["document.pdf"] ?? "" },
       deps: {
         converters: [
-          textConverter({ id: "pdf", accepts: () => false, mimeType: null, run: upper }),
+          textConverter({ id: "pdf", accepts: () => false, mimeType: null, run: fakePdfToText }),
         ],
       },
     });
@@ -53,7 +52,9 @@ describe("textConverter", () => {
       files: { "/a.pdf": corpus["document.pdf"] ?? "" },
       limits: { maxConvertBytes: 10, sampleBytes: 8 },
       deps: {
-        converters: [textConverter({ id: "pdf", accepts: isPdf, mimeType: null, run: upper })],
+        converters: [
+          textConverter({ id: "pdf", accepts: isPdf, mimeType: null, run: fakePdfToText }),
+        ],
       },
     });
     expectUnsupported(await read({ path: "/a.pdf" }), "TOO_LARGE");
@@ -81,7 +82,7 @@ describe("textConverter", () => {
   });
 
   test("rejects malformed options", () => {
-    const run = upper;
+    const run = fakePdfToText;
     const accepts = () => true;
     expect(() => textConverter(null as never)).toThrow(TypeError);
     expect(() => textConverter({ id: "", accepts, mimeType: null, run })).toThrow(TypeError);

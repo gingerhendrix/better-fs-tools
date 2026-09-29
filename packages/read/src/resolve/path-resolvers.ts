@@ -2,12 +2,9 @@ import type { Note, PathResolver } from "../contract/base.ts";
 import { stepFailure } from "../core/extension-error.ts";
 
 /**
- * Left to right. Each step gets the previous path. The first not-found stops.
- * All steps share one ctx.list budget. The last note wins. A step that throws
- * is named by its id in EXTENSION_FAILED.
- *
- * THost comes from where the chain is used, not from the steps, so an inline
- * step gets the tool's host type with no type argument.
+ * Runs resolvers left to right, each on the previous path. The first not-found
+ * stops the chain. All steps share one ctx.list budget, and the last note wins.
+ * A step that throws fails the read with EXTENSION_FAILED, naming the step's id.
  */
 export function pathResolvers<THost = unknown>(
   ...steps: readonly PathResolver<NoInfer<THost>>[]

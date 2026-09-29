@@ -1,7 +1,7 @@
 import type { Classifier, NoteOverride } from "../contract/classify.ts";
 import { asciiProjection, classifier, isZip, unsupported } from "./shared.ts";
 
-/** A zip with an Office marker in the sample or an Office extension. */
+/** Refuses Office documents: a zip with an Office marker or an Office extension. */
 export function officeClassifier(options: { note?: NoteOverride } = {}): Classifier {
   return classifier("office", (sample) => {
     if (!isZip(sample.bytes)) return null;

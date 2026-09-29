@@ -24,10 +24,9 @@ import type {
 
 const ENCODER = new TextEncoder();
 
-/** The fixed clock every test uses. */
 export const FIXED_DATE = new Date("2026-08-22T00:00:00.000Z");
 
-/** Deterministic, dependency-free FNV-1a digest for tests. */
+/** FNV-1a, so tests need no crypto dependency. */
 export function testDigest(): Digest {
   const fold = (bytes: Uint8Array): string => {
     let hash = 2166136261 >>> 0;
@@ -59,7 +58,6 @@ export interface HarnessOptions {
   deps?: Omit<ReadToolDeps, "fs">;
 }
 
-/** A read tool over a memory filesystem with the test digest and the fixed clock. */
 export function harness(options: HarnessOptions = {}): { read: ReadTool; fs: MemoryFileSystem } {
   const fs = memoryFileSystem({ files: options.files ?? {}, ...options.fsOptions });
   const read = createReadTool({
@@ -68,7 +66,7 @@ export function harness(options: HarnessOptions = {}): { read: ReadTool; fs: Mem
     clock: () => FIXED_DATE,
     ...(options.limits === undefined ? {} : { limits: options.limits }),
     ...options.deps,
-    // A test may override the digest. The core checks the state pairing at run time.
+    // A test may override the digest, so the state pairing is only checked at run time.
   } as ReadToolDeps & StateNeedsDigest);
   return { read, fs };
 }
@@ -81,7 +79,6 @@ export function lineText(result: ReadResult): string[] {
   return result.status === "ok" ? result.view.lines.map((line) => line.text) : [];
 }
 
-/** Narrows to ok, failing the test with the actual status when it is not. */
 export function expectOk(result: ReadResult): ReadOk & ReadResult {
   if (result.status !== "ok") {
     const code = result.status === "error" ? ` (${result.error.code})` : "";
@@ -90,7 +87,6 @@ export function expectOk(result: ReadResult): ReadOk & ReadResult {
   return result;
 }
 
-/** Narrows to media. */
 export function expectMedia(result: ReadResult): ReadMedia & ReadResult {
   if (result.status !== "media") {
     const code = result.status === "error" ? ` (${result.error.code})` : "";
@@ -99,7 +95,6 @@ export function expectMedia(result: ReadResult): ReadMedia & ReadResult {
   return result;
 }
 
-/** Narrows to unsupported, optionally asserting the classifier's code. */
 export function expectUnsupported(result: ReadResult, code?: string): ReadUnsupported & ReadResult {
   if (result.status !== "unsupported")
     throw new Error(`expected unsupported, got ${result.status}`);
@@ -109,7 +104,6 @@ export function expectUnsupported(result: ReadResult, code?: string): ReadUnsupp
   return result;
 }
 
-/** Narrows to error, asserting the code. */
 export function expectFailure(result: ReadResult, code: ReadErrorCode): ReadFailure & ReadResult {
   if (result.status !== "error") throw new Error(`expected error ${code}, got ${result.status}`);
   if (result.error.code !== code)
@@ -119,13 +113,10 @@ export function expectFailure(result: ReadResult, code: ReadErrorCode): ReadFail
 
 export interface SpiedFileSystem {
   readonly fs: FileSystem;
-  /** Paths passed to open(), in order. */
   readonly opens: string[];
-  /** Directories passed to list(), in order. */
   readonly lists: string[];
 }
 
-/** Wraps a filesystem and records every open() and list() path. */
 export function spyFileSystem(inner: FileSystem): SpiedFileSystem {
   const opens: string[] = [];
   const lists: string[] = [];

@@ -7,19 +7,6 @@ const ENCODER = new TextEncoder();
 
 export type SelectionStop = "lines" | "bytes" | "budget" | null;
 
-/**
- * Bounded incremental line scanner.
- *
- * The scanner retains only the current line prefix, the selected window, and a
- * few counters, so scanning a very large file stays flat in memory. It keeps
- * counting after the window closes so totals and the content identity can be
- * exact without retaining anything it is not showing.
- *
- * The view stops at the first of three limits, always at a line boundary:
- * `request.limit` lines, `limits.maxViewBytes`, then the view budget. The
- * budget measures each clamped line. It never stops the first line of the
- * view, so a budget alone cannot give an empty view that repeats itself.
- */
 export class LineScanner {
   readonly lines: ReadLine[] = [];
   totalLines = 0;
@@ -27,7 +14,6 @@ export class LineScanner {
   selectionStop: SelectionStop = null;
   firstUnshown: number | null = null;
 
-  /** Sum of budget.measure over the lines in the view. */
   private budgetUsed = 0;
   private linePrefix = "";
   private lineChars = 0;
@@ -61,7 +47,6 @@ export class LineScanner {
     }
   }
 
-  /** EOF. A trailing newline does not invent an extra line. */
   finish(): void {
     if (this.pendingCr) {
       this.emitLine();
@@ -71,8 +56,7 @@ export class LineScanner {
     }
   }
 
-  /** The scan limit stopped the read before EOF. */
-  cap(unscannedBytesKnown: boolean): void {
+  stopAtScanLimit(unscannedBytesKnown: boolean): void {
     if (this.pendingCr) {
       this.emitLine();
       this.pendingCr = false;
@@ -92,7 +76,6 @@ export class LineScanner {
     return this.lines.filter((line) => line.clamped).map((line) => line.number);
   }
 
-  /** Source text of the view, used for the view identity. */
   get viewText(): string {
     return this.lines.map((line) => line.text).join("\n");
   }
@@ -101,10 +84,10 @@ export class LineScanner {
     return this.totalLines + 1 >= this.request.offset && this.selectionStop === null;
   }
 
-  /** Measures the current clamped line and counts it, unless it would pass the budget. */
   private admitByBudget(): boolean {
     if (this.budget === null) return true;
     const cost = this.budget.measure(this.linePrefix);
+    // The first line is always admitted, so a budget alone never gives an empty view.
     if (this.lines.length > 0 && this.budgetUsed + cost > this.budget.max) return false;
     this.budgetUsed += cost;
     return true;

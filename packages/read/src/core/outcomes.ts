@@ -17,14 +17,12 @@ import { isRecord } from "./input.ts";
 
 type Messages = Readonly<ReadMessageCatalog>;
 
-/** Thrown by a stage to end the read with a finished outcome. Internal. */
 export class ReadStop extends Error {
   constructor(readonly outcome: ReadReport) {
     super(`read stopped with ${outcome.status}`);
   }
 }
 
-/** An error outcome with one note. `error.message` and `error.data` come from the note. */
 export function failure(
   code: ReadErrorCode,
   phase: ReadPhase,
@@ -60,7 +58,6 @@ export function aborted(messages: Messages, request: ReadRequest, phase: ReadPha
   });
 }
 
-/** `extension` is the dependency name. `id` is the extension object's id, when it has one. */
 export function extensionFailed(
   messages: Messages,
   request: ReadRequest,
@@ -76,12 +73,6 @@ export function extensionFailed(
   });
 }
 
-/**
- * An error note built from a host note (an authorizer refusal), by the rule
- * write and bash use too: the code becomes the error code in kebab case, the
- * severity "warning", and the host's own code moves to data.source. The
- * message and a retry stay.
- */
 export function hostErrorNote(code: ReadErrorCode, note: ReadNote): ReadNote {
   const kebab = code.toLowerCase().replaceAll("_", "-");
   const data = note.code === kebab ? note.data : { ...note.data, source: note.code };
@@ -94,11 +85,6 @@ export function hostErrorNote(code: ReadErrorCode, note: ReadNote): ReadNote {
   };
 }
 
-/**
- * DENIED from the authorizer. The authorizer's note by hostErrorNote when it
- * gave one, else the default. No file info: a denial does not disclose the
- * open target.
- */
 export function denied(
   messages: Messages,
   request: ReadRequest,
@@ -108,6 +94,7 @@ export function denied(
     "DENIED",
     "authorize",
     request,
+    // No file info: a denial must not disclose the open target.
     null,
     note === null
       ? {
@@ -191,7 +178,6 @@ const CODE_BY_REASON = {
   io: "IO_ERROR",
 } as const satisfies Record<FileSystemError["reason"], ReadErrorCode>;
 
-/** Maps a typed filesystem refusal to a failure. `phase` names the stage for an abort. */
 export function fromFileSystemError(
   messages: Messages,
   request: ReadRequest,
@@ -211,7 +197,6 @@ export function fromFileSystemError(
   });
 }
 
-/** Note data for a filesystem refusal: kind, detail, and cause when the adapter gave them. */
 export function errorData(error: FileSystemError): Record<string, JsonValue> {
   return {
     ...(error.reason === "not-a-file" ? { kind: error.kind } : {}),
@@ -221,7 +206,6 @@ export function errorData(error: FileSystemError): Record<string, JsonValue> {
   };
 }
 
-/** NOT_FOUND. `data` holds the adapter's detail and the suggestion fields, when any. */
 export function notFound(
   messages: Messages,
   request: ReadRequest,

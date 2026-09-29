@@ -17,12 +17,10 @@ import type { ScanOutcome } from "./scan.ts";
 
 const ENCODER = new TextEncoder();
 
-/** A text chunk that is not a string. Internal: the core maps it to EXTENSION_FAILED. */
 export class ConverterOutputError extends Error {}
 
 export type ScannedText = Extract<ScanOutcome, { kind: "scanned" }>;
 
-/** The outcome when it has the ConvertOutcome shape, else null. */
 export function checkConvertOutcome(value: unknown): ConvertOutcome | null {
   if (!isRecord(value)) return null;
   switch (value.kind) {
@@ -46,11 +44,6 @@ export function checkConvertOutcome(value: unknown): ConvertOutcome | null {
   }
 }
 
-/**
- * Converted text goes through the same LineScanner as file text: offset,
- * limit, clamping, view bytes, and the scan cap all apply. The scan checks the
- * signal on each chunk. contentId comes from the source, so the scan has no digest.
- */
 export async function scanConvertedText<THost>(
   text: string | AsyncIterable<string>,
   request: ReadRequest,
@@ -75,14 +68,12 @@ export async function scanConvertedText<THost>(
   }
 }
 
-/** Total bytes of the media parts. Text parts do not count. */
 export function mediaBytes(parts: readonly ContentPart[]): number {
   let total = 0;
   for (const part of parts) if (part.type === "media") total += part.data.byteLength;
   return total;
 }
 
-/** The mediaType of the first media part, or null. */
 export function firstMediaType(parts: readonly ContentPart[]): string | null {
   for (const part of parts) if (part.type === "media") return part.mediaType;
   return null;
@@ -106,7 +97,6 @@ export function refusedOutcome(
   };
 }
 
-/** Converter input past maxConvertBytes, or media past maxMediaBytes. */
 export function tooLarge(
   messages: Readonly<ReadMessageCatalog>,
   request: ReadRequest,

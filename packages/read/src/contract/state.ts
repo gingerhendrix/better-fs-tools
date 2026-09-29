@@ -1,6 +1,6 @@
 /**
- * Session state for read observations. A store is a cache: the core never
- * fails a read because a store call failed.
+ * Session state for read observations. A store is a cache: a failed store call
+ * never fails a read.
  */
 export interface ReadStateStore {
   get(key: string): Promise<ReadRecord | null>;
@@ -9,7 +9,7 @@ export interface ReadStateStore {
 }
 
 /**
- * What the core stores after a read with an observation, and what a write
+ * What the read tool stores after a read with an observation, and what a write
  * tool stores after a commit. Never holds `host`.
  */
 export interface ReadRecord {

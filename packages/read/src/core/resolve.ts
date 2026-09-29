@@ -11,20 +11,12 @@ import { isNote } from "./outcomes.ts";
 export type ResolvedPath =
   | {
       readonly kind: "path";
-      /** The path string that goes into the one fs.open(). */
       readonly path: string;
-      /** The requested path when the resolver changed it, else null. */
       readonly resolvedFrom: string | null;
       readonly note: ReadNote | null;
     }
   | { readonly kind: "not-found"; readonly note: ReadNote | null };
 
-/**
- * Runs the resolver on the requested path. The resolver only changes the path
- * string: it cannot open, and it gets one listing through `ctx.list`. A throw
- * or a malformed outcome gives EXTENSION_FAILED. A failure held by the listing
- * (an authorizer throw) wins over what the resolver did with it.
- */
 export async function resolvePath<THost>(
   resolver: PathResolver<THost> | null,
   request: ReadRequest,
@@ -63,7 +55,6 @@ export async function resolvePath<THost>(
   };
 }
 
-/** The same rule parseReadInput applies to the requested path. */
 function isPath(value: unknown): value is string {
   return typeof value === "string" && value.trim() !== "" && !value.includes("\0");
 }
