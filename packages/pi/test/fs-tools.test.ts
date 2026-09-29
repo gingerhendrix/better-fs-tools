@@ -5,6 +5,8 @@ import path from "node:path";
 
 import { defaultEditSignature } from "@better-fs-tools/write/signature";
 
+import { nodeDigest } from "@better-fs-tools/node";
+import { sha256Digest } from "@better-fs-tools/read";
 import { memoryLocks } from "@better-fs-tools/write";
 
 import { createPiBashTool, createPiFsTools } from "../src/index.ts";
@@ -50,6 +52,19 @@ describe("createPiFsTools", () => {
     expect(await tools.state?.get(path.join(cwd, "a.txt"))).not.toBeNull();
     now += 31 * 60 * 1_000;
     expect(await tools.state?.get(path.join(cwd, "a.txt"))).toBeNull();
+  });
+
+  test("takes a digest, as createNodeFsTools does; the default is nodeDigest()", async () => {
+    expect(createPiFsTools().digest.id).toBe(nodeDigest().id);
+    const digest = sha256Digest();
+    const tools = createPiFsTools({ digest });
+    expect(tools.digest).toBe(digest);
+    const cwd = await fixture({ "a.txt": "one\n" });
+    await execute(tools.read, { path: "a.txt" }, cwd);
+    expect((await run(tools.edit, EDIT("one", "1"), cwd)).details?.firstChangedLine).toBe(1);
+    expect(() => createPiFsTools({ read: { digest } } as never)).toThrow(
+      "createPiFsTools read options cannot set digest: set it once at the top level",
+    );
   });
 
   test("a change on disk after the read gives STALE for write", async () => {
@@ -134,7 +149,7 @@ describe("createPiFsTools", () => {
     expect(() => createPiFsTools({ bogus: true } as never)).toThrow(
       "Unknown createPiFsTools option: bogus",
     );
-    expect(() => createPiFsTools({ digest: null } as never)).toThrow(TypeError);
+    expect(() => createPiFsTools({ bash: true } as never)).toThrow(TypeError);
     expect(() => createPiFsTools({ denyRoot: ["/x"] } as never)).toThrow(TypeError);
   });
 

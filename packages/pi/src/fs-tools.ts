@@ -27,6 +27,7 @@ type Shared = FsToolsSharedKey | keyof PiRootOptions;
 
 const KNOWN: ReadonlySet<string> = new Set([
   "state",
+  "digest",
   "locks",
   "clock",
   ...PI_ROOT_KEYS,
@@ -40,6 +41,8 @@ const SHARED_KEYS = ["state", "digest", "locks", "clock", ...PI_ROOT_KEYS] as co
 export interface CreatePiFsToolsOptions extends PiRootOptions {
   /** Default createMemoryStore({ clock }), on the bundle clock. null turns read-before-write off. */
   readonly state?: ReadStateStore | null;
+  /** Default nodeDigest(), as in createNodeFsTools. */
+  readonly digest?: Digest;
   /** Default memoryLocks(). */
   readonly locks?: LockManager;
   /** Default () => new Date(). */
@@ -56,7 +59,7 @@ export interface PiFsTools {
   readonly write: PiMutationTool;
   readonly applyPatch: PiMutationTool;
   readonly state: ReadStateStore | null;
-  /** nodeDigest(). */
+  /** options.digest, or nodeDigest(). */
   readonly digest: Digest;
   readonly locks: LockManager;
   readonly clock: Clock;
@@ -136,7 +139,7 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
 
   const core = createFsTools<ExtensionContext>({
     fs,
-    digest: nodeDigest(),
+    digest: options.digest ?? nodeDigest(),
     ...(options.state === undefined ? {} : { state: options.state }),
     ...(options.locks === undefined ? {} : { locks: options.locks }),
     ...(options.clock === undefined ? {} : { clock: options.clock }),

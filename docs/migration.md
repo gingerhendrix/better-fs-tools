@@ -66,7 +66,7 @@ The `feature-api-fixes` branch changed the public API of every package after `ma
 ## `@better-fs-tools/pi`
 
 - `CreatePiBashToolOptions` has no `cwd`.
-- `createPiFsTools()` returns `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, and takes `locks`, `clock`, `newFileMode`, and `newDirectoryMode`. Unknown option keys throw `TypeError`.
+- `createPiFsTools()` returns `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, and takes `digest`, `locks`, `clock`, `newFileMode`, and `newDirectoryMode`. Unknown option keys throw `TypeError`.
 
 ## Backends
 
