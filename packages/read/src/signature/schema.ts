@@ -5,7 +5,8 @@ import type { JsonObject } from "../contract/json.ts";
  * itself, so a strict-mode provider never emits one. `\s` has the same meaning
  * in JSON Schema (ECMA-262) and in the check below.
  */
-export const PATH_PATTERN = "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$";
+// No lookaround: strict grammar engines may refuse one.
+export const PATH_PATTERN = "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$";
 const PATH_REGEX = new RegExp(PATH_PATTERN, "u");
 
 export const DEFAULT_NAME = "read";

@@ -19,7 +19,7 @@ exports[`defaultReadSignature schema snapshot 1`] = `
     "path": {
       "description": "Path to read, relative to the working directory or absolute within an allowed root.",
       "minLength": 1,
-      "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+      "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
       "type": "string",
     },
   },

@@ -5,7 +5,8 @@ import type { JsonObject } from "@better-fs-tools/read";
  * Refuses an empty or blank path and any path that holds NUL. `\s` has the
  * same meaning in JSON Schema (ECMA-262) and in the checks below.
  */
-export const PATH_PATTERN = "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$";
+// No lookaround: strict grammar engines may refuse one.
+export const PATH_PATTERN = "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$";
 const PATH_REGEX = new RegExp(PATH_PATTERN, "u");
 
 /** A string with at least one non-whitespace character. The core refuses a blank patch. */

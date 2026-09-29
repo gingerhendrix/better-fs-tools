@@ -18,6 +18,31 @@ import type { MutationSignature } from "../../src/signature/index.ts";
 import { generatedInputs } from "./generated.ts";
 import type { NestedKeys } from "./generated.ts";
 
+/** The path pattern before batch 6. It used a lookahead, which strict grammar engines may refuse. */
+const LOOKAHEAD_PATH_PATTERN = "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$";
+
+const PATH_TABLE = [
+  "",
+  " ",
+  "\t\n",
+  "\u00a0",
+  "\u2028",
+  "\u0000",
+  "a\u0000b",
+  " \u0000 ",
+  "a",
+  "a.txt",
+  "/abs/path/file.ts",
+  "dir/a b.txt",
+  " leading",
+  "trailing ",
+  "  both  ",
+  "caf\u00e9/\u6587\u4ef6.md",
+  "\ud83d\ude00.txt",
+  "\ud83d",
+  "line\nbreak",
+];
+
 interface Preset {
   readonly label: string;
   readonly build: () => MutationSignature<unknown>;
@@ -345,5 +370,28 @@ describe("signature options", () => {
     const byDefault = defaultEditSignature().description;
     expect(byDefault).toContain("curly quotes");
     expect(byDefault).toContain("escape sequences");
+  });
+});
+
+describe("path pattern", () => {
+  test("the path pattern has no lookaround and accepts what the lookahead pattern accepted", () => {
+    const pattern = (
+      defaultWriteSignature().schema.properties as Record<string, { pattern: string }>
+    ).path!.pattern;
+    expect(pattern).not.toMatch(/\(\?[=!<]/u);
+    for (const flags of ["u", ""]) {
+      const next = new RegExp(pattern, flags);
+      const old = new RegExp(LOOKAHEAD_PATH_PATTERN, flags);
+      for (const value of PATH_TABLE) {
+        expect({ value, flags, accepts: next.test(value) }).toEqual({
+          value,
+          flags,
+          accepts: old.test(value),
+        });
+      }
+    }
+    expect(new RegExp(pattern, "u").test("dir/a b.txt")).toBe(true);
+    expect(new RegExp(pattern, "u").test(" \t")).toBe(false);
+    expect(new RegExp(pattern, "u").test("a\u0000b")).toBe(false);
   });
 });

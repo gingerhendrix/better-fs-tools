@@ -20,7 +20,7 @@ exports[`signature presets defaultEditSignature: schema and description snapshot
       "path": {
         "description": "Path of the file to edit, relative to the working directory or absolute within an allowed root.",
         "minLength": 1,
-        "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+        "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
         "type": "string",
       },
       "replace_all": {
@@ -73,7 +73,7 @@ exports[`signature presets multiEditSignature: schema and description snapshot 1
       "path": {
         "description": "Path of the file to edit, relative to the working directory or absolute within an allowed root.",
         "minLength": 1,
-        "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+        "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
         "type": "string",
       },
     },
@@ -97,7 +97,7 @@ exports[`signature presets camelCaseEditSignature: schema and description snapsh
       "filePath": {
         "description": "Path of the file to edit, relative to the working directory or absolute within an allowed root.",
         "minLength": 1,
-        "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+        "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
         "type": "string",
       },
       "newString": {
@@ -139,7 +139,7 @@ exports[`signature presets defaultWriteSignature: schema and description snapsho
       "path": {
         "description": "Path of the file to create or replace, relative to the working directory or absolute within an allowed root.",
         "minLength": 1,
-        "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+        "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
         "type": "string",
       },
     },
@@ -167,7 +167,7 @@ exports[`signature presets snakeCaseWriteSignature: schema and description snaps
       "file_path": {
         "description": "Path of the file to create or replace, relative to the working directory or absolute within an allowed root.",
         "minLength": 1,
-        "pattern": "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$",
+        "pattern": "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$",
         "type": "string",
       },
     },
