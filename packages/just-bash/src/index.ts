@@ -12,7 +12,6 @@
  * after `realpath()`. Backend errors are reduced to a bounded POSIX code and a
  * safe phase; raw messages, which can contain paths, never leave this module.
  */
-import type { IFileSystem } from "just-bash";
 
 import { posixPaths, resolvePosix } from "@better-fs-tools/fs";
 import type {
@@ -27,7 +26,7 @@ import type {
 
 import type { IdentityMode, SymlinkPolicy } from "@better-fs-tools/fs";
 
-import type { JustBashFileSystem, JustBashFileSystemOptions } from "./contract.ts";
+import type { JustBashBackend, JustBashFileSystem, JustBashFileSystemOptions } from "./contract.ts";
 import {
   AdapterRefusal,
   authorizeCanonical,
@@ -56,10 +55,11 @@ import { JUST_BASH_WRITE_CAPABILITIES, justBashWrites } from "./write.ts";
 
 export { justBashCommandRunner } from "./command-runner.ts";
 export type { JustBashCommandRunnerOptions, JustBashShell } from "./command-runner.ts";
-export type { JustBashFileSystem, JustBashFileSystemOptions } from "./contract.ts";
+export type { JustBashBackend, JustBashFileSystem, JustBashFileSystemOptions } from "./contract.ts";
 
 /**
- * Wrap the exact public `IFileSystem` contract exported by `just-bash`.
+ * Wrap a just-bash `IFileSystem`, or any backend with the `JustBashBackend`
+ * subset: the read methods, and the write methods when it writes.
  *
  * Reads are buffered during `open()`. Abort checks bracket every uncancellable
  * backend promise, but cannot stop one already in flight. Directory backends
@@ -73,7 +73,7 @@ export type { JustBashFileSystem, JustBashFileSystemOptions } from "./contract.t
  * `@better-fs-tools/fs`.
  */
 export function justBashFileSystem(
-  fs: IFileSystem,
+  fs: JustBashBackend,
   options: JustBashFileSystemOptions,
 ): JustBashFileSystem {
   validateFileSystem(fs);
@@ -87,7 +87,7 @@ export function justBashFileSystem(
 
 type ReadMethods = Omit<JustBashFileSystem, "writeCapabilities" | "stat" | "write" | "remove">;
 
-function readMethods(fs: IFileSystem, configured: JustBashSettings): ReadMethods {
+function readMethods(fs: JustBashBackend, configured: JustBashSettings): ReadMethods {
   const { id, cwd, allowedRoots, denyRoots, maxBufferedBytes, identity, symlinks } = configured;
 
   return {
@@ -238,7 +238,7 @@ function readMethods(fs: IFileSystem, configured: JustBashSettings): ReadMethods
 /* -------------------------------------------------------------------------- */
 
 function justBashOpenFile(context: {
-  fs: IFileSystem;
+  fs: JustBashBackend;
   id: string;
   cwd: string;
   lexical: string;

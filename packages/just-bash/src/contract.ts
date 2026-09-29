@@ -1,3 +1,5 @@
+import type { IFileSystem } from "just-bash";
+
 import type {
   BufferedFileSystemOptions,
   FileSystemRootOptions,
@@ -8,6 +10,21 @@ import type {
   MutationOutcome,
   WritableFileSystem,
 } from "@better-fs-tools/fs";
+
+/**
+ * The part of the just-bash `IFileSystem` the adapter calls. Reads need
+ * `lstat`, `realpath`, `stat`, `readFileBuffer`, and `readdir`, and use
+ * `readdirWithFileTypes` when it is there. The write methods are optional:
+ * a write checks them when it runs, so a read-only backend fits this type and
+ * still serves reads. A full `IFileSystem` fits too.
+ */
+export type JustBashBackend = Pick<
+  IFileSystem,
+  "lstat" | "realpath" | "stat" | "readFileBuffer" | "readdir"
+> &
+  Partial<
+    Pick<IFileSystem, "readdirWithFileTypes" | "writeFile" | "mkdir" | "chmod" | "utimes" | "rm">
+  >;
 
 /**
  * The shared root options, with virtual paths. `cwd` must be absolute and

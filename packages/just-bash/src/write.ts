@@ -15,6 +15,7 @@
  * leaves `mtime` where it was moves it on by one millisecond with `utimes`.
  * The version then changes on every write through this adapter.
  */
+
 import type { IFileSystem } from "just-bash";
 
 import { posixPaths } from "@better-fs-tools/fs";
@@ -46,6 +47,7 @@ import {
   requireStatKey,
   toFileSystemError,
 } from "./policy.ts";
+import type { JustBashBackend } from "./contract.ts";
 import type { JustBashSettings, ValidatedStat } from "./policy.ts";
 
 export const JUST_BASH_WRITE_CAPABILITIES: WriteCapabilities = Object.freeze({
@@ -73,7 +75,7 @@ type Located =
       readonly missingDirectories: readonly string[];
     };
 
-export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): JustBashWrites {
+export function justBashWrites(fs: JustBashBackend, settings: JustBashSettings): JustBashWrites {
   const { id, cwd, allowedRoots, denyRoots, maxBufferedBytes, identity, symlinks } = settings;
 
   const lstatOrNull = async (path: string, signal?: AbortSignal): Promise<ValidatedStat | null> => {
@@ -157,10 +159,13 @@ export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): Jus
         };
 
   /** mkdir each missing parent, outermost first, then check it is a real directory. */
-  const makeDirectories = async (directories: readonly string[]): Promise<string[]> => {
+  const makeDirectories = async (
+    writable: Writable<"mkdir">,
+    directories: readonly string[],
+  ): Promise<string[]> => {
     const created: string[] = [];
     for (const directory of directories) {
-      await mutate(() => fs.mkdir(directory, { recursive: true }), "mkdir");
+      await mutate(() => writable.mkdir(directory, { recursive: true }), "mkdir");
       const entry = await lstatOrNull(directory);
       if (entry?.isDirectory !== true) {
         throw refuse({ reason: "denied", detail: "a created parent is not a directory" });
@@ -201,7 +206,7 @@ export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): Jus
     ): Promise<MutationOutcome> {
       if (options.signal?.aborted) return { ok: false, error: { reason: "aborted" } };
       try {
-        requireWriteMethods(fs, WRITE_METHODS);
+        const writable = requireWriteMethods(fs, WRITE_METHODS);
         if (bytes.byteLength > maxBufferedBytes) {
           throw new WriteRefusal({
             reason: "too-large",
@@ -219,15 +224,17 @@ export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): Jus
         if (options.signal?.aborted) throw refuse({ reason: "aborted" });
 
         const { resolved } = located;
-        const created = located.exists ? [] : await makeDirectories(located.missingDirectories);
-        await mutate(() => fs.writeFile(resolved, bytes), "writeFile");
+        const created = located.exists
+          ? []
+          : await makeDirectories(writable, located.missingDirectories);
+        await mutate(() => writable.writeFile(resolved, bytes), "writeFile");
         const mode = located.exists ? located.stat.mode : options.mode;
-        if (mode !== undefined) await mutate(() => fs.chmod(resolved, mode), "chmod");
+        if (mode !== undefined) await mutate(() => writable.chmod(resolved, mode), "chmod");
         if (located.exists) {
           const after = await inspect(fs, "stat", resolved);
           if (after.mtimeMs <= located.stat.mtimeMs) {
             const mtime = new Date(located.stat.mtimeMs + 1);
-            await mutate(() => fs.utimes(resolved, mtime, mtime), "utimes");
+            await mutate(() => writable.utimes(resolved, mtime, mtime), "utimes");
           }
         }
         return { ok: true, file: mutated(resolved, await existing(resolved), created) };
@@ -239,12 +246,12 @@ export function justBashWrites(fs: IFileSystem, settings: JustBashSettings): Jus
     async remove(requested: string, options: MutateOptions): Promise<MutationOutcome> {
       if (options.signal?.aborted) return { ok: false, error: { reason: "aborted" } };
       try {
-        requireWriteMethods(fs, ["rm"]);
+        const writable = requireWriteMethods(fs, ["rm"]);
         const located = await locate(requested, options.signal);
         refuseConflict(located, options.precondition);
         if (!located.exists) throw refuse({ reason: "not-found" });
         if (options.signal?.aborted) throw refuse({ reason: "aborted" });
-        await mutate(() => fs.rm(located.resolved), "rm");
+        await mutate(() => writable.rm(located.resolved), "rm");
         return { ok: true, file: mutated(located.resolved, null, []) };
       } catch (error) {
         return { ok: false, error: toMutationError(error) };
@@ -260,7 +267,10 @@ const WRITE_METHODS = ["writeFile", "mkdir", "chmod", "utimes"] as const;
  * Decision W4: the backend's write methods are checked when a write runs, not
  * when the adapter is built, so a backend without them still serves reads.
  */
-function requireWriteMethods(fs: IFileSystem, methods: readonly (keyof IFileSystem)[]): void {
+function requireWriteMethods<M extends WriteMethod>(
+  fs: JustBashBackend,
+  methods: readonly M[],
+): Writable<M> {
   for (const method of methods) {
     if (typeof fs[method] !== "function") {
       throw new WriteRefusal({
@@ -269,7 +279,13 @@ function requireWriteMethods(fs: IFileSystem, methods: readonly (keyof IFileSyst
       });
     }
   }
+  return fs as Writable<M>;
 }
+
+type WriteMethod = "writeFile" | "mkdir" | "chmod" | "utimes" | "rm";
+
+/** The backend once requireWriteMethods has checked methods `M`. */
+type Writable<M extends WriteMethod> = JustBashBackend & Required<Pick<IFileSystem, M>>;
 
 /** The adapter's own precondition check. Not atomic with the backend call. */
 function refuseConflict(located: Located, precondition: Precondition): void {

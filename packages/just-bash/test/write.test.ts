@@ -6,6 +6,7 @@ import { InMemoryFs } from "just-bash";
 import type { IFileSystem } from "just-bash";
 
 import { justBashFileSystem } from "../src/index.ts";
+import type { JustBashBackend } from "../src/index.ts";
 import { intercept, writable } from "./backend.ts";
 import { expectMutationError } from "./helpers.ts";
 
@@ -75,6 +76,28 @@ describe("just-bash writes: shape", () => {
       });
     }
     expect(await fs.exists("/b.txt")).toBe(false);
+  });
+
+  test("a read-only backend with only the read methods fits the type, with no cast", async () => {
+    const fs = new InMemoryFs({ "/a.txt": "alpha\n" });
+    const readOnly: JustBashBackend = {
+      lstat: (path) => fs.lstat(path),
+      realpath: (path) => fs.realpath(path),
+      stat: (path) => fs.stat(path),
+      readFileBuffer: (path) => fs.readFileBuffer(path),
+      readdir: (path) => fs.readdir(path),
+    };
+    const wrapped = justBashFileSystem(readOnly, { allowedRoots: ["/"] });
+    const read = await wrapped.open("/a.txt", {});
+    expect(read.ok).toBe(true);
+    if (read.ok) await read.file.close();
+    expect(await wrapped.write("/b.txt", ENCODER.encode("x"), CREATE)).toMatchObject({
+      ok: false,
+      error: { reason: "unsupported" },
+    });
+    // A full IFileSystem fits the same type.
+    const full: JustBashBackend = fs satisfies IFileSystem;
+    expect(justBashFileSystem(full, { allowedRoots: ["/"] }).id).toBe("just-bash");
   });
 });
 

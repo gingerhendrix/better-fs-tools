@@ -2,7 +2,7 @@
  * Path policy, backend value checks and error mapping shared by reads and
  * writes. Raw backend messages, which can contain paths, never leave here.
  */
-import type { FsStat, IFileSystem } from "just-bash";
+import type { FsStat } from "just-bash";
 
 import {
   containsPosix,
@@ -18,7 +18,7 @@ import type {
   SymlinkPolicy,
 } from "@better-fs-tools/fs";
 
-import type { JustBashFileSystemOptions } from "./contract.ts";
+import type { JustBashBackend, JustBashFileSystemOptions } from "./contract.ts";
 
 const MAX_IDENTITY_LENGTH = 1_024;
 
@@ -98,7 +98,7 @@ export function validateOptions(options: JustBashFileSystemOptions): JustBashSet
  * a write runs (see `requireWriteMethods`), so a read-only backend still serves
  * reads.
  */
-export function validateFileSystem(fs: IFileSystem): void {
+export function validateFileSystem(fs: JustBashBackend): void {
   if (fs === null || typeof fs !== "object" || Array.isArray(fs)) {
     throw new TypeError("justBashFileSystem needs an IFileSystem object");
   }
@@ -157,7 +157,7 @@ export function authorizeCanonical(
 }
 
 export async function canonicalPath(
-  fs: IFileSystem,
+  fs: JustBashBackend,
   lexical: string,
   signal?: AbortSignal,
   phase = "realpath",
@@ -178,7 +178,7 @@ export const SYMLINK_REJECTED =
  * since nothing below it exists.
  */
 export async function refuseSymlinkComponents(
-  fs: IFileSystem,
+  fs: JustBashBackend,
   lexical: string,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -205,7 +205,7 @@ export function display(cwd: string, target: string): string {
 }
 
 export async function inspect(
-  fs: IFileSystem,
+  fs: JustBashBackend,
   method: "stat" | "lstat",
   path: string,
   signal?: AbortSignal,
