@@ -26,8 +26,11 @@
     "@better-fs-tools/write": "workspace:^"
   },
   "devDependencies": {
+    "@ai-sdk/openai": "catalog:",
     "@better-fs-tools/fs": "workspace:^",
-    "ai": "catalog:"
+    "@better-fs-tools/just-bash": "workspace:^",
+    "ai": "catalog:",
+    "just-bash": "catalog:"
   },
   "peerDependencies": {
     "ai": "catalog:"

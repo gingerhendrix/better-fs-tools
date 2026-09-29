@@ -9,6 +9,7 @@
       "packages/*"
     ],
     "catalog": {
+      "@ai-sdk/openai": "4.0.78",
       "@cloudflare/computer": "0.2.1",
       "@cloudflare/shell": "0.4.3",
       "@earendil-works/pi-coding-agent": "^0.84.2",
@@ -30,6 +31,7 @@
     "format:check": "oxfmt --check .",
     "lint": "if find apps packages -type f \\( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' \\) -print -quit | grep -q .; then oxlint --deny-warnings .; else echo 'No source files to lint'; fi",
     "test": "bun test --pass-with-no-tests",
+    "test:e2e": "bun test --timeout 120000 ./packages/ai-sdk/test/e2e/openai.e2e.ts",
     "typecheck": "tsc -b"
   },
   "devDependencies": {
