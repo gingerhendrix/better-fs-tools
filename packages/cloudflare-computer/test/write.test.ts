@@ -35,7 +35,7 @@ describe("cloudflare computer writes: shape", () => {
     expect("stage" in fs).toBe(false);
   });
 
-  test("a filesystem without a write method still reads; a write reports unsupported (W4)", async () => {
+  test("a filesystem without a write method still reads; a write reports unsupported", async () => {
     const backend = fakeComputer({ "/workspace/a.txt": "alpha\n" });
     for (const method of ["writeFile", "mkdir", "rm"] as const) {
       const { [method]: _dropped, ...without } = backend;
@@ -113,7 +113,7 @@ describe("cloudflare computer writes: stat", () => {
   test("a backend without a usable mode reports null", async () => {
     const { backend, fs } = fsFor({ "/workspace/a.txt": "a\n" });
     backend.override.lstat = async (path: string) => ({
-      ...(await backend.raw.lstat(path)),
+      ...(await backend.unoverridden.lstat(path)),
       mode: -1,
     });
     const outcome = await fs.stat("a.txt", {});

@@ -14,7 +14,6 @@ import { errorOf, testDigest } from "./helpers.ts";
 
 const DECODER = new TextDecoder();
 
-/** The read tool and the three write tools over one Computer adapter, store, digest and lock manager. */
 function toolsFor(files: Record<string, string> = {}) {
   const { backend, fs } = fsFor(files);
   const shared = { fs, state: memoryStore(), digest: testDigest(), locks: memoryLocks() };

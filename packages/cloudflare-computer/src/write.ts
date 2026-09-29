@@ -1,15 +1,3 @@
-/**
- * Writes over Cloudflare Computer's workspace filesystem.
- *
- * `writeFile` runs in one SQL transaction, so a replace is atomic. It has no
- * version check, so the adapter checks the precondition with a fresh `lstat`
- * walk right before the call, and reports `compareAndSwap: false`. A create
- * uses `exclusive: true`, so two creators cannot both win.
- *
- * `writeFile` sets the mode to `options.mode ?? 0o644` on every call, also on
- * a replace. The adapter passes the mode `lstat` reported, so a replace keeps
- * it (`preserveMode: true`).
- */
 import { containsPosix } from "@better-fs-tools/fs";
 import type {
   FileStat,
@@ -29,8 +17,8 @@ import {
   AdapterRefusal,
   authorize,
   boundedCode,
-  components,
-  display,
+  pathsFromSlashToTarget,
+  displayPath,
   inspect,
   mapBackendError,
   notAFile,
@@ -55,7 +43,6 @@ type Located =
   | { readonly exists: true; readonly entry: CloudflareComputerStat }
   | { readonly exists: false; readonly missingDirectories: readonly string[] };
 
-/** The same token open() reports in info.version. */
 export function computerVersion(entry: CloudflareComputerStat): string {
   return `computer:${entry.size}:${entry.mtime}`;
 }
@@ -65,15 +52,9 @@ export function computerWrites(
   roots: Roots,
 ): ComputerWrites {
   const { cwd } = roots;
-  /**
-   * `lstat` every component from `/` down. A symlink anywhere is refused, also
-   * above the root.
-   * The first missing component ends the walk: it and every component below
-   * it are missing. The root and its ancestors must exist.
-   */
   const locate = async (root: string, target: string): Promise<Located> => {
     const missing: string[] = [];
-    for (const component of components(target)) {
+    for (const component of pathsFromSlashToTarget(target)) {
       if (missing.length > 0) {
         missing.push(component);
         continue;
@@ -105,12 +86,10 @@ export function computerWrites(
         throw refuse({ reason: "not-found", detail: "a path component is not a directory" });
       }
     }
-    /* The root itself, or "/", is a directory. */
     if (missing.length === 0) throw refuse(notAFile("directory", cwd, target));
     return { exists: false, missingDirectories: missing.slice(0, -1) };
   };
 
-  /** Computer throws ENOENT for a missing path. */
   const lstatOrNull = async (path: string): Promise<CloudflareComputerStat | null> => {
     try {
       return await inspect(workspaceFs, "lstat", path, false);
@@ -125,7 +104,7 @@ export function computerWrites(
       ? {
           exists: true,
           resolvedPath: target,
-          displayPath: display(cwd, target),
+          displayPath: displayPath(cwd, target),
           size: located.entry.size,
           mtimeMs: located.entry.mtime,
           identity: null,
@@ -136,11 +115,10 @@ export function computerWrites(
       : {
           exists: false,
           resolvedPath: target,
-          displayPath: display(cwd, target),
+          displayPath: displayPath(cwd, target),
           missingDirectories: located.missingDirectories,
         };
 
-  /** mkdir each missing parent, outermost first, then check it is a real directory. */
   const makeDirectories = async (
     mkdir: NonNullable<CloudflareComputerFileSystemLike["mkdir"]>,
     directories: readonly string[],
@@ -163,7 +141,7 @@ export function computerWrites(
     created: readonly string[],
   ): MutatedFile => ({
     resolvedPath: target,
-    displayPath: display(cwd, target),
+    displayPath: displayPath(cwd, target),
     version: entry === null ? null : computerVersion(entry),
     identity: null,
     size: entry?.size ?? null,
@@ -202,7 +180,7 @@ export function computerWrites(
         const created = located.exists
           ? []
           : await makeDirectories(mkdir, located.missingDirectories);
-        /* A replace passes the old mode back. A create is exclusive for the absent precondition. */
+        /* Computer's writeFile resets the mode on every call unless one is passed. */
         const mode = located.exists ? located.entry.mode : options.mode;
         await mutate(
           writeFile(target, bytes, {
@@ -239,11 +217,6 @@ export function computerWrites(
   };
 }
 
-/**
- * Decision W4: a write method is looked up when a write runs. A filesystem
- * without it gives `unsupported` before any backend call. Bound, so an RPC stub
- * or a class instance keeps its `this`.
- */
 function requireMethod<K extends "writeFile" | "mkdir" | "rm">(
   workspaceFs: CloudflareComputerFileSystemLike,
   method: K,
@@ -258,7 +231,6 @@ function requireMethod<K extends "writeFile" | "mkdir" | "rm">(
   return found.bind(workspaceFs) as NonNullable<CloudflareComputerFileSystemLike[K]>;
 }
 
-/** The adapter's own precondition check. Not atomic with the backend call. */
 function refuseConflict(located: Located, precondition: Precondition): void {
   switch (precondition.kind) {
     case "absent":
@@ -276,7 +248,6 @@ function refuseConflict(located: Located, precondition: Precondition): void {
   }
 }
 
-/** Carries a mutation-only reason out of a helper. Never escapes this module. */
 class WriteRefusal extends Error {
   constructor(readonly error: MutationError) {
     super(error.reason);
@@ -284,7 +255,6 @@ class WriteRefusal extends Error {
   }
 }
 
-/** Await one mutating call. Computer's `WorkspaceFsError` carries a POSIX `code`. */
 async function mutate<T>(pending: Promise<T>, phase: string): Promise<T> {
   try {
     return await pending;

@@ -9,9 +9,8 @@ import type {
 } from "@better-fs-tools/fs";
 
 /**
- * One entry as Computer's `stat`/`lstat` describe it. A structural subset of
- * `WorkspaceStatResult`: the fields this adapter reads are declared, `inode`
- * is deliberately ignored, and everything here is validated at runtime anyway.
+ * A file's metadata as Computer's `stat` and `lstat` return it. A structural
+ * subset of `WorkspaceStatResult`.
  */
 export interface CloudflareComputerStat {
   name: string;
@@ -21,11 +20,7 @@ export interface CloudflareComputerStat {
   isFile: boolean;
   isDirectory: boolean;
   isSymbolicLink: boolean;
-  /**
-   * Permission bits. Writes pass them back on a replace, because Computer's
-   * `writeFile` sets the mode to its default otherwise. Absent or unusable
-   * gives a `null` mode in `stat()`.
-   */
+  /** Permission bits. When absent, `stat()` reports a `null` mode. */
   mode?: number;
 }
 
@@ -42,13 +37,8 @@ export interface CloudflareComputerDirent {
  * The filesystem methods this adapter uses. `WorkspaceFilesystem` and
  * `WorkspaceFilesystemStub` from `@cloudflare/computer@0.2.1` both satisfy it.
  *
- * The write methods are optional (decision W4): a filesystem without them still
- * serves reads, and a write reports `unsupported`.
- *
- * `readFile` is declared with one parameter on purpose. Supplying an encoding
- * or a byte window selects a different upstream overload, and this adapter must
- * only ever take the whole-object stream: the core owns windowing, and a string
- * overload would bypass byte classification entirely.
+ * The write methods are optional: a filesystem without them still serves
+ * reads, and a write reports `unsupported`.
  */
 export interface CloudflareComputerFileSystemLike {
   readFile(path: string): Promise<ReadableStream<Uint8Array>>;
@@ -58,7 +48,7 @@ export interface CloudflareComputerFileSystemLike {
     path: string,
     options?: { limit?: number; offset?: number },
   ): Promise<CloudflareComputerDirent[]>;
-  /** One SQL transaction. `exclusive` fails with `EEXIST`. Follows a leaf symlink; the adapter refuses one first. */
+  /** With `exclusive`, fails with `EEXIST` when the file exists. */
   writeFile?(
     path: string,
     content: Uint8Array,
@@ -81,8 +71,8 @@ export interface CloudflareComputerFileSystemOptions extends FileSystemRootOptio
 > {}
 
 /**
- * writeCapabilities is `{ atomic: true, compareAndSwap: false, preserveMode: true }`.
- * There is no stage(): Computer has no rename that could publish a prepared file.
+ * A writable filesystem over a Cloudflare Computer workspace. Writes are atomic
+ * and keep the file mode. There is no compare-and-swap and no `stage()`.
  */
 export interface CloudflareComputerFileSystem
   extends WritableFileSystem, FileSystemRootSettings<"reject", "none"> {

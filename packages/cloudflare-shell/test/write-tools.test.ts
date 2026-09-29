@@ -14,7 +14,6 @@ import { errorOf, testDigest } from "./helpers.ts";
 
 const DECODER = new TextDecoder();
 
-/** The read tool and the three write tools over one Shell adapter, store, digest and lock manager. */
 function toolsFor(files: Record<string, string> = {}) {
   const { workspace, fs } = fsFor(files);
   const shared = { fs, state: memoryStore(), digest: testDigest(), locks: memoryLocks() };
@@ -53,7 +52,6 @@ describe("shell workspace through the write tools", () => {
       "The cloudflare-shell backend cannot check the file version at the moment of the write.",
     );
 
-    // A second edit needs no new read.
     const again = await tools.edit({
       path: "app.ts",
       edits: [{ oldText: "b = 2", newText: "b = 20" }],
@@ -70,7 +68,6 @@ describe("shell workspace through the write tools", () => {
     expect(codes(created)).toEqual(
       expect.arrayContaining(["not-atomic", "no-compare-and-swap", "directories-created"]),
     );
-    // A create has no mode to keep.
     expect(codes(created)).not.toContain("mode-not-kept");
 
     expect(errorOf(await tools.write({ path: "README.md", content: "new\n" }))?.code).toBe(
@@ -84,7 +81,7 @@ describe("shell workspace through the write tools", () => {
   test("a same-size change inside Shell's one-second clock is still STALE", async () => {
     const tools = toolsFor({ "/workspace/a.txt": "one\n" });
     await tools.read({ path: "a.txt" });
-    // Shell stores whole seconds. Keep size and updatedAt, change the bytes.
+    // Shell stores whole seconds, so a quick same-size change keeps size and updatedAt.
     const entry = tools.workspace.entries.get("/workspace/a.txt");
     if (entry === undefined) throw new Error("missing fixture");
     entry.bytes = new TextEncoder().encode("two\n");
@@ -135,7 +132,6 @@ describe("shell workspace through the write tools", () => {
     await tools.read({ path: "a.txt" });
     await tools.read({ path: "b.txt" });
     const original = tools.workspace.writeFileBytes.bind(tools.workspace);
-    // The first write of b.txt fails. Every other write, and the undo, goes through.
     let failed = false;
     tools.workspace.writeFileBytes = async (path, data, mimeType) => {
       if (path === "/workspace/b.txt" && !failed) {

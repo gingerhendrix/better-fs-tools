@@ -14,48 +14,30 @@ interface Entry {
   bytes?: Uint8Array;
   target?: string;
   mtime: number;
-  /** Permission bits. Files 0o644 and directories 0o755 by default, as Computer. */
   mode?: number;
 }
 
-/** Every write method is present in the fake, so the tests can call them. */
 export interface FakeComputer extends Required<CloudflareComputerFileSystemLike> {
   calls: string[];
-  /** Argument counts seen by `readFile`, so the overload choice is observable. */
   readFileArity: number[];
-  /** Paths whose stream was cancelled, in order. */
   cancelled: string[];
   entries: Map<string, Entry>;
   chunkSize: number;
-  /** The unoverridden implementations, so an override can be path-specific. */
-  raw: Pick<CloudflareComputerFileSystemLike, "stat" | "lstat" | "readFile" | "readdir">;
+  unoverridden: Pick<CloudflareComputerFileSystemLike, "stat" | "lstat" | "readFile" | "readdir">;
   put(path: string, contents: string | Uint8Array): void;
   link(path: string, target: string): void;
-  /** Replaces one method for a single failure or malformed-result case. */
   override: Partial<Record<FakeMethod, unknown>>;
 }
 
 type FakeMethod = "stat" | "lstat" | "readFile" | "readdir" | "writeFile" | "mkdir" | "rm";
 
-/**
- * An in-memory stand-in for Computer's `workspace.fs`: `stat` follows links and
- * raises `ELOOP` on a cycle, `lstat` does not follow, `readFile` returns a Web
- * stream in small chunks, and a miss throws a `WorkspaceFsError`-shaped
- * `ENOENT` rather than resolving null, exactly as `0.2.1` does.
- *
- * The write methods follow `0.2.1` too: `writeFile` needs an existing parent,
- * follows a leaf symlink, fails with `EEXIST` when `exclusive` is set and the
- * path exists, and sets the mode to `options.mode ?? 0o644` on every call,
- * also on a replace. `mkdir` and `rm` throw `EEXIST`, `ENOENT`, `ENOTDIR` and
- * `ENOTEMPTY` with a `code`. Each change moves `mtime` on by one millisecond.
- */
+/* Mimics `@cloudflare/computer` 0.2.1: a miss throws `ENOENT`, `writeFile` resets the mode. */
 export function fakeComputer(files: Record<string, string | Uint8Array> = {}): FakeComputer {
   const entries = new Map<string, Entry>([["/", { type: "directory", mtime: 1 }]]);
   const calls: string[] = [];
   const readFileArity: number[] = [];
   const cancelled: string[] = [];
   const override: FakeComputer["override"] = {};
-  /* One clock for the whole backend, so a removed and recreated file gets a new time. */
   let clock = 1_700_000_000_000;
 
   const parents = (path: string): void => {
@@ -146,7 +128,7 @@ export function fakeComputer(files: Record<string, string | Uint8Array> = {}): F
       parents(path);
       entries.set(path, { type: "symlink", target, mtime: 1 });
     },
-    raw: {
+    unoverridden: {
       stat: rawStat,
       lstat: rawLstat,
       readFile: rawReadFile,
@@ -282,7 +264,6 @@ function basenamePosix(path: string): string {
 
 export function fsFor(files: Record<string, string | Uint8Array> = {}) {
   const backend = fakeComputer(files);
-  /* The root exists even when no file is in it. */
   if (!backend.entries.has(ROOT)) backend.entries.set(ROOT, { type: "directory", mtime: 1 });
   return { backend, fs: cloudflareComputerFileSystem(backend, { allowedRoots: [ROOT] }) };
 }

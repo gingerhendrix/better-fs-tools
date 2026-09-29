@@ -1,17 +1,3 @@
-/**
- * Writes over a Shell Workspace.
- *
- * Shell gives no compare-and-swap, no exclusive create and no modes, so the
- * adapter checks the precondition with a fresh `lstat` walk right before each
- * backend call. Another writer can still change the file between that check
- * and the call. `compareAndSwap: false` tells the write core, which then adds
- * its `no-compare-and-swap` note.
- *
- * `writeFileBytes` creates missing parents and follows a leaf symlink by
- * itself. The walk refuses both cases first: a missing parent without
- * `createParents` gives `not-found`, and every symlink on the path gives
- * `denied`, as `open()` does.
- */
 import { containsPosix } from "@better-fs-tools/fs";
 import type {
   FileStat,
@@ -31,11 +17,11 @@ import {
   AdapterRefusal,
   authorize,
   boundedCode,
-  components,
-  display,
+  displayPath,
   inspect,
   mapBackendError,
   notAFile,
+  pathsFromSlashToTarget,
   refuse,
   toFileSystemError,
 } from "./policy.ts";
@@ -45,7 +31,6 @@ export const SHELL_WRITE_CAPABILITIES: WriteCapabilities = Object.freeze({
   /* Objects above the R2 threshold are written in several steps. */
   atomic: false,
   compareAndSwap: false,
-  /* Shell has no modes. */
   preserveMode: false,
 });
 
@@ -59,7 +44,6 @@ type Located =
   | { readonly exists: true; readonly entry: CloudflareShellFileInfo }
   | { readonly exists: false; readonly missingDirectories: readonly string[] };
 
-/** The same token open() reports in info.version. */
 export function shellVersion(entry: CloudflareShellFileInfo): string {
   return `shell:${entry.size}:${entry.updatedAt}`;
 }
@@ -70,15 +54,9 @@ export function shellWrites(
   maxBufferedBytes: number,
 ): ShellWrites {
   const { cwd } = roots;
-  /**
-   * `lstat` every component from `/` down. A symlink anywhere is refused, also
-   * above the root.
-   * The first missing component ends the walk: it and every component below
-   * it are missing. The root and its ancestors must exist.
-   */
   const locate = async (root: string, target: string): Promise<Located> => {
     const missing: string[] = [];
-    for (const component of components(target)) {
+    for (const component of pathsFromSlashToTarget(target)) {
       if (missing.length > 0) {
         missing.push(component);
         continue;
@@ -108,7 +86,6 @@ export function shellWrites(
         throw refuse({ reason: "not-found", detail: "a path component is not a directory" });
       }
     }
-    /* The root itself, or "/", is a directory. */
     if (missing.length === 0) throw refuse(notAFile("directory", cwd, target));
     return { exists: false, missingDirectories: missing.slice(0, -1) };
   };
@@ -118,7 +95,7 @@ export function shellWrites(
       ? {
           exists: true,
           resolvedPath: target,
-          displayPath: display(cwd, target),
+          displayPath: displayPath(cwd, target),
           size: located.entry.size,
           mtimeMs: located.entry.updatedAt,
           identity: null,
@@ -129,11 +106,10 @@ export function shellWrites(
       : {
           exists: false,
           resolvedPath: target,
-          displayPath: display(cwd, target),
+          displayPath: displayPath(cwd, target),
           missingDirectories: located.missingDirectories,
         };
 
-  /** mkdir each missing parent, outermost first, then check it is a real directory. */
   const makeDirectories = async (
     mkdir: NonNullable<CloudflareShellWorkspaceLike["mkdir"]>,
     directories: readonly string[],
@@ -156,7 +132,7 @@ export function shellWrites(
     created: readonly string[],
   ): MutatedFile => ({
     resolvedPath: target,
-    displayPath: display(cwd, target),
+    displayPath: displayPath(cwd, target),
     version: entry === null ? null : shellVersion(entry),
     identity: null,
     size: entry?.size ?? null,
@@ -239,11 +215,6 @@ export function shellWrites(
   };
 }
 
-/**
- * Decision W4: a write method is looked up when a write runs. A Workspace
- * without it gives `unsupported` before any backend call. Bound, so a class
- * instance keeps its `this`.
- */
 function requireMethod<K extends "writeFileBytes" | "mkdir" | "rm">(
   workspace: CloudflareShellWorkspaceLike,
   method: K,
@@ -258,7 +229,6 @@ function requireMethod<K extends "writeFileBytes" | "mkdir" | "rm">(
   return found.bind(workspace) as NonNullable<CloudflareShellWorkspaceLike[K]>;
 }
 
-/** The adapter's own precondition check. Not atomic with the backend call. */
 function refuseConflict(located: Located, precondition: Precondition): void {
   switch (precondition.kind) {
     case "absent":
@@ -276,7 +246,6 @@ function refuseConflict(located: Located, precondition: Precondition): void {
   }
 }
 
-/** Carries a mutation-only reason out of a helper. Never escapes this module. */
 class WriteRefusal extends Error {
   constructor(readonly error: MutationError) {
     super(error.reason);
@@ -284,16 +253,11 @@ class WriteRefusal extends Error {
   }
 }
 
-/**
- * Await one mutating Workspace call. Shell throws plain errors whose message
- * starts with the POSIX code (`EEXIST: path already exists`), so the code is
- * read from the message when the error has none.
- */
 async function mutate<T>(pending: Promise<T>, phase: string): Promise<T> {
   try {
     return await pending;
   } catch (error) {
-    const code = mutationCode(error);
+    const code = codeFromErrorOrMessage(error);
     const cause = { code, phase };
     if (code === "EEXIST") throw new WriteRefusal({ reason: "exists", cause });
     if (code === "EROFS") throw new WriteRefusal({ reason: "read-only", cause });
@@ -304,7 +268,8 @@ async function mutate<T>(pending: Promise<T>, phase: string): Promise<T> {
   }
 }
 
-function mutationCode(error: unknown): string {
+/* Shell errors carry the POSIX code only as a message prefix, e.g. `EEXIST: ...`. */
+function codeFromErrorOrMessage(error: unknown): string {
   const code = boundedCode(error);
   if (code !== "UNKNOWN" || !(error instanceof Error)) return code;
   const match = /^(E[A-Z]{2,12}):/u.exec(String(error.message).slice(0, 64));

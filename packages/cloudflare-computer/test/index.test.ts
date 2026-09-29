@@ -8,11 +8,10 @@ import { cloudflareComputerFileSystem } from "../src/index.ts";
 import type { CloudflareComputerFileSystemLike } from "../src/index.ts";
 import { ROOT, fakeComputer, fsError, fsFor, streamOf } from "./fake-computer.ts";
 import type { FakeComputer } from "./fake-computer.ts";
-import { expectFsError, expectMutationError, sourceSpecifiers } from "./helpers.ts";
+import { expectFsError, expectMutationError, externalImportSpecifiers } from "./helpers.ts";
 
 const ENCODER = new TextEncoder();
 
-/** Reject rather than hang if a promise the adapter must settle does not. */
 async function settles<T>(pending: Promise<T>, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const guard = new Promise<never>((_resolve, reject) => {
@@ -55,12 +54,10 @@ describe("shared root options", () => {
     const inside = await fs.open("a.txt", {});
     expect(inside.ok && inside.file.info.displayPath).toBe("a.txt");
     if (inside.ok) await inside.file.close();
-    // A second root: the display path is absolute, since it is outside cwd.
     const shared = await fs.open("../shared/b.txt", {});
     expect(shared.ok && shared.file.info.displayPath).toBe("/shared/b.txt");
     if (shared.ok) await shared.file.close();
 
-    // A deny root is dangerous-path in every adapter, with the root as the detail.
     const denied = await fs.open("/shared/private/c.txt", {});
     expectFsError(denied, "dangerous-path");
     expect(denied.ok ? null : denied.error.detail).toBe("/shared/private");
@@ -106,7 +103,7 @@ describe("computer filesystem options", () => {
   });
 
   test("accepts the real local filesystem and the RPC stub structurally", () => {
-    /* Compile-time: both `0.2.1` surfaces satisfy the declared subset. */
+    /* Compile-time check: both `0.2.1` surfaces satisfy the declared subset. */
     const local: CloudflareComputerFileSystemLike | null = null as Workspace["fs"] | null;
     const stub: CloudflareComputerFileSystemLike | null = null as WorkspaceFilesystemStub | null;
     expect(local).toBeNull();
@@ -131,7 +128,7 @@ describe("computer filesystem policy", () => {
   test("refuses a symlink above the allowed root, for reads and writes, with nested roots too", async () => {
     for (const allowedRoots of [["/safe/link/nested"], ["/safe", "/safe/link/nested"]]) {
       const backend = fakeComputer({ "/safe/link/nested/x.txt": "x\n" });
-      /* A backend that resolves the ancestor link: lstat of the link says symlink, lstat below it does not. */
+      /* Only the ancestor is a link; the fake still serves the entries below it. */
       backend.entries.set("/safe/link", { type: "symlink", target: "/elsewhere", mtime: 1 });
       const fs = cloudflareComputerFileSystem(backend, { allowedRoots });
       const error = expectFsError(await fs.open("/safe/link/nested/x.txt", {}), "denied");
@@ -222,7 +219,6 @@ describe("computer filesystem policy", () => {
       const error = expectFsError(await fs.open(path, {}), "denied");
       expect(error.detail).toMatch(/symbolic link/u);
     }
-    /* Neither followed a link: `stat`, the only following call, never ran. */
     expect(backend.calls.some((call) => call.startsWith("stat:"))).toBe(false);
   });
 
@@ -255,7 +251,6 @@ describe("computer filesystem policy", () => {
     const error = expectFsError(await fs.open("/workspace/a.txt", {}), "not-found", {
       phase: "stat",
     });
-    /* A miss on the target itself is not described as a missing component. */
     expect(error.detail).toBeUndefined();
   });
 });
@@ -445,7 +440,7 @@ describe("computer filesystem cancellation", () => {
     backend.override.readFile = () => ({
       getReader: () => ({
         read: async () => ({ done: false, value: ENCODER.encode("alpha\n") }),
-        /* A stub whose peer went away: cancellation is requested and never answered. */
+        /* An RPC stub whose peer is gone never answers cancel(). */
         cancel: () => new Promise<void>(() => {}),
         releaseLock: () => {},
       }),
@@ -505,9 +500,9 @@ describe("computer filesystem malformed results", () => {
   for (const [label, value, detail] of stats) {
     test(`maps ${label} to a bounded io error`, async () => {
       const { backend, fs } = fsFor({ "/workspace/a.txt": "alpha\n" });
-      /* Only the target is malformed: the root walk still has to succeed. */
+      /* Only the target is malformed, so the walk above it still succeeds. */
       backend.override.lstat = (path: string) =>
-        path === "/workspace/a.txt" ? value : backend.raw.lstat(path);
+        path === "/workspace/a.txt" ? value : backend.unoverridden.lstat(path);
       const error = expectFsError(await fs.open("/workspace/a.txt", {}), "io", {
         code: "INVALID_BACKEND_RESULT",
         phase: "lstat",
@@ -633,7 +628,6 @@ describe("computer filesystem listing", () => {
     backend.link("/workspace/link", "/workspace");
     expectFsError(await fs.list("/workspace/link", { limit: 4 }), "denied");
     expectFsError(await fs.list("/workspace/missing", { limit: 4 }), "not-found");
-    /* The memory filesystem's rule: a file is not a directory to list. */
     const file = expectFsError(await fs.list("/workspace/a.txt", { limit: 4 }), "not-found");
     expect(file.detail).toBe("not a directory");
     expectFsError(await fs.list("/workspace", { limit: 0 }), "io");
@@ -676,7 +670,7 @@ describe("computer filesystem listing", () => {
 
 describe("cloudflare-computer worker safety", () => {
   test("the source imports only @better-fs-tools/fs and its own modules", async () => {
-    const specifiers = await sourceSpecifiers(resolve(import.meta.dir, "../src"));
+    const specifiers = await externalImportSpecifiers(resolve(import.meta.dir, "../src"));
     expect(new Set(specifiers)).toEqual(new Set(["@better-fs-tools/fs"]));
   });
 });

@@ -20,7 +20,6 @@ describe("shell workspace write conformance", () => {
     const names = report.checks.map((check) => check.name);
     expect(names).toContain("remove with a stale version gives changed");
     expect(names).toContain("a refused path gives a policy reason");
-    // No stage(), and no modes to keep.
     expect(names).not.toContain("stage then publish replaces the target");
     expect(names).not.toContain("a replace keeps the mode");
   });

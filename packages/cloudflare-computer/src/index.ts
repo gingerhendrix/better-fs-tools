@@ -1,43 +1,3 @@
-/**
- * **Experimental.** Cloudflare Computer's workspace filesystem as a
- * `FileSystem`.
- *
- * `@cloudflare/computer` is preview software: its `WorkspaceFilesystem` surface
- * carries no stability guarantee, and this adapter is pinned to `0.2.1`. Treat
- * this package the same way: it can change with the upstream package.
- *
- * Nothing from `@cloudflare/computer` is imported here. The filesystem surface
- * the adapter needs is declared structurally below, so the package stays
- * importable in a Worker on a different Computer release, and so no Node
- * builtin can reach the Worker graph. Both the local `WorkspaceFilesystem` and
- * the RPC `WorkspaceFilesystemStub` satisfy it; the tests assert that against
- * the real declarations.
- *
- * Two Computer properties shape the whole adapter, and both are the mirror
- * image of the Shell adapter:
- *
- * - **Reads stream.** `readFile(path)` (the single-argument, no-encoding
- *   overload, the only one this adapter ever calls) resolves with a Web
- *   `ReadableStream<Uint8Array>`. `bytes()` exposes its chunks through one
- *   single-use async iterator and never buffers the object, so
- *   `capabilities.streaming` is true and no allocation ceiling is needed.
- *   `close()` cancels the stream, which is what makes an aborted or
- *   scan-capped read stop costing anything.
- * - **Identity is weak.** A `WorkspaceStatResult` does carry an `inode`, but
- *   it is a preview durable-object row rather than a durable identity claim, so
- *   `capabilities.identity` is false, `info.identity` is null, and `verify()`
- *   is mutation detection over type, size and modification time.
- *
- * Policy is adapter-owned and fails closed. Containment is checked lexically
- * before the backend is touched at all, and every path component from the
- * configured root to the target is `lstat`ed and refused if it is a symbolic
- * link. So a symlinked root, parent or leaf, a dangling link and a looping
- * link are all refused before `stat`, `readFile` or `readdir` can run.
- *
- * Writes (`stat`, `write`, `remove`) live in `write.ts` and keep the same
- * policy. A replace is one transaction and keeps the mode. There is no
- * compare-and-swap, and `writeCapabilities` says so.
- */
 import { posixPaths } from "@better-fs-tools/fs";
 import type {
   DirectoryEntry,
@@ -58,9 +18,9 @@ import type {
 import {
   authorize,
   call,
-  cancel,
-  components,
-  display,
+  cancelWithoutWaiting,
+  pathsFromSlashToTarget,
+  displayPath,
   inspect,
   invalid,
   notAFile,
@@ -100,9 +60,8 @@ export function cloudflareComputerFileSystem(
   const id = options.id ?? "cloudflare-computer";
   if (typeof id !== "string" || id === "") throw new TypeError("id must be a non-empty string");
 
-  /** Refuse a symlink anywhere from `/` down: above the root, the root, a parent, or the leaf. */
-  const walk = async (target: string): Promise<CloudflareComputerStat> => {
-    for (const component of components(target)) {
+  const refuseSymlinksAlongPath = async (target: string): Promise<CloudflareComputerStat> => {
+    for (const component of pathsFromSlashToTarget(target)) {
       const stat = await inspect(workspaceFs, "lstat", component, component !== target);
       if (stat.isSymbolicLink) {
         throw refuse({
@@ -118,7 +77,6 @@ export function cloudflareComputerFileSystem(
       }
       if (component === target) return stat;
     }
-    /* Only reachable when the target is the root "/" itself, which is a directory. */
     throw refuse(notAFile("directory", cwd, target));
   };
 
@@ -140,20 +98,19 @@ export function cloudflareComputerFileSystem(
 
       try {
         const { target } = authorize(roots, requested);
-        await walk(target);
+        await refuseSymlinksAlongPath(target);
 
-        /* `stat` follows links, but `walk` has already refused every one. */
         const stat = await inspect(workspaceFs, "stat", target, false);
         if (!stat.isFile) {
           throw refuse(notAFile(stat.isDirectory ? "directory" : "other", cwd, target));
         }
 
         if (signal?.aborted) throw refuse({ reason: "aborted" });
-        /* Exactly one argument. Any other overload buffers or returns a string. */
+        /* Exactly one argument: other overloads buffer or return a string. */
         const stream = await call(workspaceFs.readFile(target), "readFile");
         validateStream(stream);
         if (signal?.aborted) {
-          cancel(stream);
+          cancelWithoutWaiting(stream);
           throw refuse({ reason: "aborted" });
         }
         return { ok: true, file: computerOpenFile(workspaceFs, cwd, target, stat, stream) };
@@ -173,16 +130,14 @@ export function cloudflareComputerFileSystem(
       }
       try {
         const { target } = authorize(roots, requested);
-        /* A root of "/" has no component for walk() to inspect, and it is a directory. */
-        const stat = target === "/" ? null : await walk(target);
-        /* Same rule as memoryFileSystem: listing a non-directory is not-found. */
+        const stat = target === "/" ? null : await refuseSymlinksAlongPath(target);
         if (stat !== null && !stat.isDirectory) {
           throw refuse({ reason: "not-found", detail: "not a directory" });
         }
 
-        /* One more than asked for, so `truncated` is observed rather than guessed. */
+        const oneMoreThanLimit = limit + 1;
         const listed = await call(
-          workspaceFs.readdir(target, { limit: limit + 1, offset: 0 }),
+          workspaceFs.readdir(target, { limit: oneMoreThanLimit, offset: 0 }),
           "readdir",
         );
         if (!Array.isArray(listed)) throw invalid("readdir returned a non-array", "readdir");
@@ -199,10 +154,6 @@ export function cloudflareComputerFileSystem(
   });
 }
 
-/* -------------------------------------------------------------------------- */
-/* The handle                                                                 */
-/* -------------------------------------------------------------------------- */
-
 function computerOpenFile(
   workspaceFs: CloudflareComputerFileSystemLike,
   cwd: string,
@@ -214,16 +165,7 @@ function computerOpenFile(
   let closed = false;
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
-  /**
-   * Request cancellation and drop the reader.
-   *
-   * The cancel promise is deliberately **not** awaited. `close()` runs from the
-   * core's `finally` and is awaited there, so a backend whose `cancel()` never
-   * settles (a plausible failure for an RPC stub whose peer has gone away)
-   * would otherwise hang the whole read after it had already produced its
-   * result. Cancellation is still requested, and every rejection is
-   * swallowed, including a reader that throws synchronously.
-   */
+  /* Not awaited: an RPC stub's cancel() may never settle once its peer is gone. */
   const release = (): void => {
     closed = true;
     const held = reader;
@@ -234,26 +176,25 @@ function computerOpenFile(
         return;
       }
       void Promise.resolve(held.cancel()).catch(() => {});
-      /* Best effort: a spec-compliant reader releases on cancel, a stub may not. */
+      /* A spec-compliant reader releases on cancel, an RPC stub may not. */
       try {
         held.releaseLock();
       } catch {
-        /* Ignored: the lock no longer matters once the handle is closed. */
+        /* Best effort. */
       }
     } catch {
-      /* Ignored: cancellation is best effort. */
+      /* Best effort. */
     }
   };
 
   return {
     info: {
       resolvedPath: target,
-      displayPath: display(cwd, target),
+      displayPath: displayPath(cwd, target),
       size: stat.size,
       mtimeMs: stat.mtime,
       identity: null,
       mimeType: null,
-      /* Weak: the same size and mtime that verify() compares. */
       version: computerVersion(stat),
     },
     bytes(): AsyncIterable<Uint8Array> {
@@ -264,7 +205,7 @@ function computerOpenFile(
           return {
             async next(): Promise<IteratorResult<Uint8Array>> {
               if (closed) return { done: true, value: undefined };
-              const active = reader ?? (reader = acquire(stream));
+              const active = reader ?? (reader = acquireValidReader(stream));
               const item = await active.read();
               if (item === null || typeof item !== "object" || typeof item.done !== "boolean") {
                 throw new TypeError("Cloudflare Computer's reader returned an invalid result");
@@ -298,7 +239,6 @@ function computerOpenFile(
         return { ok: true, changed };
       } catch (error) {
         const mapped = toFileSystemError(error);
-        /* A file that has been removed has changed; it is not a failed check. */
         if (mapped.reason === "not-found") return { ok: true, changed: true };
         return { ok: false, error: mapped };
       }
@@ -311,13 +251,9 @@ function computerOpenFile(
   };
 }
 
-/**
- * `getReader()` on a backend value that passed the stream shape check but may
- * still not behave like one. Failures here surface from `bytes()` rather than
- * from `open()`, so they are plain `TypeError`s: the core turns a throwing byte
- * source into `IO_ERROR` and still calls `close()`.
- */
-function acquire(stream: ReadableStream<Uint8Array>): ReadableStreamDefaultReader<Uint8Array> {
+function acquireValidReader(
+  stream: ReadableStream<Uint8Array>,
+): ReadableStreamDefaultReader<Uint8Array> {
   const reader: unknown = stream.getReader();
   if (
     reader === null ||

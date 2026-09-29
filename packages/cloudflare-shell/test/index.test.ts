@@ -8,7 +8,7 @@ import { cloudflareShellFileSystem } from "../src/index.ts";
 import type { CloudflareShellWorkspaceLike } from "../src/index.ts";
 import { ROOT, fakeWorkspace, fsFor } from "./fake-workspace.ts";
 import type { FakeWorkspace } from "./fake-workspace.ts";
-import { expectFsError, expectMutationError, sourceSpecifiers } from "./helpers.ts";
+import { expectFsError, expectMutationError, externalImportSpecifiers } from "./helpers.ts";
 
 const ENCODER = new TextEncoder();
 
@@ -31,12 +31,10 @@ describe("shared root options", () => {
     const inside = await fs.open("a.txt", {});
     expect(inside.ok && inside.file.info.displayPath).toBe("a.txt");
     if (inside.ok) await inside.file.close();
-    // A second root: the display path is absolute, since it is outside cwd.
     const shared = await fs.open("../shared/b.txt", {});
     expect(shared.ok && shared.file.info.displayPath).toBe("/shared/b.txt");
     if (shared.ok) await shared.file.close();
 
-    // A deny root is dangerous-path in every adapter, with the root as the detail.
     const denied = await fs.open("/shared/private/c.txt", {});
     expectFsError(denied, "dangerous-path");
     expect(denied.ok ? null : denied.error.detail).toBe("/shared/private");
@@ -84,7 +82,7 @@ describe("shell workspace options", () => {
   });
 
   test("accepts a real Shell Workspace structurally", () => {
-    /* Compile-time: `@cloudflare/shell`'s Workspace satisfies the declared surface. */
+    /* Compile-time check: `@cloudflare/shell`'s Workspace satisfies the declared surface. */
     const workspace: CloudflareShellWorkspaceLike | null = null as Workspace | null;
     expect(workspace).toBeNull();
   });
@@ -108,7 +106,7 @@ describe("shell workspace policy", () => {
   test("refuses a symlink above the allowed root, for reads and writes, with nested roots too", async () => {
     for (const allowedRoots of [["/safe/link/nested"], ["/safe", "/safe/link/nested"]]) {
       const workspace = fakeWorkspace({ "/safe/link/nested/x.txt": "x\n" });
-      /* A backend that resolves the ancestor link: lstat of the link says symlink, lstat below it does not. */
+      /* Only the ancestor is a link; the fake still serves the entries below it. */
       workspace.entries.set("/safe/link", { type: "symlink", target: "/elsewhere", updatedAt: 1 });
       const fs = cloudflareShellFileSystem(workspace, { allowedRoots });
       const error = expectFsError(await fs.open("/safe/link/nested/x.txt", {}), "denied");
@@ -373,7 +371,6 @@ describe("shell workspace aborts", () => {
     const opened = await fs.open("/workspace/a.txt", { signal: controller.signal });
     await inFlight;
     expectFsError(opened, "aborted");
-    /* The backend call still ran to completion: cancellation is not available. */
     expect(workspace.calls).toContain("readFileBytes:/workspace/a.txt");
   });
 });
@@ -496,7 +493,6 @@ describe("shell workspace listing", () => {
     workspace.link("/workspace/link", "/workspace");
     expectFsError(await fs.list("/workspace/link", { limit: 4 }), "denied");
     expectFsError(await fs.list("/workspace/missing", { limit: 4 }), "not-found");
-    /* The memory filesystem's rule: a file is not a directory to list. */
     const file = expectFsError(await fs.list("/workspace/a.txt", { limit: 4 }), "not-found");
     expect(file.detail).toBe("not a directory");
     expectFsError(await fs.list("/workspace", { limit: 0 }), "io");
@@ -516,7 +512,7 @@ describe("shell workspace listing", () => {
 
 describe("cloudflare-shell worker safety", () => {
   test("the source imports only @better-fs-tools/fs and its own modules", async () => {
-    const specifiers = await sourceSpecifiers(resolve(import.meta.dir, "../src"));
+    const specifiers = await externalImportSpecifiers(resolve(import.meta.dir, "../src"));
     expect(new Set(specifiers)).toEqual(new Set(["@better-fs-tools/fs"]));
   });
 });

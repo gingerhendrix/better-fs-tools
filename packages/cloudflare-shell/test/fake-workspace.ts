@@ -13,13 +13,11 @@ interface Entry {
   mimeType?: string;
 }
 
-/** Every write method is present in the fake, so the tests can call them. */
 export interface FakeWorkspace extends Required<CloudflareShellWorkspaceLike> {
   calls: string[];
   entries: Map<string, Entry>;
   put(path: string, contents: string | Uint8Array, mimeType?: string): void;
   link(path: string, target: string): void;
-  /** Replaces one method for a single failure or malformed-result case. */
   override: Partial<Record<FakeMethod, unknown>>;
 }
 
@@ -32,28 +30,15 @@ type FakeMethod =
   | "mkdir"
   | "rm";
 
-/** Shell throws plain errors whose message starts with the POSIX code. */
 function shellError(code: string, message: string): Error {
   return new Error(`${code}: ${message}`);
 }
 
-/**
- * An in-memory stand-in for a Shell Workspace: `stat` follows a trailing
- * symlink, `lstat` does not, `readFileBytes` buffers, `readDir` honours its
- * limit. Directories are created implicitly, as Shell's `ensureParentDir` does.
- *
- * The write methods follow `@cloudflare/shell` 0.4.3: `writeFileBytes`
- * follows a leaf symlink, creates missing parents, and sets the mime type to
- * `application/octet-stream` unless one is passed. `mkdir` and `rm` throw
- * `EEXIST`, `ENOENT`, `ENOTDIR` and `ENOTEMPTY` as message prefixes, with no
- * `code` property. Each change moves `updatedAt` on. Real Shell stores whole
- * seconds, so two writes inside one second can keep the same `updatedAt`.
- */
+/* Mimics `@cloudflare/shell` 0.4.3: errors are plain, with the POSIX code as a message prefix. */
 export function fakeWorkspace(files: Record<string, string | Uint8Array> = {}): FakeWorkspace {
   const entries = new Map<string, Entry>([["/", { type: "directory", updatedAt: 1 }]]);
   const calls: string[] = [];
   const override: FakeWorkspace["override"] = {};
-  /* One clock for the whole workspace, so a removed and recreated file gets a new time. */
   let clock = 1_700_000_000_000;
 
   const parents = (path: string): void => {
@@ -188,7 +173,6 @@ function dirnamePosix(path: string): string {
 
 export function fsFor(files: Record<string, string | Uint8Array> = {}, maxBufferedBytes?: number) {
   const workspace = fakeWorkspace(files);
-  /* The root exists even when no file is in it. */
   if (!workspace.entries.has(ROOT))
     workspace.entries.set(ROOT, { type: "directory", updatedAt: 1 });
   const fs = cloudflareShellFileSystem(workspace, {

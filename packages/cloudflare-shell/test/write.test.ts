@@ -35,7 +35,7 @@ describe("shell workspace writes: shape", () => {
     expect("stage" in fs).toBe(false);
   });
 
-  test("a workspace without a write method still reads; a write reports unsupported (W4)", async () => {
+  test("a workspace without a write method still reads; a write reports unsupported", async () => {
     const workspace = fakeWorkspace({ "/workspace/a.txt": "alpha\n" });
     for (const method of ["writeFileBytes", "mkdir", "rm"] as const) {
       const { [method]: _dropped, ...without } = workspace;
