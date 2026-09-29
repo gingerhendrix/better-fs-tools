@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { WritableFileSystem } from "@better-fs-tools/fs";
 import { createMemoryStore, sha256Digest } from "@better-fs-tools/read";
-import type { Clock, Digest, ToolCallContext } from "@better-fs-tools/read";
+import type { Clock, Digest, Note, ToolAuthorizer, ToolCallContext } from "@better-fs-tools/read";
 import { shellEnv } from "@better-fs-tools/shell";
 import type { CommandRunner, RunExit } from "@better-fs-tools/shell";
 
@@ -74,6 +74,36 @@ describe("createFsTools", () => {
     expect(await tools.state?.get("/a.txt")).not.toBeNull();
     now += 31 * 60 * 1_000;
     expect(await tools.state?.get("/a.txt")).toBeNull();
+  });
+
+  test("one host denial note gives the same error note in read, write, and bash", async () => {
+    const deny: ToolAuthorizer = {
+      id: "policy",
+      authorize: () => ({
+        allow: false,
+        note: { code: "POLICY_CODE", severity: "info", message: "No.", data: { rule: 7 } },
+      }),
+    };
+    const tools = createFsTools({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      read: { authorize: deny },
+      write: { authorize: deny },
+      bash: { runner: quietRunner(), env: shellEnv(), authorize: deny },
+    });
+    const expected: Note = {
+      code: "denied",
+      severity: "warning",
+      message: "No.",
+      data: { rule: 7, source: "POLICY_CODE" },
+    };
+    for (const result of [
+      await tools.read({ path: "/a.txt" }),
+      await tools.write({ path: "/b.txt", content: "b" }),
+      await tools.bash({ command: "ls" }),
+    ]) {
+      expect(result.status).toBe("error");
+      expect(result.notes).toEqual([expected]);
+    }
   });
 
   test("the three writers take the one lock manager", async () => {

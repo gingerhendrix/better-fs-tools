@@ -255,8 +255,16 @@ describe("hooks", () => {
     });
     const denied = await bash({ command: "rm -rf x" });
     expect(denied.status).toBe("error");
-    expect(errorOf(denied)).toEqual({ code: "DENIED", phase: "authorize", message: "No rm." });
-    expect(text(denied)).toBe("[bash:no-rm] No rm.");
+    expect(errorOf(denied)).toEqual({
+      code: "DENIED",
+      phase: "authorize",
+      message: "No rm.",
+      data: { source: "no-rm" },
+    });
+    expect(denied.notes).toEqual([
+      { code: "denied", severity: "warning", message: "No rm.", data: { source: "no-rm" } },
+    ]);
+    expect(text(denied)).toBe("[bash:denied] No rm.");
     expect(runner.requests).toHaveLength(0);
     expect((await bash({ command: "ls" })).status).toBe("ok");
   });
@@ -340,7 +348,16 @@ describe("hooks", () => {
       code: "REFUSED",
       phase: "beforeRun",
       message: "vim needs a terminal.",
+      data: { source: "interactive" },
     });
+    expect(result.notes).toEqual([
+      {
+        code: "refused",
+        severity: "warning",
+        message: "vim needs a terminal.",
+        data: { source: "interactive" },
+      },
+    ]);
     expect(runner.requests).toHaveLength(0);
   });
 

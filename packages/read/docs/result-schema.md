@@ -118,7 +118,7 @@ Field notes:
 }
 ```
 
-`error` has the same shape in every tool (`ToolError`). `code` is an UPPER_SNAKE `ReadErrorCode`. `phase` is the `ReadPhase` that failed: `input`, `resolve`, `open`, `authorize`, `sampling`, `conversion`, `scan`, `verification`, or `hooks`. `message` and `data` are copied from the error note. The error note is always in `notes`, and its code is the error code in kebab case, for example `not-found` for `NOT_FOUND`.
+`error` has the same shape in every tool (`ToolError`). `code` is an UPPER_SNAKE `ReadErrorCode`. `phase` is the `ReadPhase` that failed: `input`, `resolve`, `open`, `authorize`, `sampling`, `conversion`, `scan`, `verification`, or `hooks`. `message` and `data` are copied from the error note. The error note is always in `notes`, and its code is the error code in kebab case, for example `not-found` for `NOT_FOUND`. When an authorizer refuses with its own `note`, the note keeps its message and data, its code becomes the error code in kebab case, its severity becomes `warning`, and the host's own code moves to `data.source`. A `retry` on that note stays. Write and bash use the same rule.
 
 `request` is `null` only for `INVALID_INPUT`. `file` is set only for failures found after the file was opened and allowed: `CHANGED_DURING_READ`, `UNSUPPORTED_BACKEND` from the classifiers, and a failed `verify()`. It is `null` for every other failure. `DENIED` from an authorizer always has `file: null`.
 

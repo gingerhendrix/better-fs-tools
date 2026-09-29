@@ -77,8 +77,27 @@ export function extensionFailed(
 }
 
 /**
- * DENIED from the authorizer. The authorizer's note when it gave one, else the
- * default. No file info: a denial does not disclose the open target.
+ * An error note built from a host note (an authorizer refusal), by the rule
+ * write and bash use too: the code becomes the error code in kebab case, the
+ * severity "warning", and the host's own code moves to data.source. The
+ * message and a retry stay.
+ */
+export function hostErrorNote(code: ReadErrorCode, note: ReadNote): ReadNote {
+  const kebab = code.toLowerCase().replaceAll("_", "-");
+  const data = note.code === kebab ? note.data : { ...note.data, source: note.code };
+  return {
+    code: kebab,
+    severity: "warning",
+    message: note.message,
+    ...(data === undefined ? {} : { data }),
+    ...(note.retry === undefined ? {} : { retry: note.retry }),
+  };
+}
+
+/**
+ * DENIED from the authorizer. The authorizer's note by hostErrorNote when it
+ * gave one, else the default. No file info: a denial does not disclose the
+ * open target.
  */
 export function denied(
   messages: Messages,
@@ -90,11 +109,13 @@ export function denied(
     "authorize",
     request,
     null,
-    note ?? {
-      code: "denied",
-      severity: "warning",
-      message: messages.denied({ path: request.path, detail: null }),
-    },
+    note === null
+      ? {
+          code: "denied",
+          severity: "warning",
+          message: messages.denied({ path: request.path, detail: null }),
+        }
+      : hostErrorNote("DENIED", note),
   );
 }
 

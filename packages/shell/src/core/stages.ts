@@ -8,7 +8,7 @@ import type { CommandRunner } from "../contract/runner.ts";
 import { AbortStop, raceAbort } from "./abort.ts";
 import { isAbsolute, isRunner } from "./deps.ts";
 import { isRecord } from "./input.ts";
-import { StageStop, errorNote, extensionId, isNote, isNoteList } from "./stop.ts";
+import { StageStop, errorNote, extensionId, hostErrorNote, isNote, isNoteList } from "./stop.ts";
 
 /** One call's dependencies, notes, and hook context. */
 export interface CallScope<THost> {
@@ -135,7 +135,9 @@ export async function beforeRun<THost>(
     if (decision.allow === false) {
       if (decision.note !== undefined && !isNote(decision.note)) throw malformed();
       const note =
-        decision.note ?? errorNote("REFUSED", scope.deps.messages.refused({ hook: hook.id }));
+        decision.note === undefined
+          ? errorNote("REFUSED", scope.deps.messages.refused({ hook: hook.id }))
+          : hostErrorNote("REFUSED", decision.note);
       throw new StageStop("REFUSED", "beforeRun", note);
     }
     if (decision.allow !== true) throw malformed();
@@ -186,8 +188,9 @@ export async function authorize<THost>(
   if (decision.allow !== false) throw malformed();
   if (decision.note !== undefined && !isNote(decision.note)) throw malformed();
   const note =
-    decision.note ??
-    errorNote("DENIED", scope.deps.messages.denied({ path: run.cwd, detail: null }));
+    decision.note === undefined
+      ? errorNote("DENIED", scope.deps.messages.denied({ path: run.cwd, detail: null }))
+      : hostErrorNote("DENIED", decision.note);
   throw new StageStop("DENIED", "authorize", note);
 }
 

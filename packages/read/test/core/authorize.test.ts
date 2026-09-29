@@ -113,11 +113,31 @@ describe("authorize read", () => {
     expect(textOf(result)).toBe("[read:denied] /d/a.txt was refused by policy.");
   });
 
-  test("a denial with a note gives that note", async () => {
+  test("a denial note takes the error code; the host code moves to data.source", async () => {
     const { fs } = files();
-    const note: ReadNote = { code: "no-secrets", severity: "warning", message: "Not this file." };
+    const note: ReadNote = {
+      code: "no-secrets",
+      severity: "info",
+      message: "Not this file.",
+      data: { rule: "secrets" },
+    };
     const read = createReadTool({ fs, authorize: authorizer(() => ({ allow: false, note })) });
-    expect(expectFailure(await read({ path: "/d/a.txt" }), "DENIED").notes).toEqual([note]);
+    const result = expectFailure(await read({ path: "/d/a.txt" }), "DENIED");
+    expect(result.notes).toEqual([
+      {
+        code: "denied",
+        severity: "warning",
+        message: "Not this file.",
+        data: { rule: "secrets", source: "no-secrets" },
+      },
+    ]);
+    expect(result.error.data).toEqual({ rule: "secrets", source: "no-secrets" });
+    const own: ReadNote = { code: "denied", severity: "warning", message: "No." };
+    const plain = createReadTool({
+      fs,
+      authorize: authorizer(() => ({ allow: false, note: own })),
+    });
+    expect(expectFailure(await plain({ path: "/d/a.txt" }), "DENIED").notes).toEqual([own]);
   });
 
   test("allow notes are kept, before the resolver note", async () => {

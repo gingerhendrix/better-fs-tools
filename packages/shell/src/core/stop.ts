@@ -35,6 +35,21 @@ export function errorNote(code: ShellErrorCode, message: string, data?: JsonObje
   return warning(noteCode(code), message, data);
 }
 
+/**
+ * An error note built from a host note (an authorizer or beforeRun refusal),
+ * by the rule read and write use too: the code becomes the error code in
+ * kebab case, the severity "warning", and the host's own code moves to
+ * data.source.
+ */
+export function hostErrorNote(code: ShellErrorCode, note: Note): Note {
+  const kebab = noteCode(code);
+  return errorNote(
+    code,
+    note.message,
+    note.code === kebab ? note.data : { ...note.data, source: note.code },
+  );
+}
+
 export function isNote(value: unknown): value is Note {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const note = value as Record<string, unknown>;

@@ -158,7 +158,7 @@ An `apply_patch` precondition failure on several files gives one note with the f
 
 `code` is stable. The default formatter prints a note as `[<tool>:<code>] <message>`. Key your code on `code`, not on the wording. `messages` overrides change the wording only.
 
-Every error result has exactly one warning note whose `code` is the error code in kebab case, for example `not-read` for `NOT_READ`.
+Every error result has exactly one warning note whose `code` is the error code in kebab case, for example `not-read` for `NOT_READ`. When an authorizer or a guard refuses with its own `note`, the note keeps its message and data, its code becomes the error code in kebab case, its severity becomes `warning`, and the host's own code moves to `data.source`. Read and bash use the same rule.
 
 Notes on a successful call:
 

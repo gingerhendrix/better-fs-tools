@@ -333,7 +333,7 @@ export const noLockfiles: ReadAuthorizer<unknown> = {
 
 `ctx.messages.denied({ path, detail })` gives the host's refusal text. It takes a path, not the read request, so tool-neutral authorizers can use it. A `ToolAuthorizer` sees only `action`, `requestedPath`, `resolvedPath`, and `displayPath`, and a context with no read request. It fits the read tool's `ReadAuthorizer` and the write tools' authorizers. Every authorizer type declares `authorize` as a function property, so TypeScript refuses a read authorizer such as `sizeCeiling()` in a write or bash tool, also through a `ToolAuthorizer` variable. `compileGlob(pattern)` is the matcher `denyPaths` uses.
 
-A refusal always gives `DENIED`. The authorizer's note replaces the default `denied` note. A `DENIED` result has `file: null`, so it does not show the real path behind a link. An authorizer that throws gives `EXTENSION_FAILED`.
+A refusal always gives `DENIED`. The authorizer's note replaces the default `denied` message: the error note keeps its message, data, and retry, takes the code `denied` and severity `warning`, and has the authorizer's own code in `data.source`, as in write and bash. A `DENIED` result has `file: null`, so it does not show the real path behind a link. An authorizer that throws gives `EXTENSION_FAILED`.
 
 An authorizer can only refuse. It never sees a file that the filesystem refused. `askUser` has no memory of earlier answers. To remember an answer, keep it in your host, for example through `ctx.call.host` (see [Host context and state](#host-context-and-state)).
 

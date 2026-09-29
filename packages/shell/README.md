@@ -138,7 +138,7 @@ stdout and stderr are merged in arrival order. The core decodes UTF-8 with repla
 
 The stages run in this order: input, cwd, `beforeRun`, `authorize`, `env`, the run, `afterRun`, and the formatter. `authorize` sees the command after every `beforeRun` rewrite, so an approval prompt shows the command that runs. Its target has the cwd as `resolvedPath`, and a `displayPath` relative to the default cwd (`.` for the default cwd itself), as the file tools show paths.
 
-A `beforeRun` hook returns `{ allow: true, command?, notes? }` or `{ allow: false, note? }`, the same `{ allow }` shape as an authorize decision. A refusal without a note gets a default `refused` note. An `afterRun` hook returns `{ output?, notes? }`: only the parts the core keeps. A field left out keeps its value.
+A `beforeRun` hook returns `{ allow: true, command?, notes? }` or `{ allow: false, note? }`, the same `{ allow }` shape as an authorize decision. A refusal without a note gets a default `refused` note. A refusal note becomes the `refused` error note with the hook's own code in `data.source`, as for an authorizer note. An `afterRun` hook returns `{ output?, notes? }`: only the parts the core keeps. A field left out keeps its value.
 
 ```ts
 import { createNodeBashTool } from "@better-fs-tools/node";
