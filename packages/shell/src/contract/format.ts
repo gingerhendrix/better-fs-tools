@@ -1,10 +1,12 @@
-import type { ContentPart, ToolCallContext } from "@better-fs-tools/read";
+import type { ContentPart, Digest, ToolCallContext } from "@better-fs-tools/read";
 
 import type { ShellLimits } from "./limits.ts";
 import type { ShellMessageCatalog } from "./messages.ts";
 import type { ShellReport } from "./result.ts";
 
 export interface ShellFormatContext<THost = undefined> {
+  /** The tool's digest dependency, as in the read and write format contexts. */
+  readonly digest: Digest | null;
   readonly limits: Readonly<ShellLimits>;
   readonly messages: Readonly<ShellMessageCatalog>;
   /** "view": status line and output only, no notes. */

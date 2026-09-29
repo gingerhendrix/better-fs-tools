@@ -230,7 +230,7 @@ export const bash = createNodeBashTool({ spill: fileSpill });
 
 A hook that throws, or returns a malformed value, gives `EXTENSION_FAILED` with its phase. After the run, the result keeps the run and the output.
 
-A formatter that throws, or returns neither a string nor an array, does not change the status. The core adds an `extension-failed` warning and formats with `defaultShellFormatter()`, as the read and write tools do.
+A formatter that throws, or returns neither a string nor an array, does not change the status. The core adds an `extension-failed` warning and formats with `defaultShellFormatter()`, as the read and write tools do. The format context has `digest`, `limits`, `messages`, `mode`, and `call`.
 
 ## Runners
 

@@ -8,6 +8,7 @@ import {
 import type { ShellOutput, ShellReport, ShellRun } from "@better-fs-tools/shell";
 
 const context = {
+  digest: null,
   limits: resolveShellLimits(),
   messages: resolveShellMessages(),
   mode: "model" as const,

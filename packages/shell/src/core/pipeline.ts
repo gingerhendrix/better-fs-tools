@@ -237,7 +237,13 @@ function finish<THost>(
   call: ToolCallContext<THost>,
   done: ShellReport,
 ): ShellResult {
-  const context = { limits: deps.limits, messages: deps.messages, mode: "model" as const, call };
+  const context = {
+    digest: deps.digest,
+    limits: deps.limits,
+    messages: deps.messages,
+    mode: "model" as const,
+    call,
+  };
   let content: readonly ContentPart[] | null = null;
   try {
     content = toContent(deps.formatter.format(done, context));

@@ -7,6 +7,7 @@ import type {
   RunOutcome,
   ShellHookContext,
 } from "@better-fs-tools/shell";
+import type { Digest } from "@better-fs-tools/read";
 
 import { resolveShellLimits } from "@better-fs-tools/shell";
 
@@ -538,6 +539,23 @@ describe("hooks", () => {
     await bash({ command: "x" });
     expect(seen[0]?.digest).toBe(digest);
     expect(seen[0]?.clock()).toBe(at);
+  });
+
+  test("the formatter gets the digest too, as in read and write", async () => {
+    const digest = { id: "d", create: () => ({ update() {}, digest: () => "" }), hash: () => "h" };
+    let formatted: Digest | null | undefined;
+    await bashTool({
+      runner: scriptedRunner(),
+      digest,
+      formatter: {
+        id: "spy",
+        format: (_report, ctx) => {
+          formatted = ctx.digest;
+          return "x";
+        },
+      },
+    })({ command: "x" });
+    expect(formatted).toBe(digest);
   });
 
   test("the default digest is null and the default clock is the time now", async () => {
