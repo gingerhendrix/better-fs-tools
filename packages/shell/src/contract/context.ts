@@ -4,8 +4,8 @@ import type { BashInput } from "./input.ts";
 import type { ShellResult } from "./result.ts";
 
 /**
- * Same rule as the other tools: the context argument is optional, and `host`
- * may be left out, when THost includes undefined.
+ * The bash tool function. The context argument is optional, and `host` may be
+ * left out, when THost includes undefined.
  */
 export type BashTool<THost = undefined> = undefined extends THost
   ? (

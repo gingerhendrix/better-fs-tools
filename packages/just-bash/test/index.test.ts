@@ -383,7 +383,6 @@ describe("justBashFileSystem", () => {
     const guide = opened(await wrapped.open("/knowledge/guide.txt", {}));
     expect(old.info.identity).not.toBe(guide.info.identity);
 
-    /* The same top-level object can also be passed to Bash by the host. */
     await mounted.writeFile("/workspace/a.txt", "beta\n");
     await mounted.cp("/knowledge/guide.txt", "/workspace/guide.txt");
     expect(await old.verify()).toEqual({ ok: true, changed: true });

@@ -6,10 +6,7 @@ import type { ShellCanonicalParam, ShellMessageCatalog } from "../contract/messa
 import { resolveShellLimits } from "../core/limits.ts";
 import { formatDuration } from "../core/messages.ts";
 
-/**
- * The bash tool's signature. Adapter level. The core never sees it. It adds
- * `duration` to the shared base, for the unit of the timeout parameter.
- */
+/** The bash tool's model-facing signature, with `duration` for the timeout unit. */
 export interface BashSignature extends ToolSignature<BashInput, ShellCanonicalParam> {
   /** A duration in the unit of the timeout parameter, for messages. */
   duration(ms: number): string;
@@ -21,19 +18,19 @@ export type BashParam = "command" | "timeout" | "cwd";
 const ALL_PARAMS: readonly BashParam[] = ["command", "timeout", "cwd"];
 
 export interface BashSignatureOptions extends SignatureDocs<BashParam> {
-  /** Unit of the timeout parameter. Default "ms" (S2). */
+  /** Unit of the timeout parameter. Default "ms". */
   readonly timeoutUnit?: "ms" | "s";
   /** Add the cwd parameter. Default true. With false, `names.cwd` and `describe.cwd` are ignored. */
   readonly cwd?: boolean;
   /** Put the runner id in the description, for example "just-bash (emulated)". */
   readonly runner?: string;
-  /** The tool's limits, so the description names the right timeouts. Default the core defaults. */
+  /** The tool's limits, so the description names the right timeouts. Default defaultShellLimits. */
   readonly limits?: Partial<ShellLimits>;
 }
 
 /**
  * bash({ command, timeout?, cwd? }). The timeout unit is milliseconds unless
- * `timeoutUnit` is "s". Pi's own bash takes seconds and no cwd.
+ * `timeoutUnit` is "s".
  */
 export function defaultBashSignature(options: BashSignatureOptions = {}): BashSignature {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
@@ -61,14 +58,13 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
   if (options.description !== undefined && typeof options.description !== "string") {
     throw new TypeError("defaultBashSignature description must be a string");
   }
-  const own: readonly BashParam[] = withCwd
+  const enabledParams: readonly BashParam[] = withCwd
     ? ["command", "timeout", "cwd"]
     : ["command", "timeout"];
-  // names.cwd and describe.cwd type-check with cwd: false, so they are ignored, not refused.
   checkKeys(describe, "describe", ALL_PARAMS);
   checkKeys(names, "names", ALL_PARAMS);
   const host = {} as Record<BashParam, string>;
-  for (const param of own) {
+  for (const param of enabledParams) {
     const value = names[param] ?? param;
     if (value.trim() === "") throw new TypeError(`names.${param} must be a non-blank string`);
     if (Object.values(host).includes(value)) {
@@ -76,7 +72,7 @@ export function defaultBashSignature(options: BashSignatureOptions = {}): BashSi
     }
     host[param] = value;
   }
-  const params = own.map((param) => host[param]);
+  const params = enabledParams.map((param) => host[param]);
   const limits = resolveShellLimits(options.limits);
   const scale = timeoutUnit === "s" ? 1_000 : 1;
   const unitWord = timeoutUnit === "s" ? "seconds" : "milliseconds";

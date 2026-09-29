@@ -22,11 +22,6 @@ const KNOWN: ReadonlySet<string> = new Set([
   "clock",
 ]);
 
-/**
- * Validates and resolves the dependencies once, synchronously. Throws
- * TypeError on an unknown key, a missing runner or env, or a malformed
- * dependency.
- */
 export function resolveShellDependencies<THost>(
   deps: ShellToolDeps<THost>,
 ): ShellDependencies<THost> {

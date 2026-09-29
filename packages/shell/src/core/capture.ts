@@ -4,12 +4,7 @@ import type { OutputChunk } from "../contract/runner.ts";
 
 const NEWLINE = 0x0a;
 
-/**
- * Holds the merged output in bounded memory: the first `maxOutputBytes`
- * bytes, the last `maxOutputBytes` bytes, and counts. The middle is dropped
- * as it arrives. Memory stays near two view budgets, whatever the command
- * writes.
- */
+/** Keeps the first and last `maxOutputBytes` bytes of the merged output, and counts. */
 export class OutputCapture {
   readonly #cap: number;
   readonly #head: Uint8Array;
@@ -57,7 +52,6 @@ export class OutputCapture {
     }
   }
 
-  /** The bounded view. `spill` is the spill sink's reference, or null. */
   view(limits: Readonly<ShellLimits>, spill: string | null): ShellOutput {
     const total = this.#total;
     const totalLines = this.#newlines + (total > 0 && this.#lastByte !== NEWLINE ? 1 : 0);
@@ -82,13 +76,7 @@ export class OutputCapture {
     const tailBytes = limits.maxOutputBytes - headBytes;
     const tailLines = limits.maxOutputLines - headLines;
     const from = Math.max(total - tailBytes, headEnd);
-    // Is the byte before `from` a newline, or is `from` the start of the output?
-    const before = from - 1;
-    const startsLine =
-      from === 0 ||
-      (before >= storeStart
-        ? tailStore[before - storeStart] === NEWLINE
-        : before < this.#headLength && head[before] === NEWLINE);
+    const startsLine = this.#isLineStart(from, tailStore, storeStart);
     const tailStart = tailCut(tailStore, from - storeStart, tailLines, startsLine);
     const shownTail = tailStore.subarray(tailStart);
 
@@ -103,14 +91,19 @@ export class OutputCapture {
       omittedLines,
     };
   }
+
+  #isLineStart(position: number, tailStore: Uint8Array, storeStart: number): boolean {
+    const before = position - 1;
+    return (
+      position === 0 ||
+      (before >= storeStart
+        ? tailStore[before - storeStart] === NEWLINE
+        : before < this.#headLength && this.#head[before] === NEWLINE)
+    );
+  }
 }
 
-/**
- * End of the head: at most `bytes` bytes and `lines` lines, cut after a
- * newline when the budget holds one, else at a UTF-8 character boundary.
- */
 function headCut(head: Uint8Array, bytes: number, lines: number): number {
-  // A zero line budget shows no head, not the first line.
   if (lines <= 0) return 0;
   const limit = Math.min(bytes, head.byteLength);
   let seen = 0;
@@ -125,10 +118,6 @@ function headCut(head: Uint8Array, bytes: number, lines: number): number {
   return charBoundaryBack(head, limit);
 }
 
-/**
- * Start of the tail in `store`: from `from`, moved forward to a line start
- * unless it already is one, then forward again until at most `lines` lines remain.
- */
 function tailCut(store: Uint8Array, from: number, lines: number, startsLine: boolean): number {
   let start = from;
   if (!startsLine) {
@@ -136,10 +125,10 @@ function tailCut(store: Uint8Array, from: number, lines: number, startsLine: boo
     if (next >= 0 && next < store.byteLength - 1) start = next + 1;
     else start = charBoundaryForward(store, start);
   }
-  // Keep the last `lines` lines. A final newline ends the last line; it does not start one.
-  const end = store[store.byteLength - 1] === NEWLINE ? store.byteLength - 1 : store.byteLength;
+  const endBeforeFinalNewline =
+    store[store.byteLength - 1] === NEWLINE ? store.byteLength - 1 : store.byteLength;
   let seen = 0;
-  for (let index = end - 1; index >= start; index -= 1) {
+  for (let index = endBeforeFinalNewline - 1; index >= start; index -= 1) {
     if (store[index] !== NEWLINE) continue;
     seen += 1;
     if (seen >= lines) return index + 1;
@@ -180,19 +169,18 @@ function concat(chunks: readonly Uint8Array[], length: number): Uint8Array {
   return out;
 }
 
-// Control sequences (CSI), operating system commands (OSC), and two-byte escapes.
-const ANSI = new RegExp(
-  [
-    "\\u001b\\[[0-?]*[ -/]*[@-~]",
-    "\\u001b\\][^\\u0007\\u001b]*(?:\\u0007|\\u001b\\\\)",
-    "\\u001b[@-Z\\\\-_]",
-    "\\u009b[0-?]*[ -/]*[@-~]",
-  ].join("|"),
+const CONTROL_SEQUENCE = "\\u001b\\[[0-?]*[ -/]*[@-~]";
+const OPERATING_SYSTEM_COMMAND = "\\u001b\\][^\\u0007\\u001b]*(?:\\u0007|\\u001b\\\\)";
+const TWO_BYTE_ESCAPE = "\\u001b[@-Z\\\\-_]";
+const EIGHT_BIT_CONTROL_SEQUENCE = "\\u009b[0-?]*[ -/]*[@-~]";
+const ANSI_ESCAPE = new RegExp(
+  [CONTROL_SEQUENCE, OPERATING_SYSTEM_COMMAND, TWO_BYTE_ESCAPE, EIGHT_BIT_CONTROL_SEQUENCE].join(
+    "|",
+  ),
   "gu",
 );
 
-/** UTF-8 with replacement characters, ANSI codes removed, one final newline dropped. */
 function text(bytes: Uint8Array): string {
-  const decoded = new TextDecoder("utf-8").decode(bytes).replace(ANSI, "");
+  const decoded = new TextDecoder("utf-8").decode(bytes).replace(ANSI_ESCAPE, "");
   return decoded.endsWith("\n") ? decoded.slice(0, -1) : decoded;
 }

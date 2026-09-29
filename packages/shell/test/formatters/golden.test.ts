@@ -38,7 +38,6 @@ const output: ShellOutput = {
   stderrBytes: 0,
   spill: null,
 };
-/** A report fixture. A patch with status "error" also sets error. */
 const report = (patch: Record<string, unknown>): ShellReport =>
   ({
     tool: "bash",

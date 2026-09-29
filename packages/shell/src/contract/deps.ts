@@ -26,17 +26,15 @@ export interface ShellDependencies<THost = undefined> {
   /** Host policy on the final command. null allows. */
   readonly authorize: ShellAuthorizer<THost> | null;
   /**
-   * The whole environment of each command. Required (decision Q4): pass
-   * shellEnv(() => process.env), an allow list such as shellEnv({ PATH }), or
-   * shellEnv() for defaultShellEnv alone. The Node and Pi factories default
-   * it to shellEnv(() => process.env).
+   * The whole environment of each command. Pass shellEnv(() => process.env),
+   * an allow list such as shellEnv({ PATH }), or shellEnv() for defaultShellEnv alone.
    */
   readonly env: ShellEnv<THost>;
   /** null turns spill off. */
   readonly spill: SpillSink<THost> | null;
   readonly afterRun: readonly AfterRunHook<THost>[];
   readonly formatter: ShellFormatter<THost>;
-  /** Given to host functions as ctx.digest. The bash tool hashes nothing itself. Default null. */
+  /** Given to host functions as ctx.digest. Default null. */
   readonly digest: Digest | null;
   /** Given to host functions as ctx.clock. Default () => new Date(). */
   readonly clock: Clock;

@@ -19,14 +19,11 @@ export interface JustBashCommandRunnerOptions {
 }
 
 /**
- * Runs each command with bash.exec() in an emulated shell. Nothing starts a
+ * Runs each command with bash.exec() in an emulated shell, without starting a
  * process. stdin is empty, the environment replaces the shell's own, and the
- * cwd is set for the call only. just-bash buffers output, so stdout arrives
- * whole before stderr, after the command ends. A stop aborts exec at the next
- * statement boundary; a built-in that does not check its signal may run
- * until it ends, and the core then reports an unconfirmed stop. A busy loop
- * does not yield to the event loop, so no timer fires while it runs: set
- * just-bash's executionLimits as the backstop for loops.
+ * cwd applies to the call only. Output arrives after the command ends, stdout
+ * before stderr. A stop takes effect at the next statement, and no timeout
+ * fires during a busy loop, so set just-bash's executionLimits to bound loops.
  */
 export function justBashCommandRunner(
   bash: JustBashShell,
@@ -41,7 +38,6 @@ export function justBashCommandRunner(
   const { id = "just-bash (emulated)", cwd = bash.getCwd() } = options;
   if (typeof id !== "string" || id === "") throw new TypeError("id must be a non-empty string");
   if (typeof cwd !== "string" || !cwd.startsWith("/")) {
-    // A virtual shell has no process cwd to resolve a relative path against.
     throw new TypeError("cwd must be an absolute path: just-bash has no process cwd");
   }
   return Object.freeze<CommandRunner>({ id, cwd, run: (request) => run(bash, request) });

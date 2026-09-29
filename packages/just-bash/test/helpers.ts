@@ -10,10 +10,6 @@ import type {
 } from "@better-fs-tools/fs";
 import type { Digest, ReadErrorCode, ReadFailure, ReadOk, ReadResult } from "@better-fs-tools/read";
 
-/**
- * Assert the shape of a typed filesystem error from `open()`, `list()` or
- * `verify()`. Adapters return these; they never throw.
- */
 export function expectFsError(
   outcome: OpenOutcome | ListOutcome | VerifyOutcome,
   reason: FileSystemErrorReason,
@@ -31,7 +27,6 @@ export function expectFsError(
   return error;
 }
 
-/** Narrows to ok, failing the test with the actual status when it is not. */
 export function expectOk(result: ReadResult): ReadOk & ReadResult {
   if (result.status !== "ok")
     throw new Error(
@@ -40,7 +35,6 @@ export function expectOk(result: ReadResult): ReadOk & ReadResult {
   return result;
 }
 
-/** Narrows to error, asserting the code. */
 export function expectFailure(result: ReadResult, code: ReadErrorCode): ReadFailure & ReadResult {
   if (result.status !== "error") throw new Error(`expected error ${code}, got ${result.status}`);
   if (result.error.code !== code)
@@ -48,7 +42,6 @@ export function expectFailure(result: ReadResult, code: ReadErrorCode): ReadFail
   return result;
 }
 
-/** The static import specifiers of a source file. */
 export async function importSpecifiers(file: string): Promise<string[]> {
   const source = await Bun.file(file).text();
   return [...source.matchAll(/^\s*import(?:\s+type)?\s[^;]*?from\s+"([^"]+)"/gmu)].map(
@@ -56,7 +49,6 @@ export async function importSpecifiers(file: string): Promise<string[]> {
   );
 }
 
-/** The package-external import specifiers of every source file in a folder. */
 export async function sourceSpecifiers(folder: string): Promise<string[]> {
   const found: string[] = [];
   for (const file of new Bun.Glob("*.ts").scanSync({ cwd: folder, absolute: true })) {
@@ -69,7 +61,6 @@ export async function sourceSpecifiers(folder: string): Promise<string[]> {
 
 const TEXT = new TextEncoder();
 
-/** A small FNV-1a digest. A Worker host brings its own; the tests need one that is fixed. */
 export function testDigest(): Digest {
   const fold = (bytes: Iterable<number>): string => {
     let hash = 2166136261 >>> 0;
@@ -89,7 +80,6 @@ export function testDigest(): Digest {
   };
 }
 
-/** Assert the shape of a typed error from `stat()`, `write()` or `remove()`. */
 export function expectMutationError(
   outcome: MutationOutcome | StatOutcome,
   reason: MutationError["reason"],
@@ -101,7 +91,6 @@ export function expectMutationError(
   return outcome.error;
 }
 
-/** The error of a result, or null when its status is not "error". */
 export function errorOf<T extends { readonly status: string }>(
   result: T,
 ): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {

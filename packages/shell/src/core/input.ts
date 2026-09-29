@@ -4,8 +4,8 @@ import type { ShellLimits } from "../contract/limits.ts";
 const KEYS: ReadonlySet<string> = new Set(["command", "timeoutMs", "cwd"]);
 
 /**
- * Checks canonical input and fills defaults. Throws TypeError, like the other
- * parse helpers. `command` must hold a non-whitespace character and no NUL.
+ * Checks canonical input and fills defaults. Throws TypeError on bad input.
+ * `command` must hold a non-whitespace character and no NUL.
  * `timeoutMs` must be a positive finite number. It is rounded up to a whole
  * millisecond and clamped to maxTimeoutMs; the tool adds a clamped note.
  * `cwd` must be a non-blank string without NUL.
@@ -39,7 +39,6 @@ export function parseBashInput(input: unknown, limits: Readonly<ShellLimits>): B
   return Object.freeze({ command, timeoutMs: timeout, cwd: requestedCwd });
 }
 
-/** The requested timeout when parse clamped it, else null. `input` passed parseBashInput. */
 export function clampedTimeout(input: unknown, request: BashRequest): number | null {
   if (!isRecord(input) || typeof input.timeoutMs !== "number") return null;
   const requested = Math.ceil(input.timeoutMs);

@@ -20,8 +20,6 @@ export interface ShellHookContext<THost = undefined> extends ToolHookContext<THo
   readonly call: ToolCallContext<THost>;
 }
 
-/* Authorize */
-
 /**
  * The path fields name the working directory, so a read tool authorizer
  * (a ToolAuthorizer) that checks paths also works on the cwd.
@@ -35,18 +33,15 @@ export interface ShellAuthorizeTarget extends AccessTarget {
 
 /**
  * Host policy. Runs after the beforeRun hooks, so it sees the command that
- * will run. The package ships no authorizers. A ToolAuthorizer from read fits here.
+ * will run. A ToolAuthorizer from read fits here.
  */
 export interface ShellAuthorizer<THost = undefined> {
   readonly id: string;
-  /** A function property, so a shell authorizer does not fit a read or write tool. */
   readonly authorize: (
     target: ShellAuthorizeTarget,
     ctx: ShellHookContext<THost>,
   ) => AccessDecision | Promise<AccessDecision>;
 }
-
-/* Before run */
 
 export interface PlannedRun {
   readonly command: string;
@@ -74,15 +69,11 @@ export interface BeforeRunHook<THost = undefined> {
   ): BeforeRunDecision | Promise<BeforeRunDecision>;
 }
 
-/* Environment */
-
 /** Returns the whole environment of the command. */
 export type ShellEnv<THost = undefined> = (
   run: PlannedRun,
   ctx: ShellHookContext<THost>,
 ) => Readonly<Record<string, string>> | Promise<Readonly<Record<string, string>>>;
-
-/* Spill */
 
 export interface SpillWriter {
   write(bytes: Uint8Array): Promise<void>;
@@ -95,8 +86,6 @@ export interface SpillSink<THost = undefined> {
   readonly id: string;
   open(run: PlannedRun, ctx: ShellHookContext<THost>): Promise<SpillWriter>;
 }
-
-/* After run */
 
 /** What afterRun hooks see: a run that started, with its status. */
 export type RunOutcome =

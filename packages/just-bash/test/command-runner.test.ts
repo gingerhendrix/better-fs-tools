@@ -7,8 +7,7 @@ import { createBashTool, shellEnv } from "@better-fs-tools/shell";
 import { justBashCommandRunner } from "../src/index.ts";
 
 function shell(executionLimits = {}): Bash {
-  // just-bash 3.4.2 defense in depth cannot patch Bun's module loader, even in "auto".
-  // Node runs it with the default. The tests run under Bun, so they turn it off.
+  // just-bash 3.4.2 defense in depth cannot patch Bun's module loader.
   return new Bash({
     files: { "/w/a.txt": "alpha\n", "/w/sub/b.txt": "beta\n" },
     cwd: "/w",
@@ -66,8 +65,7 @@ describe("justBashCommandRunner", () => {
   });
 
   test("fact check: a busy loop starves the timer; just-bash's own limits end it", async () => {
-    // The interpreter does not yield to the event loop inside a busy loop, so
-    // the core's timeout cannot fire. just-bash's executionLimits stop it.
+    // A busy loop never yields to the event loop, so no timer can fire.
     const bash = createBashTool({
       runner: justBashCommandRunner(shell({ maxCommandCount: 10_000 })),
       env: shellEnv(),
@@ -92,7 +90,6 @@ describe("justBashCommandRunner", () => {
   });
 });
 
-/** The error of a result, or null when its status is not "error". */
 function errorOf<T extends { readonly status: string }>(
   result: T,
 ): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {

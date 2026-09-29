@@ -1,7 +1,3 @@
-/**
- * Path policy, backend value checks and error mapping shared by reads and
- * writes. Raw backend messages, which can contain paths, never leave here.
- */
 import type { FsStat } from "just-bash";
 
 import {
@@ -31,7 +27,6 @@ export interface ValidatedStat {
   readonly identity?: string;
   readonly dev?: number | bigint;
   readonly ino?: number | bigint;
-  /** Permission bits. Only writes use them. */
   readonly mode?: number;
 }
 
@@ -42,11 +37,6 @@ export interface ValidatedDirent {
   readonly isSymbolicLink: boolean;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Policy and validation                                                      */
-/* -------------------------------------------------------------------------- */
-
-/** Validated options, shared by the read and write halves. */
 export interface JustBashSettings {
   readonly id: string;
   readonly cwd: string;
@@ -93,17 +83,12 @@ export function validateOptions(options: JustBashFileSystemOptions): JustBashSet
   return { id, cwd, allowedRoots, denyRoots, maxBufferedBytes, identity, symlinks };
 }
 
-/**
- * Only the read methods are checked here. The write methods are checked when
- * a write runs (see `requireWriteMethods`), so a read-only backend still serves
- * reads.
- */
 export function validateFileSystem(fs: JustBashBackend): void {
   if (fs === null || typeof fs !== "object" || Array.isArray(fs)) {
     throw new TypeError("justBashFileSystem needs an IFileSystem object");
   }
-  const read = ["lstat", "realpath", "stat", "readFileBuffer", "readdir"] as const;
-  for (const method of read) {
+  const readMethods = ["lstat", "realpath", "stat", "readFileBuffer", "readdir"] as const;
+  for (const method of readMethods) {
     if (typeof fs[method] !== "function")
       throw new TypeError(`the IFileSystem must implement ${method}()`);
   }
@@ -148,7 +133,6 @@ export function authorizeCanonical(
   allowedRoots: readonly string[],
   denyRoots: readonly string[],
 ): void {
-  // A deny root is dangerous-path in every adapter, with the root as the detail.
   const denied = denyRoots.find((root) => containsPosix(root, target));
   if (denied !== undefined) throw refuse({ reason: "dangerous-path", detail: denied });
   if (!allowedRoots.some((root) => containsPosix(root, target))) {
@@ -172,11 +156,6 @@ export async function canonicalPath(
 export const SYMLINK_REJECTED =
   "a path component is a symbolic link and this adapter refuses symlinks";
 
-/**
- * `symlinks: "reject"`: lstat every component of the lexical path from `/`
- * down, and refuse the first symbolic link. A missing component ends the walk,
- * since nothing below it exists.
- */
 export async function refuseSymlinkComponents(
   fs: JustBashBackend,
   lexical: string,
@@ -252,11 +231,14 @@ export function validateStat(value: FsStat, phase: string): ValidatedStat {
     ...(typeof stat.identity === "string" ? { identity: stat.identity } : {}),
     ...(typeof stat.dev === "number" || typeof stat.dev === "bigint" ? { dev: stat.dev } : {}),
     ...(typeof stat.ino === "number" || typeof stat.ino === "bigint" ? { ino: stat.ino } : {}),
-    /* An unusable mode is dropped, not refused, so reads keep working. */
-    ...(Number.isSafeInteger(stat.mode) && (stat.mode as number) >= 0
-      ? { mode: (stat.mode as number) & 0o7777 }
-      : {}),
+    ...permissionBitsIfUsable(stat.mode),
   };
+}
+
+function permissionBitsIfUsable(mode: unknown): { mode?: number } {
+  return Number.isSafeInteger(mode) && (mode as number) >= 0
+    ? { mode: (mode as number) & 0o7777 }
+    : {};
 }
 
 export function validateInodePart(value: unknown, field: "dev" | "ino", phase: string): void {
@@ -354,10 +336,6 @@ export function fingerprint(id: string, path: string, key: string, stat: Validat
   return JSON.stringify([id, path, key, stat.size, stat.mtimeMs]);
 }
 
-/* -------------------------------------------------------------------------- */
-/* Backend calls and errors                                                   */
-/* -------------------------------------------------------------------------- */
-
 export async function backendCall<T>(
   operation: () => Promise<T> | T,
   phase: string,
@@ -380,7 +358,6 @@ export function mapBackendError(error: unknown, phase: string): FileSystemError 
   const cause = { code, phase };
   if (code === "ABORT_ERR") return { reason: "aborted", cause };
   if (code === "ENOENT" || code === "ENOTDIR") return { reason: "not-found", cause };
-  /* The call site knows no path, so the target is unknown. */
   if (code === "EISDIR") return { reason: "not-a-file", kind: "directory", target: null, cause };
   if (code === "EACCES") return { reason: "permission-denied", cause };
   if (code === "EPERM" || code === "ELOOP" || code === "EFBIG" || code === "ENAMETOOLONG") {
@@ -392,7 +369,7 @@ export function mapBackendError(error: unknown, phase: string): FileSystemError 
   return { reason: "io", detail: phase, cause };
 }
 
-/** Own `code` first, then a bounded anchored token from message-only errors. */
+// Backend messages can contain paths, so only a short error code is kept.
 export function portableCode(error: unknown): string {
   if (error !== null && typeof error === "object") {
     try {

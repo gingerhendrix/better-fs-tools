@@ -4,16 +4,15 @@ import type { BashRequest } from "./input.ts";
 
 /**
  * "ok", "failed", and "timeout" describe a command that ran. "failed": it
- * exited with a code other than 0. It is a normal result, not a tool error
- * (S4). "error": the call stopped, or the core stopped the command for a
- * reason other than its timeout. `error.code` says why.
+ * exited with a code other than 0. It is a normal result, not a tool error.
+ * "error": the call stopped, or the tool stopped the command for a reason
+ * other than its timeout. `error.code` says why.
  */
 export type ShellStatus = "ok" | "failed" | "timeout" | "error";
 
 /**
- * UPPER_SNAKE, like every tool's error codes. The error note's code is the
- * kebab-case form. DENIED: the authorizer refused. REFUSED: a beforeRun hook
- * refused. ABORTED: the caller's signal fired.
+ * The error note's code is the kebab-case form. DENIED: the authorizer
+ * refused. REFUSED: a beforeRun hook refused. ABORTED: the caller's signal fired.
  */
 export type ShellErrorCode =
   | "INVALID_INPUT"
@@ -37,7 +36,7 @@ export type ShellPhase =
   | "afterRun"
   | "format";
 
-/** The error of a failed call. Same shape as the read and write errors. */
+/** The error of a failed call. */
 export type ShellError = ToolError<ShellErrorCode, ShellPhase>;
 
 /** Facts about one run. null in an error report when the command did not start. */

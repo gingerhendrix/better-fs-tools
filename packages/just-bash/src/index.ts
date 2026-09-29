@@ -1,18 +1,3 @@
-/**
- * Adapt a `just-bash` POSIX filesystem to the `FileSystem` handle contract.
- *
- * `IFileSystem` exposes whole-buffer, path-based operations. This adapter
- * therefore declares `streaming: false`, copies the backend buffer during
- * `open()`, and verifies by repeating canonicalization and stat inspection.
- * It cannot provide the descriptor identity, non-blocking special-file open,
- * or in-flight cancellation guarantees of a descriptor-based Node adapter.
- *
- * Policy remains adapter-owned. Requested paths are checked against virtual
- * roots before the backend is touched and canonical paths are checked again
- * after `realpath()`. Backend errors are reduced to a bounded POSIX code and a
- * safe phase; raw messages, which can contain paths, never leave this module.
- */
-
 import { posixPaths, resolvePosix } from "@better-fs-tools/fs";
 import type {
   DirectoryEntry,
@@ -58,13 +43,12 @@ export type { JustBashCommandRunnerOptions, JustBashShell } from "./command-runn
 export type { JustBashBackend, JustBashFileSystem, JustBashFileSystemOptions } from "./contract.ts";
 
 /**
- * Wrap a just-bash `IFileSystem`, or any backend with the `JustBashBackend`
- * subset: the read methods, and the write methods when it writes.
+ * Wraps a just-bash `IFileSystem`, or any `JustBashBackend`, as a file system
+ * for the better-fs-tools tools.
  *
- * Reads are buffered during `open()`. Abort checks bracket every uncancellable
- * backend promise, but cannot stop one already in flight. Directory backends
- * also return complete arrays: `limit` bounds converted output and fallback
- * `lstat()` calls, not backend traversal or allocation.
+ * `open()` reads the whole file into memory. An abort cannot stop a backend
+ * call already in progress. The `limit` of `list()` bounds the entries
+ * returned, not the backend's own directory read.
  *
  * `stat`, `write` and `remove` keep the same roots, deny roots and symlink
  * policy as `open()`. `writeCapabilities` is `{ atomic: false,
@@ -131,7 +115,7 @@ function readMethods(fs: JustBashBackend, configured: JustBashSettings): ReadMet
         }
         requireWithinCeiling(backendBytes.byteLength, maxBufferedBytes, "returned object");
 
-        /* `InMemoryFs` aliases its stored buffer, so ownership must change here. */
+        // InMemoryFs returns its stored buffer, not a copy.
         const bytes = Uint8Array.from(backendBytes);
         const after = await inspect(fs, "stat", resolved, signal, "stat-after");
         requireRegularFile(after, cwd, resolved);
@@ -188,13 +172,8 @@ function readMethods(fs: JustBashBackend, configured: JustBashSettings): ReadMet
         const resolved = await canonicalPath(fs, lexical, signal);
         authorizeCanonical(resolved, allowedRoots, denyRoots);
         const stat = await inspect(fs, "stat", resolved, signal);
-        /* Same rule as memoryFileSystem: listing a non-directory is not-found. */
         if (!stat.isDirectory) throw refuse({ reason: "not-found", detail: "not a directory" });
 
-        /*
-         * Both methods allocate a complete backend array. Slicing bounds only
-         * returned entries and, on the fallback path, child metadata calls.
-         */
         if (typeof fs.readdirWithFileTypes === "function") {
           const readdirWithFileTypes = fs.readdirWithFileTypes;
           const raw = await backendCall(
@@ -233,10 +212,6 @@ function readMethods(fs: JustBashBackend, configured: JustBashSettings): ReadMet
   };
 }
 
-/* -------------------------------------------------------------------------- */
-/* The buffered handle                                                        */
-/* -------------------------------------------------------------------------- */
-
 function justBashOpenFile(context: {
   fs: JustBashBackend;
   id: string;
@@ -263,7 +238,6 @@ function justBashOpenFile(context: {
       mtimeMs: context.opened.mtimeMs,
       identity: context.identity === "required" ? context.openedFingerprint : null,
       mimeType: null,
-      /* The fingerprint verify() compares. Weak in identity mode "none". */
       version: context.openedFingerprint,
     },
 
@@ -296,7 +270,6 @@ function justBashOpenFile(context: {
           try {
             await refuseSymlinkComponents(context.fs, context.lexical, context.signal);
           } catch (error) {
-            /* A link that appeared on the path since open is a change. */
             if (error instanceof AdapterRefusal && error.error.reason === "denied") {
               return { ok: true, changed: true };
             }

@@ -9,7 +9,6 @@ import type {
   ShellToolDeps,
 } from "@better-fs-tools/shell";
 
-/** createBashTool with env shellEnv() unless the test gives one. */
 export function bashTool<THost = undefined>(
   deps: Omit<ShellToolDeps<THost>, "env"> & Partial<Pick<ShellToolDeps<THost>, "env">>,
 ): BashTool<THost> {
@@ -20,11 +19,8 @@ export type Step = OutputChunk | { readonly delay: number };
 
 export interface Script {
   readonly steps?: readonly Step[];
-  /** Default { code: 0, signal: null }. */
   readonly exit?: RunExit;
-  /** Never exit by itself. Only a stop ends the run. */
   readonly hang?: boolean;
-  /** Ignore the stop signal, so the exit never settles after a stop. */
   readonly ignoreStop?: boolean;
 }
 
@@ -42,7 +38,6 @@ export function err(text: string): OutputChunk {
   return { stream: "stderr", bytes: encoder.encode(text) };
 }
 
-/** A runner that plays a script: chunks and delays, then an exit. It honours the stop signal. */
 export function scriptedRunner(script: Script = {}, cwd = "/work"): ScriptedRunner {
   const requests: RunRequest[] = [];
   return {
@@ -121,7 +116,6 @@ export function lines(count: number, prefix = "line"): string {
   return Array.from({ length: count }, (_, index) => `${prefix} ${index + 1}\n`).join("");
 }
 
-/** The error of a result, or null when its status is not "error". */
 export function errorOf<T extends { readonly status: string }>(
   result: T,
 ): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {

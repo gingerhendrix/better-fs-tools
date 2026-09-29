@@ -29,12 +29,6 @@ import {
 import type { CallScope } from "./stages.ts";
 import { StageStop, errorNote, extensionId, info, isNoteList, messageOf, warning } from "./stop.ts";
 
-/**
- * input → runner and cwd → beforeRun → authorize → env → run and capture →
- * afterRun → format. authorize sees the command after every beforeRun
- * rewrite. Every expected failure is a result. Only a default formatter that
- * throws propagates.
- */
 export async function runBash<THost>(
   deps: ShellDependencies<THost>,
   input: unknown,
@@ -48,7 +42,11 @@ export async function runBash<THost>(
     request = parseBashInput(input, limits);
   } catch (error) {
     const note = errorNote("INVALID_INPUT", messages.invalidInput({ detail: messageOf(error) }));
-    return finish(deps, call, stopped(null, new StageStop("INVALID_INPUT", "input", note), notes));
+    return finish(
+      deps,
+      call,
+      failedBeforeStart(null, new StageStop("INVALID_INPUT", "input", note), notes),
+    );
   }
   const requested = clampedTimeout(input, request);
   if (requested !== null) {
@@ -67,11 +65,10 @@ export async function runBash<THost>(
     call,
   };
   const scope: CallScope<THost> = { deps, call, notes, ctx };
-  // A function, so a check after an await is not narrowed away.
+  // A function, so TypeScript does not narrow the check away after an await.
   const aborted = () => call.signal?.aborted === true;
 
   try {
-    // An abort before the call started is phase input in every tool.
     if (aborted()) throw new AbortStop("input");
     const runner = runnerFor(deps, call);
     const base = baseCwd(deps, call, runner);
@@ -92,25 +89,20 @@ export async function runBash<THost>(
       return finish(
         deps,
         call,
-        stopped(request, new StageStop("ABORTED", error.phase, note), notes),
+        failedBeforeStart(request, new StageStop("ABORTED", error.phase, note), notes),
       );
     }
-    if (error instanceof StageStop) return finish(deps, call, stopped(request, error, notes));
+    if (error instanceof StageStop)
+      return finish(deps, call, failedBeforeStart(request, error, notes));
     throw error;
   }
 }
 
-/** The status of a run that ended by itself or by its timeout. */
 function statusOf(run: ShellRun): ShellRunReport["status"] {
   if (run.stoppedBy === "timeout") return "timeout";
   return run.exitCode === 0 ? "ok" : "failed";
 }
 
-/**
- * Each hook may replace the output view and the notes. status, error, and run
- * stay as the core set them. A hook that throws or returns a malformed update
- * gives EXTENSION_FAILED with the run, and the output and notes so far.
- */
 async function afterRun<THost>(scope: CallScope<THost>, executed: Executed): Promise<ShellReport> {
   const { run, stop } = executed;
   const request = scope.ctx.request;
@@ -172,7 +164,6 @@ function isOutput(value: unknown): value is ShellOutput {
   );
 }
 
-/** The error of a stop. `message` and `data` come from its note. */
 function errorOf(stop: StageStop): ShellError {
   const { note } = stop;
   return {
@@ -183,8 +174,7 @@ function errorOf(stop: StageStop): ShellError {
   };
 }
 
-/** An error before the command started. The error note comes first. */
-function stopped(
+function failedBeforeStart(
   request: BashRequest | null,
   stop: StageStop,
   notes: readonly Note[],
@@ -227,11 +217,6 @@ function failureReport(
   });
 }
 
-/**
- * Formats the report. A formatter that throws or returns something else adds
- * an extension-failed warning, and the default formatter formats the report.
- * The status stays, as in the read and write tools.
- */
 function finish<THost>(
   deps: ShellDependencies<THost>,
   call: ToolCallContext<THost>,
@@ -247,9 +232,7 @@ function finish<THost>(
   let content: readonly ContentPart[] | null = null;
   try {
     content = toContent(deps.formatter.format(done, context));
-  } catch {
-    // Falls through to the default formatter.
-  }
+  } catch {}
   if (content !== null) return Object.freeze({ ...done, content });
   const id = extensionId(deps.formatter);
   const note = warning(

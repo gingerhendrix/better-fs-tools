@@ -10,7 +10,6 @@ import { isAbsolute, isRunner } from "./deps.ts";
 import { isRecord } from "./input.ts";
 import { StageStop, errorNote, extensionId, hostErrorNote, isNote, isNoteList } from "./stop.ts";
 
-/** One call's dependencies, notes, and hook context. */
 export interface CallScope<THost> {
   readonly deps: ShellDependencies<THost>;
   readonly call: ToolCallContext<THost>;
@@ -27,7 +26,6 @@ export function extensionFailure<THost>(
   return new StageStop("EXTENSION_FAILED", phase, errorNote("EXTENSION_FAILED", message));
 }
 
-/** Runs host code under the caller's signal. A throw becomes EXTENSION_FAILED for `phase`. */
 async function hostCall<THost, T>(
   scope: CallScope<THost>,
   extension: unknown,
@@ -42,7 +40,6 @@ async function hostCall<THost, T>(
   }
 }
 
-/** The runner for this call. A factory that throws or returns a non-runner gives EXTENSION_FAILED. */
 export function runnerFor<THost>(
   deps: ShellDependencies<THost>,
   call: ToolCallContext<THost>,
@@ -59,7 +56,6 @@ export function runnerFor<THost>(
   return made;
 }
 
-/** The default cwd for this call: the dependency, or the runner's cwd. */
 export function baseCwd<THost>(
   deps: ShellDependencies<THost>,
   call: ToolCallContext<THost>,
@@ -78,11 +74,6 @@ export function baseCwd<THost>(
   return made;
 }
 
-/**
- * The resolver changes the requested cwd string, then the core resolves it
- * against the default cwd. The resolver gets no listing: the bash tool has
- * no filesystem. A not-found outcome gives CWD_NOT_FOUND.
- */
 export async function resolveCwd<THost>(
   scope: CallScope<THost>,
   base: string,
@@ -116,10 +107,6 @@ export async function resolveCwd<THost>(
   return resolvePosix(base, path);
 }
 
-/**
- * Runs each hook in order. A rewrite feeds the next hook. Returns the run to
- * authorize and start. A refusal gives REFUSED.
- */
 export async function beforeRun<THost>(
   scope: CallScope<THost>,
   planned: PlannedRun,
@@ -154,11 +141,6 @@ export async function beforeRun<THost>(
   return run;
 }
 
-/**
- * Authorizes the run that will start, after every beforeRun rewrite. The
- * path fields name the cwd. `displayPath` is relative to the default cwd,
- * as the file tools show it. A denial gives DENIED.
- */
 export async function authorize<THost>(
   scope: CallScope<THost>,
   run: PlannedRun,
@@ -194,7 +176,6 @@ export async function authorize<THost>(
   throw new StageStop("DENIED", "authorize", note);
 }
 
-/** `path` relative to `base`: "." for the base itself, "../x" outside it. Both absolute. */
 export function relativePosix(base: string, path: string): string {
   if (path === base) return ".";
   if (containsPosix(base, path)) return path.slice(base === "/" ? 1 : base.length + 1);

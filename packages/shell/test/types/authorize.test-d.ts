@@ -1,7 +1,4 @@
-/**
- * Type tests for authorizer variance (decision W5). `tsc -b` checks this
- * file; Bun never runs it.
- */
+// Type tests: tsc checks this file; its name keeps Bun from running it.
 import { denyPaths, sizeCeiling } from "@better-fs-tools/read";
 import type { ToolAuthorizer } from "@better-fs-tools/read";
 

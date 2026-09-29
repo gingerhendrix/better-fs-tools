@@ -7,10 +7,6 @@ export class AbortStop extends Error {
   }
 }
 
-/**
- * Runs `start` and settles with it, or rejects with AbortStop as soon as the
- * signal aborts, so host code that ignores the signal cannot hold the call open.
- */
 export async function raceAbort<T>(
   start: () => T | Promise<T>,
   signal: AbortSignal | undefined,
@@ -30,7 +26,6 @@ export async function raceAbort<T>(
   }
 }
 
-/** Resolves after `ms`. The timer does not keep a Node process alive. */
 export function delay(ms: number): { readonly done: Promise<void>; cancel(): void } {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const done = new Promise<void>((resolve) => {

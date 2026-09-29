@@ -2,7 +2,6 @@ import type { JsonObject, Note } from "@better-fs-tools/read";
 
 import type { ShellErrorCode, ShellPhase } from "../contract/result.ts";
 
-/** Ends the call with status "error". `note` is the error note. */
 export class StageStop extends Error {
   constructor(
     readonly code: ShellErrorCode,
@@ -25,22 +24,14 @@ export function info(code: string, message: string, data?: JsonObject): Note {
     : { code, severity: "info", message, data };
 }
 
-/** "OUTPUT_CAP" gives "output-cap". Every error note uses its code this way. */
 export function noteCode(code: ShellErrorCode): string {
   return code.toLowerCase().replaceAll("_", "-");
 }
 
-/** The warning note of an error, with the error code in kebab case. */
 export function errorNote(code: ShellErrorCode, message: string, data?: JsonObject): Note {
   return warning(noteCode(code), message, data);
 }
 
-/**
- * An error note built from a host note (an authorizer or beforeRun refusal),
- * by the rule read and write use too: the code becomes the error code in
- * kebab case, the severity "warning", and the host's own code moves to
- * data.source.
- */
 export function hostErrorNote(code: ShellErrorCode, note: Note): Note {
   const kebab = noteCode(code);
   return errorNote(

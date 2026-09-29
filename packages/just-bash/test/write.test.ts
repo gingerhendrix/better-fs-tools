@@ -14,7 +14,6 @@ const ENCODER = new TextEncoder();
 const CREATE: WriteOptions = { precondition: { kind: "absent" }, createParents: false };
 const ANY: WriteOptions = { precondition: { kind: "any" }, createParents: false };
 
-/** Records the mutating calls that reach the backend. */
 function recorded(fs: IFileSystem) {
   const calls: string[] = [];
   const log = (name: string) => (original: (...args: never[]) => unknown, args: never[]) => {
@@ -95,7 +94,6 @@ describe("just-bash writes: shape", () => {
       ok: false,
       error: { reason: "unsupported" },
     });
-    // A full IFileSystem fits the same type.
     const full: JustBashBackend = fs satisfies IFileSystem;
     expect(justBashFileSystem(full, { allowedRoots: ["/"] }).id).toBe("just-bash");
   });

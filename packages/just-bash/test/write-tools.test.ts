@@ -13,10 +13,8 @@ import { InMemoryFs } from "just-bash";
 import { writable } from "./backend.ts";
 import { errorOf, testDigest } from "./helpers.ts";
 
-/** The read tool and the three write tools over one just-bash adapter, store, digest and lock manager. */
 function toolsFor(files: Record<string, string>) {
   const backend = new InMemoryFs(files);
-  // The default identity mode. The core then also compares content hashes.
   const fs = writable(backend, { identity: "none", maxBufferedBytes: 1024 * 1024 });
   const shared = { fs, state: memoryStore(), digest: testDigest(), locks: memoryLocks() };
   return {
@@ -51,7 +49,6 @@ describe("just-bash through the write tools", () => {
       "The test-just-bash backend does not replace files atomically",
     );
 
-    // A second edit right away needs no read, and sees its own first write as current.
     const again = await tools.edit({
       path: "run.sh",
       edits: [{ oldText: "#!/bin/sh", newText: "#!/bin/bash" }],

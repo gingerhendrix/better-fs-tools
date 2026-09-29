@@ -1,7 +1,7 @@
 type EnvRecord = Readonly<Record<string, string | undefined>>;
 
 /**
- * Names every default environment sets, so a command does not wait on a
+ * Variables shellEnv sets over the base, so a command does not wait on a
  * pager or a prompt and does not print colour codes.
  */
 export const defaultShellEnv: Readonly<Record<string, string>> = Object.freeze({

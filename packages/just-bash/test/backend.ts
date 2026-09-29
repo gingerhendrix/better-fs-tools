@@ -15,7 +15,6 @@ type Method =
   | "chmod"
   | "utimes";
 
-/** The adapter with the test defaults. The read tests use it for reads only. */
 export function adapter(fs: IFileSystem, overrides: Partial<JustBashFileSystemOptions> = {}) {
   return justBashFileSystem(fs, {
     id: "test-just-bash",
@@ -27,7 +26,6 @@ export function adapter(fs: IFileSystem, overrides: Partial<JustBashFileSystemOp
   });
 }
 
-/** The same adapter, named for the write tests. */
 export function writable(fs: IFileSystem, overrides: Partial<JustBashFileSystemOptions> = {}) {
   return justBashFileSystem(fs, {
     id: "test-just-bash",
@@ -39,7 +37,6 @@ export function writable(fs: IFileSystem, overrides: Partial<JustBashFileSystemO
   });
 }
 
-/** Bind class methods to the real backend while changing selected calls. */
 export function intercept(
   fs: IFileSystem,
   handlers: Partial<

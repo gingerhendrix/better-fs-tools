@@ -5,7 +5,7 @@ import type { ShellMessageCatalog } from "./messages.ts";
 import type { ShellReport } from "./result.ts";
 
 export interface ShellFormatContext<THost = undefined> {
-  /** The tool's digest dependency, as in the read and write format contexts. */
+  /** The tool's digest dependency. */
   readonly digest: Digest | null;
   readonly limits: Readonly<ShellLimits>;
   readonly messages: Readonly<ShellMessageCatalog>;

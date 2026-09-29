@@ -14,25 +14,17 @@ import type { CallScope } from "./stages.ts";
 import { extensionFailure } from "./stages.ts";
 import { StageStop, errorNote, messageOf, warning } from "./stop.ts";
 
-/** How long the core reads output after the exit, before it lets go of the stream. */
-const DRAIN_MS = 1_000;
-/** Added to killGraceMs: how long the core waits for the exit after a stop. */
-const STOP_MARGIN_MS = 1_000;
+const DRAIN_AFTER_EXIT_MS = 1_000;
+const EXIT_WAIT_AFTER_KILL_GRACE_MS = 1_000;
 
 type StopReason = NonNullable<ShellRun["stoppedBy"]>;
 
 export interface Executed {
   readonly run: ShellRun;
   readonly output: ShellOutput;
-  /** ABORTED or OUTPUT_CAP when the core stopped the command for one of them. Not thrown. */
   readonly stop: StageStop | null;
 }
 
-/**
- * Opens the spill sink, starts the command, reads its output into the
- * bounded capture, and stops it on a timeout, an abort, or the capture cap.
- * A start failure throws StageStop. Everything after the start returns.
- */
 export async function execute<THost>(
   scope: CallScope<THost>,
   runner: CommandRunner,
@@ -82,16 +74,15 @@ export async function execute<THost>(
   const iterator = handle.output[Symbol.asyncIterator]();
   let skippedChunks = 0;
   let streamFailed: string | null = null;
-  // True once the stream reported its end. Capture stops at the drain deadline.
-  let ended = false;
-  let letGo = false;
+  let streamEnded = false;
+  let outputReleased = false;
   const drain = (async () => {
     try {
       for (;;) {
         const next = await iterator.next();
-        if (letGo) return;
+        if (outputReleased) return;
         if (next.done === true) {
-          ended = true;
+          streamEnded = true;
           return;
         }
         const chunk = validChunk(next.value);
@@ -104,8 +95,6 @@ export async function execute<THost>(
         if (capture.totalBytes > limits.maxCaptureBytes) stop("output-cap");
       }
     } catch (error) {
-      // A failing output stream ends the output. The exit still decides the
-      // status, and an output-incomplete warning says the output is partial.
       streamFailed = messageOf(error);
     }
   })();
@@ -115,14 +104,13 @@ export async function execute<THost>(
     release();
     return exit;
   });
-  const exit = await waitForExit(exitPromise, controller.signal, limits.killGraceMs);
-  const drainMs = exit === null ? 0 : DRAIN_MS;
+  const exit = await exitOrGiveUpAfterStop(exitPromise, controller.signal, limits.killGraceMs);
+  const drainMs = exit === null ? 0 : DRAIN_AFTER_EXIT_MS;
   const drainWait = delay(drainMs);
   await Promise.race([drain, drainWait.done]);
   drainWait.cancel();
-  // Let go of an output stream that a background child still holds open.
-  // A chunk that arrives later is not captured, so the output stays as reported.
-  letGo = true;
+  // A background child may still hold the output stream open.
+  outputReleased = true;
   void Promise.resolve(iterator.return?.()).catch(() => undefined);
   release();
   const durationMs = Date.now() - started;
@@ -139,10 +127,9 @@ export async function execute<THost>(
   }
   const reason = stoppedBy as StopReason | null;
   if (exit === null) scope.notes.push(warning("unconfirmed-stop", messages.unconfirmedStop()));
-  // After a stop the tool started, the runner may end its stream early or
-  // with an error: that is not lost output, and the stop has its own note.
+  // After a stop, a runner may end its stream early or with an error.
   const failed = reason === null ? (streamFailed as string | null) : null;
-  const unfinished = reason === null && failed === null && !ended ? drainMs : null;
+  const unfinished = reason === null && failed === null && !streamEnded ? drainMs : null;
   if (failed !== null || unfinished !== null || skippedChunks > 0) {
     scope.notes.push(
       warning(
@@ -172,7 +159,6 @@ export async function execute<THost>(
   };
 }
 
-/** The error of a run the core stopped for an abort or the capture cap. null otherwise. */
 function runStop<THost>(
   scope: CallScope<THost>,
   reason: StopReason | null,
@@ -204,8 +190,7 @@ function startRun(runner: CommandRunner, request: RunRequest): RunHandle {
   return handle as unknown as RunHandle;
 }
 
-/** The exit, or null when the command was stopped and the runner did not settle in time. */
-async function waitForExit(
+async function exitOrGiveUpAfterStop(
   exit: Promise<RunExit>,
   stopped: AbortSignal,
   killGraceMs: number,
@@ -214,7 +199,7 @@ async function waitForExit(
   let giveUp: ReturnType<typeof delay> | undefined;
   const late = new Promise<null>((resolve) => {
     onStop = () => {
-      giveUp = delay(killGraceMs + STOP_MARGIN_MS);
+      giveUp = delay(killGraceMs + EXIT_WAIT_AFTER_KILL_GRACE_MS);
       void giveUp.done.then(() => resolve(null));
     };
     if (stopped.aborted) onStop();
@@ -228,7 +213,6 @@ async function waitForExit(
   }
 }
 
-/** A rejected or malformed exit reads as a failed start. */
 async function settleExit(exit: PromiseLike<RunExit>): Promise<RunExit> {
   try {
     const value: unknown = await exit;
@@ -281,12 +265,10 @@ function startError<THost>(
 
 interface OpenSpill {
   write(bytes: Uint8Array): void;
-  /** The reference, or null when the sink failed. Never rejects. */
   close(): Promise<string | null>;
   readonly failed: boolean;
 }
 
-/** Writes go one after another. The first failure stops the spill and is reported once. */
 async function openSpill<THost>(
   scope: CallScope<THost>,
   planned: PlannedRun,

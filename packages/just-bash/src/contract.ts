@@ -12,11 +12,11 @@ import type {
 } from "@better-fs-tools/fs";
 
 /**
- * The part of the just-bash `IFileSystem` the adapter calls. Reads need
+ * The part of the just-bash `IFileSystem` this package needs. Reads need
  * `lstat`, `realpath`, `stat`, `readFileBuffer`, and `readdir`, and use
- * `readdirWithFileTypes` when it is there. The write methods are optional:
- * a write checks them when it runs, so a read-only backend fits this type and
- * still serves reads. A full `IFileSystem` fits too.
+ * `readdirWithFileTypes` when it is there. The write methods are optional, so
+ * a read-only backend fits this type and still serves reads. A full
+ * `IFileSystem` fits too.
  */
 export type JustBashBackend = Pick<
   IFileSystem,

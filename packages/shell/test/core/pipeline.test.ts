@@ -85,7 +85,6 @@ describe("statuses", () => {
     controller.abort();
     const result = await bashTool({ runner })({ command: "x" }, { signal: controller.signal });
     expect(result.status).toBe("error");
-    // Checked once right after parse, before any host call.
     expect(errorOf(result)).toEqual({ code: "ABORTED", phase: "input", message: anyMessage });
     expect(result.notes.map((note) => note.code)).toEqual(["aborted"]);
     expect(result.run).toBeNull();
@@ -471,7 +470,7 @@ describe("hooks", () => {
     expect(result.notes.map((note) => note.code)).toEqual(["b"]);
   });
 
-  test("env is the whole environment: shellEnv() is defaultShellEnv only (Q4)", async () => {
+  test("env is the whole environment: shellEnv() is defaultShellEnv only", async () => {
     const runner = scriptedRunner();
     await createBashTool({ runner, env: shellEnv() })({ command: "x" });
     expect(runner.requests[0]?.env).toEqual(defaultShellEnv);
@@ -756,7 +755,6 @@ describe("output stream failures", () => {
     expect(result.notes.map((note) => note.code)).toEqual(["output-incomplete"]);
   });
 
-  /** Runs `call` with fake timers, moving time on in steps until it settles. */
   async function withFakeTime<T>(call: () => Promise<T>, stepMs: number): Promise<T> {
     jest.useFakeTimers();
     try {
@@ -866,7 +864,7 @@ describe("createBashTool", () => {
     expect(() => bashTool({ runner: scriptedRunner(), cwd: "relative" })).toThrow(TypeError);
   });
 
-  test("env is required: no silent defaultShellEnv-only environment (Q4)", () => {
+  test("env is required: no silent defaultShellEnv-only environment", () => {
     const runner = scriptedRunner();
     // @ts-expect-error: env is a required dependency.
     expect(() => createBashTool({ runner })).toThrow(

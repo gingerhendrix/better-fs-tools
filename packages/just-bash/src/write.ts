@@ -1,21 +1,3 @@
-/**
- * Writes over a `just-bash` `IFileSystem`.
- *
- * `IFileSystem` has no compare-and-swap, no exclusive create and no rename
- * that keeps a target's metadata, so the adapter checks the precondition with
- * a fresh stat right before each backend call and reports
- * `compareAndSwap: false`. A write is `writeFile` followed by `chmod`, so it is
- * not atomic either.
- *
- * Three `InMemoryFs` behaviours shape the code. `writeFile` resets the mode to
- * `0o644`, so a replace calls `chmod` with the old mode. `writeFile` replaces a
- * symbolic link or a directory at the path with a file, so the path is checked
- * first and the write goes to the canonical path. `mtime` has millisecond
- * resolution and two writes in one millisecond keep it, so a replace that
- * leaves `mtime` where it was moves it on by one millisecond with `utimes`.
- * The version then changes on every write through this adapter.
- */
-
 import type { IFileSystem } from "just-bash";
 
 import { posixPaths } from "@better-fs-tools/fs";
@@ -87,7 +69,6 @@ export function justBashWrites(fs: JustBashBackend, settings: JustBashSettings):
     }
   };
 
-  /** Open's version for a canonical path that holds a regular file. */
   const existing = async (resolved: string, signal?: AbortSignal): Promise<Located> => {
     const stat = await inspect(fs, "stat", resolved, signal);
     requireRegularFile(stat, cwd, resolved);
@@ -95,12 +76,6 @@ export function justBashWrites(fs: JustBashBackend, settings: JustBashSettings):
     return { exists: true, resolved, stat, version };
   };
 
-  /**
-   * The same checks as `open()`: roots and deny roots on the requested path,
-   * every symlink on the path refused under `"reject"`, then `realpath` and the roots
-   * again on the canonical path. A missing leaf resolves through its nearest
-   * existing ancestor, which must be a directory inside the roots.
-   */
   const locate = async (requested: string, signal?: AbortSignal): Promise<Located> => {
     const lexical = authorizeRequested(cwd, requested, allowedRoots, denyRoots);
     if (symlinks === "reject") await refuseSymlinkComponents(fs, lexical, signal);
@@ -118,7 +93,13 @@ export function justBashWrites(fs: JustBashBackend, settings: JustBashSettings):
       authorizeCanonical(resolved, allowedRoots, denyRoots);
       return existing(resolved, signal);
     }
+    return locateThroughNearestAncestor(lexical, signal);
+  };
 
+  const locateThroughNearestAncestor = async (
+    lexical: string,
+    signal?: AbortSignal,
+  ): Promise<Located> => {
     const missing = [posixPaths.basename(lexical)];
     let ancestor = posixPaths.dirname(lexical);
     while ((await lstatOrNull(ancestor, signal)) === null) {
@@ -158,7 +139,6 @@ export function justBashWrites(fs: JustBashBackend, settings: JustBashSettings):
           missingDirectories: located.missingDirectories,
         };
 
-  /** mkdir each missing parent, outermost first, then check it is a real directory. */
   const makeDirectories = async (
     writable: Writable<"mkdir">,
     directories: readonly string[],
@@ -220,7 +200,6 @@ export function justBashWrites(fs: JustBashBackend, settings: JustBashSettings):
         if (!located.exists && located.missingDirectories.length > 0 && !options.createParents) {
           throw refuse({ reason: "not-found", detail: "the parent directory does not exist" });
         }
-        /* From here on the signal is not checked: a started write finishes. */
         if (options.signal?.aborted) throw refuse({ reason: "aborted" });
 
         const { resolved } = located;
@@ -228,10 +207,12 @@ export function justBashWrites(fs: JustBashBackend, settings: JustBashSettings):
           ? []
           : await makeDirectories(writable, located.missingDirectories);
         await mutate(() => writable.writeFile(resolved, bytes), "writeFile");
+        // InMemoryFs writeFile resets the mode to 0o644.
         const mode = located.exists ? located.stat.mode : options.mode;
         if (mode !== undefined) await mutate(() => writable.chmod(resolved, mode), "chmod");
         if (located.exists) {
           const after = await inspect(fs, "stat", resolved);
+          // InMemoryFs keeps mtime for two writes in one millisecond.
           if (after.mtimeMs <= located.stat.mtimeMs) {
             const mtime = new Date(located.stat.mtimeMs + 1);
             await mutate(() => writable.utimes(resolved, mtime, mtime), "utimes");
@@ -260,13 +241,8 @@ export function justBashWrites(fs: JustBashBackend, settings: JustBashSettings):
   };
 }
 
-/** Every method a write may call. All are checked first, so a write never stops half done. */
 const WRITE_METHODS = ["writeFile", "mkdir", "chmod", "utimes"] as const;
 
-/**
- * Decision W4: the backend's write methods are checked when a write runs, not
- * when the adapter is built, so a backend without them still serves reads.
- */
 function requireWriteMethods<M extends WriteMethod>(
   fs: JustBashBackend,
   methods: readonly M[],
@@ -284,10 +260,8 @@ function requireWriteMethods<M extends WriteMethod>(
 
 type WriteMethod = "writeFile" | "mkdir" | "chmod" | "utimes" | "rm";
 
-/** The backend once requireWriteMethods has checked methods `M`. */
 type Writable<M extends WriteMethod> = JustBashBackend & Required<Pick<IFileSystem, M>>;
 
-/** The adapter's own precondition check. Not atomic with the backend call. */
 function refuseConflict(located: Located, precondition: Precondition): void {
   switch (precondition.kind) {
     case "absent":
@@ -305,7 +279,6 @@ function refuseConflict(located: Located, precondition: Precondition): void {
   }
 }
 
-/** Carries a mutation-only reason out of a helper. Never escapes this module. */
 class WriteRefusal extends Error {
   constructor(readonly error: MutationError) {
     super(error.reason);
@@ -313,10 +286,6 @@ class WriteRefusal extends Error {
   }
 }
 
-/**
- * Run one mutating backend call. Unlike `backendCall`, it takes no signal: a
- * write that has started is reported as done, not as aborted.
- */
 async function mutate<T>(operation: () => Promise<T>, phase: string): Promise<T> {
   try {
     return await backendCall(operation, phase);

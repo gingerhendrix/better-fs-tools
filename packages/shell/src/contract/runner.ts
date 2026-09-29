@@ -1,7 +1,6 @@
 /**
- * The runner and `env` are the required dependencies of the bash tool. The
- * runner starts one command. The core owns the timeout, the abort, and the
- * output budget.
+ * Starts one command for the bash tool. The tool handles the timeout, the
+ * abort, and the output budget.
  */
 export interface CommandRunner {
   /** Shown in the tool description, for example "node" or "just-bash (emulated)". */
@@ -22,7 +21,7 @@ export interface RunRequest {
   /** The whole environment of the command. The runner adds nothing to it. */
   readonly env: Readonly<Record<string, string>>;
   /**
-   * The core aborts it on a timeout, on the caller's abort, and past the
+   * The tool aborts it on a timeout, on the caller's abort, and past the
    * capture cap. The runner must then stop the whole process tree.
    */
   readonly signal: AbortSignal;

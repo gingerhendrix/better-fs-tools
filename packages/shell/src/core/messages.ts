@@ -87,9 +87,9 @@ export const defaultShellMessages: Readonly<ShellMessageCatalog> = Object.freeze
 const MESSAGE_KEYS = Object.keys(defaultShellMessages) as (keyof ShellMessageCatalog)[];
 
 /**
- * Merges key by key over the defaults. The default texts are rebuilt with the
- * host's `param` and `duration`, so every default text uses the host's names
- * and units. Throws TypeError on an unknown key or a value that is not a function.
+ * Merges key by key over the defaults. The default texts use the host's
+ * `param` and `duration`, so they show the host's names and units. Throws
+ * TypeError on an unknown key or a value that is not a function.
  */
 export function resolveShellMessages(
   overrides: Partial<ShellMessageCatalog> = {},

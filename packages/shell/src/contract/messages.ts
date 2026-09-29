@@ -5,7 +5,7 @@ import type { ShellPhase } from "./result.ts";
 export type ShellCanonicalParam = "command" | "timeoutMs" | "cwd";
 
 /**
- * Wording for every note and status line the core owns. Text that names a
+ * Wording for every note and status line of the tool. Text that names a
  * model parameter calls `param(name)`, which a signature overrides.
  */
 export interface ShellMessageCatalog extends ToolMessages {

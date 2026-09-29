@@ -1,7 +1,4 @@
-/**
- * Type tests. `tsc -b` checks this file through the package tsconfig. Bun never
- * runs it: the name does not match Bun's test file pattern.
- */
+// Type tests: tsc checks this file; its name keeps Bun from running it.
 import type { SignatureDocs, ToolSignature } from "@better-fs-tools/read";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
 
