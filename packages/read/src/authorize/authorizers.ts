@@ -15,7 +15,7 @@ export function readAuthorizers<THost = unknown>(
 ): ReadAuthorizer<THost> {
   for (const step of steps) {
     if (step === null || typeof step !== "object" || typeof step.authorize !== "function") {
-      throw new TypeError("authorizers takes authorizers");
+      throw new TypeError("readAuthorizers takes authorizers");
     }
   }
   const chain = Object.freeze([...steps]);
