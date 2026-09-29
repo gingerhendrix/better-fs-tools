@@ -487,7 +487,7 @@ describe("edit targets and records", () => {
   });
 });
 
-describe("W4: edit on a stale record", () => {
+describe("edit on a stale record", () => {
   test("every old text still matches exactly once: applied with a note", async () => {
     const { edit, fs } = await readFile("one\ntwo\nthree\n");
     fs.setFile("/f.ts", "zero\none\ntwo\nthree\n");

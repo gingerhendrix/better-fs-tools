@@ -95,7 +95,7 @@ describe("hunk verification", () => {
     expect(snapshot(setup, ["/a.ts", "/b.ts", "/c.ts", "/new.ts"])).toEqual(before);
   });
 
-  test("W9: each hunk takes the first match after the previous hunk", async () => {
+  test("each hunk takes the first match after the previous hunk", async () => {
     const { applyPatch, fs } = await readAll({ "/a.ts": "x\ny\nx\ny\nx\ny\n" });
     const result = await applyPatch({
       patch: patchText("*** Update File: /a.ts", "@@", "-x", "+X1", "@@", "-x", "+X2"),
@@ -107,7 +107,7 @@ describe("hunk verification", () => {
     ]);
   });
 
-  test("W9: an ambiguous block is not refused; the @@ context line moves the cursor", async () => {
+  test("an ambiguous block is not refused; the @@ context line moves the cursor", async () => {
     const source = [
       "function a() {",
       "  return 1;",
@@ -290,7 +290,7 @@ describe("bytes the patch does not name stay the same", () => {
 });
 
 describe("existence problems", () => {
-  test("W10: an Add on an existing file is refused and points to Update or write", async () => {
+  test("an Add on an existing file is refused and points to Update or write", async () => {
     const setup = await readAll({ "/a.ts": "a\n" });
     const before = snapshot(setup, ["/a.ts"]);
     const result = await setup.applyPatch({ patch: patchText("*** Add File: /a.ts", "+b") });
@@ -498,7 +498,7 @@ describe("preconditions", () => {
     expect(await setup.state.get("/a.ts")).toMatchObject({ wholeFileVisible: false });
   });
 
-  test("W4: a stale file is patched when every hunk matches exactly", async () => {
+  test("a stale file is patched when every hunk matches exactly", async () => {
     const setup = await readAll({ "/a.ts": "a\nb\n" });
     setup.fs.setFile("/a.ts", "a\nb\nextra\n");
     const result = await setup.applyPatch({
@@ -510,7 +510,7 @@ describe("preconditions", () => {
     expect(await setup.state.get("/a.ts")).toMatchObject({ wholeFileVisible: false });
   });
 
-  test("W4: on a stale file only the exact matcher runs; a miss gives STALE", async () => {
+  test("on a stale file only the exact matcher runs; a miss gives STALE", async () => {
     const setup = await readAll({ "/a.ts": "a\nb\n" });
     setup.fs.setFile("/a.ts", "a  \nb\n");
     const result = await setup.applyPatch({
@@ -640,7 +640,7 @@ describe("guards, authorize, and hooks", () => {
     expect(change).toEqual(["create /n.ts 4", "update /u.ts 4", "delete /d.ts 4", "move /m2.ts 4"]);
   });
 
-  test("W6: authorizer content is refused for apply_patch", async () => {
+  test("authorizer content is refused for apply_patch", async () => {
     const setup = await readAll(
       { "/a.ts": "a\n" },
       {

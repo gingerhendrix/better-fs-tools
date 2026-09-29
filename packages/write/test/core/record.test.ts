@@ -113,7 +113,7 @@ describe("records for bytes the model has not seen", () => {
   };
 
   test.each([
-    ["W6 content", { authorize: userContent }, "user-modified"],
+    ["authorizer content", { authorize: userContent }, "user-modified"],
     ["a hook rewrite", { hooks: [rewriter] }, "hook-rewrote"],
   ])(
     "after %s the record is not whole: edit works, write needs a whole read",
@@ -139,7 +139,7 @@ describe("records for bytes the model has not seen", () => {
     },
   );
 
-  test("the same rules hold for edit: W6 content on an edit leaves a partial record", async () => {
+  test("the same rules hold for edit: authorizer content on an edit leaves a partial record", async () => {
     const { read, edit, write, state } = harness({
       files: { "/a.txt": "one\n" },
       deps: { authorize: userContent },

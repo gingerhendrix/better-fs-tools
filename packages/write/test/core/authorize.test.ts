@@ -123,7 +123,7 @@ describe("authorize (sections 5.2 and 5.8)", () => {
     expect((await write({ path: "/app/ok.txt", content: "x" })).status).toBe("ok");
   });
 
-  test("W6: content replaces the planned text, is re-diffed, and is marked user-modified", async () => {
+  test("content replaces the planned text, is re-diffed, and is marked user-modified", async () => {
     const { authorizer } = recording((target) =>
       target.change === null ? { allow: true } : { allow: true, content: "theirs\r\n" },
     );
@@ -141,7 +141,7 @@ describe("authorize (sections 5.2 and 5.8)", () => {
     expect(note(result, "user-modified")?.message).toContain("/a.txt");
   });
 
-  test("W6: the guards run again on the new content", async () => {
+  test("the guards run again on the new content", async () => {
     const seen: string[] = [];
     const guard: Guard<unknown> = {
       id: "no-secrets",
@@ -162,7 +162,7 @@ describe("authorize (sections 5.2 and 5.8)", () => {
     expect(text(fs, "/n.txt")).toBeNull();
   });
 
-  test("W6: content equal to the file is no-change", async () => {
+  test("content equal to the file is no-change", async () => {
     const { authorizer } = recording((target) =>
       target.change === null ? { allow: true } : { allow: true, content: "one\n" },
     );
@@ -174,7 +174,7 @@ describe("authorize (sections 5.2 and 5.8)", () => {
     expect((await write({ path: "/a.txt", content: "two\n" })).status).toBe("no-change");
   });
 
-  test("W6 on edit: content is re-diffed and re-snippeted", async () => {
+  test("on edit: content is re-diffed and re-snippeted", async () => {
     const lines = Array.from({ length: 20 }, (_, index) => `l${index + 1}`);
     const { authorizer } = recording((target) =>
       target.change === null
@@ -195,7 +195,7 @@ describe("authorize (sections 5.2 and 5.8)", () => {
     expect(codes(result)).toEqual(["user-modified"]);
   });
 
-  test("W6 on edit: content equal to the file is NO_CHANGE", async () => {
+  test("on edit: content equal to the file is NO_CHANGE", async () => {
     const { authorizer } = recording((target) =>
       target.change === null ? { allow: true } : { allow: true, content: "one\n" },
     );
