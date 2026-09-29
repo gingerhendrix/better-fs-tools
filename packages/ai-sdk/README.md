@@ -1,6 +1,6 @@
 # @better-fs-tools/ai-sdk
 
-The Better Read tool and the `edit`, `write`, and `apply_patch` tools for [AI SDK 7](https://ai-sdk.dev). Each factory gives a tool object that you put in a `ToolSet`.
+The Better Read tool, the `edit`, `write`, and `apply_patch` tools, and the `bash` tool for [AI SDK 7](https://ai-sdk.dev). Each factory gives a tool object that you put in a `ToolSet`. `createAiSdkFsTools()` builds them in one call.
 
 ## Install
 
@@ -72,7 +72,7 @@ export async function change(model: LanguageModel, prompt: string): Promise<stri
 }
 ```
 
-- `createAiSdkFsTools(options)` wraps `createFsTools()`. `fs` is required. `state` (default `createMemoryStore()`, `null` turns read-before-write off), `digest`, `locks`, and `clock` are set once. Each tool's other options, and its `signature`, go under `read`, `edit`, `write`, and `applyPatch`. `bash: { runner, env, ... }` adds a bash tool with the same digest and clock. The result has `read`, `edit`, `write`, `applyPatch`, `bash` (`null` when off), `tools`, `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`. An unknown option key, or a shared key inside a tool's options, throws `TypeError`.
+- `createAiSdkFsTools(options)` wraps `createFsTools()`. `fs` is required. `state` (default `createMemoryStore()`, `null` turns read-before-write off), `digest`, `locks`, and `clock` are set once. Each tool's other options, and its `signature`, go under `read`, `edit`, `write`, and `applyPatch`. `bash: { runner, env, ... }` adds a bash tool with the same digest and clock. The result has `read`, `edit`, `write`, `applyPatch`, `bash` (`null` when off), `tools`, `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`. An unknown option key, a shared key inside a tool's options, or two tools with one name throws `TypeError`.
 - The single factories, `createAiSdkEditTool()`, `createAiSdkWriteTool()`, and `createAiSdkApplyPatchTool()`, take every option of their core factory, plus `signature`. `fs` is required. `state` and `digest` default to `null`, so without them every update carries a `read-before-write-off` note. A `state` needs a `digest`: the options type refuses one without the other, and the factory throws `TypeError`.
 - The default signatures are `defaultEditSignature()` (`edit` with `path`, `old_string`, `new_string`, and `replace_all`), `defaultWriteSignature()` (`write` with `path` and `content`), and `defaultPatchSignature()` (`apply_patch` with `patch`). Error texts use the signature's names.
 - The tools are `strict: true`. The schema's `validate` hook runs `signature.toInput` and the core input check.
@@ -109,6 +109,7 @@ export async function run(model: LanguageModel, prompt: string): Promise<string>
 
 ## Links
 
+- `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the defaults of every host and bundle, and what each backend can do
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option, and the signature builders
 - [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): every write option, and the write signatures
 - [`@better-fs-tools/cloudflare-shell`](https://www.npmjs.com/package/@better-fs-tools/cloudflare-shell): a filesystem for Cloudflare Agents

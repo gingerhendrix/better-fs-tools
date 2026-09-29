@@ -45,7 +45,7 @@ ReadResult
 | Filesystem          | `open`         | `fs`                         | A `FileSystem`, or a factory of the call context. The factory runs once for each read.                                                                                                                                                               |
 | Resolve             | `resolve`      | `resolve`                    | Changes the path string that goes into the one open, or reports not found.                                                                                                                                                                           |
 | Open                | `open`         | `fs`, `suggest`              | One `fs.open()`. A miss lists the parent once for `suggest`. A directory goes to the first directory converter, if there is one.                                                                                                                     |
-| Authorize           | `authorize`    | `authorize`                  | Host policy on the open file, before the core reads any content byte. A buffered backend has already fetched the file in `open()`.                                                                                                                   |
+| Authorize           | `authorize`    | `authorize`                  | Host policy on the open file, before the core reads any content byte. See [What open() fetches before authorize](#what-open-fetches-before-authorize).                                                                                               |
 | Sample and classify | `sampling`     | `classifiers`                | Reads `limits.sampleBytes`, then asks each classifier in order. The first opinion wins.                                                                                                                                                              |
 | Convert             | `conversion`   | `converters`                 | The first file converter that accepts the classification reads a capped stream from byte 0.                                                                                                                                                          |
 | Scan                | `scan`         | `limits`, `budget`, `digest` | Decodes UTF-8, splits lines, selects the view, clamps, counts, and hashes.                                                                                                                                                                           |
@@ -55,6 +55,10 @@ ReadResult
 | Format              | none           | `formatter`, `messages`      | Turns the outcome into content parts.                                                                                                                                                                                                                |
 
 The core owns line scanning, view selection, clamping, the byte limit, continuation arithmetic, change detection, and note assembly. That list is the reason the package exists. Everything else is a dependency.
+
+### What open() fetches before authorize
+
+`@better-fs-tools/cloudflare-shell` and `@better-fs-tools/just-bash` buffer the whole file inside `open()`, so the bytes have left the backend before `authorize` runs. `@better-fs-tools/cloudflare-computer` does not buffer: its `open()` starts a `readFile` stream, so the request reaches the backend, but it reads no chunk before `authorize`. `nodeFileSystem` streams, and `memoryFileSystem` already holds the bytes. The core passes no byte on until `authorize` allows it. If a denied read must not reach the backend, refuse the path in the filesystem with a deny root, or leave it out of the allowed roots.
 
 ## Source layout
 
@@ -72,7 +76,8 @@ The core owns line scanning, view selection, clamping, the byte limit, continuat
 | `src/core/hooks.ts`, `same.ts`, `record.ts`                                                                 | The hook runner and its rule checks, and the record                                                         |
 | `src/core/outcomes.ts`, `extension-error.ts`, `format.ts`                                                   | Failures, `EXTENSION_FAILED`, the formatter call, and `textOf`                                              |
 | `src/classifiers/`, `resolve/`, `suggest/`, `authorize/`, `converters/`, `hooks/`, `budget/`, `formatters/` | The built-in helpers, one file for each                                                                     |
-| `src/signature/`, `src/formats/`, `src/state/`                                                              | The `./signature`, `./formats`, and `./state` subpaths                                                      |
+| `src/signature/`, `src/formats/`                                                                            | The `./signature` and `./formats` subpaths                                                                  |
+| `src/state/`, `src/digest/`                                                                                 | `createMemoryStore` and `sha256Digest`, exported from the root                                              |
 
 ## One call, one context
 
@@ -88,7 +93,7 @@ The adapter builds a `ReadContext` for each tool call: `{ signal?, callId?, host
 
 ### Tool-neutral base types
 
-`src/contract/base.ts` holds the types that the read tool and the write tools share: `ToolCallContext`, `ToolName`, `Note`, `ToolMessages`, `ToolHookContext`, `ToolResolveContext`, `PathResolver`, `ResolveOutcome`, `AccessTarget`, `AccessDecision`, and `ToolAuthorizer`. `@better-fs-tools/write` imports them from this package, so it has no copy of its own.
+`src/contract/base.ts` holds the types that the read, write, and bash tools share: `ToolCallContext`, `ToolName`, `Note`, `ToolError`, `ToolMessages`, `ToolHookContext`, `ToolResolveContext`, `PathResolver`, `ResolveOutcome`, `AccessTarget`, `AccessDecision`, `ToolAuthorizer`, `ToolSignature`, and `SignatureDocs`. `@better-fs-tools/write` and `@better-fs-tools/shell` import them from this package, so they have no copy of their own.
 
 - `ReadHookContext` extends `ToolHookContext` with `tool: "read"`, the request, and the limits. `ReadResolveContext` adds `paths` and `list()`, so it fits `ToolResolveContext`.
 - Resolvers take a `ToolResolveContext`. The built-in resolvers never need the read request, so they work for every tool.
@@ -219,17 +224,19 @@ The AI SDK adapter passes `ToolExecutionOptions` as `host`. The Pi adapter passe
 
 ## Packages
 
-```text
-             fs
-        ┌────┼──────────────┬──────────────────┬─────────────┐
-       read  │              │                  │             │
-   ┌────┼────┤              │                  │             │
- ai-sdk │   node   cloudflare-shell   cloudflare-computer   just-bash
-        │    │
-        └─ pi ┘
-```
+| Package                                   | Depends on                                         |
+| ----------------------------------------- | -------------------------------------------------- |
+| `fs`                                      | nothing                                            |
+| `read`                                    | `fs`                                               |
+| `shell`                                   | `fs`, `read`                                       |
+| `write`                                   | `fs`, `read`, `shell`                              |
+| `node`                                    | `fs`, `read`, `write`, `shell`                     |
+| `ai-sdk`                                  | `read`, `write`, `shell`, and the `ai` peer        |
+| `pi`                                      | `node`, `read`, `write`, `shell`, and the Pi peers |
+| `cloudflare-shell`, `cloudflare-computer` | `fs`                                               |
+| `just-bash`                               | `fs`, `shell`, and the `just-bash` peer            |
 
-`fs` holds the filesystem contract, so a filesystem adapter does not depend on the read tool. `read` and `fs` import no `node:` module. Only `node` and `pi` use Node.
+`fs` holds the filesystem contract, so a filesystem adapter does not depend on the read tool. No package but `node` and `pi` imports a `node:` module.
 
 ## Deliberate omissions
 

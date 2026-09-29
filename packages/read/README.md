@@ -14,16 +14,16 @@ npm install @better-fs-tools/read @better-fs-tools/fs
 
 Most hosts also install one adapter package. Each adapter lists its own peers:
 
-| Package                                | Use it for                                                                        | Install                                                                                         |
-| -------------------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `@better-fs-tools/read`                | The core, the helpers, and the `./signature`, `./formats`, and `./state` subpaths | `npm install @better-fs-tools/read`                                                             |
-| `@better-fs-tools/fs`                  | The `FileSystem` contract, `memoryFileSystem`, and the conformance suite          | `npm install @better-fs-tools/fs`                                                               |
-| `@better-fs-tools/node`                | Local reads on Node 24 or Bun, and `createNodeReadTool()`                         | `npm install @better-fs-tools/node @better-fs-tools/read`                                       |
-| `@better-fs-tools/ai-sdk`              | An AI SDK 7 tool                                                                  | `npm install @better-fs-tools/ai-sdk @better-fs-tools/read ai`                                  |
-| `@better-fs-tools/pi`                  | A Pi tool and a Pi extension                                                      | `npm install @better-fs-tools/pi @better-fs-tools/read @earendil-works/pi-coding-agent typebox` |
-| `@better-fs-tools/cloudflare-shell`    | A filesystem over a Cloudflare Shell Workspace                                    | `npm install @better-fs-tools/cloudflare-shell @better-fs-tools/read`                           |
-| `@better-fs-tools/cloudflare-computer` | A filesystem over a Cloudflare Computer workspace (experimental)                  | `npm install @better-fs-tools/cloudflare-computer @better-fs-tools/read`                        |
-| `@better-fs-tools/just-bash`           | A filesystem over a just-bash `IFileSystem`                                       | `npm install @better-fs-tools/just-bash @better-fs-tools/read just-bash`                        |
+| Package                                | Use it for                                                               | Install                                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `@better-fs-tools/read`                | The core, the helpers, and the `./signature` and `./formats` subpaths    | `npm install @better-fs-tools/read`                                                             |
+| `@better-fs-tools/fs`                  | The `FileSystem` contract, `memoryFileSystem`, and the conformance suite | `npm install @better-fs-tools/fs`                                                               |
+| `@better-fs-tools/node`                | Local reads on Node 24 or Bun, and `createNodeReadTool()`                | `npm install @better-fs-tools/node @better-fs-tools/read`                                       |
+| `@better-fs-tools/ai-sdk`              | An AI SDK 7 tool                                                         | `npm install @better-fs-tools/ai-sdk @better-fs-tools/read ai`                                  |
+| `@better-fs-tools/pi`                  | A Pi tool and a Pi extension                                             | `npm install @better-fs-tools/pi @better-fs-tools/read @earendil-works/pi-coding-agent typebox` |
+| `@better-fs-tools/cloudflare-shell`    | A filesystem over a Cloudflare Shell Workspace                           | `npm install @better-fs-tools/cloudflare-shell @better-fs-tools/read`                           |
+| `@better-fs-tools/cloudflare-computer` | A filesystem over a Cloudflare Computer workspace (experimental)         | `npm install @better-fs-tools/cloudflare-computer @better-fs-tools/read`                        |
+| `@better-fs-tools/just-bash`           | A filesystem over a just-bash `IFileSystem`                              | `npm install @better-fs-tools/just-bash @better-fs-tools/read just-bash`                        |
 
 All packages have the same version. Install matching versions.
 
@@ -280,7 +280,9 @@ The listing goes through `authorize` with `action: "list"`. A denied listing, or
 
 ## Permissions
 
-The filesystem owns the root policy: allowed roots, deny roots, and symlinks. `authorize` adds your own policy. The core calls it with `action: "read"` after the file is open and before the core reads any content byte. A buffered backend, such as `@better-fs-tools/cloudflare-shell` or `@better-fs-tools/just-bash`, fetches the whole file inside `open()`, so those bytes have left the backend before `authorize` runs. The core still passes none of them to a classifier, a converter, or the model until `authorize` allows it. It also calls it with `action: "list"` before every directory listing.
+The filesystem owns the root policy: allowed roots, deny roots, and symlinks. `authorize` adds your own policy. The core calls it with `action: "read"` after the file is open and before the core reads any content byte. It also calls it with `action: "list"` before every directory listing.
+
+What `open()` has fetched before `authorize` runs depends on the backend. `@better-fs-tools/cloudflare-shell` and `@better-fs-tools/just-bash` buffer the whole file inside `open()`, so those bytes have left the backend. `@better-fs-tools/cloudflare-computer` does not buffer: its `open()` starts a `readFile` stream, so the request reaches the backend, but it reads no chunk before `authorize`. `nodeFileSystem` streams, and `memoryFileSystem` already holds the bytes. In every case the core passes no byte to a classifier, a converter, or the model until `authorize` allows it. If a denied read must not reach the backend, refuse the path in the filesystem with a deny root, or leave it out of the allowed roots.
 
 ```ts
 import { createNodeReadTool } from "@better-fs-tools/node";
@@ -598,9 +600,9 @@ No default message names `offset` or `limit`. Every message that suggests a retr
 | `ok`          | A text view. `view.lines` has the structured lines. An empty file is `ok` with an `empty` note. |
 | `media`       | Content parts from a converter, for example an image.                                           |
 | `unsupported` | A classifier or converter refused the format. `code` is open, for example `PDF` or `TOO_LARGE`. |
-| `error`       | `error.code` is one of twelve `ReadErrorCode` values.                                           |
+| `error`       | `error.code` is one of thirteen `ReadErrorCode` values.                                         |
 
-The error codes are `INVALID_INPUT`, `NOT_FOUND`, `NOT_A_FILE`, `DANGEROUS_PATH`, `OUTSIDE_ALLOWED_ROOTS`, `PERMISSION_DENIED`, `DENIED`, `CHANGED_DURING_READ`, `ABORTED`, `UNSUPPORTED_BACKEND`, `EXTENSION_FAILED`, and `IO_ERROR`. `EXTENSION_FAILED` means that host code threw or broke a rule. Its note data names the dependency and the stage, for example `{ extension: "hooks", phase: "hooks", id: "redact" }`.
+The error codes are `INVALID_INPUT`, `NOT_FOUND`, `NOT_A_FILE`, `DANGEROUS_PATH`, `OUTSIDE_ALLOWED_ROOTS`, `PERMISSION_DENIED`, `DENIED`, `TOO_LARGE`, `CHANGED_DURING_READ`, `ABORTED`, `UNSUPPORTED_BACKEND`, `EXTENSION_FAILED`, and `IO_ERROR`. `TOO_LARGE` is an `error` when a backend byte ceiling refuses the file, and an `unsupported` code when a converter or media limit stops it. `EXTENSION_FAILED` means that host code threw or broke a rule. Its note data names the dependency and the stage, for example `{ extension: "hooks", phase: "hooks", id: "redact" }`.
 
 An `ok` result has structured lines, and an `error` result has its error:
 
@@ -624,7 +626,7 @@ if (result.status === "ok") {
 
 A content part is `{ type: "text", text }` or `{ type: "media", mediaType, data, name? }`. `data` is a `Uint8Array`.
 
-[docs/result-schema.md](docs/result-schema.md) lists every field and every note code.
+[docs/result-schema.md](docs/result-schema.md) lists every field, every error code with its phase, and every note code. `docs/result-schema.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has one table of the statuses and error codes of all five tools.
 
 ## Host context and state
 
@@ -681,7 +683,7 @@ Your dependencies can narrow access. They cannot widen it.
 - The filesystem is the only place that grants access. It checks roots, deny roots, the realpath, and the type in one `open()` call. `resolve` runs before it and `authorize` runs after it.
 - Each read opens at most one file. A resolver only changes the path that goes into that open.
 - `nodeFileSystem` opens files with `O_NOFOLLOW | O_NONBLOCK` and checks the type first. It refuses directories, FIFOs, sockets, and devices before any content read. It refuses `/dev`, `/proc`, and `/sys` before it touches the filesystem.
-- The core reads no content byte before `authorize` allows it, so no content reaches a classifier, a converter, or the model. A buffered backend (a result with a `buffered-backend` note) has already fetched the whole file in `open()`. If a denied read must not reach the backend, deny the path in the filesystem's own root policy.
+- The core reads no content byte before `authorize` allows it, so no content reaches a classifier, a converter, or the model. `@better-fs-tools/cloudflare-shell` and `@better-fs-tools/just-bash` (a result with a `buffered-backend` note) have already fetched the whole file in `open()`. `@better-fs-tools/cloudflare-computer` has started a `readFile` stream but read no chunk. If a denied read must not reach the backend, use a deny root, or leave the path out of the filesystem's allowed roots.
 - The scan is bounded. Converters get a capped stream from the open file, never a path.
 - Change detection runs after the scan and after conversion. A file that changed returns `CHANGED_DURING_READ`.
 - A suggested name is never opened.
@@ -699,6 +701,8 @@ Each adapter owns the signature, abort forwarding, and the mapping from `result.
 | [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node)     | `createNodeReadTool(options?)` | The core with Node defaults, for your own tool.                                                                                                                       |
 
 Cloudflare Agents hosts use `@better-fs-tools/ai-sdk` with `cloudflareShellFileSystem` from [`@better-fs-tools/cloudflare-shell`](https://www.npmjs.com/package/@better-fs-tools/cloudflare-shell). [`@better-fs-tools/cloudflare-computer`](https://www.npmjs.com/package/@better-fs-tools/cloudflare-computer) and [`@better-fs-tools/just-bash`](https://www.npmjs.com/package/@better-fs-tools/just-bash) are filesystems. Use them with `createReadTool()` or with an adapter.
+
+`docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) lists the defaults of every host and bundle, and what each backend can do.
 
 ## Exports
 

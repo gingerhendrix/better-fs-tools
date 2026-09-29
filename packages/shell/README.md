@@ -83,7 +83,7 @@ if (result.status === "error") {
 }
 ```
 
-Note codes are kebab case, as in read and write: `clamped`, `output-incomplete`, `spill-failed`, `unconfirmed-stop`, `extension-failed`, and the error note of an error result, whose code is the error code in kebab case (`denied`, `aborted`, `output-cap`, and so on).
+[docs/result-schema.md](docs/result-schema.md) lists every field, every error code with its phase, and every note. Note codes are kebab case, as in read and write: `clamped`, `output-incomplete`, `spill-failed`, `unconfirmed-stop`, `extension-failed`, and the error note of an error result, whose code is the error code in kebab case (`denied`, `aborted`, `output-cap`, and so on).
 
 The model text starts with the status line:
 
@@ -259,3 +259,9 @@ Every tool has one parse helper with the same pattern: `parseReadInput`, `parseE
 - The bash tool does not update the read records of the file tools. The write core still catches most changes, because it compares the version or the content hash at commit. On a backend with weak versions, a change in the same second can go unseen. An `afterRun` hook that calls `invalidate(path)` closes that gap.
 - The just-bash runner buffers output until the command ends. A busy loop does not yield to the event loop, so the timeout cannot fire during it. Set just-bash's `executionLimits`.
 - There are no background runs, no persistent session, no PTY, and no input to a running process.
+
+## More
+
+- [docs/architecture.md](docs/architecture.md): the stages, their order, and why
+- [docs/result-schema.md](docs/result-schema.md): every field of the result, every error code with its phase, and every note
+- `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the bash defaults of every host, next to the file tools

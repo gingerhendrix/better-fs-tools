@@ -48,7 +48,7 @@ export function computerTools(workspace: Workspace) {
 - `cwd` must be absolute and defaults to the first allowed root. Relative paths and relative roots resolve against it. Display paths are relative to `cwd`, and absolute outside it. `id` defaults to `"cloudflare-computer"`. `symlinks` can only be `"reject"` and `identity` only `"none"`. Reads stream, so there is no `maxBufferedBytes`.
 - The filesystem exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, and `identity`.
 - It walks each path with `lstat`, so symlinks are refused before any byte is read.
-- It streams the file that `readFile` returns.
+- It streams the file that `readFile` returns. `open()` starts the `readFile` stream, so the request reaches the backend before the read tool's `authorize` runs, but no chunk is read until `authorize` allows it. If a denied read must not reach the backend, deny it in the adapter with `denyRoots` or `allowedRoots`.
 - `verify()` compares size and modification time, so results have a `weak-identity` note.
 - `list()` lists directories, so suggestions and `directoryListing()` work.
 
@@ -60,10 +60,11 @@ export function computerTools(workspace: Workspace) {
 - `writeFile` sets the mode to `0o644` unless it gets one, also on a replace. The adapter passes the mode that `lstat` reported, so a replace keeps it. `stat()` reports the mode.
 - There is no `stage()`: Computer has no rename. `apply_patch` writes each file in turn, and undoes them on a failure.
 - The version is the size and the modification time in milliseconds. The write tools also compare the content hash of what the model read, so a same-size change after the read is still `STALE`.
-- `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` gives `no-space`.
+- `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` and `EDQUOT` give `no-space`.
 
 ## Links
 
+- `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the defaults of every host and bundle, and what each backend can do
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option
 - [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the write tools
 - [`@better-fs-tools/fs`](https://www.npmjs.com/package/@better-fs-tools/fs): the filesystem contract

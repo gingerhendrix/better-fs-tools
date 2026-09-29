@@ -48,6 +48,7 @@ export function workspaceTools(workspace: Workspace) {
 - `symlinks` can only be `"reject"` and `identity` only `"none"`. It walks each path with `lstat` from its root, so a symlinked root, parent, or file is refused before any byte is read.
 - The filesystem exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, `identity`, and `maxBufferedBytes`.
 - Reads are buffered: the Workspace returns whole files. `maxBufferedBytes` defaults to 16 MiB, as in every buffering adapter. When you use converters, set it at or above `maxConvertBytes` and `maxMediaBytes`. Results have a `buffered-backend` note.
+- Because reads are buffered inside `open()`, the whole file has left the Workspace before the read tool's `authorize` runs. The core still passes no byte to a classifier, a converter, or the model until `authorize` allows it. If a denied read must not reach the Workspace, deny it in the adapter with `denyRoots` or `allowedRoots`.
 - `verify()` compares size and modification time. A same-size edit within the same millisecond is not detected. Results have a `weak-identity` note.
 - `list()` lists directories, so suggestions and `directoryListing()` work. Opening a directory gives a `not-a-file` error with `kind: "directory"`.
 
@@ -60,10 +61,11 @@ export function workspaceTools(workspace: Workspace) {
 - The version is the size and `updatedAt`. Shell stores whole seconds, so two same-size writes in one second keep the version. The write tools also compare the content hash of what the model read, so a change after the read is still `STALE`. Between the adapter's last check and the write, it is not seen.
 - A replace passes the file's mime type back, since Shell would reset it. A new file gets Shell's default, `application/octet-stream`.
 - A read or a write over `maxBufferedBytes` gives `too-large` with the `limit` and the `size`, since the adapter could not read the file back. The tools report `TOO_LARGE`. The effective limit is the smaller of `maxBufferedBytes` and the tool's own limits.
-- Shell's errors carry their POSIX code in the message. The adapter reads the code and drops the message: `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` gives `no-space`.
+- Shell's errors carry their POSIX code in the message. The adapter reads the code and drops the message: `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` and `EDQUOT` give `no-space`.
 
 ## Links
 
+- `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the defaults of every host and bundle, and what each backend can do
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option
 - [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the write tools
 - [`@better-fs-tools/ai-sdk`](https://www.npmjs.com/package/@better-fs-tools/ai-sdk): the AI SDK tools

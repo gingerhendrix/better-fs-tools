@@ -117,6 +117,8 @@ An adapter narrows a union where its backend cannot do the rest, and says so in 
 
 `memoryFileSystem()` has no allowed roots: every absolute path is inside. It takes `id`, `denyRoots`, `identity`, and `maxBufferedBytes`.
 
+`docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) compares the backends side by side: how each reads, what it fetches before the read tool authorizes, its write methods, and its new file modes.
+
 `readOnlyFileSystem(fs)` wraps any backend and keeps only `id`, `capabilities`, `paths`, `open`, and `list`. The result is a plain `FileSystem`, so a write tool refuses it when it is built:
 
 ```ts
@@ -134,6 +136,7 @@ console.log(textOf(await read({ path: "/notes.txt" }))); // "1|one"
 
 ## Links
 
+- `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the defaults of every host and bundle, and what each backend can do
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): the read tool, and a guide to writing a filesystem adapter
 - [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the write tools
 - [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node): the Node filesystem

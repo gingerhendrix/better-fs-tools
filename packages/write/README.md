@@ -68,6 +68,8 @@ An unknown option key, a shared key (`fs`, `state`, `digest`, `locks`, or `clock
 
 The standalone factories (`createNodeEditTool()`, `createAiSdkEditTool()`, `createPiEditTool()`, and the others) default to `state: null`. Every update then carries a `read-before-write-off` note. Use a bundle (`createFsTools()`, `createNodeFsTools()`, `createPiFsTools()`, or `createAiSdkFsTools()`), or pass the same `state`, `digest`, and `locks` to the read tool and the write tools.
 
+[docs/hosts.md](docs/hosts.md) lists the defaults of every bundle and single factory, the default signature of each tool in each host, and what each backend can do.
+
 ## edit
 
 `createEditTool({ fs })`. The input is a path and one or more `{ oldText, newText, replaceAll? }` pairs, all matched against one snapshot of the file. Each old text must match once, unless `replaceAll` is set. Pairs must not overlap. The replacement is a literal splice: `$&` and `$1` in the new text stay as written.
@@ -159,7 +161,7 @@ Every dependency except `fs` has a default. Pass them to `createEditTool()`, `cr
 | `classifiers`   | the read tool's default classifiers                                         | Refuse a target that is not text before it is decoded                                                     |
 | `codecs`        | `[utf8Codec()]`                                                             | Decode and encode. `utf8Codec` keeps a BOM, CRLF, and mixed line endings                                  |
 | `clock`         | `() => new Date()`                                                          | Record times                                                                                              |
-| `patchParser`   | `codexPatchParser`                                                          | `apply_patch` only                                                                                        |
+| `patchParser`   | `codexPatchParser()`                                                        | `apply_patch` only                                                                                        |
 
 | Limit              | Default | Meaning                                        |
 | ------------------ | ------- | ---------------------------------------------- |
@@ -432,7 +434,8 @@ export const noGenerated: ToolAuthorizer<unknown> = {
 ## More
 
 - [docs/architecture.md](docs/architecture.md): the pipeline, the stages, and why they are fixed
-- [docs/result-schema.md](docs/result-schema.md): every field of the result, every error code, and every note
+- [docs/result-schema.md](docs/result-schema.md): every field of the result, every error code, and every note, plus one table of the statuses and error codes of all five tools
+- [docs/hosts.md](docs/hosts.md): the defaults of every host and bundle, and what each backend can do
 - [`@better-fs-tools/fs`](https://www.npmjs.com/package/@better-fs-tools/fs): the `WritableFileSystem` contract and its conformance suite
 
 ## License

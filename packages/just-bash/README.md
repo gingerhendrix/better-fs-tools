@@ -74,6 +74,7 @@ console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;
 - `justBashFileSystem(fs, options)` takes the shared `FileSystemRootOptions` and `maxBufferedBytes` from `@better-fs-tools/fs`. It checks each path against `allowedRoots` and `denyRoots` before it touches the backend, and again after `realpath()`. `cwd` must be absolute and defaults to `/`.
 - `id` defaults to `"just-bash"`. It namespaces versions, so two backends that share one state store need two ids.
 - `maxBufferedBytes` defaults to 16 MiB. `just-bash` returns whole buffers, so reads are buffered and results have a `buffered-backend` note. A larger file gives `too-large`, which the tools report as `TOO_LARGE`.
+- Reads are buffered inside `open()`, so the whole file has left the backend before the read tool's `authorize` runs. The core still passes no byte to a classifier, a converter, or the model until `authorize` allows it. If a denied read must not reach the backend, deny it in the adapter with `denyRoots` or `allowedRoots`.
 - `identity` defaults to `"none"`: change detection compares size and modification time, and results have a `weak-identity` note. With `identity: "required"`, the backend's `stat()` must give an identity or a device and inode for every file. A file without one is refused as `UNSUPPORTED_BACKEND`.
 - `symlinks` defaults to `"reject"`, which refuses a symlink in any component of the path, as in the Node and Cloudflare adapters. `"follow-within-roots"` follows links, and the real path must still be inside the roots.
 - The resolved options are on the filesystem as `cwd`, `allowedRoots`, `denyRoots`, `maxBufferedBytes`, `identity`, and `symlinks`.
@@ -83,7 +84,7 @@ console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;
 
 ## How it writes
 
-`stat()`, `write()`, and `remove()` need `writeFile`, `mkdir`, `chmod`, and `utimes` (write) and `rm` (remove) on the backend. They are checked when a write runs, not when the filesystem is built, so a backend without them still serves reads. A write to such a backend gives `unsupported`, which the tools report as `UNSUPPORTED_BACKEND`.
+`write()` needs `writeFile`, `mkdir`, `chmod`, and `utimes` on the backend, and `remove()` needs `rm`. They are checked when a write runs, not when the filesystem is built, so a backend without them still serves reads. A write to such a backend gives `unsupported`, which the tools report as `UNSUPPORTED_BACKEND`.
 
 - Writes apply the same roots, deny roots, and symlink policy as `open()`. Under `"reject"`, a symlink anywhere on the path is refused. Under `"follow-within-roots"`, a link inside the roots is followed to its real path and the link stays. A link out of the roots and a dangling link are refused.
 - `writeCapabilities` is `{ atomic: false, compareAndSwap: false, preserveMode: true }`. A write is `writeFile` and then `chmod`, and `IFileSystem` has no version check, so the adapter checks the precondition with a fresh stat just before the write. The write tools add a `not-atomic` and a `no-compare-and-swap` note.
@@ -91,7 +92,7 @@ console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;
 - `InMemoryFs` keeps `mtime` when two writes fall in one millisecond. When a replace leaves `mtime` where it was, the adapter moves it on by one millisecond with `utimes`, so every write through the adapter changes the version.
 - `identity: "required"` makes the write tools trust the version, which is the identity, size, and `mtime`. Another writer that changes a file to the same size inside the same millisecond is then not seen. With the default, `identity: "none"`, the write tools also compare the content hash of what the model read.
 - There is no `stage()`. `apply_patch` writes each file in turn, and undoes them on a failure.
-- `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` gives `no-space`.
+- `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` and `EDQUOT` give `no-space`.
 
 ## Bash runner
 
@@ -122,6 +123,7 @@ just-bash buffers output, so stdout arrives whole before stderr, after the comma
 
 ## Links
 
+- `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the defaults of every host and bundle, and what each backend can do
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option
 - [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the write tools
 - [`@better-fs-tools/fs`](https://www.npmjs.com/package/@better-fs-tools/fs): the filesystem contract
