@@ -112,6 +112,74 @@ function strictBreaches(schema: unknown, at = "$"): string[] {
   return breaches;
 }
 
+/**
+ * The JSON Schema keywords and string formats that OpenAI strict mode documents
+ * (https://developers.openai.com/api/docs/guides/structured-outputs, "Supported
+ * schemas", read 2026-09-29). Kept apart from the adapter's own list on purpose.
+ */
+const OPENAI_STRICT_KEYWORDS = new Set([
+  "type",
+  "description",
+  "properties",
+  "required",
+  "additionalProperties",
+  "items",
+  "anyOf",
+  "$ref",
+  "$defs",
+  "enum",
+  "pattern",
+  "format",
+  "minimum",
+  "maximum",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
+  "multipleOf",
+  "minItems",
+  "maxItems",
+]);
+const OPENAI_STRICT_FORMATS = new Set([
+  "date-time",
+  "time",
+  "date",
+  "duration",
+  "email",
+  "hostname",
+  "ipv4",
+  "ipv6",
+  "uuid",
+]);
+
+/** Every keyword or format outside the OpenAI strict subset, with its JSON path. */
+function outsideSubset(schema: unknown, at = "$"): string[] {
+  if (schema === null || typeof schema !== "object" || Array.isArray(schema)) {
+    return [`${at}: not a schema object`];
+  }
+  const node = schema as Record<string, unknown>;
+  const found: string[] = [];
+  for (const key of Object.keys(node)) {
+    if (!OPENAI_STRICT_KEYWORDS.has(key)) found.push(`${at}: ${key}`);
+  }
+  if (node.format !== undefined && !OPENAI_STRICT_FORMATS.has(node.format as string)) {
+    found.push(`${at}: format ${String(node.format)}`);
+  }
+  const children: [string, unknown][] = [
+    ...Object.entries((node.properties ?? {}) as Record<string, unknown>).map(
+      ([key, child]): [string, unknown] => [`${at}.${key}`, child],
+    ),
+    ...Object.entries((node.$defs ?? {}) as Record<string, unknown>).map(
+      ([key, child]): [string, unknown] => [`${at}.$defs.${key}`, child],
+    ),
+    ...((node.anyOf ?? []) as unknown[]).map((child, index): [string, unknown] => [
+      `${at}|${index}`,
+      child,
+    ]),
+  ];
+  if (node.items !== undefined) children.push([`${at}[]`, node.items]);
+  for (const [path, child] of children) found.push(...outsideSubset(child, path));
+  return found;
+}
+
 describe("strict provider schema", () => {
   test("every tool the AI SDK sends meets the strict rules at every level", async () => {
     const tools = allTools();
@@ -136,6 +204,97 @@ describe("strict provider schema", () => {
         breaches: [],
       });
     }
+  });
+
+  test("every default provider schema uses only keywords in the OpenAI strict subset", () => {
+    for (const tool of Object.values(allTools())) {
+      const schema = tool.inputSchema.jsonSchema as JSONSchema7;
+      expect({ tool: tool.name, root: schema.type, outside: outsideSubset(schema) }).toEqual({
+        tool: tool.name,
+        root: "object",
+        outside: [],
+      });
+    }
+  });
+
+  test("keywords outside the subset are dropped; the signature's parse still checks them", async () => {
+    const strict = toStrictSchema(
+      {
+        type: "object",
+        title: "Input",
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 9, default: "a", format: "uri" },
+          when: { type: "string", format: "date-time" },
+          tags: { type: "array", items: { type: "string" }, uniqueItems: true, minItems: 1 },
+          kind: { type: "string", const: "file" },
+        },
+        required: ["name", "when", "tags", "kind"],
+      },
+      "t",
+    );
+    expect(strict).toEqual({
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        when: { type: "string", format: "date-time" },
+        tags: { type: "array", items: { type: "string" }, minItems: 1 },
+        kind: { type: "string", enum: ["file"] },
+      },
+      required: ["name", "when", "tags", "kind"],
+      additionalProperties: false,
+    });
+
+    const edit = createAiSdkEditTool({ fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }) });
+    const properties = (edit.inputSchema.jsonSchema as JSONSchema7).properties as Record<
+      string,
+      JSONSchema7
+    >;
+    expect(properties.old_string).not.toHaveProperty("minLength");
+    const empty = await edit.inputSchema.validate?.({
+      path: "/a.txt",
+      old_string: "",
+      new_string: "1",
+      replace_all: null,
+    });
+    expect(empty?.success).toBe(false);
+  });
+
+  test("allOf is merged: required lists join, the outer description wins", () => {
+    const schema: JsonObject = {
+      type: "object",
+      description: "Outer.",
+      properties: { a: { type: "string" }, b: { type: "string" }, c: { type: "string" } },
+      allOf: [
+        { required: ["a"], description: "Inner." },
+        { required: ["b"], type: "object" },
+      ],
+    };
+    expect(toStrictSchema(schema, "t")).toEqual({
+      type: "object",
+      description: "Outer.",
+      properties: {
+        a: { type: "string" },
+        b: { type: "string" },
+        c: { type: ["string", "null"] },
+      },
+      required: ["a", "b", "c"],
+      additionalProperties: false,
+    });
+    expect(fromStrictInput(schema, { a: "x", b: "y", c: null })).toEqual({ a: "x", b: "y" });
+  });
+
+  test("a root definitions becomes $defs, and its $refs follow", () => {
+    const schema: JsonObject = {
+      type: "object",
+      definitions: { mode: { type: "string", enum: ["a", "b"] } },
+      properties: { mode: { $ref: "#/definitions/mode" } },
+      required: ["mode"],
+    };
+    const strict = toStrictSchema(schema, "t");
+    expect(strict.$defs).toEqual({ mode: { type: "string", enum: ["a", "b"] } });
+    expect(strict).not.toHaveProperty("definitions");
+    expect(strict.properties).toEqual({ mode: { $ref: "#/$defs/mode" } });
+    expect(outsideSubset(strict)).toEqual([]);
   });
 
   test("an optional property becomes required and nullable; a required one does not", () => {
@@ -191,7 +350,7 @@ describe("strict provider schema", () => {
     expect(Object.isFrozen(signature.schema.properties.mode)).toBe(false);
   });
 
-  test("objects inside anyOf, oneOf, allOf, and $defs are made strict", () => {
+  test("objects inside anyOf, oneOf, allOf, and $defs are made strict; oneOf becomes anyOf and allOf is merged", () => {
     const edit: JsonObject = {
       type: "object",
       properties: { old: { type: "string" }, note: { type: "string" } },
@@ -219,8 +378,8 @@ describe("strict provider schema", () => {
     expect((strict.$defs as Record<string, unknown>).edit).toEqual(closed);
     const properties = strict.properties as Record<string, JsonObject & JSONSchema7>;
     expect(properties.choice?.anyOf?.[0]).toEqual(closed);
-    expect(properties.both?.allOf?.[0]).toEqual(closed);
-    expect(properties.one?.oneOf?.[0]).toEqual({ $ref: "#/$defs/edit" });
+    expect(properties.both).toEqual({ ...closed, description: "An edit." });
+    expect(properties.one).toEqual({ anyOf: [{ $ref: "#/$defs/edit" }, { type: "integer" }] });
 
     const model = {
       choice: { old: "a", note: null },
@@ -282,6 +441,35 @@ describe("strict provider schema", () => {
           properties: { a: { allOf: [{ properties: { x: {} } }, { properties: { y: {} } }] } },
         },
         "#/properties/a/allOf",
+      ],
+      [{ type: "array", items: { type: "string" } }, "#"],
+      [{ anyOf: [{ type: "object", properties: {} }] }, "#"],
+      [{ type: "object", properties: { a: {} } }, "#/properties/a"],
+      [{ type: "object", properties: { a: true } }, "#/properties/a"],
+      [
+        { type: "object", properties: { a: { anyOf: [{ type: "string" }], oneOf: [] } } },
+        "#/properties/a/oneOf",
+      ],
+      [
+        { type: "object", properties: { a: { type: "string", allOf: [{ type: "integer" }] } } },
+        "#/properties/a/allOf/0/type",
+      ],
+      [
+        {
+          type: "object",
+          $defs: { s: { type: "string" } },
+          properties: {},
+          allOf: [{ $ref: "#/$defs/s" }],
+        },
+        "#/allOf/0/$ref",
+      ],
+      [
+        { type: "object", properties: { a: { type: "object", properties: {}, definitions: {} } } },
+        "#/properties/a/definitions",
+      ],
+      [
+        { type: "object", properties: { a: { type: "string", dependentRequired: {} } } },
+        "#/properties/a/dependentRequired",
       ],
     ];
     for (const [schema, at] of cases) {
