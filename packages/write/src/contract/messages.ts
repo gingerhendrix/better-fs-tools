@@ -39,6 +39,8 @@ export interface WriteMessageCatalog extends ToolMessages {
   aborted(c: { phase: WritePhase }): string;
   extensionFailed(c: { path: string | null; extension: string; phase: WritePhase }): string;
   lockTimeout(c: { paths: readonly string[] }): string;
+  /** A guard refused a change and gave no note. */
+  guardRefused(c: { guard: string; path: string }): string;
 
   notRead(c: { tool: WriteToolName; path: string; wholeFile: boolean }): string;
   stale(c: { tool: WriteToolName; path: string }): string;

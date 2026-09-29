@@ -159,7 +159,7 @@ When every undo step works, the result has the code of the failed step and `comm
 
 ## Guards and hooks
 
-Guards run in order on each planned change, before the change-stage authorize. The first refusal gives `GUARD_REFUSED` with the guard's note. Allow notes are kept. Every built-in guard lets its near miss through, so a guard does not refuse text that is already in the file.
+Guards run in order on each planned change, before the change-stage authorize. The first refusal gives `GUARD_REFUSED` with the guard's note, or the `guardRefused` catalog message when the guard gave none. Allow notes are kept. Every built-in guard lets its near miss through, so a guard does not refuse text that is already in the file.
 
 Hooks run after the whole commit, once for each committed file, in order. `newFileMode()` is asked just before a create's commit. The first hook that returns a number sets the mode of the new file. A replace always keeps the file's mode, when the backend can. `afterWrite()` sees the `FileChange` and the call's filesystem. A hook that rewrote the file returns `rewrote: true`. The core then reads the file again, updates `changes[].after`, and adds a `hook-rewrote` note.
 

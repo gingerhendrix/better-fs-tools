@@ -2,7 +2,7 @@ import type { GuardContext, PlannedChange } from "../contract/extensions.ts";
 import { AbortStop } from "./abort.ts";
 import { extensionId } from "./extension-error.ts";
 import { isRecord } from "./input.ts";
-import { hostErrorNote, isNote, isNoteList } from "./outcomes.ts";
+import { errorNote, hostErrorNote, isNote, isNoteList } from "./outcomes.ts";
 import type { MutationScope } from "./scope.ts";
 
 /**
@@ -37,12 +37,18 @@ export async function runGuards<THost>(
         scope.notes.push(...decision.notes);
         continue;
       }
-      if (decision.allow !== false || !isNote(decision.note)) throw malformed();
+      if (decision.allow !== false) throw malformed();
+      const { note } = decision;
+      if (note !== undefined && !isNote(note)) throw malformed();
+      const data = { guard: guard.id, path: change.displayPath };
       throw scope.stopWith(
-        hostErrorNote("GUARD_REFUSED", decision.note, {
-          guard: guard.id,
-          path: change.displayPath,
-        }),
+        note === undefined
+          ? errorNote(
+              "GUARD_REFUSED",
+              scope.deps.messages.guardRefused({ guard: guard.id, path: change.displayPath }),
+              data,
+            )
+          : hostErrorNote("GUARD_REFUSED", note, data),
       );
     }
   }

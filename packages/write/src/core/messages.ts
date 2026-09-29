@@ -30,6 +30,7 @@ function catalogFor(param: Param): WriteMessageCatalog {
     outsideAllowedRoots: ({ path }) =>
       `${path} is outside every configured allowed root. Choose a path inside the workspace.`,
     permissionDenied: ({ path }) => `Permission was denied for ${path}.`,
+    guardRefused: ({ guard, path }) => `The ${guard} check refused the change to ${path}.`,
     readOnly: ({ path }) => `${path} is on a read-only filesystem, so it cannot be changed.`,
     noSpace: ({ path }) => `There is no space left to write ${path}.`,
     unsupportedBackend: ({ path, detail }) =>

@@ -83,5 +83,5 @@ describe("generatedFileGuard", () => {
 
 function message(decision: Parameters<typeof decided>[0]): string | null {
   const sync = decided(decision);
-  return sync.allow ? null : sync.note.message;
+  return sync.allow ? null : (sync.note?.message ?? null);
 }

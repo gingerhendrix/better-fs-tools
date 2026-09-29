@@ -68,7 +68,7 @@ export function decided(decision: Decided): GuardDecision {
 /** The refusal note's code, or "allow". */
 export function verdict(decision: Decided): string {
   const sync = decided(decision);
-  return sync.allow ? "allow" : sync.note.code;
+  return sync.allow ? "allow" : (sync.note?.code ?? "no note");
 }
 
 /** Lines numbered from `first` with a gutter, as a read formatter prints them. */

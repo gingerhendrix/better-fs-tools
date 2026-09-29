@@ -64,6 +64,22 @@ describe("guards (section 5.8)", () => {
     expect(text(fs, "/a.txt")).toBeNull();
   });
 
+  test("a refusal without a note gets the default guard-refused note", async () => {
+    const { write } = harness({
+      deps: { guards: [{ id: "quiet", check: () => ({ allow: false }) }] },
+    });
+    const result = await write({ path: "/a.txt", content: "x" });
+    expect(result.notes).toEqual([
+      {
+        code: "guard-refused",
+        severity: "warning",
+        message: "The quiet check refused the change to /a.txt.",
+        data: { guard: "quiet", path: "/a.txt" },
+      },
+    ]);
+    expect(errorOf(result)).toMatchObject({ code: "GUARD_REFUSED", phase: "guards" });
+  });
+
   test("guards get the classifiers", async () => {
     let count = -1;
     const { write } = harness({
@@ -90,7 +106,7 @@ describe("guards (section 5.8)", () => {
         throw new Error("boom");
       },
     ],
-    ["a malformed decision", () => ({ allow: false })],
+    ["a malformed note", () => ({ allow: false, note: { code: 1 } })],
     ["malformed notes", () => ({ allow: true, notes: [{}] })],
   ])("%s is EXTENSION_FAILED with the guard id", async (_name, check) => {
     const { write } = harness({ deps: { guards: [{ id: "bad", check: check as never }] } });

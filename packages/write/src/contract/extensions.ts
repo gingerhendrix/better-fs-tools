@@ -89,9 +89,10 @@ export interface GuardContext<THost = undefined> extends WriteHookContext<THost>
   readonly classifiers: readonly Classifier[];
 }
 
+/** A refusal without a note gets the default guardRefused message, as the other decisions do. */
 export type GuardDecision =
   | { readonly allow: true; readonly notes?: readonly Note[] }
-  | { readonly allow: false; readonly note: Note };
+  | { readonly allow: false; readonly note?: Note };
 
 export interface Guard<THost = undefined> {
   readonly id: string;
