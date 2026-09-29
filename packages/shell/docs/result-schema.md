@@ -123,7 +123,7 @@ An `afterRun` hook that fails turns the result into `EXTENSION_FAILED`, and keep
 
 `code` is stable and kebab case. The default formatter prints a note as `[bash:<code>] <message>`. Key your code on `code`, not on the wording. `messages` overrides change the wording only.
 
-Every error result has one warning note for the error, last in `notes`. Its code is the error code in kebab case, for example `output-cap` for `OUTPUT_CAP`. When an authorizer or a `beforeRun` hook refuses with its own `note`, the note keeps its message and data, its code becomes the error code in kebab case, its severity becomes `warning`, and the host's own code moves to `data.source`. So the error note is `denied` or `refused`, with `error.data.source` set to the host code when it differs. Read and write use the same rule.
+Every error result has one warning note for the error. The error note is always first in `notes`. Its code is the error code in kebab case, for example `output-cap` for `OUTPUT_CAP`. When an authorizer or a `beforeRun` hook refuses with its own `note`, the note keeps its message and data, its code becomes the error code in kebab case, its severity becomes `warning`, and the host's own code moves to `data.source`. So the error note is `denied` or `refused`, with `error.data.source` set to the host code when it differs. Read and write use the same rule.
 
 Notes from the core:
 
@@ -138,7 +138,7 @@ Notes from the core:
 
 A resolver can add its own note, for example `path-repaired` from `unicodeRepair()`. An allow decision from the authorizer and a `beforeRun` hook can add notes. They keep their codes.
 
-Order: `clamped`, then the resolver note, then the `beforeRun` and authorizer notes, then the run notes (`spill-failed`, `unconfirmed-stop`, `output-incomplete`), then the error note. An `afterRun` hook can replace the notes. A formatter failure adds its `extension-failed` note at the very end.
+Order: the error note comes first, then `clamped`, then the resolver note, then the `beforeRun` and authorizer notes, then the run notes (`spill-failed`, `unconfirmed-stop`, `output-incomplete`). An `afterRun` hook can replace the notes. A formatter failure adds its `extension-failed` note at the very end.
 
 ## Content
 

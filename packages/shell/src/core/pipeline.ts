@@ -116,7 +116,7 @@ async function afterRun<THost>(scope: CallScope<THost>, executed: Executed): Pro
   const request = scope.ctx.request;
   const error = stop === null ? null : errorOf(stop);
   let output = executed.output;
-  let notes: readonly Note[] = stop === null ? [...scope.notes] : [...scope.notes, stop.note];
+  let notes: readonly Note[] = stop === null ? [...scope.notes] : [stop.note, ...scope.notes];
   const outcome = (): RunOutcome =>
     error === null
       ? { status: statusOf(run), run, output, notes }
@@ -151,7 +151,7 @@ function failedHook<THost>(
   hook: unknown,
 ): ShellReport {
   const failure = extensionFailure(scope, hook, "afterRun");
-  return failureReport(scope.ctx.request, errorOf(failure), run, output, [...notes, failure.note]);
+  return failureReport(scope.ctx.request, errorOf(failure), run, output, [failure.note, ...notes]);
 }
 
 function isOutput(value: unknown): value is ShellOutput {
@@ -183,13 +183,13 @@ function errorOf(stop: StageStop): ShellError {
   };
 }
 
-/** An error before the command started. The error note comes last. */
+/** An error before the command started. The error note comes first. */
 function stopped(
   request: BashRequest | null,
   stop: StageStop,
   notes: readonly Note[],
 ): ShellFailure {
-  return failureReport(request, errorOf(stop), null, null, [...notes, stop.note]);
+  return failureReport(request, errorOf(stop), null, null, [stop.note, ...notes]);
 }
 
 function ranReport(

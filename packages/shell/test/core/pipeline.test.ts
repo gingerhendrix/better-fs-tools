@@ -156,6 +156,34 @@ describe("input", () => {
     expect(result.notes).toEqual([]);
   });
 
+  test("the error note comes first in notes, as in read and write", async () => {
+    const limits = { maxTimeoutMs: 1_000, defaultTimeoutMs: 500, maxCaptureBytes: 10_000 };
+    const codes = (result: { notes: readonly { code: string }[] }) =>
+      result.notes.map((note) => note.code);
+
+    const controller = new AbortController();
+    controller.abort();
+    const before = await bashTool({ runner: scriptedRunner(), limits })(
+      { command: "x", timeoutMs: 5_000 },
+      { signal: controller.signal },
+    );
+    expect(codes(before)).toEqual(["aborted", "clamped"]);
+
+    const big = "x".repeat(1_000);
+    const capped = await bashTool({
+      runner: scriptedRunner({ steps: Array.from({ length: 50 }, () => out(big)), hang: true }),
+      limits,
+    })({ command: "yes", timeoutMs: 5_000 });
+    expect(codes(capped)).toEqual(["output-cap", "clamped"]);
+
+    const hooked = await bashTool({
+      runner: scriptedRunner(),
+      limits,
+      afterRun: [{ id: "after", afterRun: () => ({ output: "not a view" }) as never }],
+    })({ command: "x", timeoutMs: 5_000 });
+    expect(codes(hooked)).toEqual(["extension-failed", "clamped"]);
+  });
+
   test("parseBashInput returns the request and throws TypeError, like the other parse helpers", () => {
     const limits = { ...createLimits(), maxTimeoutMs: 1_000 };
     expect(parseBashInput({ command: "ls", timeoutMs: 5_000 }, limits)).toEqual({
