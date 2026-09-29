@@ -12,14 +12,11 @@ const DEFAULT_PATTERNS: readonly string[] = ["**/AGENTS.md", "**/CLAUDE.md", "**
 const ALLOW: WriteAuthorizeDecision = Object.freeze({ allow: true });
 
 /**
- * Guards agent instruction files and the git folder (Hermes), even when
- * every other change is approved. Globs ("**", "*", "?") match
- * `resolvedPath`, and the source of a move. The access stage checks each
- * target before any content byte is read, and the change stage checks
- * again. Without `ask`, a protected path is denied. With `ask`, the
- * authorizer asks once for each protected path in a call and keeps the
- * answer for both stages. `true` allows. `false`, a throw, or anything else
- * denies.
+ * Denies changes to agent instruction files and the git folder, even when
+ * every other change is approved. `patterns` are globs matched against the
+ * resolved path and the source of a move. With `ask`, the user is asked once
+ * for each protected path in a call: `true` allows, and `false`, a throw, or
+ * anything else denies.
  */
 export function protectPaths<THost = unknown>(
   options: {

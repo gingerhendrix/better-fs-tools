@@ -1,7 +1,4 @@
-/**
- * Type tests for the edit tool and its matchers. `tsc -b` checks this file;
- * Bun never runs it.
- */
+// Type tests: `tsc -b` checks this file; Bun never runs it.
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { ToolCallContext } from "@better-fs-tools/read";
 
@@ -76,7 +73,6 @@ export const custom: Matcher = {
     ctx.mode === "lines" ? [] : [{ start: 0, end: Math.min(haystack.length, needle.length) }],
   adapt: (newText, hit) => (hit.range.refused === "boundary" ? hit.needle : newText),
 };
-// The write tool takes no matchers.
 // @ts-expect-error: matchers is an edit dependency.
 export const writeDeps: import("../../src/index.ts").WriteToolDeps = { fs, matchers: chain };
 

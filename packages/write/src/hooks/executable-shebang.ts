@@ -1,12 +1,9 @@
 import type { WriteHook } from "../contract/extensions.ts";
 
 /**
- * Makes a new file that starts with `#!` executable (Oh My Pi). It asks
- * for `mode` (default 0o755) through `newFileMode`, so the create itself
- * sets the mode: there is no second write. After the commit it stats the
- * file and adds an info note when the backend reports execute bits. A
- * backend without modes gets no note. A replace keeps the file's mode, and
- * a file with a BOM is left alone, since the kernel would not see the `#!`.
+ * Creates a new file that starts with `#!` as executable, with `mode`
+ * (default 0o755), and adds an info note when it worked. An existing file
+ * keeps its mode, and a file with a BOM is left alone.
  */
 export function executableShebang(options: { readonly mode?: number } = {}): WriteHook<unknown> {
   const { mode = 0o755 } = options;

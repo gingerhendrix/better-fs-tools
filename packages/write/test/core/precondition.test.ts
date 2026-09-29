@@ -102,7 +102,6 @@ describe("precondition table for write (section 5.3)", () => {
     const { fs, read, write } = harness({ files: FILE, fsOptions: { identity: "none" } });
     await read({ path: "/a.txt" });
     expect((await write({ path: "/a.txt", content: "x" })).status).toBe("ok");
-    // The write record's hash keeps the next write fresh too.
     expect((await write({ path: "/a.txt", content: "y" })).status).toBe("ok");
     expect(text(fs, "/a.txt")).toBe("y");
   });
@@ -152,7 +151,6 @@ describe("records that count as absent", () => {
     ...overrides,
   });
 
-  /** A write tool over FILE whose store returns `stored` (or runs `get`). */
   async function writeWith(stored: (version: string) => unknown, get?: ReadStateStore["get"]) {
     const { fs } = harness({ files: FILE });
     const version = fs.peek("/a.txt")?.version ?? "";

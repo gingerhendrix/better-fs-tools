@@ -1,14 +1,9 @@
 import type { Matcher, MatchRange } from "../contract/matcher.ts";
-import { LineTable, lastValue, needleLines } from "./lines.ts";
+import { LineTable, memoizeLast, needleLines } from "./lines.ts";
 
-/**
- * Removes the common indent of the needle and of each window of haystack
- * lines, then compares the lines exactly. Blank lines match blank lines. A
- * hit covers whole lines, as in lineTrimmedMatcher. `adapt` shifts each line
- * of the new text by the difference between the two indents.
- */
+/** Matches lines that differ only in their common indentation, and re-indents the new text to fit. */
 export function indentationMatcher(): Matcher {
-  const table = lastValue((text) => new LineTable(text));
+  const table = memoizeLast((text) => new LineTable(text));
   return Object.freeze<Matcher>({
     id: "indentation",
     fuzzy: true,
@@ -23,9 +18,8 @@ export function indentationMatcher(): Matcher {
       const trimmed = hay.trimmed;
       const ranges: MatchRange[] = [];
       const last = hay.count - lines.length;
-      for (let first = hay.firstFrom(ctx.from); first <= last; first += 1) {
+      for (let first = hay.firstLineAtOrAfter(ctx.from); first <= last; first += 1) {
         if (ranges.length >= ctx.maxMatches) break;
-        // Equal dedented lines have equal trimmed lines: a cheap filter first.
         if (!wantedTrimmed.every((line, offset) => trimmed[first + offset] === line)) continue;
         const window = wanted.map((_, offset) => hay.line(first + offset));
         const shift = commonIndent(window);
@@ -58,7 +52,6 @@ function isBlank(line: string): boolean {
   return line.trim() === "";
 }
 
-/** The longest run of leading spaces and tabs that every non-blank line shares. */
 function commonIndent(lines: readonly string[]): string {
   let common: string | null = null;
   for (const line of lines) {
@@ -77,7 +70,6 @@ function commonIndent(lines: readonly string[]): string {
   return common ?? "";
 }
 
-/** Swaps the needle's indent for the matched indent. Other lines keep their relative shape. */
 function reindent(line: string, from: string, to: string): string {
   if (isBlank(line)) return line;
   if (line.startsWith(from)) return to + line.slice(from.length);

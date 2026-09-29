@@ -98,7 +98,6 @@ describe("call scope (section 5.1)", () => {
       expect(calls).toHaveLength(1);
       expect(calls[0]).toBe(call);
     }
-    // host never reaches the result or the record.
     expect(JSON.stringify(result)).not.toContain("s3cret");
     expect(JSON.stringify(await store.get("/b.txt"))).not.toContain("s3cret");
   });

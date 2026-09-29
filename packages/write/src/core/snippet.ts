@@ -2,14 +2,8 @@ import type { WriteLimits } from "../contract/limits.ts";
 import type { Snippet } from "../contract/result.ts";
 import { LineIndex } from "./line-index.ts";
 
-/** The longest snippet line. Longer lines end with the read tool's clamp marker. */
-const MAX_LINE = 2_000;
+const MAX_SNIPPET_LINE_LENGTH = 2_000;
 
-/**
- * Result lines around each changed line range (one-based, inclusive, in the
- * text after the change): limits.snippetLines before and after. Snippets
- * that touch merge. At most limits.maxSnippetLines lines in all.
- */
 export function buildSnippets(
   after: string | LineIndex,
   ranges: readonly (readonly [number, number])[],
@@ -40,6 +34,6 @@ export function buildSnippets(
 }
 
 function clamp(line: string): string {
-  if (line.length <= MAX_LINE) return line;
-  return `${line.slice(0, MAX_LINE)}… [line truncated at ${MAX_LINE} chars]`;
+  if (line.length <= MAX_SNIPPET_LINE_LENGTH) return line;
+  return `${line.slice(0, MAX_SNIPPET_LINE_LENGTH)}… [line truncated at ${MAX_SNIPPET_LINE_LENGTH} chars]`;
 }

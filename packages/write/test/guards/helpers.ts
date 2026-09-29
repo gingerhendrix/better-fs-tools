@@ -23,7 +23,6 @@ export interface ChangeOptions {
   readonly eol?: "lf" | "crlf" | "keep";
 }
 
-/** A PlannedChange for a guard, without running the core. */
 export function change(options: ChangeOptions): PlannedChange {
   const { tool = "write", path = "/a.txt", before = null, after } = options;
   const style = { ...STYLE, bom: options.bom ?? false, eol: options.eol ?? "keep" };
@@ -43,7 +42,6 @@ export function change(options: ChangeOptions): PlannedChange {
   };
 }
 
-/** A guard context with the defaults and a fresh call object. */
 export function guardContext(tool: WriteToolName = "write"): GuardContext<unknown> {
   return {
     tool,
@@ -59,19 +57,16 @@ export function guardContext(tool: WriteToolName = "write"): GuardContext<unknow
 
 type Decided = GuardDecision | Promise<GuardDecision>;
 
-/** The decision of a built-in guard, which decides synchronously. */
 export function decided(decision: Decided): GuardDecision {
   if (decision instanceof Promise) throw new Error("the built-in guards decide synchronously");
   return decision;
 }
 
-/** The refusal note's code, or "allow". */
 export function verdict(decision: Decided): string {
   const sync = decided(decision);
   return sync.allow ? "allow" : (sync.note?.code ?? "no note");
 }
 
-/** Lines numbered from `first` with a gutter, as a read formatter prints them. */
 export function numbered(
   lines: readonly string[],
   gutter: (n: number) => string,

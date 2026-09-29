@@ -48,7 +48,7 @@ describe("askBeforeWrite", () => {
     expect(prompts).toBe(2);
   });
 
-  test("{ content } writes the user's content (W6)", async () => {
+  test("{ content } writes the user's content", async () => {
     const { fs, write } = harness({
       deps: { authorize: askBeforeWrite(async () => ({ content: "edited by user\n" })) },
     });

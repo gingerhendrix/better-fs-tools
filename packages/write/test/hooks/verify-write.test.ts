@@ -11,8 +11,7 @@ import {
 import type { FileChange, WriteHook } from "../../src/index.ts";
 import { codes, harness, note } from "../helpers.ts";
 
-/** A hook that changes the file behind the core's back and does not say so. */
-function sneaky(content: string | null): WriteHook<unknown> {
+function hookThatSilentlyRewritesFile(content: string | null): WriteHook<unknown> {
   return {
     id: "sneaky",
     afterWrite: (change, ctx) => {
@@ -36,7 +35,9 @@ describe("verifyWrite", () => {
   });
 
   test("a mismatch by hash adds a warning, and the status stays ok", async () => {
-    const { write } = harness({ deps: { hooks: [sneaky("c\n"), verifyWrite()] } });
+    const { write } = harness({
+      deps: { hooks: [hookThatSilentlyRewritesFile("c\n"), verifyWrite()] },
+    });
     const result = await write({ path: "/b.txt", content: "b\n" });
     expect(result.status).toBe("ok");
     expect(note(result, "verify-mismatch")).toEqual({
@@ -50,7 +51,10 @@ describe("verifyWrite", () => {
   test("without a digest it compares the size", async () => {
     const fs = memoryFileSystem();
     const run = async (content: string) => {
-      const write = createWriteTool({ fs, hooks: [sneaky(content), verifyWrite()] });
+      const write = createWriteTool({
+        fs,
+        hooks: [hookThatSilentlyRewritesFile(content), verifyWrite()],
+      });
       return codes(await write({ path: `/${content.length}.txt`, content: "b\n" }));
     };
     expect(await run("longer\n")).toEqual(["verify-mismatch"]);
@@ -59,7 +63,9 @@ describe("verifyWrite", () => {
   });
 
   test("a file that cannot be read back adds verify-failed", async () => {
-    const { write } = harness({ deps: { hooks: [sneaky(null), verifyWrite()] } });
+    const { write } = harness({
+      deps: { hooks: [hookThatSilentlyRewritesFile(null), verifyWrite()] },
+    });
     const result = await write({ path: "/b.txt", content: "b\n" });
     expect(note(result, "verify-failed")?.message).toBe(
       "/b.txt could not be read back to check the write. Read it before you change it again.",

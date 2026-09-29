@@ -6,7 +6,6 @@ import type { WritableFileSystem } from "@better-fs-tools/fs";
 import { createWriteTool, executableShebang } from "../../src/index.ts";
 import { codes, harness, note } from "../helpers.ts";
 
-/** A memory backend that reports no modes, as virtual backends do. */
 function withoutModes(fs: WritableFileSystem): WritableFileSystem {
   return {
     id: "no-modes",

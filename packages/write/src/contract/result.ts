@@ -8,7 +8,6 @@ import type { WriteToolName } from "./context.ts";
  */
 export type MutationReport = MutationOk | MutationNoChange | MutationFailure;
 
-/** The fields every variant has. */
 interface MutationFields {
   readonly tool: WriteToolName;
   /** Committed changes. Empty unless status is "ok", except a failed commit that left files changed. */
@@ -107,7 +106,7 @@ export interface FileChange {
   readonly matches: readonly MatchInfo[];
   /** Result lines around each change, for the model text. Empty for write and delete. */
   readonly snippets: readonly Snippet[];
-  /** An authorizer replaced the planned content (W6). */
+  /** An authorizer replaced the planned content. */
   readonly userModified: boolean;
   /** Resolved paths, outermost first. */
   readonly createdDirectories: readonly string[];

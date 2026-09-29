@@ -6,18 +6,11 @@ import { isRecord } from "./input.ts";
 import { isBackendError, messageOf } from "./outcomes.ts";
 import type { MutationScope } from "./scope.ts";
 
-/** One target of a call after resolve. */
 export interface Target {
-  /** The path the caller sent. Messages name it. */
   readonly requestedPath: string;
-  /** The path the resolver returned. The stats use it. */
   readonly path: string;
 }
 
-/**
- * fs.stat on a resolved path: roots, type check, and the real path. A typed
- * refusal maps by section 5.11. A throw or a malformed outcome gives IO_ERROR.
- */
 export async function statTarget<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -44,7 +37,6 @@ export async function statTarget<THost>(
   return outcome.stat;
 }
 
-/** Stat again under the lock. A different real path means the target moved: STALE. */
 export async function statAgain<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,

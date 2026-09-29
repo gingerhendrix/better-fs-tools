@@ -1,20 +1,9 @@
-/**
- * The normalized matcher's fold. It works on spans: one code point and the
- * combining marks after it. Each span becomes NFKC text with quotes,
- * dashes, and special spaces mapped to ASCII. Then trailing spaces, tabs,
- * and carriage returns before each "\n" and at the end are dropped. Every
- * folded code unit keeps the original span it came from, so a hit in the
- * folded text maps back to offsets in the original.
- */
 export interface Folded {
   readonly text: string;
-  /** Original start of the span each folded unit came from. */
-  readonly start: Int32Array;
-  /** Original end of that span. */
-  readonly end: Int32Array;
-  /** FIRST: the unit starts its span's output. LAST: it ends it. */
+  readonly sourceStart: Int32Array;
+  readonly sourceEnd: Int32Array;
+  /** FIRST: the unit starts its source span's output. LAST: it ends it. */
   readonly edges: Uint8Array;
-  /** Trailing blanks at the very end of the text were dropped. */
   readonly trimmedEnd: boolean;
 }
 
@@ -26,13 +15,12 @@ const LF = 10;
 const MARK = /^\p{M}/u;
 
 export function fold(text: string): Folded {
-  const out = new Units(text.length);
+  const out = new FoldedUnitBuffer(text.length);
   let index = 0;
   while (index < text.length) {
     const code = text.charCodeAt(index);
     const next = text.charCodeAt(index + 1);
-    // ASCII not followed by a possible combining mark folds to itself.
-    if (code < 0x80 && !(next >= 0x300)) {
+    if (foldsToItself(code, next)) {
       out.push(code, index, index + 1, FIRST | LAST | (isBlank(code) ? BLANK : 0));
       index += 1;
       continue;
@@ -43,7 +31,7 @@ export function fold(text: string): Folded {
       if (point < 0x300 || !MARK.test(String.fromCodePoint(point))) break;
       end += point > 0xffff ? 2 : 1;
     }
-    const folded = mapCharacters(text.slice(index, end).normalize("NFKC"));
+    const folded = replaceLookalikes(text.slice(index, end).normalize("NFKC"));
     let blank = BLANK;
     for (let unit = 0; unit < folded.length; unit += 1) {
       if (!isBlank(folded.charCodeAt(unit))) blank = 0;
@@ -57,6 +45,12 @@ export function fold(text: string): Folded {
   return out.dropTrailingBlanks();
 }
 
+function foldsToItself(code: number, next: number): boolean {
+  const isAscii = code < 0x80;
+  const mayHaveCombiningMark = next >= 0x300;
+  return isAscii && !mayHaveCombiningMark;
+}
+
 function isBlank(code: number): boolean {
   return code === 32 || code === 9 || code === 13;
 }
@@ -65,8 +59,7 @@ function unitLength(text: string, index: number): number {
   return (text.codePointAt(index) ?? 0) > 0xffff ? 2 : 1;
 }
 
-/** Curly quotes, Unicode dashes, and special spaces to their ASCII forms. */
-function mapCharacters(text: string): string {
+function replaceLookalikes(text: string): string {
   let result = "";
   for (let index = 0; index < text.length; index += 1) {
     const code = text.charCodeAt(index);
@@ -83,8 +76,7 @@ const MAPPED: ReadonlyMap<number, string> = new Map([
   ...Array.from({ length: 11 }, (_, offset) => [0x2000 + offset, " "] as const),
 ]);
 
-/** Growable parallel arrays of folded units. */
-class Units {
+class FoldedUnitBuffer {
   private codes: Uint16Array;
   private starts: Int32Array;
   private ends: Int32Array;
@@ -124,7 +116,6 @@ class Units {
     this.flags = flags;
   }
 
-  /** Drops each run of blank units that ends at a "\n" or at the end, then packs the rest. */
   dropTrailingBlanks(): Folded {
     const keep = new Uint8Array(this.length).fill(1);
     let run = -1;
@@ -155,7 +146,7 @@ class Units {
       edges[at] = (this.flags[index] ?? 0) & (FIRST | LAST);
       at += 1;
     }
-    return { text: fromCodes(codes), start, end, edges, trimmedEnd };
+    return { text: fromCodes(codes), sourceStart: start, sourceEnd: end, edges, trimmedEnd };
   }
 }
 

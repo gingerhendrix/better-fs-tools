@@ -1,15 +1,9 @@
 import type { JsonObject } from "@better-fs-tools/read";
 
-/**
- * The read signature's path pattern, copied because it is internal to read.
- * Refuses an empty or blank path and any path that holds NUL. `\s` has the
- * same meaning in JSON Schema (ECMA-262) and in the checks below.
- */
 // No lookaround: strict grammar engines may refuse one.
 export const PATH_PATTERN = "^[^\\u0000]*[^\\s\\u0000][^\\u0000]*$";
 const PATH_REGEX = new RegExp(PATH_PATTERN, "u");
 
-/** A string with at least one non-whitespace character. The core refuses a blank patch. */
 export const NON_BLANK_PATTERN = "^[\\s\\S]*\\S[\\s\\S]*$";
 const NON_BLANK_REGEX = new RegExp(NON_BLANK_PATTERN, "u");
 
@@ -17,7 +11,6 @@ export function pathSchema(description: string): JsonObject {
   return { type: "string", minLength: 1, pattern: PATH_PATTERN, description };
 }
 
-/** `nonEmpty` adds minLength 1. */
 export function stringSchema(description: string, nonEmpty = false): JsonObject {
   return nonEmpty ? { type: "string", minLength: 1, description } : { type: "string", description };
 }
@@ -30,7 +23,6 @@ export function booleanSchema(description: string): JsonObject {
   return { type: "boolean", description };
 }
 
-/** An object schema with no extra keys. */
 export function objectSchema(
   properties: readonly (readonly [string, JsonObject])[],
   required: readonly string[],
@@ -45,11 +37,6 @@ export function objectSchema(
   };
 }
 
-/**
- * The runtime twin of `objectSchema`. Returns the input as a record once every
- * key is known and every required key is present. Throws TypeError that names
- * the host parameters, each after `prefix`.
- */
 export function readObject(
   input: unknown,
   label: string,
@@ -92,24 +79,17 @@ export function readNonBlank(value: unknown, name: string): string {
   return value;
 }
 
-/** A boolean, or undefined when absent. */
 export function readFlag(value: unknown, name: string): boolean | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "boolean") throw new TypeError(`${name} must be a boolean`);
   return value;
 }
 
-/** The checked docs options: the describe map and the final parameter names. */
 export interface CheckedDocs<TParam extends string> {
   readonly describe: Partial<Record<TParam, string>>;
   readonly names: Readonly<Record<TParam, string>>;
 }
 
-/**
- * Checks the docs options every preset takes. `params` are the preset's own
- * parameter names. Returns the describe map and each parameter's final name,
- * after `names`. Throws TypeError on a blank or repeated name.
- */
 export function checkDocs<TParam extends string>(
   options: unknown,
   label: string,

@@ -16,9 +16,9 @@ import { runApplyPatch } from "./patch-pipeline.ts";
 import { runEdit, runWrite } from "./pipeline.ts";
 
 /**
- * Validates and resolves dependencies once, synchronously, as
- * createWriteTool does, plus a non-empty `matchers` list (default
- * defaultEditMatchers()). Each tool instance keeps its own miss counter.
+ * Creates the edit tool. Takes the same dependencies as createWriteTool, plus
+ * a non-empty `matchers` list (default defaultEditMatchers()). Throws
+ * TypeError on invalid dependencies.
  */
 export function createEditTool<THost = undefined>(
   deps: EditToolDeps<THost> & StateNeedsDigest,
@@ -27,7 +27,6 @@ export function createEditTool<THost = undefined>(
   const misses = new MissCounter();
   const edit = async (input: unknown, ctx?: ToolCallContext<THost>): Promise<MutationResult> => {
     if (ctx !== undefined && !isRecord(ctx)) throw new TypeError("edit context must be an object");
-    // One call object for every stage of this call.
     const call = ctx ?? ({} as ToolCallContext<THost>);
     return runEdit(resolved, input, call, misses);
   };
@@ -35,10 +34,10 @@ export function createEditTool<THost = undefined>(
 }
 
 /**
- * Validates and resolves dependencies once, synchronously. Throws TypeError
- * on an unknown key, a missing fs, an empty classifier or codec list, state
- * without digest, or a malformed limit, message, or policy. limits, messages,
- * and preconditions merge key by key. Every other dependency replaces.
+ * Creates the write tool. Throws TypeError on an unknown key, a missing fs,
+ * an empty classifier or codec list, state without digest, or a malformed
+ * limit, message, or policy. limits, messages, and preconditions merge with
+ * the defaults key by key. Every other dependency replaces its default.
  */
 export function createWriteTool<THost = undefined>(
   deps: WriteToolDeps<THost> & StateNeedsDigest,
@@ -46,7 +45,6 @@ export function createWriteTool<THost = undefined>(
   const resolved = resolveWriteDependencies(deps, "write");
   const write = async (input: unknown, ctx?: ToolCallContext<THost>): Promise<MutationResult> => {
     if (ctx !== undefined && !isRecord(ctx)) throw new TypeError("write context must be an object");
-    // One call object for every stage of this call.
     const call = ctx ?? ({} as ToolCallContext<THost>);
     return runWrite(resolved, input, call);
   };
@@ -54,10 +52,10 @@ export function createWriteTool<THost = undefined>(
 }
 
 /**
- * Validates and resolves dependencies once, synchronously, as
- * createWriteTool does, plus a non-empty `matchers` list (default
- * defaultPatchMatchers(), used in line mode) and a `patchParser` (default
- * codexPatchParser()).
+ * Creates the apply_patch tool. Takes the same dependencies as
+ * createWriteTool, plus a non-empty `matchers` list (default
+ * defaultPatchMatchers()) and a `patchParser` (default codexPatchParser()).
+ * Throws TypeError on invalid dependencies.
  */
 export function createApplyPatchTool<THost = undefined>(
   deps: ApplyPatchToolDeps<THost> & StateNeedsDigest,
@@ -70,7 +68,6 @@ export function createApplyPatchTool<THost = undefined>(
     if (ctx !== undefined && !isRecord(ctx)) {
       throw new TypeError("apply_patch context must be an object");
     }
-    // One call object for every stage of this call.
     const call = ctx ?? ({} as ToolCallContext<THost>);
     return runApplyPatch(resolved, input, call);
   };

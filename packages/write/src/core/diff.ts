@@ -1,34 +1,18 @@
-/** Context lines around each change in a hunk, as in `diff -u`. */
-const CONTEXT = 3;
-/** Work bound for the Myers search: (lines before + lines after) × edit distance. */
-const MAX_WORK = 20_000_000;
-/** Edit distance bound. Past it the middle is shown as removed, then added. */
-const MAX_DISTANCE = 1_000;
+const CONTEXT_LINES = 3;
+const MAX_MYERS_WORK = 20_000_000;
+const MAX_EDIT_DISTANCE = 1_000;
 
 export interface LineDiff {
   readonly linesAdded: number;
   readonly linesRemoved: number;
-  /** Unified diff with a/ and b/ headers. Empty when nothing changed. */
   readonly text: string;
-  /** The text was cut at maxLines. The counts are still exact for the edit script. */
   readonly truncated: boolean;
-  /**
-   * One-based inclusive line ranges in `after` of each run of changed lines.
-   * A run that only removes lines gives the line after the removal.
-   */
+  /** One-based inclusive line ranges in the new text. A pure removal gives the line after it. */
   readonly changed: readonly (readonly [number, number])[];
 }
 
 type Op = { readonly kind: " " | "-" | "+"; readonly token: string };
 
-/**
- * A unified diff of two texts, line by line. `before` null is a create
- * (--- /dev/null), `after` null a delete. `beforePath` names the old side
- * of a move. A last line without a newline gets the usual
- * "\ No newline at end of file" marker. The search is bounded:
- * past the bound the changed middle is shown as one removal and one addition,
- * so the counts may then be larger than a minimal diff's.
- */
 export function unifiedDiff(
   before: string | null,
   after: string | null,
@@ -93,7 +77,6 @@ function changedRuns(ops: readonly Op[]): [number, number][] {
   return runs;
 }
 
-/** Lines with their "\n". The last one has none when the text does not end with a newline. */
 export function tokens(text: string): string[] {
   if (text === "") return [];
   const parts = text.split("\n");
@@ -152,12 +135,11 @@ function replaceAll(a: readonly string[], b: readonly string[]): Op[] {
   ];
 }
 
-/** Myers' O(ND) diff. null when the edit distance passes the bound. */
 function myers(a: readonly string[], b: readonly string[]): Op[] | null {
   const n = a.length;
   const m = b.length;
   if (n === 0 || m === 0) return replaceAll(a, b);
-  const max = Math.min(n + m, MAX_DISTANCE, Math.max(1, Math.floor(MAX_WORK / (n + m))));
+  const max = Math.min(n + m, MAX_EDIT_DISTANCE, Math.max(1, Math.floor(MAX_MYERS_WORK / (n + m))));
   const offset = max + 1;
   const v = new Int32Array(2 * max + 3);
   const trace: Int32Array[] = [];
@@ -180,7 +162,7 @@ function myers(a: readonly string[], b: readonly string[]): Op[] | null {
   return null;
 }
 
-/** Walks the saved rows back from (n, m) to (0, 0). Row d holds v[k] for k in -d-1..d+1. */
+// Row d of the trace holds v[k] for k in -d-1..d+1.
 function backtrack(
   a: readonly string[],
   b: readonly string[],
@@ -224,7 +206,6 @@ interface Hunk {
   readonly ops: readonly Op[];
 }
 
-/** Groups the script into hunks with CONTEXT lines around each change. Close changes share a hunk. */
 function hunks(ops: readonly Op[]): Hunk[] {
   const changed: number[] = [];
   ops.forEach((op, index) => {
@@ -236,12 +217,12 @@ function hunks(ops: readonly Op[]): Hunk[] {
     let end = start;
     while (
       end + 1 < changed.length &&
-      (changed[end + 1] as number) - (changed[end] as number) <= 2 * CONTEXT + 1
+      (changed[end + 1] as number) - (changed[end] as number) <= 2 * CONTEXT_LINES + 1
     ) {
       end += 1;
     }
-    const from = Math.max(0, (changed[start] as number) - CONTEXT);
-    const to = Math.min(ops.length, (changed[end] as number) + CONTEXT + 1);
+    const from = Math.max(0, (changed[start] as number) - CONTEXT_LINES);
+    const to = Math.min(ops.length, (changed[end] as number) + CONTEXT_LINES + 1);
     result.push(hunk(ops, from, to));
     start = end + 1;
   }

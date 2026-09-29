@@ -15,34 +15,22 @@ import { buildSnippets } from "./snippet.ts";
 import { placed, spliceAll } from "./splice.ts";
 import type { Splice } from "./splice.ts";
 
-/** The W4 rematch uses this matcher only. */
-const EXACT = exactMatcher();
+const STALE_REMATCH_MATCHER = exactMatcher();
 
 type Pair = EditRequest["edits"][number];
 
-/** One pair's hits and the matcher that found them. */
 interface Found {
   readonly index: number;
   readonly matcher: Matcher;
   readonly hits: readonly Splice[];
 }
 
-/** What planEdit needs besides the stage arguments. */
 export interface EditPlanInput {
   readonly request: EditRequest;
   readonly matchers: readonly Matcher[];
   readonly misses: MissCounter;
 }
 
-/**
- * Sections 5.4 and 5.5. Every pair is matched against one snapshot of the
- * loaded text. On a stale record (W4) only the exact matcher runs, and each
- * old text must match exactly once (replaceAll: at least once), else STALE.
- * Pairs that are already applied are skipped with a note. When every pair is
- * already applied the result is "no-change". Ranges of all pairs must not
- * overlap. The splice is literal. A result equal to the loaded text gives
- * NO_CHANGE.
- */
 export function planEdit<THost>(
   scope: MutationScope<THost>,
   input: EditPlanInput,
@@ -64,8 +52,8 @@ export function planEdit<THost>(
       newText: toTextSpace(given.newText, style),
       replaceAll: given.replaceAll,
     };
-    const result = pre.stale
-      ? rematch(scope, text, pair, index, path)
+    const result = pre.mustRematch
+      ? rematchAfterStale(scope, text, pair, index, path)
       : matchPair(scope, input, target, text, pair, index);
     if (result !== "applied") {
       found.push(result);
@@ -95,7 +83,7 @@ export function planEdit<THost>(
   const after = spliceAll(text, hits);
   if (after === text) throw scope.stop("NO_CHANGE", messages.noChange({ path }));
 
-  if (pre.stale) {
+  if (pre.mustRematch) {
     scope.notes.push({
       code: "stale-rematched",
       severity: "info",
@@ -162,13 +150,12 @@ export function planEdit<THost>(
     createParents: false,
     record: pre.record,
     userModified: false,
-    rematched: pre.stale,
+    rematchedAfterStale: pre.mustRematch,
     matches,
     snippets: buildSnippets(afterIndex, spans, limits),
   };
 }
 
-/** The chain for one pair, then the rules on every hit (section 5.4). */
 function matchPair<THost>(
   scope: MutationScope<THost>,
   input: EditPlanInput,
@@ -188,7 +175,7 @@ function matchPair<THost>(
   });
   if (chain === null) {
     if (isAlreadyApplied(text, pair.newText)) return "applied";
-    throw noMatch(scope, input, target, text, pair, index);
+    throw noMatchFailure(scope, input, target, text, pair, index);
   }
   const { matcher, ranges } = chain;
   const refuse = (reason: "span" | "boundary" | "escape" | "fuzzy-replace-all" | "too-many") =>
@@ -240,15 +227,14 @@ function matchPair<THost>(
   return { index, matcher, hits };
 }
 
-/** W4: exact only, each old text exactly once (replaceAll: at least once). Else STALE. */
-function rematch<THost>(
+function rematchAfterStale<THost>(
   scope: MutationScope<THost>,
   text: string,
   pair: Pair,
   index: number,
   path: string,
 ): Found {
-  const ranges = findWith(scope, EXACT, text, pair.oldText, {
+  const ranges = findWith(scope, STALE_REMATCH_MATCHER, text, pair.oldText, {
     mode: "text",
     from: 0,
     maxMatches: pair.replaceAll ? REPLACE_ALL_CAP + 1 : 2,
@@ -260,13 +246,12 @@ function rematch<THost>(
   }
   return {
     index,
-    matcher: EXACT,
+    matcher: STALE_REMATCH_MATCHER,
     hits: ranges.map((range) => ({ start: range.start, end: range.end, text: pair.newText })),
   };
 }
 
-/** NO_MATCH with the trailing-newline hint, the closest region, and the repeated-miss note. */
-function noMatch<THost>(
+function noMatchFailure<THost>(
   scope: MutationScope<THost>,
   input: EditPlanInput,
   target: ResolvedTarget,

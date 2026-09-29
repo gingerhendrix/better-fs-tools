@@ -13,29 +13,21 @@ import type { PreconditionResult } from "./precondition.ts";
 import type { MutationScope } from "./scope.ts";
 import { buildSnippets } from "./snippet.ts";
 
-/** The W4 rematch on a stale record uses this matcher only. */
-const EXACT = exactMatcher();
+const STALE_REMATCH_MATCHER = exactMatcher();
 
-/** One operation after the second stat, load, and precondition. */
 export interface PatchTarget {
   readonly op: PatchOperation;
-  /** The operation's path. For a move, the source. */
   readonly main: ResolvedTarget;
-  /** The move destination, else null. */
   readonly dest: ResolvedTarget | null;
-  /** The loaded file for an Update or Delete. null for an Add. */
   readonly loaded: Loaded | null;
   readonly pre: PreconditionResult | null;
 }
 
-/** One planned change of the patch. */
 export interface PatchChange {
   readonly planned: Planned;
-  /** For a move: the source, removed after the destination is published. */
   readonly source: ResolvedTarget | null;
 }
 
-/** One verify problem. `line` is its operation's line in the patch. `hunk` is zero-based. */
 export interface PatchProblem {
   readonly path: string;
   readonly line: number;
@@ -51,14 +43,6 @@ export interface PatchProblem {
   readonly hunk?: number;
 }
 
-/**
- * Section 5.7 steps 3 and 4. Verifies the hunks of every Update and plans
- * every change, in patch order. `problems` holds the existence problems
- * found so far. Any problem gives PATCH_VERIFY and nothing is written.
- * On a stale record (W4 rematch), a file's hunks run with the exact matcher
- * only, and a miss gives STALE. An Update that leaves its file as it was is
- * not planned: its display path goes to `unchanged`.
- */
 export function planPatch<THost>(
   scope: MutationScope<THost>,
   matchers: readonly Matcher[],
@@ -79,15 +63,20 @@ export function planPatch<THost>(
     }
     if (loaded === null || target.pre === null) continue;
     if (op.kind === "delete") {
-      // No hunk can show that the model saw the changed file, so a stale Delete stops.
-      if (target.pre.stale) throw staleFailure(scope, main.requestedPath);
+      // A delete has no hunk to show the model saw the changed file.
+      if (target.pre.mustRematch) throw staleFailure(scope, main.requestedPath);
       changes.push({ planned: planDelete(scope, main, loaded, target.pre), source: null });
       continue;
     }
     const { pre } = target;
-    const outcome = applyHunks(scope, pre.stale ? [EXACT] : matchers, loaded.text, op.hunks);
+    const outcome = applyHunks(
+      scope,
+      pre.mustRematch ? [STALE_REMATCH_MATCHER] : matchers,
+      loaded.text,
+      op.hunks,
+    );
     if (!outcome.ok) {
-      if (pre.stale) throw staleFailure(scope, main.requestedPath, outcome.problem.hunk);
+      if (pre.mustRematch) throw staleFailure(scope, main.requestedPath, outcome.problem.hunk);
       problems.push(hunkProblem(scope, main.requestedPath, op.line, outcome.problem));
       continue;
     }
@@ -114,18 +103,17 @@ export function planPatch<THost>(
         loaded,
         codec: loaded.codec,
         style: loaded.style,
-        // A move destination must not exist. An update replaces the loaded version.
         precondition: dest === null ? pre.precondition : { kind: "absent" },
         createParents: dest !== null,
         record: pre.record,
         userModified: false,
-        rematched: pre.stale,
+        rematchedAfterStale: pre.mustRematch,
         matches: outcome.matches,
         snippets: buildSnippets(outcome.text, changed, limits),
       },
       source: dest === null ? null : main,
     });
-    if (pre.stale) {
+    if (pre.mustRematch) {
       scope.notes.push({
         code: "stale-rematched",
         severity: "info",
@@ -151,10 +139,6 @@ export function planPatch<THost>(
   return { changes, unchanged };
 }
 
-/**
- * PATCH_VERIFY: the header, then one "- " line for each problem in patch
- * order, at most limits.maxPatchProblems.
- */
 export function verifyFailure<THost>(
   scope: MutationScope<THost>,
   problems: readonly PatchProblem[],
@@ -170,7 +154,6 @@ export function verifyFailure<THost>(
   return scope.stop("PATCH_VERIFY", message.join("\n"), { problems: data });
 }
 
-/** STALE in the precondition phase (row 7): the rematch failed. */
 function staleFailure<THost>(scope: MutationScope<THost>, path: string, hunk?: number) {
   scope.enter("precondition");
   const message = scope.deps.messages.stale({ tool: scope.tool, path });
@@ -192,7 +175,6 @@ function hunkProblem<THost>(
   return { path, line, reason: problem.reason, message, hunk: problem.hunk };
 }
 
-/** Add: the content as given, in the first codec's new-file style. Parents are created. */
 function planAdd<THost>(
   scope: MutationScope<THost>,
   target: ResolvedTarget,
@@ -221,13 +203,12 @@ function planAdd<THost>(
     createParents: true,
     record: null,
     userModified: false,
-    rematched: false,
+    rematchedAfterStale: false,
     matches: [],
     snippets: [],
   };
 }
 
-/** Delete: no new text. The remove uses the loaded version. */
 function planDelete<THost>(
   scope: MutationScope<THost>,
   target: ResolvedTarget,
@@ -264,7 +245,7 @@ function planDelete<THost>(
     createParents: false,
     record: pre.record,
     userModified: false,
-    rematched: pre.stale,
+    rematchedAfterStale: pre.mustRematch,
     matches: [],
     snippets: [],
   };

@@ -4,14 +4,12 @@ import { ALLOW, refuse, regExpList } from "./shared.ts";
 const DEFAULT_NAMES: readonly RegExp[] = [/\.min\./u, /\.generated\./u, /_pb2\.py$/u, /\.pb\.go$/u];
 const DEFAULT_MARKERS: readonly RegExp[] = [/@generated\b/u, /DO NOT EDIT/u, /auto-generated/iu];
 
-/** Characters of the before text searched for a marker. */
-const HEAD = 1_024;
+const MARKER_SEARCH_CHARS = 1_024;
 
 /**
- * Opt-in. Refuses an update to a file that looks generated (Oh My Pi): a
- * file name that matches one of `names`, or a marker in the first 1 024
- * characters of the file. A marker further down does not count. Creates
- * pass: the tool may be the generator.
+ * Opt-in. Refuses an update to a file that looks generated: its name matches
+ * one of `names`, or one of `markers` appears in its first 1 024 characters.
+ * Creating a file is allowed.
  */
 export function generatedFileGuard(
   options: { readonly markers?: readonly RegExp[]; readonly names?: readonly RegExp[] } = {},
@@ -26,7 +24,7 @@ export function generatedFileGuard(
       const path = change.resolvedPath;
       const reason =
         nameReason(names, path.slice(path.lastIndexOf("/") + 1)) ??
-        markerReason(markers, change.before.text.slice(0, HEAD));
+        markerReason(markers, change.before.text.slice(0, MARKER_SEARCH_CHARS));
       if (reason === null) return ALLOW;
       return refuse(
         "generated-file",

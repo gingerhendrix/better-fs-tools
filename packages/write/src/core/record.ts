@@ -3,13 +3,6 @@ import type { ReadRecord } from "@better-fs-tools/read";
 import type { Committed } from "./hooks.ts";
 import type { MutationScope } from "./scope.ts";
 
-/**
- * Stores a write record (schema 2, origin "write") for each committed file,
- * when there is a store. A delete removes the key, and a move removes the
- * source's key. A file a hook rewrote and the core could not read
- * back has its key deleted instead. A store failure never fails the call.
- * Built field by field, so nothing from `call` reaches the store.
- */
 export async function recordCommitted<THost>(
   scope: MutationScope<THost>,
   committed: readonly Committed[],
@@ -28,15 +21,15 @@ export async function recordCommitted<THost>(
     const { change } = file;
     const key = change.resolvedPath;
     try {
-      // A move leaves nothing at the source.
-      const source = file.planned.change.movedFrom;
-      if (source !== null) await store.delete(source);
+      const movedFromPath = file.planned.change.movedFrom;
+      if (movedFromPath !== null) await store.delete(movedFromPath);
       const after = change.after;
-      if (!file.known || after === null) {
+      if (!file.finalStateKnown || after === null) {
         await store.delete(key);
         continue;
       }
       const { version, contentId } = after;
+      // Built field by field so nothing from `call` reaches the store.
       const record: ReadRecord = {
         schema: 2,
         origin: "write",
@@ -59,15 +52,9 @@ export async function recordCommitted<THost>(
   }
 }
 
-/**
- * write and a patch Add see the whole file. edit and a patch Update keep the
- * previous record's value. false whenever the file holds bytes the model has
- * not seen: W6 content, a hook rewrite, or an edit applied on a stale record.
- * A later edit still works; a later write needs a whole-file read first.
- */
 function wholeFileVisible(file: Committed): boolean {
   const { planned } = file;
-  if (planned.userModified || planned.rematched || file.rewritten) return false;
+  if (planned.userModified || planned.rematchedAfterStale || file.rewrittenByHook) return false;
   if (planned.change.tool === "write" || planned.loaded === null) return true;
   return planned.record?.wholeFileVisible ?? false;
 }

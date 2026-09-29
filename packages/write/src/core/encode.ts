@@ -3,11 +3,6 @@ import { extensionId } from "./extension-error.ts";
 import type { Planned } from "./planned.ts";
 import type { MutationScope } from "./scope.ts";
 
-/**
- * codec.encode on the planned text. Over limits.maxWriteBytes gives
- * TOO_LARGE. Returns "same" when the bytes equal the loaded bytes: the
- * caller decides what that means for its tool.
- */
 export function encodePlanned<THost>(
   scope: MutationScope<THost>,
   planned: Planned,

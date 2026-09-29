@@ -10,40 +10,28 @@ import { unifiedDiff } from "./diff.ts";
 import type { Loaded } from "./load.ts";
 import { buildSnippets } from "./snippet.ts";
 
-/** A target after stat: the paths every later stage names. */
 export interface ResolvedTarget {
   readonly requestedPath: string;
   readonly resolvedPath: string;
   readonly displayPath: string;
 }
 
-/** One planned file change and what the core needs to encode and commit it. */
 export interface Planned {
   readonly change: PlannedChange;
   readonly diffTruncated: boolean;
   readonly target: ResolvedTarget;
-  /** null for a create. */
   readonly loaded: Loaded | null;
   readonly codec: Codec;
   readonly style: TextStyle;
   readonly precondition: Precondition;
   readonly createParents: boolean;
-  /** The record the precondition stage read. null when none. */
   readonly record: ReadRecord | null;
   readonly userModified: boolean;
-  /** An edit that went ahead on a stale record (W4). The record then marks the file as not wholly seen. */
-  readonly rematched: boolean;
-  /** One entry for each matched edit pair. Empty for write. */
+  readonly rematchedAfterStale: boolean;
   readonly matches: readonly MatchInfo[];
-  /** Result lines around each change. Empty for write. */
   readonly snippets: readonly Snippet[];
 }
 
-/**
- * The PlannedChange for a create or update with `after` as the new text in
- * the codec's text space. The diff runs on decoded text. With `movedFrom`,
- * it is a move: `loaded` is the source and `target` the destination.
- */
 export function plannedChange(
   tool: WriteToolName,
   target: ResolvedTarget,
@@ -90,17 +78,11 @@ export function plannedChange(
   return { change, diffTruncated: diff.truncated, changed: diff.changed };
 }
 
-/** New text into the file's text space: a "crlf" file holds LF text until encode. */
 export function toTextSpace(text: string, style: TextStyle): string {
   return style.eol === "crlf" ? text.replaceAll("\r\n", "\n") : text;
 }
 
-/**
- * W6: the authorizer's content replaces the planned after-text. The core
- * re-diffs, and for edit re-snippets around the changed lines of the new
- * diff. Fragments become one whole-file fragment.
- */
-export function withContent(
+export function withAuthorizerContent(
   planned: Planned,
   content: string,
   limits: Readonly<WriteLimits>,

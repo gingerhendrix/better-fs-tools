@@ -3,11 +3,9 @@ import type { PlannedChange, WriteAuthorizer, WriteHookContext } from "../contra
 type Answer = boolean | { readonly content: string };
 
 /**
- * Allows the access stage. On the first change-stage target of a call, calls
- * `prompt` once with the whole plan, and keeps the answer by the call object,
- * so later targets of the same call get the same answer. `true` allows.
- * `{ content }` allows with the user's content (W6: edit and write only).
- * `false`, a throw, or anything else denies.
+ * Asks `prompt` once for each call, with every planned change, before anything
+ * is written. `true` allows. `{ content }` allows with the user's content
+ * (edit and write only). `false`, a throw, or anything else denies.
  */
 export function askBeforeWrite<THost>(
   prompt: (plan: readonly PlannedChange[], ctx: WriteHookContext<THost>) => Promise<Answer>,

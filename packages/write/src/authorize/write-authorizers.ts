@@ -4,11 +4,11 @@ import type { WriteAuthorizer } from "../contract/extensions.ts";
 import { stepFailure } from "../core/extension-error.ts";
 
 /**
- * Left to right. First deny wins, with that step's note. Allow notes from
- * every step are kept, in order. The first `content` wins, and later steps
- * still see the original target. No steps allows. A step that throws, or
- * returns something that is not a decision, is named by its id in
- * EXTENSION_FAILED. A read ToolAuthorizer such as denyPaths is a valid step.
+ * Runs authorizers left to right. The first denial wins. Allow notes from
+ * every step are kept, and the first replacement `content` wins. No steps
+ * allows everything. A step that throws or returns an invalid decision fails
+ * the call with EXTENSION_FAILED. A read authorizer such as denyPaths also
+ * works as a step.
  */
 export function writeAuthorizers<THost = unknown>(
   ...steps: readonly WriteAuthorizer<NoInfer<THost>>[]

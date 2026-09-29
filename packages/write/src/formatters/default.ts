@@ -5,17 +5,17 @@ import type { WriteFormatter } from "../contract/format.ts";
 import type { FileChange, MutationReport, Snippet } from "../contract/result.ts";
 
 export interface WriteFormatterOptions {
-  /** Default: `${line}|`, the read tool's default gutter. Used by edit snippets. */
+  /** Line-number prefix for edit snippets. Default: `${line}|`, as the read tool shows. */
   readonly gutter?: (line: number) => string;
-  /** Add FileChange.diff to the model text. Default false (W8). */
+  /** Add each change's diff to the model text. Default false. */
   readonly diff?: boolean;
   /** Default: `[${tool}:${note.code}] ${note.message}`. */
   readonly noteLine?: (note: Note, tool: WriteToolName) => string;
 }
 
 /**
- * The header, then the body, then a blank line and the note lines. An error
- * prints the note lines only. "view" mode returns the header and body only.
+ * Formats a result as a line for each file, then the notes. An error shows the
+ * notes only. "view" mode leaves the notes out.
  */
 export function defaultWriteFormatter(
   options: WriteFormatterOptions = {},
@@ -71,10 +71,7 @@ function body(report: MutationReport, gutter: (line: number) => string, listed: 
   return report.changes.map(changeLine);
 }
 
-/**
- * Codex's line for one file: `A`, `M`, or `D` and the path. A move names its
- * source, and hunks that matched only loosely name their matcher.
- */
+// Follows the Codex apply_patch output: `A`, `M`, or `D` and the path.
 function patchLine(change: FileChange): string {
   const letter = change.kind === "create" ? "A" : change.kind === "delete" ? "D" : "M";
   const details = [
@@ -86,10 +83,6 @@ function patchLine(change: FileChange): string {
   return `${letter} ${change.path}${details.length === 0 ? "" : ` (${details.join(", ")})`}`;
 }
 
-/**
- * `Edited <path>: <n> replacements at lines <list>.` The list names each
- * replacement's lines in the new file, sorted, at most `listed` of them.
- */
 function editLine(change: FileChange, listed: number): string {
   if (change.userModified) {
     return `Edited ${change.path} with the user's changes (+${change.linesAdded} -${change.linesRemoved} lines).`;
@@ -106,7 +99,6 @@ function editLine(change: FileChange, listed: number): string {
   return `Edited ${change.path}: ${counted} at line${single ? "" : "s"} ${shown.join(", ")}${more}.`;
 }
 
-/** Each snippet's lines behind the gutter. Snippets are separated by a line "...". */
 function snippetLines(snippets: readonly Snippet[], gutter: (line: number) => string): string[] {
   return snippets.flatMap((snippet, index) => [
     ...(index === 0 ? [] : ["..."]),

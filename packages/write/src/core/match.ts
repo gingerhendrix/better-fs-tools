@@ -3,13 +3,10 @@ import { extensionId } from "./extension-error.ts";
 import { isRecord } from "./input.ts";
 import type { MutationScope } from "./scope.ts";
 
-/** The most hits one replaceAll pair may have. More gives MATCH_REFUSED ("too-many"). */
 export const REPLACE_ALL_CAP = 100_000;
 
-/** Escape sequences a fuzzy hit's new text may not add (Hermes escape drift). */
-const DRIFT = ["\\n", "\\t", '\\"', "\\'", "\\\\"] as const;
+const DRIFT_ESCAPE_SEQUENCES = ["\\n", "\\t", '\\"', "\\'", "\\\\"] as const;
 
-/** The first matcher in the chain that returns at least one range decides. null when none does. */
 export function runChain<THost>(
   scope: MutationScope<THost>,
   matchers: readonly Matcher[],
@@ -25,12 +22,6 @@ export function runChain<THost>(
   return null;
 }
 
-/**
- * One matcher's ranges, checked: a throw or a malformed result gives
- * EXTENSION_FAILED. Ranges must be integer offsets inside the haystack, at
- * or after `from`, non-empty, in order, and not overlapping. At most
- * `maxMatches` are kept.
- */
 export function findWith<THost>(
   scope: MutationScope<THost>,
   matcher: Matcher,
@@ -66,7 +57,6 @@ function validRanges(value: unknown, length: number, from: number): value is rea
   return true;
 }
 
-/** The matcher's new text for one hit. A throw or a non-string gives EXTENSION_FAILED. */
 export function adaptFor<THost>(
   scope: MutationScope<THost>,
   matcher: Matcher,
@@ -84,12 +74,12 @@ export function adaptFor<THost>(
   return adapted;
 }
 
-/** Span guard (OpenCode): a fuzzy range much longer than the needle. */
 export function tooWide(range: MatchRange, needle: string): boolean {
   return range.end - range.start > 2 * needle.length + 64;
 }
 
-/** Escape drift (Hermes): the new text holds an escape sequence the matched region does not. */
 export function escapeDrift(newText: string, region: string): boolean {
-  return DRIFT.some((sequence) => newText.includes(sequence) && !region.includes(sequence));
+  return DRIFT_ESCAPE_SEQUENCES.some(
+    (sequence) => newText.includes(sequence) && !region.includes(sequence),
+  );
 }

@@ -11,7 +11,6 @@ import { createFsTools, memoryLocks } from "../../src/index.ts";
 import type { LockManager } from "../../src/index.ts";
 import { errorOf, FIXED_DATE, testDigest } from "../helpers.ts";
 
-/** Exits 0 with no output. Records each command. */
 function quietRunner(): CommandRunner & { commands: string[] } {
   const commands: string[] = [];
   return {
@@ -26,7 +25,6 @@ function quietRunner(): CommandRunner & { commands: string[] } {
   };
 }
 
-/** memoryLocks(), with every set of keys it was asked for. */
 function spyLocks(): LockManager & { taken: string[][] } {
   const inner = memoryLocks();
   const taken: string[][] = [];
@@ -48,7 +46,6 @@ describe("createFsTools", () => {
     await tools.read({ path: "/a.txt" });
     const after = await tools.edit({ path: "/a.txt", edits: [{ oldText: "one", newText: "1" }] });
     expect(after.status).toBe("ok");
-    // write sees the record that the edit left, so it can replace the file.
     expect((await tools.write({ path: "/a.txt", content: "two\n" })).status).toBe("ok");
   });
 
@@ -265,7 +262,6 @@ describe("createFsTools", () => {
     expect(() => createFsTools({ fs, bash: true } as never)).toThrow(
       "createFsTools bash must be an object with a runner and an env",
     );
-    // The core factories still check what they get.
     expect(() => createFsTools({ fs, bash: { runner: quietRunner() } } as never)).toThrow(
       "env is required",
     );

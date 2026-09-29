@@ -7,10 +7,9 @@ interface Waiter {
 }
 
 /**
- * Process-local locks keyed by resolved path. Keys are taken in the order
- * given (the core sorts them), so two callers never wait on each other in a
- * cycle. A caller waits in line for each key. On a timeout or an abort it
- * gives back every key it took, so it holds every key or none.
+ * In-process locks keyed by resolved path. A caller holds every key or none:
+ * on a timeout or an abort it gives back every key it took. `timeoutMs`
+ * defaults to 30 000.
  */
 export function memoryLocks(options: { readonly timeoutMs?: number } = {}): LockManager {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
@@ -20,22 +19,20 @@ export function memoryLocks(options: { readonly timeoutMs?: number } = {}): Lock
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
     throw new TypeError("timeoutMs must be a positive safe integer");
   }
-  /** A key is held while it is in the map. The array holds the callers waiting for it. */
-  const queues = new Map<string, Waiter[]>();
+  const waitersByHeldKey = new Map<string, Waiter[]>();
 
   const release = (key: string): void => {
-    const waiting = queues.get(key);
+    const waiting = waitersByHeldKey.get(key);
     if (waiting === undefined) return;
     const next = waiting.shift();
-    if (next === undefined) queues.delete(key);
+    if (next === undefined) waitersByHeldKey.delete(key);
     else next.grant();
   };
 
-  /** Resolves true when the key is taken, false when the wait ended first. */
-  const take = (key: string, ended: Promise<void>): Promise<boolean> => {
-    const waiting = queues.get(key);
+  const waitForKey = (key: string, ended: Promise<void>): Promise<boolean> => {
+    const waiting = waitersByHeldKey.get(key);
     if (waiting === undefined) {
-      queues.set(key, []);
+      waitersByHeldKey.set(key, []);
       return Promise.resolve(true);
     }
     return new Promise<boolean>((resolve) => {
@@ -43,8 +40,8 @@ export function memoryLocks(options: { readonly timeoutMs?: number } = {}): Lock
       waiting.push(waiter);
       void ended.then(() => {
         const index = waiting.indexOf(waiter);
-        // Already granted: the key is ours, and the caller gives it back.
-        if (index === -1) return;
+        const alreadyGranted = index === -1;
+        if (alreadyGranted) return;
         waiting.splice(index, 1);
         resolve(false);
       });
@@ -72,7 +69,7 @@ export function memoryLocks(options: { readonly timeoutMs?: number } = {}): Lock
       const held: string[] = [];
       try {
         for (const key of keys) {
-          const taken = await take(key, ended);
+          const taken = await waitForKey(key, ended);
           if (taken) held.push(key);
           if (!taken || reason !== null) {
             for (const key of held.reverse()) release(key);

@@ -5,12 +5,6 @@ import { isRecord } from "./input.ts";
 import { errorNote, hostErrorNote, isNote, isNoteList } from "./outcomes.ts";
 import type { MutationScope } from "./scope.ts";
 
-/**
- * Runs every guard in order on every planned change. The first refusal gives
- * GUARD_REFUSED with the guard's message, and nothing is written. Allow notes
- * join the call's notes. A throw or a malformed decision gives
- * EXTENSION_FAILED with the guard's id.
- */
 export async function runGuards<THost>(
   scope: MutationScope<THost>,
   changes: readonly PlannedChange[],

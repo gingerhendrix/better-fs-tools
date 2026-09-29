@@ -1,15 +1,9 @@
-/** Thrown when the caller's signal aborted. The pipeline maps it to ABORTED with the phase. */
 export class AbortStop extends Error {
   constructor() {
     super("aborted");
   }
 }
 
-/**
- * Runs `start` and settles with it, or rejects with AbortStop as soon as the
- * signal aborts. An aborted signal rejects before `start` runs, so host code
- * that ignores the signal cannot hold the call open.
- */
 export async function raceAbort<T>(
   start: () => T | Promise<T>,
   signal: AbortSignal | undefined,

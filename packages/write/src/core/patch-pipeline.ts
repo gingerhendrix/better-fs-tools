@@ -33,14 +33,12 @@ import { MutationScope } from "./scope.ts";
 import type { Target } from "./target.ts";
 import { statAgain, statTarget } from "./target.ts";
 
-/** One operation and its paths. `dest` is the Move to path. */
 interface Slot {
   readonly op: PatchOperation;
   readonly main: Target;
   readonly dest: Target | null;
 }
 
-/** One apply_patch call, start to end. */
 export async function runApplyPatch<THost>(
   deps: ApplyPatchDependencies<THost>,
   input: unknown,
@@ -63,19 +61,12 @@ export async function runApplyPatch<THost>(
   return formatResult(deps, call, report);
 }
 
-/**
- * Section 5.7: parse, count, resolve, stat, duplicates, access authorize,
- * lock, stat again, load, preconditions, verify hunks, plan, guards, change
- * authorize, encode, commit, hooks, record. Nothing is written before every
- * operation has passed every check.
- */
 async function patchStages<THost>(
   scope: MutationScope<THost>,
   deps: ApplyPatchDependencies<THost>,
   request: ApplyPatchRequest,
 ): Promise<MutationReport> {
   const operations = parsePatchText(scope, deps.patchParser, request.patch);
-  // An abort before the call started is phase input in every tool.
   scope.checkAbort();
   scope.enter("resolve");
   const fs = scope.fileSystem();
@@ -125,7 +116,13 @@ async function patchStages<THost>(
       const { planned: plannedStep, source } = step.change;
       if (file === null) {
         const change = deleteChange(plannedStep, plannedStep.target);
-        return { planned: plannedStep, change, identity: null, known: true, rewritten: false };
+        return {
+          planned: plannedStep,
+          change,
+          identity: null,
+          finalStateKnown: true,
+          rewrittenByHook: false,
+        };
       }
       addCapabilityNotes(scope, fs, plannedStep, file);
       const base = fileChange(scope, plannedStep, step.bytes as Uint8Array, file);
@@ -147,14 +144,19 @@ async function patchStages<THost>(
   }
 }
 
-/**
- * Problems known after the first stat: two targets with the same real path
- * (Codex "multiple operations target"), and a Delete or Move on a backend
- * without remove(). They stop the call before any authorize or content read.
- */
 function earlyProblems<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
+  slots: readonly Slot[],
+  first: ReadonlyMap<Target, FileStat>,
+): PatchProblem[] {
+  const problems = duplicateTargetProblems(scope, slots, first);
+  if (typeof fs.remove === "function") return problems;
+  return [...problems, ...removeUnsupportedProblems(scope, slots)];
+}
+
+function duplicateTargetProblems<THost>(
+  scope: MutationScope<THost>,
   slots: readonly Slot[],
   first: ReadonlyMap<Target, FileStat>,
 ): PatchProblem[] {
@@ -176,7 +178,15 @@ function earlyProblems<THost>(
       problems.push({ path, line: op.line, reason: "duplicate", message });
     }
   }
-  if (typeof fs.remove === "function") return problems;
+  return problems;
+}
+
+function removeUnsupportedProblems<THost>(
+  scope: MutationScope<THost>,
+  slots: readonly Slot[],
+): PatchProblem[] {
+  const { messages } = scope.deps;
+  const problems: PatchProblem[] = [];
   for (const { op, dest } of slots) {
     if (op.kind !== "delete" && dest === null) continue;
     const path = op.path;
@@ -187,7 +197,6 @@ function earlyProblems<THost>(
   return problems;
 }
 
-/** Access stage targets in patch order: a move is "move" on the source and "create" on the destination. */
 function accessRequests(
   slots: readonly Slot[],
   first: ReadonlyMap<Target, FileStat>,
@@ -206,7 +215,6 @@ function accessRequests(
   return requests;
 }
 
-/** Existence problems, judged by the second stat (W10 and section 5.7 step 2). */
 function existenceProblems<THost>(
   scope: MutationScope<THost>,
   slots: readonly Slot[],
@@ -246,12 +254,6 @@ function existenceProblems<THost>(
   return problems;
 }
 
-/**
- * Loads every existing Update and Delete target and checks its precondition,
- * in patch order. A load failure ends the call. Precondition failures (D24)
- * end the call after every target is checked: the code is the first
- * failure's, and the note names every failing path.
- */
 async function loadAll<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -282,7 +284,6 @@ async function loadAll<THost>(
   return targets;
 }
 
-/** One failure as it is. Several: the first code, every message, and every path. */
 function preconditionFailure<THost>(
   scope: MutationScope<THost>,
   failures: readonly { readonly path: string; readonly stop: WriteStop }[],
@@ -300,12 +301,6 @@ function preconditionFailure<THost>(
   return scope.stop(code, message, { failures: listed });
 }
 
-/**
- * Encodes every planned text. An update whose bytes equal the loaded bytes
- * is dropped. A move keeps the source's bytes when its text did not change.
- * Then, before the commit, a create asks the hooks for its mode, and a move
- * destination takes the hooks' mode or else the source's mode.
- */
 function encodeSteps<THost>(
   scope: MutationScope<THost>,
   changes: readonly PatchChange[],
@@ -331,12 +326,11 @@ function encodeSteps<THost>(
   });
 }
 
-/** Every file the patch targets, in patch order: a move lists its source, then its destination. */
 function patchFiles(slots: readonly Slot[], stats: ReadonlyMap<Target, FileStat>): PatchFile[] {
   return slots.flatMap(({ main, dest }) =>
     (dest === null ? [main] : [main, dest]).map((target) => {
       const stat = stats.get(target) as FileStat;
-      return { path: stat.displayPath, key: stat.resolvedPath };
+      return { path: stat.displayPath, resolvedPath: stat.resolvedPath };
     }),
   );
 }

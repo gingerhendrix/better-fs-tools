@@ -40,7 +40,6 @@ describe("exactMatcher", () => {
       { start: 5, end: 8 },
       { start: 17, end: 20 },
     ]);
-    // A needle with its final newline ends right after a line break.
     expect(exact.find("a\nb\nc\n", "b\n", LINES)).toEqual([{ start: 2, end: 4 }]);
     expect(exact.find("a\nb\n", "a\nb", LINES)).toEqual([{ start: 0, end: 3 }]);
   });

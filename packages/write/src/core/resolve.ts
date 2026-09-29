@@ -7,15 +7,9 @@ import { extensionId } from "./extension-error.ts";
 import { isPath, isRecord } from "./input.ts";
 import { isNote, messageOf } from "./outcomes.ts";
 
-/** Entries one resolver listing may return. The read tool's default maxDirectoryEntries. */
-const LIST_LIMIT = 200;
+// Matches the read tool's default maxDirectoryEntries.
+const RESOLVER_LIST_LIMIT = 200;
 
-/**
- * Runs the resolver on one requested path. The resolver only changes the path
- * string. It gets one listing through `ctx.list` for this path. A not-found
- * outcome ends the call with NOT_FOUND. A throw or a malformed outcome gives
- * EXTENSION_FAILED. A resolver note joins the call's notes.
- */
 export async function resolvePath<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -56,12 +50,7 @@ export async function resolvePath<THost>(
   return path;
 }
 
-/**
- * One bounded fs.list. Never throws: a missing list(), an abort, or a
- * throwing backend becomes an error outcome. The write tools have no "list"
- * authorize action. The path the resolver returns is authorized in the
- * access stage like any other.
- */
+// Not authorized: the path the resolver returns is authorized in the access stage.
 async function listOnce<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -74,7 +63,9 @@ async function listOnce<THost>(
   try {
     return await fs.list(
       dir,
-      signal === undefined ? { limit: LIST_LIMIT } : { limit: LIST_LIMIT, signal },
+      signal === undefined
+        ? { limit: RESOLVER_LIST_LIMIT }
+        : { limit: RESOLVER_LIST_LIMIT, signal },
     );
   } catch (error) {
     return { ok: false, error: { reason: "io", detail: messageOf(error) } };

@@ -21,18 +21,18 @@ import { memoryLocks } from "../locks/index.ts";
 import { createInvalidator } from "../state/invalidate.ts";
 import type { InvalidateOutcome } from "../state/invalidate.ts";
 
-/** Set once at the top level for every tool. A tool's own options cannot set them. */
+/** Options set once for the whole bundle. A tool's own options cannot set them. */
 export type FsToolsSharedKey = "fs" | "state" | "digest" | "locks" | "clock";
 
-/** The bash dependencies, less the digest and the clock, which the bundle shares. */
+/** The bash tool's options, without the digest and clock that the bundle shares. */
 export type FsToolsBashOptions<THost = undefined> = Omit<ShellToolDeps<THost>, "digest" | "clock">;
 
 export interface CreateFsToolsOptions<THost = undefined> {
   /** Required. A backend, or a factory called once for each call. */
   readonly fs: WritableFileSystem | ((call: ToolCallContext<THost>) => WritableFileSystem);
-  /** Default memoryStore({ clock }), on the bundle clock. null turns read-before-write off. */
+  /** Default: an in-memory store on the bundle clock. null turns read-before-write off. */
   readonly state?: ReadStateStore | null;
-  /** Default sha256Digest(): plain JavaScript, so a Worker needs no host digest. */
+  /** Default sha256Digest(). */
   readonly digest?: Digest;
   /** Default memoryLocks(), shared by edit, write, and apply_patch. */
   readonly locks?: LockManager;
@@ -43,9 +43,8 @@ export interface CreateFsToolsOptions<THost = undefined> {
   readonly write?: Omit<Partial<WriteToolDeps<THost>>, FsToolsSharedKey>;
   readonly applyPatch?: Omit<Partial<ApplyPatchToolDeps<THost>>, FsToolsSharedKey>;
   /**
-   * Off by default: the bundle starts no process unless you ask. The object
-   * is the bash tool's dependencies, with `runner` and `env` required. The
-   * bundle adds its digest and clock. `false` is the same as leaving it out.
+   * Off by default. The bash tool's options, with `runner` and `env` required.
+   * `false` is the same as leaving it out.
    */
   readonly bash?: false | FsToolsBashOptions<THost>;
 }
@@ -63,10 +62,9 @@ export interface FsTools<THost = undefined> {
   readonly locks: LockManager;
   readonly clock: Clock;
   /**
-   * Deletes the record for a path, so the next edit or write needs a read.
-   * Never throws. With state null it still stats, and reports recorded: false.
-   * When fs is a factory, pass the call context (a hook has it as ctx.call):
-   * without it the outcome is ok: false with reason unsupported.
+   * Deletes the read record for a path, so the next edit or write needs a
+   * fresh read. Never throws. When fs is a factory, pass the call context (a
+   * hook has it as ctx.call), or the outcome is ok: false.
    */
   invalidate(path: string, call?: ToolCallContext<THost>): Promise<InvalidateOutcome>;
 }
@@ -76,7 +74,7 @@ export interface FsToolsWithBash<THost = undefined> extends FsTools<THost> {
   readonly bash: BashTool<THost>;
 }
 
-const KNOWN: ReadonlySet<string> = new Set([
+const KNOWN_OPTION_KEYS: ReadonlySet<string> = new Set([
   "fs",
   "state",
   "digest",
@@ -89,8 +87,7 @@ const KNOWN: ReadonlySet<string> = new Set([
   "bash",
 ]);
 
-/** The keys each tool's options may not set, because the bundle shares them. */
-const SHARED_KEYS = {
+const SHARED_KEYS_BY_TOOL = {
   read: ["fs", "state", "digest", "clock"],
   edit: ["fs", "state", "digest", "locks", "clock"],
   write: ["fs", "state", "digest", "locks", "clock"],
@@ -98,26 +95,23 @@ const SHARED_KEYS = {
   bash: ["digest", "clock"],
 } as const;
 
-/** With state null, invalidate still stats the path, and there is never a record. */
-const NO_STATE: ReadStateStore = Object.freeze({
+const EMPTY_STATE_STORE: ReadStateStore = Object.freeze({
   get: async () => null,
   put: async () => {},
   delete: async () => {},
 });
 
 /**
- * read, edit, write, and apply_patch over one backend, with one read store,
- * one digest, one lock manager, and one clock. With `bash`, a bash tool that
- * gets the same digest and clock. It runs anywhere: nothing here needs Node.
+ * Creates read, edit, write, and apply_patch tools over one backend, sharing
+ * one read store, digest, lock manager, and clock. With `bash`, also a bash
+ * tool with the same digest and clock. Needs no Node APIs.
  *
- * The write tools take the lock; read and bash take none. The backend's
- * roots do not limit what a bash command touches. A host that wants the next
- * edit after a command to need a read calls invalidate(path) from a bash
- * afterRun hook.
+ * A bash command is not limited by the backend's roots and does not update the
+ * read state. To make the next edit after a command need a read, call
+ * invalidate(path) from a bash afterRun hook.
  *
- * Throws TypeError on an unknown option key, on a shared key (fs, state,
- * digest, locks, clock) inside a tool's options, and on anything a tool
- * factory refuses.
+ * Throws TypeError on an unknown option, a shared option inside a tool's
+ * options, or anything a tool factory refuses.
  */
 export function createFsTools<THost = undefined>(
   options: CreateFsToolsOptions<THost> & { readonly bash: FsToolsBashOptions<THost> },
@@ -128,10 +122,9 @@ export function createFsTools<THost = undefined>(
 export function createFsTools<THost = undefined>(
   options: CreateFsToolsOptions<THost>,
 ): FsTools<THost> {
-  checkFsToolsOptions("createFsTools", options, KNOWN, SHARED_KEYS);
+  checkFsToolsOptions("createFsTools", options, KNOWN_OPTION_KEYS, SHARED_KEYS_BY_TOOL);
   const { fs } = options;
   const clock = options.clock ?? (() => new Date());
-  // The default store expires records on the bundle's clock too.
   const state = options.state === undefined ? memoryStore({ clock }) : options.state;
   const digest = options.digest ?? sha256Digest();
   const locks = options.locks ?? memoryLocks();
@@ -154,11 +147,10 @@ export function createFsTools<THost = undefined>(
     digest,
     locks,
     clock,
-    invalidate: invalidator(fs, state ?? NO_STATE),
+    invalidate: invalidator(fs, state ?? EMPTY_STATE_STORE),
   });
 }
 
-/** An object, known top-level keys, and no shared key inside a tool's options. */
 function checkFsToolsOptions(
   label: string,
   options: unknown,
@@ -193,7 +185,6 @@ function checkFsToolsOptions(
   }
 }
 
-/** One invalidator for a fixed backend. A factory backend is built from the call. */
 function invalidator<THost>(
   fs: CreateFsToolsOptions<THost>["fs"],
   state: ReadStateStore,
@@ -233,7 +224,6 @@ function invalidator<THost>(
   };
 }
 
-/** A read state store: an object with get, put, and delete. A per-call factory is not one. */
 function isStore(value: unknown): boolean {
   if (value === null || typeof value !== "object") return false;
   const store = value as Record<string, unknown>;

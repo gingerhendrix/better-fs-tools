@@ -14,10 +14,7 @@ type Operation = "write" | "stage" | "publish" | "remove";
 
 const IO: MutationError = { reason: "io", detail: "injected" };
 
-/**
- * A fault plan: `fail(operation, path, nth)` fails the nth call (1-based)
- * of that operation on that path. Calls are counted per operation and path.
- */
+/** `fail(operation, path, nth)` fails the nth (1-based) call of that operation on that path. */
 function faults() {
   const counts = new Map<string, number>();
   const failing = new Map<string, MutationError>();
@@ -39,7 +36,6 @@ function faults() {
 
 const FILES = { "/a.ts": "a\n", "/b.ts": "b\n", "/c.ts": "c\n" };
 
-/** Updates a and b, adds n, deletes c: one step of each kind. */
 const PATCH = patchText(
   "*** Update File: /a.ts",
   "@@",
@@ -56,7 +52,6 @@ const PATCH = patchText(
 
 interface SetupOptions {
   readonly stage: boolean;
-  /** Modes to give files before they are read. */
   readonly modes?: Readonly<Record<string, number>>;
   /** Runs at each faults() call, before the fault plan decides. */
   readonly during?: (operation: Operation, path: string, fs: MemoryFileSystem) => void;
@@ -89,7 +84,7 @@ function snapshot(fs: MemoryFileSystem) {
 describe.each([
   ["with stage()", true, "publish"],
   ["without stage()", false, "write"],
-] as const)("the staged commit and rollback (W5), %s", (_name, stage, publish) => {
+] as const)("the staged commit and rollback, %s", (_name, stage, publish) => {
   test("every step publishes in patch order", async () => {
     const { applyPatch, fs, plan } = await setup({ stage });
     const result = await applyPatch({ patch: PATCH });
@@ -251,7 +246,6 @@ describe("the stage step", () => {
     expect(result.commit).toBeNull();
     expect(snapshot(fs)).toEqual(before);
     expect(plan.log.some((entry) => entry.startsWith("publish"))).toBe(false);
-    // The directory stage() made for /new/n.ts is gone again.
     const stat = await fs.stat("/new/n.ts", {});
     expect(stat.ok && !stat.stat.exists && stat.stat.missingDirectories).toEqual(["/new"]);
   });

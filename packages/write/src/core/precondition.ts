@@ -9,22 +9,11 @@ import type { Loaded } from "./load.ts";
 import type { MutationScope } from "./scope.ts";
 
 export interface PreconditionResult {
-  /** What the commit sends to the backend. */
   readonly precondition: Precondition;
-  /** The record that backed the check. null when none was needed or read. */
   readonly record: ReadRecord | null;
-  /**
-   * true when the record is not fresh and the policy lets the tool rematch
-   * (edit and apply_patch with onStale "rematch"). The planner decides.
-   */
-  readonly stale: boolean;
+  readonly mustRematch: boolean;
 }
 
-/**
- * The precondition table (section 5.3) for one target. Asks for the store
- * whenever the call has one, so a failing state factory stops the call
- * before any commit, even for a create that only records.
- */
 export async function checkPrecondition<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -36,19 +25,20 @@ export async function checkPrecondition<THost>(
   scope.checkAbort();
   const { preconditions, messages, digest } = scope.deps;
   const tool = scope.tool;
+  // Asked for early so a failing state factory stops the call before any commit.
   const store = scope.deps.state === null ? null : scope.stateStore();
   if (!stat.exists || loaded === null) {
-    return { precondition: { kind: "absent" }, record: null, stale: false };
+    return { precondition: { kind: "absent" }, record: null, mustRematch: false };
   }
   const version: Precondition = { kind: "version", version: loaded.version };
   if (preconditions.requireRead === "off")
-    return { precondition: version, record: null, stale: false };
+    return { precondition: version, record: null, mustRematch: false };
   if (store === null) {
-    addOffNote(scope, tool);
-    return { precondition: version, record: null, stale: false };
+    addReadBeforeWriteOffNote(scope, tool);
+    return { precondition: version, record: null, mustRematch: false };
   }
 
-  const record = await getRecord(scope, store, stat.resolvedPath, digest?.id ?? null);
+  const record = await getUsableRecord(scope, store, stat.resolvedPath, digest?.id ?? null);
   if (record === null) {
     throw scope.stop("NOT_READ", messages.notRead({ tool, path: requested, wholeFile: false }));
   }
@@ -58,19 +48,15 @@ export async function checkPrecondition<THost>(
     });
   }
   if (isFresh(record, loaded, fs.capabilities.identity)) {
-    return { precondition: version, record, stale: false };
+    return { precondition: version, record, mustRematch: false };
   }
   if (preconditions.onStale === "reject" || tool === "write") {
     throw scope.stop("STALE", messages.stale({ tool, path: requested }));
   }
-  return { precondition: version, record, stale: true };
+  return { precondition: version, record, mustRematch: true };
 }
 
-/**
- * The stored record, or null when the get fails, the record is not schema
- * 2, or another digest made it. A store is a cache: its failure is a miss.
- */
-async function getRecord<THost>(
+async function getUsableRecord<THost>(
   scope: MutationScope<THost>,
   store: ReadStateStore,
   key: string,
@@ -81,6 +67,7 @@ async function getRecord<THost>(
     record = await scope.race(() => store.get(key));
   } catch (error) {
     if (error instanceof AbortStop) throw error;
+    // A store is a cache: its failure is a miss.
     return null;
   }
   if (!isRecord(record) || record.schema !== 2) return null;
@@ -89,7 +76,6 @@ async function getRecord<THost>(
   return record as unknown as ReadRecord;
 }
 
-/** The version matches on a backend with stable identity, or the content hash matches. */
 function isFresh(record: ReadRecord, loaded: Loaded, identity: boolean): boolean {
   if (identity && record.version !== null && record.version === loaded.version) return true;
   return record.contentId !== null && record.contentId === loaded.contentId;
@@ -101,8 +87,7 @@ function partialAllowed(policy: Readonly<PreconditionPolicy>, tool: WriteToolNam
   return tool === "edit" || tool === "apply_patch";
 }
 
-/** The read-before-write-off note, once for each call. */
-function addOffNote<THost>(scope: MutationScope<THost>, tool: WriteToolName): void {
+function addReadBeforeWriteOffNote<THost>(scope: MutationScope<THost>, tool: WriteToolName): void {
   if (scope.notes.some((note) => note.code === "read-before-write-off")) return;
   scope.notes.push({
     code: "read-before-write-off",

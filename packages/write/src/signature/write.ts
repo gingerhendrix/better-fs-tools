@@ -31,16 +31,15 @@ export function snakeCaseWriteSignature(
   return writeSignature(options, "snakeCaseWriteSignature", "write_file", "file_path");
 }
 
-/** `ownPath` is the preset's path name. `describe` and `names` use it as the key. */
 function writeSignature(
   options: SignatureDocs<string>,
   label: string,
   name: string,
-  ownPath: string,
+  presetPathName: string,
 ): WriteSignature {
-  const checked = checkDocs(options, label, [ownPath, "content"]);
+  const checked = checkDocs(options, label, [presetPathName, "content"]);
   const { describe } = checked;
-  const pathName = checked.names[ownPath] ?? ownPath;
+  const pathName = checked.names[presetPathName] ?? presetPathName;
   const contentName = checked.names.content ?? "content";
   const keys = [pathName, contentName];
   const schema = deepFreeze(
@@ -49,7 +48,7 @@ function writeSignature(
         [
           pathName,
           pathSchema(
-            describe[ownPath] ??
+            describe[presetPathName] ??
               "Path of the file to create or replace, relative to the working directory or absolute within an allowed root.",
           ),
         ],

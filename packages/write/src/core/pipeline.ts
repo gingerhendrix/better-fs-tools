@@ -18,7 +18,7 @@ import { acquireLocks } from "./lock.ts";
 import { WriteStop, errorNote, failure, messageOf } from "./outcomes.ts";
 import { planEdit } from "./plan-edit.ts";
 import { planWrite } from "./plan-write.ts";
-import { withContent } from "./planned.ts";
+import { withAuthorizerContent } from "./planned.ts";
 import type { Planned, ResolvedTarget } from "./planned.ts";
 import { checkPrecondition } from "./precondition.ts";
 import type { PreconditionResult } from "./precondition.ts";
@@ -27,7 +27,6 @@ import { resolvePath } from "./resolve.ts";
 import { MutationScope } from "./scope.ts";
 import { statAgain, statTarget } from "./target.ts";
 
-/** One write call, start to end. */
 export async function runWrite<THost>(
   deps: WriteDependencies<THost>,
   input: unknown,
@@ -40,14 +39,13 @@ export async function runWrite<THost>(
     return formatResult(deps, call, invalidInput(deps, "write", input, error));
   }
   const report = await runSingleFile(deps, request, call, {
-    missing: "create",
+    whenMissing: "create",
     plan: (scope, target, loaded, pre) => planWrite(scope, request, target, loaded, pre),
-    sameBytes: "no-change",
+    whenSameBytes: "no-change",
   });
   return formatResult(deps, call, report);
 }
 
-/** One edit call, start to end. `misses` counts NO_MATCH results for this tool instance. */
 export async function runEdit<THost>(
   deps: EditDependencies<THost>,
   input: unknown,
@@ -62,34 +60,25 @@ export async function runEdit<THost>(
   }
   const { matchers } = deps;
   const report = await runSingleFile(deps, request, call, {
-    missing: "not-found",
+    whenMissing: "not-found",
     plan: (scope, target, loaded, pre) =>
       planEdit(scope, { request, matchers, misses }, target, loaded, pre),
-    sameBytes: "error",
+    whenSameBytes: "error",
   });
   return formatResult(deps, call, report);
 }
 
-/** What differs between the single-file tools, write and edit. */
 export interface SingleFilePlan<THost> {
-  /** "create": a missing target is a create. "not-found": it ends the call with NOT_FOUND. */
-  readonly missing: "create" | "not-found";
+  readonly whenMissing: "create" | "not-found";
   readonly plan: (
     scope: MutationScope<THost>,
     target: ResolvedTarget,
     loaded: Loaded | null,
     pre: PreconditionResult,
   ) => Planned | "no-change";
-  /** What encoded bytes equal to the loaded bytes mean. */
-  readonly sameBytes: "no-change" | "error";
+  readonly whenSameBytes: "no-change" | "error";
 }
 
-/**
- * The stage order for one file: resolve, stat, access authorize, lock, stat
- * again, load, precondition, plan, guards, change authorize (W6), encode,
- * commit, hooks, record. Never throws: a stage that stops the call gives
- * an error report with the notes gathered so far.
- */
 export async function runSingleFile<THost>(
   deps: WriteDependencies<THost>,
   request: Extract<MutationRequest, { readonly path: string }>,
@@ -111,7 +100,6 @@ async function singleFileStages<THost>(
   tool: SingleFilePlan<THost>,
 ): Promise<MutationReport> {
   const { messages, limits } = scope.deps;
-  // An abort before the call started is phase input in every tool.
   scope.checkAbort();
   scope.enter("resolve");
   const fs = scope.fileSystem();
@@ -121,7 +109,7 @@ async function singleFileStages<THost>(
     scope.stop("NOT_FOUND", messages.notFound({ tool: scope.tool, path: requested }));
 
   const first = await statTarget(scope, fs, target);
-  if (!first.exists && tool.missing === "not-found") throw notFound();
+  if (!first.exists && tool.whenMissing === "not-found") throw notFound();
   await authorizeAccess(scope, [
     { action: first.exists ? "update" : "create", target: resolved(requested, first) },
   ]);
@@ -129,7 +117,7 @@ async function singleFileStages<THost>(
   const release = await acquireLocks(scope, [first.resolvedPath], [requested]);
   try {
     const stat = await statAgain(scope, fs, target, first);
-    if (!stat.exists && tool.missing === "not-found") throw notFound();
+    if (!stat.exists && tool.whenMissing === "not-found") throw notFound();
     const loaded = stat.exists ? await loadFile(scope, fs, stat, requested) : null;
     const pre = await checkPrecondition(scope, fs, stat, loaded, requested);
     const resolvedTarget = resolved(requested, stat);
@@ -140,7 +128,7 @@ async function singleFileStages<THost>(
     const [content] = await authorizeChanges(scope, [planned.change]);
     if (content !== null && content !== undefined) {
       scope.enter("plan");
-      planned = withContent(planned, content, limits);
+      planned = withAuthorizerContent(planned, content, limits);
       scope.notes.push({
         code: "user-modified",
         severity: "warning",
@@ -151,7 +139,7 @@ async function singleFileStages<THost>(
 
     const bytes = encodePlanned(scope, planned);
     if (bytes === "same") {
-      if (tool.sameBytes === "no-change") return noChange(scope, resolvedTarget.displayPath);
+      if (tool.whenSameBytes === "no-change") return noChange(scope, resolvedTarget.displayPath);
       throw scope.stop("NO_CHANGE", messages.noChange({ path: requested }));
     }
     const mutated = await commitOne(scope, fs, planned, bytes);
@@ -194,7 +182,6 @@ export function noChange<THost>(
   };
 }
 
-/** The report for a stage that threw. */
 export function stopped<THost>(scope: MutationScope<THost>, error: unknown): MutationReport {
   if (error instanceof WriteStop) return error.report;
   const { messages } = scope.deps;

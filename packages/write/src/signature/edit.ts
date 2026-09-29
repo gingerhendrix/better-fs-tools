@@ -62,31 +62,35 @@ interface SingleNames {
   readonly all: string;
 }
 
-/** `own` holds the preset's parameter names. `describe` and `names` use them as keys. */
 function singleEditSignature(
   options: SignatureDocs<string> & MatcherOption,
   label: string,
-  own: SingleNames,
+  presetNames: SingleNames,
 ): EditSignature {
-  const checked = checkDocs(options, label, [own.path, own.old, own.new, own.all]);
+  const checked = checkDocs(options, label, [
+    presetNames.path,
+    presetNames.old,
+    presetNames.new,
+    presetNames.all,
+  ]);
   const { describe } = checked;
   const rename = (param: string): string => checked.names[param] ?? param;
   const names: SingleNames = {
-    path: rename(own.path),
-    old: rename(own.old),
-    new: rename(own.new),
-    all: rename(own.all),
+    path: rename(presetNames.path),
+    old: rename(presetNames.old),
+    new: rename(presetNames.new),
+    all: rename(presetNames.all),
   };
   const keys = [names.path, names.old, names.new, names.all];
   const matchers = checkMatchers(options.matchers);
   const schema = deepFreeze(
     objectSchema(
       [
-        [names.path, pathSchema(describe[own.path] ?? PATH_TEXT)],
+        [names.path, pathSchema(describe[presetNames.path] ?? PATH_TEXT)],
         [
           names.old,
           stringSchema(
-            describe[own.old] ??
+            describe[presetNames.old] ??
               `Text to replace. It must match one place in the file unless ${names.all} is true.`,
             true,
           ),
@@ -94,13 +98,14 @@ function singleEditSignature(
         [
           names.new,
           stringSchema(
-            describe[own.new] ?? `Replacement text. Send an empty string to delete ${names.old}.`,
+            describe[presetNames.new] ??
+              `Replacement text. Send an empty string to delete ${names.old}.`,
           ),
         ],
         [
           names.all,
           booleanSchema(
-            describe[own.all] ?? `Replace every place ${names.old} matches. Default false.`,
+            describe[presetNames.all] ?? `Replace every place ${names.old} matches. Default false.`,
           ),
         ],
       ],
@@ -139,7 +144,7 @@ function singleEditSignature(
 
 /**
  * edit({ path, edits: [{ oldText, newText }] }). Pi and Cloudflare Computer.
- * No replaceAll: param("replaceAll") is "", so no message suggests it.
+ * Has no replaceAll parameter, so no message suggests one.
  */
 export function multiEditSignature(
   options: SignatureDocs<"path" | "edits" | "oldText" | "newText"> & MatcherOption = {},

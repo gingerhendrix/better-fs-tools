@@ -1,7 +1,4 @@
-/**
- * Type tests. `tsc -b` checks this file through the package tsconfig. Bun never
- * runs it: the name does not match Bun's test file pattern.
- */
+// Type tests: `tsc -b` checks this file; Bun never runs it.
 import type { ToolError } from "@better-fs-tools/read";
 
 import type { MutationResult, WriteErrorCode, WritePhase, WriteToolName } from "../../src/index.ts";

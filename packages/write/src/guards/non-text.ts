@@ -6,14 +6,7 @@ import { ALLOW, refuse } from "./shared.ts";
 const ENCODER = new TextEncoder();
 const BOM = Uint8Array.of(0xef, 0xbb, 0xbf);
 
-/**
- * Refuses new content that the call's classifiers call unsupported, such as
- * a notebook, NUL bytes, or an image signature (plan D11). The load stage
- * already refuses a target that is not text, so this guard mainly covers
- * creates, for example a new `.ipynb`. The sample is the first
- * `limits.sampleBytes` of the content as UTF-8, with the BOM and CRLF line
- * breaks the file will get, and the path.
- */
+/** Refuses new content that the classifiers find is not text, such as a notebook, NUL bytes, or an image. */
 export function nonTextGuard(): Guard<unknown> {
   return Object.freeze<Guard<unknown>>({
     id: "non-text",
@@ -32,8 +25,8 @@ export function nonTextGuard(): Guard<unknown> {
 }
 
 function sampleOf(after: PlannedText, max: number, path: string): ClassificationSample {
-  // Each UTF-16 unit is at least one UTF-8 byte, so max + 1 units cover the sample.
-  let head = after.text.slice(0, max + 1);
+  const unitsCoveringMaxBytes = max + 1;
+  let head = after.text.slice(0, unitsCoveringMaxBytes);
   if (after.style.eol === "crlf") head = head.replaceAll("\n", "\r\n");
   const body = ENCODER.encode(head);
   const bytes = new Uint8Array((after.style.bom ? BOM.byteLength : 0) + body.byteLength);
@@ -47,7 +40,6 @@ function sampleOf(after: PlannedText, max: number, path: string): Classification
   };
 }
 
-/** The first classifier with an opinion decides, as in the load stage. */
 function unsupported(
   classifiers: readonly Classifier[],
   sample: ClassificationSample,

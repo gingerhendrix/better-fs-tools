@@ -12,7 +12,6 @@ import { change, guardContext, verdict } from "./helpers.ts";
 const LONG = "x".repeat(40);
 const FILE = `${["a", LONG, "c", "d", "e"].join("\n")}\n`;
 
-/** Read output for FILE with a clamp and a continuation, gutter removed. */
 async function readOutput(formatter?: ReadFormatter<unknown>): Promise<string> {
   const fs = memoryFileSystem({ files: { "/f.txt": FILE } });
   const read = createReadTool({

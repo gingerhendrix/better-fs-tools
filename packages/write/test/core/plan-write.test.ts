@@ -58,7 +58,6 @@ describe("write planning (section 5.6)", () => {
     const result = await write({ path: "/w.txt", content: "one\ntwo\r\nthree\n" });
     expect(result.status).toBe("ok");
     expect(text(fs, "/w.txt")).toBe("one\r\ntwo\r\nthree\r\n");
-    // The diff is in LF text space.
     expect(result.changes[0]?.diff).toContain("+three\n");
   });
 

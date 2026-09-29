@@ -13,10 +13,6 @@ export interface AccessRequest {
   readonly target: ResolvedTarget;
 }
 
-/**
- * The access stage: one call for each target in order, with `change: null`
- * and an empty plan, before any content byte is read. A denial gives DENIED.
- */
 export async function authorizeAccess<THost>(
   scope: MutationScope<THost>,
   requests: readonly AccessRequest[],
@@ -33,16 +29,10 @@ export async function authorizeAccess<THost>(
       change: null,
       plan: [],
     });
-    // Content has no meaning before a change is planned.
     if (content !== null) throw malformed(scope);
   }
 }
 
-/**
- * The change stage: one call for each planned change in order, with the whole
- * plan. Returns the W6 content for each change, or null. Content is valid for
- * edit and write only: for apply_patch it gives EXTENSION_FAILED.
- */
 export async function authorizeChanges<THost>(
   scope: MutationScope<THost>,
   plan: readonly PlannedChange[],
@@ -67,12 +57,6 @@ export async function authorizeChanges<THost>(
   return contents;
 }
 
-/**
- * One authorizer call, raced against the signal. Allow notes join the call's
- * notes. Returns the allow decision's content, or null. A denial gives
- * DENIED with the authorizer's message when it gave a note. A throw or a
- * malformed decision gives EXTENSION_FAILED.
- */
 async function runAuthorizer<THost>(
   scope: MutationScope<THost>,
   target: WriteAuthorizeTarget,

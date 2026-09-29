@@ -18,7 +18,6 @@ import type { MutationSignature } from "../../src/signature/index.ts";
 import { generatedInputs } from "./generated.ts";
 import type { NestedKeys } from "./generated.ts";
 
-/** The path pattern before batch 6. It used a lookahead, which strict grammar engines may refuse. */
 const LOOKAHEAD_PATH_PATTERN = "^(?=[^\\u0000]*$)[\\s\\S]*[^\\s\\u0000][\\s\\S]*$";
 
 const PATH_TABLE = [
@@ -130,7 +129,6 @@ describe("signature presets", () => {
         }
         if (bySchema) accepted += 1;
       }
-      // Both outcomes are exercised.
       expect(accepted).toBeGreaterThan(10);
       expect(accepted).toBeLessThan(inputs.length - 20);
     });

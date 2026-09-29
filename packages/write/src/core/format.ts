@@ -6,12 +6,6 @@ import type { MutationReport, MutationResult } from "../contract/result.ts";
 import { defaultWriteFormatter } from "../formatters/default.ts";
 import { extensionId } from "./extension-error.ts";
 
-/**
- * Runs the formatter last, in "model" mode. A string becomes one text part.
- * A formatter that throws or returns something else gives an extension-failed
- * warning, and the default formatter formats the report. The status, changes,
- * and commit report stay, so a committed change is never reported as lost.
- */
 export function formatResult<THost>(
   deps: WriteDependencies<THost>,
   call: ToolCallContext<THost>,
@@ -26,9 +20,7 @@ export function formatResult<THost>(
   let content: readonly ContentPart[] | null = null;
   try {
     content = toContent(deps.formatter.format(report, ctx));
-  } catch {
-    // Falls through to the default formatter.
-  }
+  } catch {}
   if (content !== null) return { ...report, content };
   const id = extensionId(deps.formatter);
   const failed: MutationReport = {

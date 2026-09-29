@@ -3,7 +3,6 @@ import { describe, expect, test } from "bun:test";
 import { defaultGuards } from "../../src/index.ts";
 import { errorOf, harness } from "../helpers.ts";
 
-/** Ordinary files the default guards must let through, as creates and as rewrites. */
 const ORDINARY: Record<string, string> = {
   "/docs/steps.md": "# Steps\n\n1. Install.\n2. Configure.\n3. Run.\n\n- a\n- b\n",
   "/src/table.ts": "export const names = {\n  1: 'one',\n  2: 'two',\n};\n",

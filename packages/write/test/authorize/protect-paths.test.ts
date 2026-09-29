@@ -58,7 +58,6 @@ describe("protectPaths", () => {
     );
     expect(result.status).toBe("ok");
     expect(text(fs, "/AGENTS.md")).toBe("b\n");
-    // Asked in the access stage only. The change stage reuses the answer.
     expect(asked).toEqual([["/AGENTS.md", null, call]]);
     await edit({ path: "/AGENTS.md", edits: [{ oldText: "b", newText: "c" }] });
     expect(asked).toHaveLength(2);

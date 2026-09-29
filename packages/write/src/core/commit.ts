@@ -10,13 +10,6 @@ import type { Planned, ResolvedTarget } from "./planned.ts";
 import type { MutationScope } from "./scope.ts";
 import { ioFailure, statTarget } from "./target.ts";
 
-/**
- * One fs.write with the planned precondition, and for a create the first
- * mode a hook asks for. When the backend cannot compare
- * and swap, the core first checks the precondition itself with a fresh stat.
- * From the fs.write call on, the signal is ignored: a started commit
- * finishes. `changed` gives STALE and `exists` gives EXISTS (section 5.11).
- */
 export async function commitOne<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -51,11 +44,6 @@ export async function commitOne<THost>(
   return outcome.file;
 }
 
-/**
- * The core's own stale check for a backend without compare-and-swap: the
- * target must still be absent for a create, or at the loaded version.
- * Throws STALE or EXISTS in the commit phase.
- */
 export async function checkBeforeCommit<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -78,7 +66,6 @@ export async function checkBeforeCommit<THost>(
   }
 }
 
-/** not-atomic, no-compare-and-swap, mode-not-kept, and directories-created. Each once for each call. */
 export function addCapabilityNotes<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -101,8 +88,8 @@ export function addCapabilityNotes<THost>(
       message: messages.noCompareAndSwap({ backend }),
     });
   }
-  // A replace, not a create or a move destination.
-  if (!capabilities.preserveMode && planned.precondition.kind !== "absent") {
+  const replacesExistingFile = planned.precondition.kind !== "absent";
+  if (!capabilities.preserveMode && replacesExistingFile) {
     add({ code: "mode-not-kept", severity: "info", message: messages.modeNotKept({ backend }) });
   }
   if (file.createdDirectories.length > 0) {
@@ -116,7 +103,6 @@ export function addCapabilityNotes<THost>(
   }
 }
 
-/** The FileChange for a committed create or update. */
 export function fileChange<THost>(
   scope: MutationScope<THost>,
   planned: Planned,

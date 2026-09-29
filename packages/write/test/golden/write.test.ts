@@ -6,7 +6,6 @@ import { createWriteTool, defaultWriteFormatter, textOf } from "../../src/index.
 import type { MutationResult } from "../../src/index.ts";
 import { errorOf, harness, withoutCompareAndSwap } from "../helpers.ts";
 
-/** The model text and the fields a host reads, for one call. */
 function shown(result: MutationResult) {
   return {
     status: result.status,

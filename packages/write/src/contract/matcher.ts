@@ -11,7 +11,7 @@ export interface MatchRange {
   /** UTF-16 offsets into the haystack as given. */
   readonly start: number;
   readonly end: number;
-  /** Set when an edge of the hit falls inside a folded span. The core refuses it with a clear message. */
+  /** Set when an edge of the hit falls inside a folded span. Such a hit is refused. */
   readonly refused?: "boundary";
 }
 

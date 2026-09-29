@@ -1,6 +1,4 @@
-/**
- * Type tests for createFsTools. `tsc -b` checks this file; Bun never runs it.
- */
+// Type tests: `tsc -b` checks this file; Bun never runs it.
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { shellEnv } from "@better-fs-tools/shell";
 import type { BashTool, CommandRunner } from "@better-fs-tools/shell";

@@ -19,24 +19,24 @@ import type { PatchParser } from "./patch.ts";
 import type { PreconditionPolicy } from "./preconditions.ts";
 
 export interface WriteDependencies<THost = undefined> {
-  /** A filesystem, or a factory called once for each call before resolve. */
+  /** A filesystem, or a factory called once for each call. */
   readonly fs: WritableFileSystem | ((call: ToolCallContext<THost>) => WritableFileSystem);
   readonly limits: Readonly<WriteLimits>;
   readonly messages: Readonly<WriteMessageCatalog>;
   /** The read tool's resolvers work here. null is identity. */
   readonly resolve: PathResolver<THost> | null;
-  /** Access stage and change stage. null allows. */
+  /** Approves or refuses each write, before load and again for each planned change. null allows all. */
   readonly authorize: WriteAuthorizer<THost> | null;
   readonly preconditions: Readonly<PreconditionPolicy>;
   /** The read tool's store. A factory runs at most once for each call. null turns read-before-write off. */
   readonly state: ReadStateStore | ((call: ToolCallContext<THost>) => ReadStateStore | null) | null;
-  /** Required when state is set. The factories' StateNeedsDigest type says so too. */
+  /** Required when state is set. */
   readonly digest: Digest | null;
   readonly clock: Clock;
   readonly locks: LockManager;
-  /** Refuse non-text targets on load. Non-empty. */
+  /** Refuse non-text files. Non-empty. */
   readonly classifiers: readonly Classifier[];
-  /** First codec that accepts the sample decodes. Non-empty. */
+  /** The first codec that accepts a file decodes it. Non-empty. */
   readonly codecs: readonly Codec[];
   /** Default defaultGuards(). An empty array turns the guards off. */
   readonly guards: readonly Guard<THost>[];
@@ -50,7 +50,7 @@ export interface EditDependencies<THost = undefined> extends WriteDependencies<T
 }
 
 export interface ApplyPatchDependencies<THost = undefined> extends WriteDependencies<THost> {
-  /** Ordered, used in line mode. Non-empty. */
+  /** Ordered. Used to find hunk lines. Non-empty. */
   readonly matchers: readonly Matcher[];
   readonly patchParser: PatchParser;
 }

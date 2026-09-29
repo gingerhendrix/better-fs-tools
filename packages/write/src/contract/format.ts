@@ -13,6 +13,6 @@ export interface WriteFormatContext<THost = undefined> {
 
 export interface WriteFormatter<THost = undefined> {
   readonly id: string;
-  /** Sync and pure. A string becomes one text part. A throw gives an extension-failed warning and the default format. */
+  /** Sync and pure. A string becomes one text part. If it throws, the default format is used with a warning. */
   format(report: MutationReport, ctx: WriteFormatContext<THost>): string | readonly ContentPart[];
 }

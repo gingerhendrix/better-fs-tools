@@ -5,12 +5,6 @@ import type { Planned, ResolvedTarget } from "./planned.ts";
 import type { PreconditionResult } from "./precondition.ts";
 import type { MutationScope } from "./scope.ts";
 
-/**
- * Section 5.6. A create takes the content as given, in the first codec's
- * new-file style, and creates missing parents. A replace keeps the loaded
- * style: for a "crlf" file, CRLF in the content becomes LF, and encode
- * restores CRLF. The same text as the loaded text is "no-change".
- */
 export function planWrite<THost>(
   scope: MutationScope<THost>,
   request: WriteRequest,
@@ -45,7 +39,7 @@ export function planWrite<THost>(
     createParents: loaded === null,
     record: pre.record,
     userModified: false,
-    rematched: false,
+    rematchedAfterStale: false,
     matches: [],
     snippets: [],
   };

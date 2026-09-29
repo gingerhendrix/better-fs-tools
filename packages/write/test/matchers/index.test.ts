@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { defaultEditMatchers, defaultPatchMatchers } from "../../src/index.ts";
 
 describe("default matcher chains", () => {
-  test("edit: exact, normalized, escape (W7)", () => {
+  test("edit: exact, normalized, escape", () => {
     expect(defaultEditMatchers().map((matcher) => matcher.id)).toEqual([
       "exact",
       "normalized",

@@ -5,9 +5,8 @@ import { isStateStore, isWritable } from "../core/deps.ts";
 import { messageOf } from "../core/outcomes.ts";
 
 /**
- * What `invalidate(path)` did. `recorded` says whether a record was there
- * before the delete. A failed stat or a failed store call is `ok: false`, and
- * the record, if any, stays.
+ * What `invalidate(path)` did. `recorded` says whether a read record existed.
+ * On failure the record, if any, stays.
  */
 export type InvalidateOutcome =
   | { readonly ok: true; readonly resolvedPath: string; readonly recorded: boolean }
@@ -17,10 +16,9 @@ export type InvalidateOutcome =
 export type Invalidate = (path: string) => Promise<InvalidateOutcome>;
 
 /**
- * Deletes the record for a path, so the next edit or write needs a read. For
- * a shell tool that may have written the file. Runs fs.stat, then deletes
- * the record under the stat's resolved path. Never throws: every failure is
- * an outcome, so a policy hook can stop when invalidation did not happen.
+ * Deletes the read record for a path, so the next edit or write needs a fresh
+ * read. Use it after a shell tool may have written the file. Never throws:
+ * every failure is returned as an outcome.
  */
 export function createInvalidator(deps: {
   readonly fs: WritableFileSystem;

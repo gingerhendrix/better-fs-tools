@@ -32,7 +32,6 @@ describe("memoryLocks", () => {
     const held = await locks.acquire(["/b"], {});
     const outcome = await locks.acquire(["/a", "/b"], {});
     expect(outcome).toEqual({ ok: false, reason: "timeout" });
-    // "/a" was taken and given back.
     const a = await locks.acquire(["/a"], {});
     expect(a.ok).toBe(true);
     if (held.ok) held.release();

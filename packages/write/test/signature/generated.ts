@@ -1,8 +1,4 @@
-/**
- * Deterministic model-like inputs for signature tests, as the read signature
- * tests make them. A seeded generator keeps failures reproducible. Values are
- * JSON values only: a model never sends undefined, NaN, or a function.
- */
+// JSON values only: a model never sends undefined, NaN, or a function.
 const STRINGS = [
   "a.txt",
   "dir/a b.txt",

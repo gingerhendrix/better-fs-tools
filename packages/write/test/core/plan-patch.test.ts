@@ -21,7 +21,6 @@ function bytes(...parts: (string | Uint8Array)[]): Uint8Array {
   return out;
 }
 
-/** A harness whose files have all been read. */
 async function readAll(
   files: Record<string, string | Uint8Array>,
   options: Parameters<typeof harness>[0] = {},
@@ -31,7 +30,6 @@ async function readAll(
   return setup;
 }
 
-/** Bytes and version of every path, for "nothing changed" checks. */
 function snapshot(setup: ReturnType<typeof harness>, paths: readonly string[]) {
   return paths.map((path) => setup.fs.peek(path));
 }
@@ -182,7 +180,7 @@ describe("hunk verification (section 5.7 step 3)", () => {
     expect(text(fs, "/a.ts")).toBe("a\nB");
   });
 
-  test("a hunk of added lines goes after its @@ line, or at the end of the file without one (D19)", async () => {
+  test("a hunk of added lines goes after its @@ line, or at the end of the file without one", async () => {
     const { applyPatch, fs } = await readAll({ "/a.ts": "head\nbody\ntail\n" });
     await applyPatch({ patch: patchText("*** Update File: /a.ts", "@@ head", "+after head") });
     expect(text(fs, "/a.ts")).toBe("head\nafter head\nbody\ntail\n");

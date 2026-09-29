@@ -46,12 +46,6 @@ const KNOWN: ReadonlySet<string> = new Set([
   "formatter",
 ]);
 
-/**
- * Validates and resolves the shared dependencies once, synchronously.
- * `limits`, `messages`, and `preconditions` merge over their defaults key by
- * key. Every other dependency replaces its default. `fs` is required. `tool`
- * names the tool in the TypeError texts.
- */
 export function resolveWriteDependencies<THost>(
   deps: WriteToolDeps<THost>,
   tool: string,
@@ -64,7 +58,7 @@ export function resolveWriteDependencies<THost>(
   const { fs } = deps;
   if (typeof fs !== "function" && !isWritable(fs)) {
     throw new TypeError(
-      isReadable(fs)
+      isFileSystem(fs)
         ? "fs has no write methods: a write tool needs a WritableFileSystem"
         : "fs must be a WritableFileSystem or a function that returns one",
     );
@@ -132,7 +126,6 @@ export function resolveWriteDependencies<THost>(
   });
 }
 
-/** The shared dependencies plus `matchers`: ordered and non-empty. Default defaultEditMatchers(). */
 export function resolveEditDependencies<THost>(deps: EditToolDeps<THost>): EditDependencies<THost> {
   if (!isRecord(deps)) throw new TypeError("edit tool dependencies must be an object");
   const { matchers = defaultEditMatchers(), ...shared } = deps;
@@ -145,10 +138,6 @@ export function resolveEditDependencies<THost>(deps: EditToolDeps<THost>): EditD
   });
 }
 
-/**
- * The shared dependencies plus `matchers` (ordered, non-empty, default
- * defaultPatchMatchers()) and `patchParser` (default codexPatchParser()).
- */
 export function resolveApplyPatchDependencies<THost>(
   deps: ApplyPatchToolDeps<THost>,
 ): ApplyPatchDependencies<THost> {
@@ -173,7 +162,6 @@ const POLICY_VALUES: { readonly [K in keyof PreconditionPolicy]: readonly string
   onStale: ["rematch", "reject"],
 };
 
-/** Merges key by key. Throws TypeError on an unknown key or value. */
 export function resolvePreconditions(
   overrides: Partial<PreconditionPolicy> = {},
 ): Readonly<PreconditionPolicy> {
@@ -201,8 +189,7 @@ export function isWritable(value: unknown): value is WritableFileSystem {
   );
 }
 
-/** A FileSystem, writable or not. */
-export function isReadable(value: unknown): boolean {
+export function isFileSystem(value: unknown): boolean {
   return isRecord(value) && typeof value.open === "function";
 }
 

@@ -1,7 +1,4 @@
-/**
- * Type tests for the apply_patch tool and the ./patch entry. `tsc -b`
- * checks this file; Bun never runs it.
- */
+// Type tests: `tsc -b` checks this file; Bun never runs it.
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { ToolCallContext } from "@better-fs-tools/read";
 

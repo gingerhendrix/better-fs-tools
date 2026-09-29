@@ -5,7 +5,7 @@ export interface EditPair {
   readonly replaceAll?: boolean;
 }
 
-/** Canonical core input. Model-facing names live in signatures. */
+/** Edit tool input. A signature sets the model-facing parameter names. */
 export interface EditInput {
   readonly path: string;
   /** One to limits.maxEdits pairs. Matched against one snapshot of the file. */

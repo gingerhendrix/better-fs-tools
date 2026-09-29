@@ -4,7 +4,7 @@ export type LockOutcome =
 
 export interface LockManager {
   readonly id: string;
-  /** Takes every key or none. The core passes keys sorted and without duplicates. */
+  /** Takes every key or none. Keys arrive sorted and without duplicates. */
   acquire(
     keys: readonly string[],
     options: { readonly signal?: AbortSignal },

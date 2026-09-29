@@ -23,7 +23,6 @@ function bytes(...parts: (string | Uint8Array)[]): Uint8Array {
   return out;
 }
 
-/** A harness with one file already read. */
 async function readFile(content: string | Uint8Array, options: Parameters<typeof harness>[0] = {}) {
   const setup = harness({ ...options, files: { "/f.ts": content, ...options.files } });
   await setup.read({ path: "/f.ts" });
@@ -413,7 +412,6 @@ describe("failure help (section 5.5)", () => {
       "This is miss 3 in a row on /f.ts. Read the file again, include more surrounding lines, or replace the file with the write tool.",
     );
     expect(codes(await edit(miss))).toEqual(["no-match", "repeated-miss"]);
-    // A success resets the count.
     await edit({ path: "/f.ts", edits: [{ oldText: "a", newText: "A" }] });
     expect(codes(await edit(miss))).toEqual(["no-match"]);
   });

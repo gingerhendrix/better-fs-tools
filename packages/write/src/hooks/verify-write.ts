@@ -4,12 +4,11 @@ import type { AfterWriteContext, WriteHook } from "../contract/extensions.ts";
 import type { FileChange, FileVersion } from "../contract/result.ts";
 
 /**
- * Reads each committed file back and compares it with what was written
- * (Hermes sha256, Claude Code size check): the hash when the call has a
- * digest, else the size. A removed file must be gone. A mismatch, or a file
- * that cannot be read back, adds a warning note. The file stays as it is
- * (plan D16). Put it before any hook that rewrites files, or it reports
- * their rewrite as a mismatch.
+ * Reads each committed file back and checks it against what was written: by
+ * hash when the call has a digest, else by size. A removed file must be gone.
+ * A mismatch, or a file that cannot be read back, adds a warning note. Put it
+ * before any hook that rewrites files, or it reports their rewrite as a
+ * mismatch.
  */
 export function verifyWrite(): WriteHook<unknown> {
   return Object.freeze<WriteHook<unknown>>({
@@ -46,7 +45,6 @@ async function checkWritten(
   try {
     for await (const chunk of handle.bytes()) {
       size += chunk.byteLength;
-      // One byte over is enough to know.
       if (size > after.bytes) return "mismatch";
       stream?.update(chunk);
     }

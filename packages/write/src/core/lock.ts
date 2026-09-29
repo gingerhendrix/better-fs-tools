@@ -3,12 +3,6 @@ import { extensionId } from "./extension-error.ts";
 import { isRecord } from "./input.ts";
 import type { MutationScope } from "./scope.ts";
 
-/**
- * Takes the lock on every resolved path, sorted and without duplicates.
- * Returns the release function, which never throws. A timeout gives
- * LOCK_TIMEOUT. An abort gives ABORTED, and a lock granted after the abort is
- * given back at once. `display` names the paths in the timeout text.
- */
 export async function acquireLocks<THost>(
   scope: MutationScope<THost>,
   keys: readonly string[],
@@ -29,7 +23,7 @@ export async function acquireLocks<THost>(
     });
   } catch (error) {
     if (error instanceof AbortStop) {
-      for (const pending of started) void pending.then(releaseOf, () => {});
+      for (const pending of started) void pending.then(releaseLockGrantedAfterAbort, () => {});
       throw error;
     }
     throw scope.extensionFailure("locks", extensionId(locks, error));
@@ -52,8 +46,7 @@ export async function acquireLocks<THost>(
   throw scope.extensionFailure("locks", extensionId(locks));
 }
 
-/** Gives back a lock that arrived after the call stopped waiting. */
-function releaseOf(outcome: unknown): void {
+function releaseLockGrantedAfterAbort(outcome: unknown): void {
   if (isRecord(outcome) && outcome.ok === true && typeof outcome.release === "function") {
     try {
       (outcome.release as () => void).call(outcome);

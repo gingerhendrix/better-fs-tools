@@ -1,7 +1,4 @@
-/**
- * Type tests for the write tool, its dependencies, and its extension points.
- * `tsc -b` checks this file; Bun never runs it.
- */
+// Type tests: `tsc -b` checks this file; Bun never runs it.
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { WritableFileSystem } from "@better-fs-tools/fs";
 import { denyPaths, expandHome, unicodeRepair } from "@better-fs-tools/read";
@@ -97,7 +94,7 @@ export const badMode: WriteHook<unknown> = {
   afterWrite: () => ({}),
 };
 
-// A write authorizer sees the change; a read authorizer does not fit write.
+// A write authorizer sees the change.
 export const sees: WriteAuthorizer<Host> = {
   id: "sees",
   authorize: (target, ctx) =>
@@ -109,7 +106,7 @@ declare const readOnly: ReadAuthorizer<Host>;
 // @ts-expect-error: the ReadAuthorizer target has size and mtimeMs, which write targets lack.
 export const notWrite: WriteAuthorizer<Host> = readOnly;
 
-// A state needs a digest (StateNeedsDigest), in the write tools as in read.
+// A state needs a digest.
 declare const pairedFs: WritableFileSystem;
 declare const pairedStore: ReadStateStore;
 declare const pairedDigest: Digest;

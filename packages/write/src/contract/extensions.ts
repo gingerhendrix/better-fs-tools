@@ -23,8 +23,7 @@ export interface WriteHookContext<THost = undefined> extends ToolHookContext<THo
   readonly call: ToolCallContext<THost>;
 }
 
-/* Planned change: what guards, authorizers, and the formatter see before commit. */
-
+/** One file change as guards and authorizers see it, before it is written. */
 export interface PlannedChange {
   readonly tool: WriteToolName;
   readonly kind: "create" | "update" | "delete" | "move";
@@ -57,8 +56,6 @@ export interface ChangeFragment {
   readonly newText: string;
 }
 
-/* Authorize */
-
 export interface WriteAuthorizeTarget extends AccessTarget {
   readonly action: "create" | "update" | "delete" | "move";
   readonly tool: WriteToolName;
@@ -68,7 +65,7 @@ export interface WriteAuthorizeTarget extends AccessTarget {
   readonly plan: readonly PlannedChange[];
 }
 
-/** W6: content replaces the planned text. Only for edit and write, and only in the change stage. */
+/** `content` replaces the planned text. Only for edit and write, and only for a planned change. */
 export type WriteAuthorizeDecision =
   | { readonly allow: true; readonly notes?: readonly Note[]; readonly content?: string }
   | { readonly allow: false; readonly note?: Note };
@@ -76,14 +73,11 @@ export type WriteAuthorizeDecision =
 /** Runs twice: once for each target before any content byte is read, then once for each planned change. */
 export interface WriteAuthorizer<THost = undefined> {
   readonly id: string;
-  /** A function property, so a write authorizer does not fit a read or shell tool. */
   readonly authorize: (
     target: WriteAuthorizeTarget,
     ctx: WriteHookContext<THost>,
   ) => WriteAuthorizeDecision | Promise<WriteAuthorizeDecision>;
 }
-
-/* Guards */
 
 export interface GuardContext<THost = undefined> extends WriteHookContext<THost> {
   readonly classifiers: readonly Classifier[];
@@ -96,11 +90,9 @@ export type GuardDecision =
 
 export interface Guard<THost = undefined> {
   readonly id: string;
-  /** Runs on each planned change before the change-stage authorize. */
+  /** Runs on each planned change, before the authorizer sees it. */
   check(change: PlannedChange, ctx: GuardContext<THost>): GuardDecision | Promise<GuardDecision>;
 }
-
-/* After-write hooks */
 
 export interface AfterWriteContext<THost = undefined> extends WriteHookContext<THost> {
   /** The call's filesystem. Host code may read or rewrite the file through it. */
@@ -109,7 +101,7 @@ export interface AfterWriteContext<THost = undefined> extends WriteHookContext<T
 
 export interface WriteHookResult {
   readonly notes?: readonly Note[];
-  /** true when the hook changed the file. The core re-reads and re-hashes it before record. */
+  /** true when the hook changed the file, so it is read again before the read state is recorded. */
   readonly rewrote?: boolean;
 }
 

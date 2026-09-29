@@ -68,7 +68,6 @@ describe("after-write hooks (section 5.10)", () => {
     const record = await state.get("/a.txt");
     expect(record?.version).toBe(fs.peek("/a.txt")?.version);
     expect(record?.contentId).toBe(change?.after?.contentId ?? null);
-    // The model has not seen the hook's bytes: the record says so.
     expect(record?.wholeFileVisible).toBe(false);
     const again = await write({ path: "/a.txt", content: "again" });
     expect(errorOf(again)).toMatchObject({ code: "NOT_READ", data: { wholeFile: true } });

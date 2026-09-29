@@ -14,10 +14,10 @@ export type DecodeOutcome =
 
 export interface Codec {
   readonly id: string;
-  /** Sync. Sees the bounded sample. */
+  /** Whether this codec can decode the file, judged from a sample of its first bytes. Sync. */
   accepts(sample: ClassificationSample): boolean;
   decode(bytes: Uint8Array): DecodeOutcome;
-  /** encode(decode(bytes).text, style) must give bytes back. The core checks it on load. */
+  /** encode(decode(bytes).text, style) must give the same bytes back, or the file is refused as not text. */
   encode(text: string, style: TextStyle): Uint8Array;
   /** Style for a new file. */
   readonly newFileStyle: TextStyle;

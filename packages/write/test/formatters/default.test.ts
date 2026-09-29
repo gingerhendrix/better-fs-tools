@@ -40,7 +40,6 @@ const match = (overrides: Partial<MatchInfo>): MatchInfo => ({
   ...overrides,
 });
 
-/** A report fixture. A test that sets status "error" also sets error. */
 const report = (overrides: Record<string, unknown>): MutationReport =>
   ({
     tool: "write",

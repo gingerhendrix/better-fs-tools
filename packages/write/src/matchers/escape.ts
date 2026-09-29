@@ -5,10 +5,8 @@ const ESCAPED = /\\(?:u[0-9a-fA-F]{4}|[nt"\\])/u;
 const ESCAPES = /\\(?:u([0-9a-fA-F]{4})|([nt"\\]))/gu;
 
 /**
- * For an old text a model escaped once too often: `\n`, `\t`, `\"`, `\\`,
- * and `\uXXXX` written out as characters. Runs only when the needle holds
- * one of them. Unescapes the needle, then searches exactly. `adapt`
- * unescapes the same sequences in the new text.
+ * Matches old text that was escaped once too often, with `\n`, `\t`, `\"`,
+ * `\\`, or `\uXXXX` written out. The new text is unescaped the same way.
  */
 export function escapeMatcher(): Matcher {
   return Object.freeze<Matcher>({

@@ -20,34 +20,27 @@ import type { Planned, ResolvedTarget } from "./planned.ts";
 import type { MutationScope } from "./scope.ts";
 import { ioFailure } from "./target.ts";
 
-/** One step of the patch commit, in patch order. */
 export interface PatchStep {
   readonly change: PatchChange;
-  /** Encoded bytes of a create, update, or move destination. null for a delete. */
   readonly bytes: Uint8Array | null;
-  /** Mode for a create or move destination. null leaves it to the backend. */
   readonly mode: number | null;
 }
 
-/** A published step: the write of its bytes, or null for a delete. */
 export interface PublishedStep {
   readonly step: PatchStep;
   readonly file: MutatedFile | null;
 }
 
-/** A file the patch targets, for the commit report. `key` is its resolved path. */
 export interface PatchFile {
   readonly path: string;
-  readonly key: string;
+  readonly resolvedPath: string;
 }
 
-/** A publish step that took effect, and how to undo it. */
-type Entry =
+type JournalEntry =
   | {
       readonly kind: "written";
       readonly step: PatchStep;
       readonly file: MutatedFile;
-      /** A create or move destination: undo removes it. Else undo writes the loaded bytes back. */
       readonly created: boolean;
     }
   | {
@@ -61,26 +54,11 @@ type Attempt =
   | { readonly ok: true; readonly file: MutatedFile }
   | { readonly ok: false; readonly code: WriteErrorCode };
 
-/** The first publish step that failed. */
-interface Failed {
+interface PublishFailure {
   readonly target: ResolvedTarget;
   readonly code: WriteErrorCode;
 }
 
-/**
- * W5: stage, publish, and roll back (section 5.7 step 6). When the backend
- * has stage(), every create and update is staged first; a stage failure
- * discards every staged write, so no file is modified. Then each step
- * publishes in patch order and is recorded in a journal: a staged publish
- * (or fs.write without stage()), then for a move the source's remove, and
- * for a delete the remove. On the first failure the unpublished stages are
- * discarded and the journal is undone from the end. Every undo step is
- * tried. When all succeed the error keeps the publish failure's code, with
- * `commit.rolledBack` true. Otherwise the code is PARTIAL_COMMIT and
- * `changes` lists the files left changed. A backend without compare-and-swap
- * gets the core's own stat check before each step. The signal is ignored
- * from the first stage call on.
- */
 export async function commitPatch<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -91,7 +69,7 @@ export async function commitPatch<THost>(
   scope.checkAbort();
   scope.startCommit();
   const staged = await stageAll(scope, fs, steps);
-  const journal: Entry[] = [];
+  const journal: JournalEntry[] = [];
   for (const [index, step] of steps.entries()) {
     const failed = await publishStep(scope, fs, step, staged[index] ?? null, journal);
     if (failed === null) continue;
@@ -104,7 +82,6 @@ export async function commitPatch<THost>(
   });
 }
 
-/** Stages every write when the backend can. A failure discards all and stops the call. */
 async function stageAll<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -135,14 +112,13 @@ async function stageAll<THost>(
   return staged;
 }
 
-/** Publishes one step and adds what took effect to the journal. Returns the failure, or null. */
 async function publishStep<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
   step: PatchStep,
   staged: StagedWrite | null,
-  journal: Entry[],
-): Promise<Failed | null> {
+  journal: JournalEntry[],
+): Promise<PublishFailure | null> {
   const { planned, source } = step.change;
   const { target, precondition } = planned;
   const bytes = step.bytes;
@@ -164,17 +140,11 @@ async function publishStep<THost>(
   return null;
 }
 
-/**
- * Undoes the journal from the end. Every step is tried. A published update
- * gets its loaded bytes back under the version it was published at. A
- * published create is removed under that version. A removed file is written
- * back with its bytes and mode, and must still be absent.
- */
 async function rollback<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
-  journal: readonly Entry[],
-  failed: Failed,
+  journal: readonly JournalEntry[],
+  failed: PublishFailure,
   files: readonly PatchFile[],
 ): Promise<WriteStop> {
   const states = new Map<string, Omit<CommitFileState, "path">>();
@@ -191,12 +161,12 @@ async function rollback<THost>(
       continue;
     }
     states.set(key, { state: "rollback-failed", code: outcome.code });
-    left.unshift(leftChange(scope, entry));
+    left.unshift(changeLeftAfterFailedRollback(scope, entry));
   }
   const rolledBack = left.length === 0;
   const report = files.map((file): CommitFileState => ({
     path: file.path,
-    ...(states.get(file.key) ?? { state: "unchanged" }),
+    ...(states.get(file.resolvedPath) ?? { state: "unchanged" }),
   }));
   const { messages } = scope.deps;
   const path = failed.target.requestedPath;
@@ -221,7 +191,7 @@ async function rollback<THost>(
 async function undo<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
-  entry: Entry,
+  entry: JournalEntry,
 ): Promise<Attempt> {
   if (entry.kind === "removed") {
     const { target, loaded } = entry;
@@ -247,7 +217,6 @@ async function undo<THost>(
   );
 }
 
-/** A remove. A backend without remove() gives UNSUPPORTED_BACKEND. */
 function attemptRemove<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -263,10 +232,6 @@ function attemptRemove<THost>(
   );
 }
 
-/**
- * One backend mutation as an outcome, never a throw. Without
- * compare-and-swap, the core first checks the precondition with a stat.
- */
 async function attempt<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -297,16 +262,17 @@ async function attempt<THost>(
   return { ok: true, file: outcome.file };
 }
 
-/** The FileChange for a step that stayed published after a failed rollback. */
-function leftChange<THost>(scope: MutationScope<THost>, entry: Entry): FileChange {
+function changeLeftAfterFailedRollback<THost>(
+  scope: MutationScope<THost>,
+  entry: JournalEntry,
+): FileChange {
   const { planned } = entry.step.change;
   if (entry.kind === "removed") return deleteChange(planned, entry.target);
   const change = fileChange(scope, planned, entry.step.bytes as Uint8Array, entry.file);
-  // A move destination left behind is a create: its source was restored or never removed.
+  // Its move source was restored or never removed, so the destination is a create.
   return planned.change.kind === "move" ? { ...change, kind: "create", before: null } : change;
 }
 
-/** The FileChange of a removed file: a Delete, or the source of a move. */
 export function deleteChange(planned: Planned, target: ResolvedTarget): FileChange {
   const loaded = planned.loaded as Loaded;
   const isDelete = planned.change.kind === "delete";
@@ -350,7 +316,7 @@ async function discardAll(staged: readonly (StagedWrite | null)[]): Promise<void
     try {
       await write.discard();
     } catch {
-      // A failed discard leaves a staged file behind. It cannot change a target.
+      // A leftover staged file cannot change a target.
     }
   }
 }

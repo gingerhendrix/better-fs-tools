@@ -2,21 +2,15 @@ import type { Guard } from "../contract/extensions.ts";
 import {
   ALLOW,
   existingLines,
-  lineTester,
+  withoutStatefulFlags,
   linesOf,
   newTextParam,
   quoted,
   refuse,
 } from "./shared.ts";
 
-/**
- * The read formatters' gutters: `12|` (line-number, Hermes), `12:a3|`
- * (hashline, any digest alphabet), and `12: ` (OpenCode). Also `12→` and a
- * padded `     12` then a tab, the `cat -n` style other hosts show. The tab
- * form needs leading spaces, so tab-separated data with an id column does
- * not match. Group 1 or 3 holds the number. Group 2 is the `: ` separator,
- * the one weak form: YAML keys and dict literals look the same.
- */
+// Read output gutters such as "12|", "12:a3|", "12: ", "12→", and "     12\t".
+// Group 2 is the weak ": " form, which YAML keys also match.
 const DEFAULT_GUTTER = /^[ \t]*(\d+)(?::[0-9A-Za-z_-]+)?(?:\||→|(: ))|^ +(\d+)\t/u;
 
 interface GutterHit {
@@ -27,13 +21,11 @@ interface GutterHit {
 }
 
 /**
- * Refuses new text copied from read output with its line-number gutter
- * (Hermes, Claude Code, OpenCode). A fragment is refused when at least 2 of
- * its new non-empty lines, and at least `ratio` of them, start with a
- * gutter whose numbers run on by one, as read output does. Lines that are
- * already in the file do not count. With the default gutter, the weak
- * `12: ` form needs 3 such lines. A file whose before text already has
- * `ratio` of its lines in gutter form is not checked.
+ * Refuses new text copied from read output with its line-number prefixes.
+ * A change is refused when at least 2, and at least `ratio` (default 0.5), of
+ * its new non-empty lines start with consecutive line numbers. Lines already
+ * in the file do not count, and a file that already looks like this is not
+ * checked.
  */
 export function readPrefixGuard(
   options: { readonly gutter?: RegExp; readonly ratio?: number } = {},
@@ -43,7 +35,7 @@ export function readPrefixGuard(
   if (typeof ratio !== "number" || !(ratio > 0 && ratio <= 1)) {
     throw new TypeError("ratio must be a number above 0 and at most 1");
   }
-  const test = lineTester(gutter);
+  const test = withoutStatefulFlags(gutter);
   const builtIn = gutter === DEFAULT_GUTTER;
   return Object.freeze<Guard<unknown>>({
     id: "read-prefix",
@@ -53,7 +45,7 @@ export function readPrefixGuard(
       let beforeChecked = false;
       for (const fragment of change.fragments) {
         const lines = linesOf(fragment.newText).filter((line) => line.trim() !== "");
-        const hits = runs(lines.flatMap((line, index) => hit(test, line, index)));
+        const hits = consecutiveHits(lines.flatMap((line, index) => hit(test, line, index)));
         if (hits.length < 2) continue;
         const fresh = lines.filter((line) => !known(line));
         const counted = hits.filter((entry) => !known(lines[entry.line] as string));
@@ -91,11 +83,7 @@ function hit(test: RegExp, text: string, line: number): GutterHit[] {
   ];
 }
 
-/**
- * Hits whose numbers run on by one from a neighbouring hit. A gutter with
- * no number group keeps every hit.
- */
-function runs(hits: readonly GutterHit[]): GutterHit[] {
+function consecutiveHits(hits: readonly GutterHit[]): GutterHit[] {
   return hits.filter((entry, index) => {
     if (entry.number === null) return true;
     const before = hits[index - 1];
@@ -107,7 +95,6 @@ function runs(hits: readonly GutterHit[]): GutterHit[] {
   });
 }
 
-/** The share of non-empty lines in `text` that start with the gutter. */
 function gutterShare(test: RegExp, text: string): number {
   let lines = 0;
   let hits = 0;

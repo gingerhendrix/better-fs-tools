@@ -1,7 +1,7 @@
 import type { Matcher, MatchContext, MatchRange } from "../contract/matcher.ts";
 import { fitsMode } from "./lines.ts";
 
-/** Byte-exact search. Hits do not overlap. In "lines" mode only line-aligned hits count. */
+/** Matches the old text exactly. */
 export function exactMatcher(): Matcher {
   return Object.freeze<Matcher>({
     id: "exact",

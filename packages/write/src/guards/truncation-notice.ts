@@ -9,12 +9,7 @@ import {
   regExpList,
 } from "./shared.ts";
 
-/**
- * Lines the read tool adds around file text, never file text itself: the
- * continuation and clamp note lines, the line-number formatter's clamp
- * marker, the Hermes clamp marker, the end-of-file footer, and the Deep
- * Agents range line.
- */
+// Notes and truncation markers that read tools add around file text.
 const DEFAULT_PATTERNS: readonly RegExp[] = [
   /^\[read:(?:continue|line-clamped|scan-limit)\] /u,
   /… \[line truncated at \d+ chars\]$/u,
@@ -24,10 +19,8 @@ const DEFAULT_PATTERNS: readonly RegExp[] = [
 ];
 
 /**
- * Refuses new text that holds a read note line or a clamp marker (Oh My
- * Pi). Each pattern is tested on each new line. A line that is already in
- * the file is allowed, so a document that quotes read output can be
- * rewritten.
+ * Refuses new text that holds a read tool note or truncation marker. A line
+ * that is already in the file is allowed.
  */
 export function truncationNoticeGuard(
   options: { readonly patterns?: readonly RegExp[] } = {},

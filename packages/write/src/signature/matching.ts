@@ -1,7 +1,6 @@
 import type { Matcher } from "../contract/matcher.ts";
 import { defaultEditMatchers } from "../matchers/index.ts";
 
-/** The matcher chain a signature describes. Default defaultEditMatchers(). */
 export function checkMatchers(matchers: unknown): readonly Matcher[] {
   if (matchers === undefined) return defaultEditMatchers();
   if (!Array.isArray(matchers) || matchers.length === 0) {
@@ -20,11 +19,6 @@ export function checkMatchers(matchers: unknown): readonly Matcher[] {
   return matchers as readonly Matcher[];
 }
 
-/**
- * One sentence about how `old` is matched, built from the chain the tool runs.
- * An exact-only chain says so. Otherwise it lists what the fuzzy matchers fold,
- * in chain order.
- */
 export function matchingSentence(matchers: readonly Matcher[], old: string): string {
   const folds = [...new Set(matchers.filter((m) => m.fuzzy).map((m) => m.describe))];
   if (folds.length === 0) {

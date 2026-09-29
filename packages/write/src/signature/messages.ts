@@ -1,7 +1,7 @@
 import type { WriteMessageCatalog } from "../contract/messages.ts";
 import type { MutationSignature } from "./contract.ts";
 
-/** messages.param from the signature. Merge it under the host's messages. */
+/** The `param` message for a signature's parameter names. Merge it under the host's messages. */
 export function writeSignatureMessages(
   signature: MutationSignature<unknown>,
 ): Pick<WriteMessageCatalog, "param"> {

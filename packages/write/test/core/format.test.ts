@@ -52,7 +52,6 @@ describe("formatter failure", () => {
   });
 });
 
-/** The error of a result, or null when its status is not "error". */
 function errorOf<T extends { readonly status: string }>(
   result: T,
 ): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {

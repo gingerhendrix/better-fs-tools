@@ -32,7 +32,6 @@ describe("normalizedMatcher", () => {
     expect(hits(normalized, "a\u00a0b\u3000c\u2009d", "a b c d")).toEqual([
       "a\u00a0b\u3000c\u2009d",
     ]);
-    // The needle folds too.
     expect(hits(normalized, 'x = "y"', "x = \u201cy\u201d")).toEqual(['x = "y"']);
   });
 
@@ -85,7 +84,6 @@ describe("normalizedMatcher", () => {
       { start: 0, end: 5 },
       { start: 11, end: 15 },
     ]);
-    // A line of blanks before the hit stays outside it.
     expect(normalized.find("x\n  \n\u201cq\u201d\n", '"q"', LINES)).toEqual([{ start: 5, end: 8 }]);
   });
 

@@ -19,10 +19,6 @@ const FILE = "alpha\nbeta\nalpha\ngamma\n";
 
 type Tool = "edit" | "write" | "applyPatch";
 
-/**
- * Runs model input through the signature and the core, with the signature's
- * messages, as an adapter does. Returns the model text of each call.
- */
 async function run(
   signature: MutationSignature<unknown>,
   tool: Tool,

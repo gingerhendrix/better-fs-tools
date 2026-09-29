@@ -11,14 +11,10 @@ const DEFAULT_PARSERS: Readonly<Record<string, Parser>> = Object.freeze({
 });
 
 /**
- * Refuses an update that breaks a file's syntax (Hermes: new errors only).
- * The parser is picked by extension. It must throw on bad text. `.json`
- * uses JSON.parse by default. Host parsers, for example for `.yaml` or
- * `.toml`, join the default and may replace it. Keys are extensions with or
- * without the dot. Only an update whose before text parsed is checked: a
- * file that was already broken, and every create, pass. A JSONC file such
- * as `tsconfig.json` can therefore be created, and edited once it has
- * comments.
+ * Refuses an update that makes a file fail to parse when it parsed before.
+ * `.json` uses JSON.parse by default. `parsers` adds or replaces parsers by
+ * extension, with or without the dot, and each must throw on bad text.
+ * Creates and files that already failed to parse are not checked.
  */
 export function syntaxGuard(
   options: { readonly parsers?: Readonly<Record<string, (text: string) => void>> } = {},
@@ -51,7 +47,6 @@ export function syntaxGuard(
   });
 }
 
-/** The parser's message, cut at 200 characters, or null when the text parsed. */
 function parseError(parser: Parser, text: string): string | null {
   try {
     parser(text);

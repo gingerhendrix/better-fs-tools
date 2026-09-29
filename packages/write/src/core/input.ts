@@ -2,9 +2,9 @@ import type { ApplyPatchRequest, EditPair, EditRequest, WriteRequest } from "../
 import type { WriteLimits } from "../contract/limits.ts";
 
 /**
- * Strict validation of the edit input. Throws TypeError on any key other than
- * path and edits, a bad path, an edit list outside 1 to limits.maxEdits, an
- * empty oldText, a non-string newText, or a non-boolean replaceAll.
+ * Validates edit tool input. Throws TypeError on any key other than path and
+ * edits, a bad path, an edit list outside 1 to limits.maxEdits, an empty
+ * oldText, a non-string newText, or a non-boolean replaceAll.
  */
 export function parseEditInput(input: unknown, limits: Readonly<WriteLimits>): EditRequest {
   const record = inputRecord(input, "edit", ["path", "edits"]);
@@ -19,7 +19,10 @@ export function parseEditInput(input: unknown, limits: Readonly<WriteLimits>): E
   return { tool: "edit", path, edits: edits.map(parsePair) };
 }
 
-/** Strict validation of the write input. The encoded size is checked later, at encode. */
+/**
+ * Validates write tool input. Throws TypeError on any key other than path and
+ * content, a bad path, or a non-string content.
+ */
 export function parseWriteInput(input: unknown, _limits: Readonly<WriteLimits>): WriteRequest {
   const record = inputRecord(input, "write", ["path", "content"]);
   const path = validatePath(record.path);
@@ -27,7 +30,10 @@ export function parseWriteInput(input: unknown, _limits: Readonly<WriteLimits>):
   return { tool: "write", path, content: record.content };
 }
 
-/** Strict validation of the apply_patch input: a non-empty patch within limits.maxPatchBytes. */
+/**
+ * Validates apply_patch tool input. Throws TypeError unless it holds only a
+ * non-empty patch of at most limits.maxPatchBytes UTF-8 bytes.
+ */
 export function parseApplyPatchInput(
   input: unknown,
   limits: Readonly<WriteLimits>,
@@ -37,17 +43,14 @@ export function parseApplyPatchInput(
   if (typeof patch !== "string" || patch.trim() === "") {
     throw new TypeError("patch must be a non-empty string");
   }
-  if (utf8Length(patch, limits.maxPatchBytes) > limits.maxPatchBytes) {
+  if (utf8LengthComparedTo(patch, limits.maxPatchBytes) > limits.maxPatchBytes) {
     throw new TypeError(`patch must be at most ${limits.maxPatchBytes} bytes of UTF-8`);
   }
   return { tool: "apply_patch", patch };
 }
 
-/**
- * The UTF-8 byte length of `text`. Each UTF-16 unit is at least one byte and
- * at most three, so the count is skipped when the answer is clear either way.
- */
-function utf8Length(text: string, max: number): number {
+function utf8LengthComparedTo(text: string, max: number): number {
+  // Each UTF-16 code unit encodes to between 1 and 3 UTF-8 bytes.
   if (text.length > max) return text.length;
   if (text.length * 3 <= max) return text.length;
   return new TextEncoder().encode(text).byteLength;
@@ -84,7 +87,6 @@ function parsePair(value: unknown, index: number): Required<EditPair> {
   return { oldText, newText, replaceAll: replaceAll ?? false };
 }
 
-/** The same path rule as the read tool: a non-blank string without NUL. */
 export function isPath(value: unknown): value is string {
   return typeof value === "string" && value.trim() !== "" && !value.includes("\0");
 }

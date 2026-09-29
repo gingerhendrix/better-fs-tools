@@ -25,11 +25,7 @@ const EXAMPLE = [
   "*** End Patch",
 ].join("\n");
 
-/**
- * Works with and without grammar support: it names the `patch` parameter but
- * never says whether to wrap the text in JSON, because a model without
- * grammar tools sends JSON.
- */
+// Says nothing about JSON wrapping, so it fits hosts with and without grammar tools.
 const patchDescription = (patch: string): string =>
   "Apply a patch that adds, updates, moves, or deletes text files. The input is one patch " +
   `text (the \`${patch}\` parameter) in the Codex apply_patch format:\n\n` +
@@ -45,7 +41,7 @@ export function defaultPatchSignature(options: SignatureDocs<"patch"> = {}): Pat
   return patchSignature(options, "defaultPatchSignature");
 }
 
-/** The same schema plus grammar.lark = CODEX_PATCH_GRAMMAR. The description works with and without grammar support. */
+/** defaultPatchSignature plus the Codex Lark grammar, for hosts with grammar tools. */
 export function freeformPatchSignature(options: SignatureDocs<"patch"> = {}): PatchSignature {
   return Object.freeze<PatchSignature>({
     ...patchSignature(options, "freeformPatchSignature"),
@@ -53,7 +49,7 @@ export function freeformPatchSignature(options: SignatureDocs<"patch"> = {}): Pa
   });
 }
 
-/** One required string property, so Pi can use it as a grammar tool. */
+// One required string property, so Pi can use it as a grammar tool.
 function patchSignature(options: SignatureDocs<"patch">, label: string): PatchSignature {
   const { describe, names } = checkDocs(options, label, ["patch"]);
   const keys = [names.patch];

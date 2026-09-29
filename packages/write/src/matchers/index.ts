@@ -11,12 +11,12 @@ export { indentationMatcher } from "./indentation.ts";
 export { lineTrimmedMatcher } from "./line-trimmed.ts";
 export { normalizedMatcher } from "./normalized.ts";
 
-/** W7: exact, then normalized, then escape. */
+/** The matchers the edit tool tries by default, in order: exact, normalized, escape. */
 export function defaultEditMatchers(): readonly Matcher[] {
   return Object.freeze([exactMatcher(), normalizedMatcher(), escapeMatcher()]);
 }
 
-/** Codex seek_sequence order for patch hunks, used in "lines" mode: exact, normalized, line-trimmed. */
+/** The matchers the patch tool tries by default, in order: exact, normalized, line-trimmed. */
 export function defaultPatchMatchers(): readonly Matcher[] {
   return Object.freeze([exactMatcher(), normalizedMatcher(), lineTrimmedMatcher()]);
 }

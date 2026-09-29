@@ -2,10 +2,7 @@ import type { WriteLimits } from "../contract/limits.ts";
 
 const MIB = 1_024 * 1_024;
 
-/**
- * Defaults, not package ceilings. A host may raise any of these. A supplied
- * value must be a positive safe integer.
- */
+/** The default write limits. They are not ceilings: a host may raise any of them. */
 export const defaultWriteLimits: Readonly<WriteLimits> = Object.freeze({
   maxFileBytes: 8 * MIB,
   maxWriteBytes: 8 * MIB,
@@ -24,9 +21,10 @@ export const defaultWriteLimits: Readonly<WriteLimits> = Object.freeze({
 const LIMIT_KEYS = Object.keys(defaultWriteLimits) as (keyof WriteLimits)[];
 
 /**
- * Merges key by key. Throws TypeError on an unknown key, a value that is not
- * a positive safe integer, or a `sampleBytes` you set above `maxFileBytes`.
- * A default `sampleBytes` over a `maxFileBytes` you set is lowered to it.
+ * Merges limit overrides onto the defaults key by key. Throws TypeError on an
+ * unknown key, a value that is not a positive safe integer, or a `sampleBytes`
+ * you set above `maxFileBytes`. A default `sampleBytes` over a `maxFileBytes`
+ * you set is lowered to it.
  */
 export function resolveWriteLimits(overrides: Partial<WriteLimits> = {}): Readonly<WriteLimits> {
   if (overrides === null || typeof overrides !== "object" || Array.isArray(overrides)) {

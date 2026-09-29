@@ -18,7 +18,6 @@ const SOURCE = [
   "export const one = 1;",
 ];
 
-/** A digest whose hashes use base64url letters, as some hosts' digests do. */
 function base64Digest(): Digest {
   const inner = testDigest("b64");
   return {
@@ -28,7 +27,6 @@ function base64Digest(): Digest {
   };
 }
 
-/** The file lines as the read tool shows them with `formatter`. */
 async function readOutput(formatter: ReadFormatter<unknown>, digest: Digest): Promise<string[]> {
   const fs = memoryFileSystem({ files: { "/src/sum.ts": `${SOURCE.join("\n")}\n` } });
   const read = createReadTool({ fs, digest, formatter });

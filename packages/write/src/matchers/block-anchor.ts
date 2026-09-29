@@ -1,12 +1,10 @@
 import type { Matcher, MatchRange } from "../contract/matcher.ts";
-import { LineTable, lastValue, needleLines } from "./lines.ts";
+import { LineTable, memoizeLast, needleLines } from "./lines.ts";
 
 /**
- * For a needle of 3 or more lines: a window whose first and last lines equal
- * the needle's first and last lines after trimming, where at least half of
- * the needle's middle lines appear (trimmed) among the window's middle lines.
- * The window holds at most `maxSpanRatio` times the needle's line count.
- * Anchors must not be blank. For each start line the shortest window wins.
+ * Matches old text of 3 or more lines by its first and last lines, when at
+ * least half of its middle lines also appear between them. A match spans at
+ * most `maxSpanRatio` (default 3) times the old text's line count.
  */
 export function blockAnchorMatcher(options: { readonly maxSpanRatio?: number } = {}): Matcher {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
@@ -16,7 +14,7 @@ export function blockAnchorMatcher(options: { readonly maxSpanRatio?: number } =
   if (typeof maxSpanRatio !== "number" || !Number.isFinite(maxSpanRatio) || maxSpanRatio < 1) {
     throw new TypeError("maxSpanRatio must be a finite number of at least 1");
   }
-  const table = lastValue((text) => new LineTable(text));
+  const table = memoizeLast((text) => new LineTable(text));
   return Object.freeze<Matcher>({
     id: "block-anchor",
     fuzzy: true,
@@ -33,13 +31,13 @@ export function blockAnchorMatcher(options: { readonly maxSpanRatio?: number } =
       const hay = table(haystack);
       const trimmed = hay.trimmed;
       const ranges: MatchRange[] = [];
-      for (let first = hay.firstFrom(ctx.from); first < hay.count; first += 1) {
+      for (let first = hay.firstLineAtOrAfter(ctx.from); first < hay.count; first += 1) {
         if (ranges.length >= ctx.maxMatches) break;
         if (trimmed[first] !== head) continue;
         const limit = Math.min(hay.count - 1, first + span - 1);
         for (let last = first + 2; last <= limit; last += 1) {
           if (trimmed[last] !== tail) continue;
-          if (shared(middle, trimmed.slice(first + 1, last)) < needed) continue;
+          if (sharedLineCount(middle, trimmed.slice(first + 1, last)) < needed) continue;
           const range = hay.range(first, last, withBreak);
           if (range === null) continue;
           ranges.push(range);
@@ -52,8 +50,7 @@ export function blockAnchorMatcher(options: { readonly maxSpanRatio?: number } =
   });
 }
 
-/** How many needle lines pair with a distinct equal window line. */
-function shared(needle: readonly string[], window: readonly string[]): number {
+function sharedLineCount(needle: readonly string[], window: readonly string[]): number {
   const counts = new Map<string, number>();
   for (const line of window) counts.set(line, (counts.get(line) ?? 0) + 1);
   let found = 0;

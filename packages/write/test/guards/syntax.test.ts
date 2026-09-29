@@ -36,7 +36,6 @@ describe("syntaxGuard", () => {
     const guard = syntaxGuard({ parsers: { ".yaml": yaml, YML: yaml } });
     expect(check("/c.yaml", "a: 1\n", "a:\t1\n", guard)).toBe("syntax");
     expect(check("/c.yml", "a: 1\n", "a:\t1\n", guard)).toBe("syntax");
-    // JSON stays on.
     expect(check("/p.json", "{}", "{", guard)).toBe("syntax");
     const decision = guard.check(
       change({ path: "/c.yaml", before: "a: 1\n", after: "a:\t1\n" }),

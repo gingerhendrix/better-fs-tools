@@ -95,7 +95,7 @@ describe("record (section 5.10)", () => {
   });
 });
 
-describe("records for bytes the model has not seen (batch 3 follow-up)", () => {
+describe("records for bytes the model has not seen", () => {
   const userContent: WriteAuthorizer<unknown> = {
     id: "user",
     authorize: (target) =>

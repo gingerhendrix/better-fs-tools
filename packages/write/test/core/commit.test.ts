@@ -16,8 +16,11 @@ import {
   withoutCompareAndSwap,
 } from "../helpers.ts";
 
-/** A guard that changes the file on disk after load and before commit. */
-function sneakyWriter(fs: MemoryFileSystem, path: string, contents: string): Guard<unknown> {
+function guardThatRewritesFile(
+  fs: MemoryFileSystem,
+  path: string,
+  contents: string,
+): Guard<unknown> {
   return {
     id: "sneaky",
     check: () => {
@@ -36,7 +39,7 @@ describe("commit (section 5.9)", () => {
       fs,
       state: setup.state,
       digest: setup.digest,
-      guards: [sneakyWriter(fs, "/a.txt", "theirs\n")],
+      guards: [guardThatRewritesFile(fs, "/a.txt", "theirs\n")],
     });
     const result = await write({ path: "/a.txt", content: "mine\n" });
     expect(errorOf(result)).toMatchObject({ code: "STALE", phase: "commit" });
@@ -51,7 +54,7 @@ describe("commit (section 5.9)", () => {
       fs: withoutCompareAndSwap(fs),
       state: setup.state,
       digest: setup.digest,
-      guards: [sneakyWriter(fs, "/a.txt", "theirs\n")],
+      guards: [guardThatRewritesFile(fs, "/a.txt", "theirs\n")],
     });
     const result = await write({ path: "/a.txt", content: "mine\n" });
     expect(errorOf(result)).toMatchObject({ code: "STALE", phase: "commit" });
@@ -99,7 +102,7 @@ describe("commit (section 5.9)", () => {
     const fs = memoryFileSystem();
     const write = createWriteTool({
       fs: withoutCompareAndSwap(fs),
-      guards: [sneakyWriter(fs, "/new.txt", "theirs")],
+      guards: [guardThatRewritesFile(fs, "/new.txt", "theirs")],
     });
     const result = await write({ path: "/new.txt", content: "mine" });
     expect(errorOf(result)).toMatchObject({ code: "EXISTS", phase: "commit" });
@@ -126,7 +129,6 @@ describe("commit (section 5.9)", () => {
     ]);
     expect(order).toEqual(["start a", "end a", "start b", "end b"]);
     expect(first.status).toBe("ok");
-    // The second writer found the file under the lock and replaced it without a store.
     expect(second.status).toBe("ok");
     expect(codes(second)).toContain("read-before-write-off");
   });

@@ -28,10 +28,8 @@ import type {
 const ENCODER = new TextEncoder();
 const DECODER = new TextDecoder();
 
-/** The fixed clock every test uses. */
 export const FIXED_DATE = new Date("2026-09-28T00:00:00.000Z");
 
-/** Deterministic, dependency-free FNV-1a digest, the same as the read tests use. */
 export function testDigest(id = "test-fnv"): Digest {
   const fold = (bytes: Uint8Array): string => {
     let hash = 2166136261 >>> 0;
@@ -59,12 +57,10 @@ export function testDigest(id = "test-fnv"): Digest {
 export interface HarnessOptions {
   readonly files?: Record<string, string | Uint8Array>;
   readonly fsOptions?: MemoryFileSystemOptions;
-  /** Replaces the memory filesystem the write tool sees. The read tool still reads `fs`. */
+  /** The read tool still reads the memory filesystem. */
   readonly writeFs?: (fs: MemoryFileSystem) => WritableFileSystem;
   readonly deps?: Omit<WriteToolDeps, "fs">;
-  /** Added to `deps` for the edit tool only. */
   readonly editDeps?: Omit<EditToolDeps, "fs">;
-  /** Added to `deps` for the apply_patch tool only. */
   readonly patchDeps?: Omit<ApplyPatchToolDeps, "fs">;
 }
 
@@ -78,17 +74,14 @@ export interface Harness {
   readonly applyPatch: ApplyPatchTool;
 }
 
-/**
- * A read tool and the three write tools over one memory filesystem, one
- * store, one digest, and the fixed clock.
- */
+/** A read tool and the three write tools sharing one memory filesystem, store, digest, and clock. */
 export function harness(options: HarnessOptions = {}): Harness {
   const fs = memoryFileSystem({ files: options.files ?? {}, ...options.fsOptions });
   const state = memoryStore();
   const digest = testDigest();
   const clock = () => FIXED_DATE;
   const read = createReadTool({ fs, state, digest, clock });
-  // A test may override state or digest. The core checks the pairing at run time.
+  // Overrides of state or digest are checked at run time, not by this cast.
   const shared = {
     fs: options.writeFs?.(fs) ?? fs,
     state,
@@ -106,7 +99,6 @@ export function harness(options: HarnessOptions = {}): Harness {
   return { fs, state, digest, read, write, edit, applyPatch };
 }
 
-/** The current text of a memory file, or null. */
 export function text(fs: MemoryFileSystem, path: string): string | null {
   const entry = fs.peek(path);
   return entry === null ? null : DECODER.decode(entry.bytes);
@@ -124,11 +116,7 @@ export function errorCode(result: MutationResult): string | null {
   return errorOf(result)?.code ?? null;
 }
 
-/**
- * A backend that reports compareAndSwap: false and does not check
- * preconditions: every write goes through with "any". The core must catch
- * staleness itself.
- */
+/** Reports compareAndSwap: false and ignores preconditions. */
 export function withoutCompareAndSwap(fs: MemoryFileSystem): WritableFileSystem {
   return {
     id: "no-cas",
@@ -142,7 +130,6 @@ export function withoutCompareAndSwap(fs: MemoryFileSystem): WritableFileSystem 
   };
 }
 
-/** A promise with its resolve function, for ordering concurrent calls. */
 export function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve: () => void = () => {};
   const promise = new Promise<void>((done) => {
@@ -151,12 +138,10 @@ export function deferred(): { promise: Promise<void>; resolve: () => void } {
   return { promise, resolve };
 }
 
-/** Codex patch text: the Begin and End lines around the given lines. */
 export function patchText(...lines: string[]): string {
   return ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
 }
 
-/** The error of a result, or null when its status is not "error". */
 export function errorOf<T extends { readonly status: string }>(
   result: T,
 ): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {

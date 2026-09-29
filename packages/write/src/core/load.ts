@@ -10,24 +10,16 @@ import { WriteStop, isBackendError, messageOf } from "./outcomes.ts";
 import type { MutationScope } from "./scope.ts";
 import { ioFailure } from "./target.ts";
 
-/** An existing target after load: its bytes, decoded text, and change tokens. */
 export interface Loaded {
   readonly bytes: Uint8Array;
   readonly text: string;
   readonly style: TextStyle;
   readonly codec: Codec;
-  /** The stat version. The commit precondition uses it. */
   readonly version: string;
-  /** Hash of the loaded bytes. null without a digest. */
   readonly contentId: string | null;
   readonly mode: number | null;
 }
 
-/**
- * Opens the file, reads at most limits.maxFileBytes, classifies the sample,
- * decodes with the first codec that accepts it, checks the round trip, and
- * checks the handle for change. `requested` names the file in messages.
- */
 export async function loadFile<THost>(
   scope: MutationScope<THost>,
   fs: WritableFileSystem,
@@ -62,8 +54,7 @@ export async function loadFile<THost>(
     });
   } catch (error) {
     if (error instanceof AbortStop) {
-      // A handle that arrives after the abort is closed at once.
-      for (const pending of started) void pending.then(closeLate, () => {});
+      for (const pending of started) void pending.then(closeHandleOpenedAfterAbort, () => {});
       throw error;
     }
     throw ioFailure(scope, requested, messageOf(error));
@@ -121,7 +112,6 @@ export async function loadFile<THost>(
   }
 }
 
-/** Every byte, stopping at max + 1, which gives TOO_LARGE. Each chunk is raced against the signal. */
 export async function readCapped<THost>(
   scope: MutationScope<THost>,
   handle: OpenFile,
@@ -168,7 +158,6 @@ export async function readCapped<THost>(
   return bytes;
 }
 
-/** The first classifier with an opinion decides. Unsupported gives NOT_TEXT with its code. */
 function classify<THost>(
   scope: MutationScope<THost>,
   sample: ClassificationSample,
@@ -200,7 +189,6 @@ function classify<THost>(
   );
 }
 
-/** The first codec that accepts the sample decodes. Encode must give the same bytes back. */
 function decode<THost>(
   scope: MutationScope<THost>,
   sample: ClassificationSample,
@@ -250,7 +238,7 @@ function decode<THost>(
   return { codec, text, style };
 }
 
-function closeLate(outcome: unknown): void {
+function closeHandleOpenedAfterAbort(outcome: unknown): void {
   if (isRecord(outcome) && outcome.ok === true && isRecord(outcome.file)) {
     const file = outcome.file as unknown as OpenFile;
     void file.close().catch(() => {});

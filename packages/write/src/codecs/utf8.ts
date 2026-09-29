@@ -4,12 +4,9 @@ const BOM = Uint8Array.of(0xef, 0xbb, 0xbf);
 const NEW_FILE_STYLE: TextStyle = Object.freeze({ encoding: "utf-8", bom: false, eol: "keep" });
 
 /**
- * UTF-8 with the BOM and line endings kept. Accepts a sample that is valid
- * UTF-8, allowing a character cut at the end of a partial sample. Decode
- * strips one BOM. When every LF in the file follows a CR (and there is at
- * least one), the style is "crlf": decode turns CRLF into LF and encode turns
- * LF back. A file with no CRLF is "lf". Any other mix is "keep", with no
- * conversion. Encode of a decoded text gives the same bytes back.
+ * UTF-8 that keeps a file's BOM and line endings. A file whose line breaks are
+ * all CRLF is edited as LF and written back as CRLF. Mixed line endings are
+ * kept as they are.
  */
 export function utf8Codec(): Codec {
   return Object.freeze<Codec>({
@@ -56,7 +53,6 @@ function startsWithBom(bytes: Uint8Array): boolean {
   return bytes[0] === BOM[0] && bytes[1] === BOM[1] && bytes[2] === BOM[2];
 }
 
-/** "crlf" when every LF follows a CR and there is at least one, "lf" when none does, else "keep". */
 function lineEndings(text: string): TextStyle["eol"] {
   let lf = 0;
   let crlf = 0;

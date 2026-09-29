@@ -3,13 +3,6 @@ import { extensionId } from "./extension-error.ts";
 import { isPath, isRecord } from "./input.ts";
 import type { MutationScope } from "./scope.ts";
 
-/**
- * Runs the patch parser (section 5.7 step 1) in the input phase. A parse
- * error gives PATCH_PARSE with the line. A throw, or an outcome that is not
- * a well-formed plan with at least one operation, gives EXTENSION_FAILED
- * for `patchParser`. More than limits.maxPatchFiles operations give
- * TOO_LARGE with what "patch".
- */
 export function parsePatchText<THost>(
   scope: MutationScope<THost>,
   parser: PatchParser,

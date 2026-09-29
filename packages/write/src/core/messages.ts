@@ -4,12 +4,7 @@ import type { WriteCanonicalParam, WriteMessageCatalog } from "../contract/messa
 
 type Param = (name: WriteCanonicalParam) => string;
 
-/**
- * The default wording, built around one `param`. resolveWriteMessages builds
- * it again with the host's `param`, so every default text uses the host's
- * parameter names.
- */
-function catalogFor(param: Param): WriteMessageCatalog {
+function catalogUsingParam(param: Param): WriteMessageCatalog {
   return {
     param,
     pathRepaired: ({ from, to }) =>
@@ -166,12 +161,13 @@ function refusalLabel(
 const canonical: Param = (name) => name;
 
 export const defaultWriteMessages: Readonly<WriteMessageCatalog> = Object.freeze(
-  catalogFor(canonical),
+  catalogUsingParam(canonical),
 );
 
 /**
- * Merges key by key. Throws TypeError on an unknown key or a non-function
- * value. A `param` override applies to every default text.
+ * Merges message overrides onto the defaults key by key. Throws TypeError on
+ * an unknown key or a non-function value. A `param` override applies to every
+ * default message.
  */
 export function resolveWriteMessages(
   overrides: Partial<WriteMessageCatalog> = {},
@@ -185,7 +181,7 @@ export function resolveWriteMessages(
       throw new TypeError(`messages.${key} must be a function`);
     }
   }
-  const resolved: Record<string, unknown> = { ...catalogFor(overrides.param ?? canonical) };
+  const resolved: Record<string, unknown> = { ...catalogUsingParam(overrides.param ?? canonical) };
   for (const [key, value] of Object.entries(overrides)) {
     if (value !== undefined) resolved[key] = value;
   }

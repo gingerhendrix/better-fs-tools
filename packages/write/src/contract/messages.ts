@@ -14,9 +14,8 @@ export type WriteCanonicalParam =
   | "patch";
 
 /**
- * Wording for every note the core owns. Every default text says what to do
- * next. No default text names a model parameter: text that names one calls
- * `param(name)`, which a signature overrides.
+ * Wording for every note the write tools produce. Text that names a model
+ * parameter gets the name from `param(name)`, which a signature overrides.
  */
 export interface WriteMessageCatalog extends ToolMessages {
   /**

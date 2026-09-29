@@ -59,7 +59,6 @@ describe("failure help (section 5.5)", () => {
     misses.miss("/a");
     misses.miss("/c");
     expect(misses.size).toBe(2);
-    // /b was missed longest ago, so it went first.
     expect(misses.miss("/b")).toBe(1);
     expect(misses.miss("/a")).toBe(1);
   });

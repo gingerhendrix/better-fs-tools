@@ -1,6 +1,5 @@
 import type { Digest } from "@better-fs-tools/read";
 
-/** The digest over whole bytes, the way the read tool hashes a whole file. */
 export function hashBytes(digest: Digest, bytes: Uint8Array): string {
   const stream = digest.create();
   stream.update(bytes);

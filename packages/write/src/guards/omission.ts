@@ -4,13 +4,7 @@ import { ALLOW, linesOf, newTextParam, quoted, refuse, regExpList } from "./shar
 const OPEN = String.raw`(?:\/\/+|#+|\/\*+|\{\s*\/\*+|\*|<!--|--|;+|%+)`;
 const WORD = String.raw`(?:rest|remaining|existing|unchanged|unmodified|previous|same|omitted|original|other|code)`;
 
-/**
- * Placeholder comment lines (Gemini CLI). The comment's text, without its
- * open and close marks, starts with an ellipsis and holds a placeholder
- * word, starts with a placeholder word and ends with an ellipsis, or is a
- * phrase such as "rest of the file unchanged". A bare `...`
- * line is not a placeholder: it is a Python stub.
- */
+// Placeholder comments. A bare "..." line is left alone: it is a Python stub.
 const DEFAULT_PATTERNS: readonly RegExp[] = [
   new RegExp(String.raw`^\s*${OPEN}\s*[([]?\s*(?:\.{3}|…)\s*.{0,60}\b${WORD}\b.{0,60}$`, "iu"),
   new RegExp(
@@ -24,10 +18,9 @@ const DEFAULT_PATTERNS: readonly RegExp[] = [
 ];
 
 /**
- * Refuses a fragment that trades real lines for a placeholder comment such
- * as `// ... rest of code` (Gemini CLI). Only when the fragment's new text
- * is shorter than its old text, and only for a placeholder line that is not
- * in the old text.
+ * Refuses a change that replaces real lines with a placeholder comment such
+ * as `// ... rest of code`. Only new text shorter than the old text is
+ * checked, and a placeholder already in the old text is allowed.
  */
 export function omissionGuard(
   options: { readonly patterns?: readonly RegExp[] } = {},
