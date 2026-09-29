@@ -6,12 +6,8 @@ import { join } from "node:path";
 const REGISTRY_KEYS = new Set(["access", "tag", "registry"]);
 
 /**
- * Packs one workspace package with `bun pm pack`, and returns the tarball path.
- *
- * Bun rewrites `workspace:` and `catalog:` ranges, but it does not apply
- * `publishConfig` overrides such as `exports` and `pi`. This function applies
- * them to package.json for the length of the pack, as pnpm does at publish,
- * and always restores the original bytes.
+ * Returns the tarball path. `bun pm pack` does not apply `publishConfig` overrides,
+ * so they are written to package.json for the pack and the original is restored after.
  */
 export async function packPackage(directory: string, destination: string): Promise<string> {
   const path = join(directory, "package.json");

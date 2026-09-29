@@ -4,11 +4,7 @@ import { dirname, join } from "node:path";
 
 import { EMPTY_ENTRIES, RULES, RUNTIME_NEUTRAL, SCOPE } from "./rules.ts";
 
-/**
- * A throwaway project whose node_modules holds the unpacked tarballs, with the
- * peers linked from this repository's install. Peers are linked, not
- * downloaded, so the check stays offline and uses the versions under test.
- */
+/** Peers are symlinked from this repository's install so the check stays offline. */
 export async function prepareConsumer(repository: string, consumer: string): Promise<void> {
   await writeFile(
     join(consumer, "package.json"),
@@ -28,15 +24,7 @@ export async function prepareConsumer(repository: string, consumer: string): Pro
   }
 }
 
-/**
- * Imports every export under Node, not Bun, then reads through the Node tool,
- * the memory filesystem, the AI SDK tool, just-bash, and the Pi extension entry
- * that `pi.extensions` names. It also creates and edits files on disk with
- * `createNodeFsTools()`, and edits one through `justBashFileSystem()`. It
- * edits a memory file through `createFsTools()` and builds
- * `createAiSdkFsTools()`. It runs bash through `createNodeFsTools()` and
- * `justBashCommandRunner()`.
- */
+/** Imports every export under Node, not Bun, and smoke-tests the main tools of each package. */
 export function runNodeConsumer(
   consumer: string,
   exportsOf: ReadonlyMap<string, readonly string[]>,
@@ -128,12 +116,7 @@ expect("pi extension", tools.map((tool) => tool.name).join(), "read,edit,write,a
   return run.status === 0 ? [] : [`Node consumer failed: ${run.stderr.trim()}`];
 }
 
-/**
- * Type-checks the published declarations twice with the repository's tsc:
- * every package with Node types, and the runtime-neutral packages with only
- * the DOM library. Neither run has Bun types or skips library checks. Only
- * errors in this repository's packages and the consumer files count.
- */
+/** Type-checks every package with Node types, and the runtime-neutral packages with only the DOM library. */
 export async function runTypeConsumers(
   repository: string,
   consumer: string,
@@ -186,11 +169,7 @@ export async function runTypeConsumers(
   return failures;
 }
 
-/**
- * Errors in the consumer files and in the unpacked packages. Peer libraries
- * resolve outside the consumer through their real paths, so their own
- * declaration errors (for example missing DOM types in ai) are left out.
- */
+// Peer libraries resolve outside the consumer by real path; their own declaration errors do not count.
 function ownErrors(output: string): string[] {
   return output
     .split("\n")

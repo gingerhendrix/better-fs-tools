@@ -16,7 +16,6 @@ const readmes = await Promise.all(
     }),
 );
 
-/** Every ```ts block in the package READMEs must appear whole in one example file. */
 describe("README snippets", () => {
   for (const readme of readmes) {
     test(`${readme.path} has ts snippets`, () => {

@@ -1,17 +1,7 @@
 /**
- * Release-shape check for every package in packages/.
+ * Checks that every package in packages/ packs, installs, imports, and type-checks as published.
  *
- * 1. Builds dist/ with `bun run build:packages`.
- * 2. Packs each package with `bun pm pack`, applying publishConfig.
- * 3. Checks each tarball: manifest rules from plan section 3, exact files,
- *    export and pi.extensions paths, rewritten ranges, every import, and
- *    every relative Markdown link.
- * 4. Installs the tarballs into a throwaway consumer, imports and reads under
- *    Node, and type-checks the published declarations.
- *
- * Usage: bun run check:packages [--out <dir>]. With --out, the tarballs and
- * the consumer stay in <dir>. Without it they go to a temporary folder that is
- * removed at the end.
+ * Usage: bun run check:packages [--out <dir>]. With --out, the tarballs and the consumer are kept in <dir>.
  */
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";

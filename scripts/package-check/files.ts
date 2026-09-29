@@ -15,11 +15,7 @@ export async function listFiles(root: string): Promise<string[]> {
   return files.map((file) => file.split("\\").join("/")).sort();
 }
 
-/**
- * Checks the files in one unpacked tarball: exactly the build output for every
- * source file, the README and LICENSE, no src or test files, and every path the
- * manifest names.
- */
+/** Checks that an unpacked tarball holds exactly the build output, README, LICENSE, and the paths its manifest names. */
 export async function checkFiles(
   folder: string,
   packed: Manifest,
@@ -69,11 +65,7 @@ export async function checkFiles(
 
 const SPECIFIER = /\bfrom\s+"([^"]+)"|\bimport\s*\(\s*"([^"]+)"\s*\)|^\s*import\s+"([^"]+)"/gmu;
 
-/**
- * Checks every import in the built files. A relative import must name a file in
- * the tarball. A package import must be a declared dependency with that export,
- * a declared peer, or a `node:` builtin in a package that may use Node.
- */
+/** Checks that every import in the built files names a tarball file, a declared dependency or peer, or an allowed `node:` builtin. */
 export async function checkImports(
   folder: string,
   packed: Manifest,
@@ -133,10 +125,7 @@ function checkSpecifier(
 
 const LINK = /\]\(([^)\s]+)\)/gu;
 
-/**
- * The relative link targets in one Markdown file, without their anchors.
- * URLs, mail links, and same-page anchors are left out.
- */
+/** Relative link targets without their anchors. URLs, mail links, and same-page anchors are skipped. */
 export function relativeLinks(markdown: string): string[] {
   const targets: string[] = [];
   for (const match of markdown.matchAll(LINK)) {
@@ -147,10 +136,7 @@ export function relativeLinks(markdown: string): string[] {
   return targets;
 }
 
-/**
- * Checks that every relative link in a shipped Markdown file names a file in
- * the tarball, so an installed README never points at a missing guide.
- */
+/** Checks that every relative link in a shipped Markdown file names a file in the tarball. */
 export async function checkLinks(packed: Manifest, unpacked: string): Promise<string[]> {
   const failures: string[] = [];
   const present = new Set(await listFiles(unpacked));

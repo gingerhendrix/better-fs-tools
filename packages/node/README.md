@@ -111,9 +111,8 @@ A write goes to a `0o600` temp file next to the target. The bytes are written an
 import { createNodeFsTools, nodeCommandRunner } from "@better-fs-tools/node";
 import type { NodeFsToolsWithBash } from "@better-fs-tools/node";
 
-// The four file tools and bash in one cwd. Bash is there only because the
-// options ask for it. The hook makes the next edit of a file that a command
-// may have changed need a read first.
+// bash is created only because `bash` is set. The hook makes the next edit of
+// package.json need a read first, since a command may have changed it.
 let tools: NodeFsToolsWithBash | undefined;
 tools = createNodeFsTools({
   cwd: "/srv/project",
@@ -126,7 +125,6 @@ tools = createNodeFsTools({
           const invalidated = await tools?.invalidate("package.json");
           // An empty update keeps the output and the notes.
           if (invalidated === undefined || invalidated.ok) return {};
-          // Tell the model when the record could not be removed.
           const warning = {
             code: "invalidate-failed",
             severity: "warning" as const,

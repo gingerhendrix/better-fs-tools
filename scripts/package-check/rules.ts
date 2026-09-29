@@ -1,11 +1,7 @@
-/**
- * The package rules from plan section 3, as data. A new package folder, a new
- * dependency, or a new peer must be added here before the check passes.
- */
+// A new package folder, dependency, or peer must be added here before the check passes.
 export interface PackageRule {
   /** Other @better-fs-tools packages in `dependencies`, by folder name. */
   readonly dependencies: readonly string[];
-  /** Required peers and their ranges. */
   readonly peers: Readonly<Record<string, string>>;
   /** True when the package may import `node:*` builtins. */
   readonly node: boolean;
@@ -54,11 +50,7 @@ export const RUNTIME_NEUTRAL = [
   "just-bash",
 ];
 
-/**
- * Entries that are empty on purpose, until the batch that fills them. The Node
- * consumer fails when a listed entry exports something, so the batch that adds
- * exports must remove its entry here. None are left.
- */
+/** Export entries that are empty on purpose. The Node consumer fails if a listed entry exports something. */
 export const EMPTY_ENTRIES: readonly string[] = [];
 
 export interface ExportTarget {
@@ -89,10 +81,7 @@ const RANGE_FIELDS = [
   "optionalDependencies",
 ] as const;
 
-/**
- * Checks the packed manifest against the rule for its folder. `source` is the
- * workspace manifest, used to prove every development export was published.
- */
+/** `source` is the workspace manifest, used to check that every development export was published. */
 export function checkManifest(
   folder: string,
   packed: Manifest,
