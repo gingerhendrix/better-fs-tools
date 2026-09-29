@@ -6,7 +6,7 @@ import { errorOf, errorCode, harness, note } from "../helpers.ts";
 
 const off = { preconditions: { requireRead: "off" } } as const;
 
-describe("load (section 5.2)", () => {
+describe("load", () => {
   test("a file over maxFileBytes is TOO_LARGE before it is opened", async () => {
     const { fs, write } = harness({
       files: { "/big.txt": "0123456789" },

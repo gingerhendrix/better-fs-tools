@@ -17,7 +17,7 @@ interface Host {
   readonly secret: string;
 }
 
-describe("call scope (section 5.1)", () => {
+describe("call scope", () => {
   test("every extension point gets the same call object the caller passed", async () => {
     const fs = memoryFileSystem({ files: { "/a.txt": "one\n" } });
     const store = memoryStore();

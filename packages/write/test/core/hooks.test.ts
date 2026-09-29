@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type { FileChange, WriteHook } from "../../src/index.ts";
 import { errorOf, codes, harness, note, text } from "../helpers.ts";
 
-describe("after-write hooks (section 5.10)", () => {
+describe("after-write hooks", () => {
   test("hooks run in order after the commit and see the change and the call's fs", async () => {
     const seen: string[] = [];
     const hook = (id: string): WriteHook<unknown> => ({

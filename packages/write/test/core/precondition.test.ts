@@ -7,7 +7,7 @@ import { errorOf, codes, errorCode, harness, note, testDigest, text } from "../h
 
 const FILE = { "/a.txt": "one\ntwo\nthree\n" };
 
-describe("precondition table for write (section 5.3)", () => {
+describe("precondition table for write", () => {
   test("row 1: a missing target is created with absent", async () => {
     const { fs, write } = harness();
     const result = await write({ path: "/new.txt", content: "x" });

@@ -30,7 +30,7 @@ function guardThatRewritesFile(
   };
 }
 
-describe("commit (section 5.9)", () => {
+describe("commit", () => {
   test("a write between load and commit is STALE on a compare-and-swap backend", async () => {
     const setup = harness({ files: { "/a.txt": "one\n" } });
     const { fs, read } = setup;

@@ -44,7 +44,7 @@ async function setup(
   return tools;
 }
 
-describe("golden apply_patch output (plan section 6)", () => {
+describe("golden apply_patch output", () => {
   test("success: add, update with a loose hunk, move, and delete", async () => {
     const { applyPatch } = await setup();
     const result = await applyPatch({

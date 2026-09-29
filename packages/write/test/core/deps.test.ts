@@ -22,7 +22,7 @@ import { testDigest } from "../helpers.ts";
 
 const fs = memoryFileSystem();
 
-describe("write tool dependencies (section 4.4)", () => {
+describe("write tool dependencies", () => {
   test("defaults", () => {
     const deps = resolveWriteDependencies({ fs }, "write");
     expect(deps.limits).toEqual(defaultWriteLimits);

@@ -11,7 +11,7 @@ describe("default matcher chains", () => {
     ]);
   });
 
-  test("patch: exact, normalized, line-trimmed (plan D12)", () => {
+  test("patch: exact, normalized, line-trimmed", () => {
     expect(defaultPatchMatchers().map((matcher) => matcher.id)).toEqual([
       "exact",
       "normalized",

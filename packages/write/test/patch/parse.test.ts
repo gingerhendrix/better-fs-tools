@@ -12,7 +12,7 @@ function patch(...lines: string[]): string {
   return ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
 }
 
-describe("parsePatch (plan section 4.8)", () => {
+describe("parsePatch", () => {
   test("add, delete, and update with a move, context, and End of File", () => {
     const text = patch(
       "*** Add File: docs/new.md",

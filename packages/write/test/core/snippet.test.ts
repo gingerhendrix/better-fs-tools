@@ -6,7 +6,7 @@ import { defaultWriteLimits } from "../../src/index.ts";
 
 const file = `${Array.from({ length: 30 }, (_, index) => `l${index + 1}`).join("\n")}\n`;
 
-describe("snippets (section 5.5)", () => {
+describe("snippets", () => {
   test("snippetLines before and after each change", () => {
     expect(buildSnippets(file, [[10, 11]], defaultWriteLimits)).toEqual([
       { startLine: 7, lines: ["l7", "l8", "l9", "l10", "l11", "l12", "l13", "l14"] },

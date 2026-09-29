@@ -7,7 +7,7 @@ import { createReadTool } from "@better-fs-tools/read";
 import { createApplyPatchTool, createEditTool, createWriteTool } from "../../src/index.ts";
 import { errorOf } from "../helpers.ts";
 
-describe("a read-only backend (decision W4)", () => {
+describe("a read-only backend", () => {
   test("backs a read tool, and every write tool refuses it when it is built", async () => {
     const fs = readOnlyFileSystem(memoryFileSystem({ files: { "/a.txt": "one\n" } }));
     expect((await createReadTool({ fs })({ path: "/a.txt" })).status).toBe("ok");

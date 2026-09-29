@@ -5,7 +5,7 @@ import { errorOf, codes, errorCode, harness, note, text } from "../helpers.ts";
 const BOM = [0xef, 0xbb, 0xbf];
 const encode = (value: string) => new TextEncoder().encode(value);
 
-describe("write planning (section 5.6)", () => {
+describe("write planning", () => {
   test("create writes the content as given and reports the change", async () => {
     const { fs, write } = harness();
     const result = await write({ path: "/docs/notes.md", content: "one\r\ntwo\n" });

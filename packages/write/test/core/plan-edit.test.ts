@@ -29,7 +29,7 @@ async function readFile(content: string | Uint8Array, options: Parameters<typeof
   return setup;
 }
 
-describe("edit planning (section 5.4)", () => {
+describe("edit planning", () => {
   test("one exact pair: the file changes and the result names the match", async () => {
     const { edit, fs } = await readFile("a\nb\nc\n");
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "b", newText: "B" }] });
@@ -315,7 +315,7 @@ describe("opt-in matchers through the tool", () => {
   });
 });
 
-describe("failure help (section 5.5)", () => {
+describe("failure help", () => {
   test("already applied: a no-change result with a note, nothing written", async () => {
     const { edit, fs, state } = await readFile("const a = 2;\n");
     const record = await state.get("/f.ts");

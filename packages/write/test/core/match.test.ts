@@ -15,7 +15,7 @@ async function editWith(matchers: readonly Matcher[], file = "abc abc\n") {
   return setup;
 }
 
-describe("matcher chain rules (section 5.4)", () => {
+describe("matcher chain rules", () => {
   test("each matcher sees text mode, from 0, and the listed-matches cap", async () => {
     const seen: MatchContext[] = [];
     const { edit } = await editWith([

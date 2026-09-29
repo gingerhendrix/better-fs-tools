@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type { Guard } from "../../src/index.ts";
 import { errorOf, codes, errorCode, harness, text } from "../helpers.ts";
 
-describe("guards (section 5.8)", () => {
+describe("guards", () => {
   test("the default guards are on, and guards: [] turns them off", async () => {
     const files = { "/a.ts": "const a = 1;\nconst b = 2;\nconst c = 3;\n" };
     const content = "const a = 1;\n// ... rest of code\n";

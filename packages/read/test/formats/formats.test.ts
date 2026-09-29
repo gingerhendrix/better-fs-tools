@@ -187,7 +187,7 @@ describe("hashlineFormat ids", () => {
   });
 });
 
-describe("same call object (plan section 8 rule)", () => {
+describe("same call object", () => {
   interface Host {
     readonly id: string;
   }

@@ -1,6 +1,6 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`golden apply_patch output (plan section 6) success: add, update with a loose hunk, move, and delete 1`] = `
+exports[`golden apply_patch output success: add, update with a loose hunk, move, and delete 1`] = `
 {
   "commit": null,
   "error": null,
@@ -18,7 +18,7 @@ D /old/unused.ts
 }
 `;
 
-exports[`golden apply_patch output (plan section 6) success with the diff option 1`] = `
+exports[`golden apply_patch output success with the diff option 1`] = `
 "Success. Updated the following files:
 M /src/a.ts
 \`\`\`diff
@@ -30,7 +30,7 @@ M /src/a.ts
 \`\`\`"
 `;
 
-exports[`golden apply_patch output (plan section 6) verify failure, parse failure, not read, and no change 1`] = `
+exports[`golden apply_patch output verify failure, parse failure, not read, and no change 1`] = `
 [
   {
     "commit": null,
@@ -100,7 +100,7 @@ exports[`golden apply_patch output (plan section 6) verify failure, parse failur
 ]
 `;
 
-exports[`golden apply_patch output (plan section 6) commit failure: rolled back, and a failed rollback 1`] = `
+exports[`golden apply_patch output commit failure: rolled back, and a failed rollback 1`] = `
 [
   {
     "commit": {

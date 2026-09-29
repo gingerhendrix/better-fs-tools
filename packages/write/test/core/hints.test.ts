@@ -7,7 +7,7 @@ import {
   trailingNewline,
 } from "../../src/core/hints.ts";
 
-describe("failure help (section 5.5)", () => {
+describe("failure help", () => {
   test("trailing newline: the old text has a newline the file's end lacks", () => {
     expect(trailingNewline("a\nlast", "last\n")).toBe("extra");
     expect(trailingNewline("a\nlast\n", "last\n")).toBeNull();

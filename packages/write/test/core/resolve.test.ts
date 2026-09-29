@@ -7,7 +7,7 @@ import { errorOf, codes, errorCode, harness, text } from "../helpers.ts";
 
 type Resolver = NonNullable<WriteToolDeps["resolve"]>;
 
-describe("resolve (section 5.2)", () => {
+describe("resolve", () => {
   test("the read tool's resolvers work unchanged", async () => {
     const { fs, write } = harness({
       fsOptions: { directories: ["/home/me"] },
@@ -84,7 +84,7 @@ describe("resolve (section 5.2)", () => {
   });
 });
 
-describe("stat (section 5.2)", () => {
+describe("stat", () => {
   test("a directory target is NOT_A_FILE", async () => {
     const { write } = harness({ fsOptions: { directories: ["/dir"] } });
     const result = await write({ path: "/dir", content: "x" });

@@ -34,7 +34,7 @@ function snapshot(setup: ReturnType<typeof harness>, paths: readonly string[]) {
   return paths.map((path) => setup.fs.peek(path));
 }
 
-describe("hunk verification (section 5.7 step 3)", () => {
+describe("hunk verification", () => {
   test("an Update replaces the matched lines and reports the hunk", async () => {
     const { applyPatch, fs } = await readAll({ "/a.ts": "one\ntwo\nthree\n" });
     const result = await applyPatch({
@@ -289,7 +289,7 @@ describe("bytes the patch does not name stay the same", () => {
   });
 });
 
-describe("existence problems (section 5.7 step 2)", () => {
+describe("existence problems", () => {
   test("W10: an Add on an existing file is refused and points to Update or write", async () => {
     const setup = await readAll({ "/a.ts": "a\n" });
     const before = snapshot(setup, ["/a.ts"]);
@@ -458,7 +458,7 @@ describe("Delete, Move, and records", () => {
   });
 });
 
-describe("preconditions (section 5.3, D24)", () => {
+describe("preconditions", () => {
   test("an unread Update or Delete gives NOT_READ naming every path; an Add needs no read", async () => {
     const setup = harness({ files: { "/a.ts": "a\n", "/b.ts": "b\n" } });
     const result = await setup.applyPatch({

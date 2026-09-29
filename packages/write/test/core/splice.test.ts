@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { placed, spliceAll } from "../../src/core/splice.ts";
 import { harness, text } from "../helpers.ts";
 
-describe("literal splice (section 5.4)", () => {
+describe("literal splice", () => {
   test("replacement patterns stay literal", () => {
     const source = "const price = PRICE;\n";
     for (const pattern of ["$&", "$$", "$1", "$`", "$'", "$<name>"]) {

@@ -7,7 +7,7 @@ import { createEditTool, createWriteTool } from "../../src/index.ts";
 import type { WriteAuthorizer, WriteHook } from "../../src/index.ts";
 import { errorOf, FIXED_DATE, errorCode, harness, testDigest, text } from "../helpers.ts";
 
-describe("record (section 5.10)", () => {
+describe("record", () => {
   test("a commit stores a schema 2 write record", async () => {
     const { fs, state, digest, write } = harness();
     const result = await write({ path: "/a.txt", content: "hello\n" });
