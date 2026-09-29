@@ -256,6 +256,11 @@ function checkOptions(options: unknown): void {
   for (const [tool, keys] of Object.entries(SHARED_KEYS)) {
     const part: unknown = (options as Record<string, unknown>)[tool];
     if (part === undefined || (tool === "bash" && part === false)) continue;
+    if (tool === "bash" && part === true) {
+      throw new TypeError(
+        "createAiSdkFsTools bash must be an object with a runner and an env: the portable bundle has no default runner",
+      );
+    }
     if (part === null || typeof part !== "object" || Array.isArray(part)) {
       throw new TypeError(`createAiSdkFsTools ${tool} options must be an object`);
     }

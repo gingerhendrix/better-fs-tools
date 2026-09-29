@@ -169,8 +169,9 @@ describe("createAiSdkFsTools", () => {
     expect(() =>
       createAiSdkFsTools({ fs, bash: { runner, env: shellEnv(), clock: null } } as never),
     ).toThrow("createAiSdkFsTools bash options cannot set clock: set it once at the top level");
+    // The same message as createFsTools, with this factory's name.
     expect(() => createAiSdkFsTools({ fs, bash: true } as never)).toThrow(
-      "createAiSdkFsTools bash options must be an object",
+      "createAiSdkFsTools bash must be an object with a runner and an env: the portable bundle has no default runner",
     );
     expect(() => createAiSdkFsTools({ fs, bash: { runner } } as never)).toThrow("env is required");
     // tools is keyed by name, so two tools with one name would hide one of them.
