@@ -44,6 +44,8 @@ console.log(textOf(slow));
 // (no output)
 ```
 
+`textOf` from `@better-fs-tools/shell` is the same function as `textOf` from `@better-fs-tools/read` and `@better-fs-tools/write`. It is re-exported so a bash-only host needs one import.
+
 A tool call is `bash(input, ctx?)`. The input is `{ command, timeoutMs?, cwd? }`. `ctx` is the call context that the other tools use: `{ signal?, callId?, host }`.
 
 Each call starts a new shell. A `cd` or an `export` does not carry to the next call. Use the `cwd` input instead.
@@ -121,20 +123,20 @@ stdout and stderr are merged in arrival order. The core decodes UTF-8 with repla
 
 `runner` and `env` are required. `limits` and `messages` merge key by key. Every other dependency replaces its default.
 
-| Dependency  | Default                   | What a host builds on it                                                                         |
-| ----------- | ------------------------- | ------------------------------------------------------------------------------------------------ |
-| `runner`    | required                  | Node, just-bash, a sandbox wrapper, a remote runner. A factory gets the call.                    |
-| `cwd`       | the runner's `cwd`        | Another default directory, or one for each call.                                                 |
-| `resolve`   | none                      | A read tool resolver changes the requested cwd string.                                           |
-| `beforeRun` | `[]`                      | Guards and command rewrites. A rewrite feeds the next hook.                                      |
-| `authorize` | none (allow)              | Approval prompts, prefix rules, deny lists, plan mode. A read `ToolAuthorizer` works on the cwd. |
-| `env`       | required                  | The host environment, allow lists, and secret scrubbing.                                         |
-| `spill`     | none                      | Every output byte saved to a file or a store.                                                    |
-| `afterRun`  | `[]`                      | Secret masking, output filters, exit-code meanings, read-record invalidation.                    |
-| `formatter` | `defaultShellFormatter()` | Another layout of the model text.                                                                |
-| `messages`  | `defaultShellMessages`    | Wording. A signature sets the parameter names and the timeout unit.                              |
-| `digest`    | null                      | Passed to host functions as `ctx.digest`. The bash tool hashes nothing itself.                   |
-| `clock`     | `() => new Date()`        | Passed to host functions as `ctx.clock`.                                                         |
+| Dependency  | Default                   | What a host builds on it                                                                                                                                                    |
+| ----------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runner`    | required                  | Node, just-bash, a sandbox wrapper, a remote runner. A factory gets the call.                                                                                               |
+| `cwd`       | the runner's `cwd`        | Another default directory, or one for each call.                                                                                                                            |
+| `resolve`   | none                      | A read tool resolver changes the requested cwd string.                                                                                                                      |
+| `beforeRun` | `[]`                      | Guards and command rewrites. A rewrite feeds the next hook.                                                                                                                 |
+| `authorize` | none (allow)              | Approval prompts, prefix rules, deny lists, plan mode. A read `ToolAuthorizer` works on the cwd: `denyPaths()` sees the working directory, not the files a command touches. |
+| `env`       | required                  | The host environment, allow lists, and secret scrubbing.                                                                                                                    |
+| `spill`     | none                      | Every output byte saved to a file or a store.                                                                                                                               |
+| `afterRun`  | `[]`                      | Secret masking, output filters, exit-code meanings, read-record invalidation.                                                                                               |
+| `formatter` | `defaultShellFormatter()` | Another layout of the model text.                                                                                                                                           |
+| `messages`  | `defaultShellMessages`    | Wording. A signature sets the parameter names and the timeout unit.                                                                                                         |
+| `digest`    | null                      | Passed to host functions as `ctx.digest`. The bash tool hashes nothing itself.                                                                                              |
+| `clock`     | `() => new Date()`        | Passed to host functions as `ctx.clock`.                                                                                                                                    |
 
 The stages run in this order: input, cwd, `beforeRun`, `authorize`, `env`, the run, `afterRun`, and the formatter. `authorize` sees the command after every `beforeRun` rewrite, so an approval prompt shows the command that runs. Its target has the cwd as `resolvedPath`, and a `displayPath` relative to the default cwd (`.` for the default cwd itself), as the file tools show paths.
 
