@@ -16,8 +16,7 @@ async function edited(before: string, oldText: string, newText: string): Promise
 }
 
 describe("toPiMutationDetails", () => {
-  // Pi shows up to four context lines, the unified diff three. In a short file
-  // every line is shown either way, so the two agree line for line.
+  // Short files, so Pi's four context lines and the unified diff's three show the same lines.
   for (const [label, oldText, newText] of [
     ["a changed line", "three", "THREE"],
     ["an added line", "three\n", "three\n3.5\n"],

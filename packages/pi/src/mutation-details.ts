@@ -2,14 +2,14 @@ import type { FileChange, MutationResult } from "@better-fs-tools/write";
 
 /** Pi's EditToolDetails shape, so Pi's built-in edit renderer draws the diff. */
 export interface PiMutationDetails {
-  /** Pi display diff: "+NN text", "-NN text", " NN text", "..." (core/tools/edit-diff.js generateDiffString). */
+  /** Pi's display diff, with lines like "+NN text", "-NN text", " NN text", and "...". */
   diff: string;
   /** Unified diff of every change. */
   patch: string;
   firstChangedLine?: number;
 }
 
-const HUNK = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u;
+const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/u;
 
 interface Row {
   readonly kind: " " | "-" | "+" | "...";
@@ -18,17 +18,16 @@ interface Row {
 }
 
 /**
- * Details for an `edit` or `apply_patch` result with changes. Anything else
- * (an error, `no-change`, a result with no changes) gives undefined, as Pi's
- * own edit does on an error. With more than one file, each file's lines
- * follow a line with its path, which Pi draws as context.
+ * Converts an edit or apply_patch result to Pi's edit details, so Pi draws the
+ * diff. Returns undefined for an error or a result with no changes. With more
+ * than one file, each file's lines follow a line with its path.
  */
 export function toPiMutationDetails(result: MutationResult): PiMutationDetails | undefined {
   if (result.status !== "ok" || result.changes.length === 0) return undefined;
   const blocks: string[] = [];
   let firstChangedLine: number | undefined;
   for (const change of result.changes) {
-    const display = displayDiff(change.diff);
+    const display = toPiDisplayDiff(change.diff);
     firstChangedLine ??= display.firstChangedLine;
     const header = result.changes.length > 1 ? `${label(change)}\n` : "";
     blocks.push(`${header}${display.text}`);
@@ -44,25 +43,20 @@ function label(change: FileChange): string {
   return change.movedFrom === null ? change.path : `${change.movedFrom} → ${change.path}`;
 }
 
-/**
- * Converts one unified diff (FileChange.diff) to Pi's display lines. Line
- * numbers are padded to the widest one shown. Context and removed lines carry
- * the old line number, added lines the new one, as generateDiffString does.
- * Hunks are joined by a "..." row.
- */
-function displayDiff(unified: string): { text: string; firstChangedLine: number | undefined } {
+// Context and removed lines carry the old line number, added lines the new one, as Pi's generateDiffString does.
+function toPiDisplayDiff(unified: string): { text: string; firstChangedLine: number | undefined } {
   const rows: Row[] = [];
   let oldLine = 0;
   let newLine = 0;
   let inHunk = false;
   let firstChangedLine: number | undefined;
   for (const raw of unified.split("\n")) {
-    const hunk = HUNK.exec(raw);
+    const hunk = HUNK_HEADER.exec(raw);
     if (hunk !== null) {
       if (inHunk) rows.push({ kind: "...", line: 0, text: "" });
       inHunk = true;
-      oldLine = start(hunk[1], hunk[2]);
-      newLine = start(hunk[3], hunk[4]);
+      oldLine = firstLineOfRange(hunk[1], hunk[2]);
+      newLine = firstLineOfRange(hunk[3], hunk[4]);
       continue;
     }
     if (!inHunk || raw.startsWith("\\")) continue;
@@ -93,8 +87,8 @@ function displayDiff(unified: string): { text: string; firstChangedLine: number 
   return { text, firstChangedLine };
 }
 
-/** A unified range start. A zero count names the line before, so the next line is start + 1. */
-function start(line: string | undefined, count: string | undefined): number {
+// In a unified diff, a range with a zero count names the line before it.
+function firstLineOfRange(line: string | undefined, count: string | undefined): number {
   const value = Number(line);
   return count === "0" ? value + 1 : value;
 }

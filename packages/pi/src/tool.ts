@@ -29,11 +29,12 @@ import { checkPiContext, checkPiOptions, piFileSystems } from "./roots.ts";
 
 export type { PiContentPart } from "./parts.ts";
 
-/** Pi 0.84.2's own read snippet and guideline, so the system prompt is unchanged. */
-const PROMPT_SNIPPET = "Read file contents";
-const PROMPT_GUIDELINES: readonly string[] = ["Use read to examine files instead of cat or sed."];
+const PI_BUILTIN_READ_SNIPPET = "Read file contents";
+const PI_BUILTIN_READ_GUIDELINES: readonly string[] = [
+  "Use read to examine files instead of cat or sed.",
+];
 
-/** The Pi options of the read tool, which createPiFsTools takes under `read` too. */
+/** Pi prompt options of the read tool. */
 export interface PiReadOptions {
   /** Default defaultReadSignature({ name: "read" }). */
   readonly signature?: ReadSignature;
@@ -44,8 +45,8 @@ export interface PiReadOptions {
 }
 
 /**
- * Every read option except fs, and the Pi options. digest defaults to
- * nodeDigest(); a state needs a digest that is not null.
+ * Options for createPiReadTool. digest defaults to nodeDigest(); a state needs
+ * a digest that is not null.
  */
 export type CreatePiReadToolOptions = Omit<ReadToolDeps<ExtensionContext>, "fs"> &
   StateNeedsDigestOrDefault &
@@ -67,7 +68,7 @@ export interface PiReadTool {
   readonly description: string;
   readonly promptSnippet: string;
   readonly promptGuidelines: string[];
-  /** Type.Unsafe(signature.schema). */
+  /** The JSON Schema of the tool input. */
   readonly parameters: TSchema;
   execute(
     toolCallId: string,
@@ -79,9 +80,9 @@ export interface PiReadTool {
 }
 
 /**
- * Throws TypeError when options contain fs, cwd, or allowedRoots (D5).
- * Builds one core tool. Its fs is a factory over ctx.cwd with an 8-root cache (D19).
- * Stateless by default: no store, no session id, nothing written outside the process.
+ * Creates a Pi read tool rooted at each call's ctx.cwd. Throws TypeError when
+ * options set fs, cwd, or allowedRoots. It keeps no read state by default and
+ * writes nothing outside the process.
  */
 export function createPiReadTool(options: CreatePiReadToolOptions = {}): PiReadTool {
   checkPiOptions(options, "read");
@@ -105,21 +106,15 @@ export function createPiReadTool(options: CreatePiReadToolOptions = {}): PiReadT
   return adaptPiReadTool(parts, read, digest);
 }
 
-/** A read tool's Pi options with their defaults, and the core options that the Pi face needs too. */
 export interface PiReadParts {
   readonly signature: ReadSignature;
   readonly promptSnippet: string;
   readonly promptGuidelines: readonly string[];
   readonly limits: Readonly<ReadLimits>;
   readonly formatter: ReadFormatter<ExtensionContext>;
-  /** The signature's messages under the host's. */
   readonly messages: Partial<ReadMessageCatalog>;
 }
 
-/**
- * The Pi defaults: the signature, the prompt text, lineNumberFormatter(), the
- * resolved limits, and the signature's messages under the host's.
- */
 export function piReadParts(
   options: PiReadOptions &
     Pick<Partial<ReadToolDeps<ExtensionContext>>, "limits" | "messages" | "formatter">,
@@ -127,20 +122,18 @@ export function piReadParts(
   const signature = options.signature ?? defaultReadSignature({ name: "read" });
   return {
     signature,
-    promptSnippet: options.promptSnippet ?? PROMPT_SNIPPET,
-    promptGuidelines: options.promptGuidelines ?? PROMPT_GUIDELINES,
+    promptSnippet: options.promptSnippet ?? PI_BUILTIN_READ_SNIPPET,
+    promptGuidelines: options.promptGuidelines ?? PI_BUILTIN_READ_GUIDELINES,
     limits: resolveReadLimits(options.limits),
     formatter: options.formatter ?? lineNumberFormatter(),
     messages: { ...readSignatureMessages(signature), ...options.messages },
   };
 }
 
-/** The core options that piReadParts fills in, to spread over the host's. */
 export function piReadDeps(parts: PiReadParts) {
   return { limits: parts.limits, formatter: parts.formatter, messages: parts.messages };
 }
 
-/** The Pi face of a built read tool. `digest` is the core's, for the "view" format context. */
 export function adaptPiReadTool(
   parts: PiReadParts,
   read: ReadTool<ExtensionContext>,
@@ -156,7 +149,6 @@ export function adaptPiReadTool(
     parameters: Type.Unsafe(signature.schema),
     async execute(toolCallId, input, signal, _onUpdate, ctx) {
       checkPiContext(ctx, "read");
-      // Pi's ctx itself is the host: no copy, no spread, no freeze.
       const call: ReadContext<ExtensionContext> = {
         ...(signal === undefined ? {} : { signal }),
         callId: toolCallId,
@@ -175,11 +167,6 @@ export function adaptPiReadTool(
   });
 }
 
-/**
- * The body in "view" mode, with the same call object. null for parts, a
- * non-ok result, or a formatter that throws: the core already fell back and
- * noted it in "model" mode.
- */
 function viewOf(
   formatter: ReadFormatter<ExtensionContext>,
   result: ReadResult,
@@ -191,6 +178,7 @@ function viewOf(
     const view = formatter.format(outcome, ctx);
     return typeof view === "string" ? view : null;
   } catch {
+    // The core already fell back and reported the error in "model" mode.
     return null;
   }
 }

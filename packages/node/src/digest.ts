@@ -2,10 +2,7 @@ import { createHash } from "node:crypto";
 
 import type { Digest } from "@better-fs-tools/read";
 
-/**
- * SHA-256 over `node:crypto`. The Node read tool uses it by default, because
- * WebCrypto cannot hash incrementally.
- */
+/** A SHA-256 digest using `node:crypto`. The default digest of the Node tools. */
 export function nodeDigest(): Digest {
   return Object.freeze({
     id: "sha256",

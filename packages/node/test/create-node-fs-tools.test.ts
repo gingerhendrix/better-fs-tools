@@ -17,7 +17,6 @@ afterAll(async () => {
   for (const root of roots) await rm(root, { recursive: true, force: true });
 });
 
-/** A fresh temporary directory with the given files. */
 async function workspace(files: Record<string, string> = {}): Promise<string> {
   const root = await realpath(await mkdtemp(join(tmpdir(), "better-fs-tools-node-fs-tools-")));
   roots.push(root);
@@ -51,7 +50,6 @@ describe("createNodeFsTools on disk", () => {
       recorded: true,
     });
 
-    // The same (path, call?) shape as every bundle. Node ignores the call.
     await tools.read({ path: "app.ts" });
     expect(await tools.invalidate("app.ts", { callId: "c1", host: undefined })).toMatchObject({
       ok: true,
@@ -117,7 +115,6 @@ describe("createNodeFsTools on disk", () => {
     expect(errorOf(await tools.applyPatch({ patch: patch.join("\n") }))?.code).toBe("NOT_READ");
     await tools.read({ path: "app.ts" });
     expect((await tools.applyPatch({ patch: patch.join("\n") })).status).toBe("ok");
-    // The patch left a write record, so an edit needs no second read.
     expect((await tools.edit(edit("a", "A"))).status).toBe("ok");
     expect(await readFile(join(cwd, "app.ts"), "utf8")).toBe("A\nB\n");
   });
@@ -231,7 +228,7 @@ describe("createNodeFsTools sharing", () => {
     expect(() => createNodeFsTools({ allowedRoot: ["/tmp"] } as never)).toThrow(TypeError);
   });
 
-  test("newFileMode and newDirectoryMode reach the filesystem (Q5)", async () => {
+  test("newFileMode and newDirectoryMode reach the filesystem", async () => {
     const cwd = await workspace();
     const tools = createNodeFsTools({
       cwd,
@@ -291,7 +288,6 @@ describe("createNodeFsTools sharing", () => {
   });
 });
 
-/** The error of a result, or null when its status is not "error". */
 function errorOf<T extends { readonly status: string }>(
   result: T,
 ): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {

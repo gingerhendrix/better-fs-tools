@@ -6,15 +6,12 @@ export type PiContentPart =
   | { type: "text"; text: string }
   | { type: "image"; data: string; mimeType: string };
 
-/**
- * One case for each ContentPart type. Pi's tool content takes images only, so
- * other media becomes a text part that says what was left out.
- */
 export function toPiPart(part: ContentPart, tool: string): PiContentPart {
   switch (part.type) {
     case "text":
       return { type: "text", text: part.text };
     case "media":
+      // Pi's tool content takes images only.
       if (!part.mediaType.startsWith("image/")) {
         return {
           type: "text",

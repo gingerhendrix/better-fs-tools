@@ -17,7 +17,6 @@ import { execute, fixtures, piContext, textOf } from "./helpers.ts";
 
 const fixture = fixtures();
 
-/** A real 1x1 PNG from the shared fixtures in the read package. */
 const PNG = new Uint8Array(
   await readFile(new URL("../../read/test/fixtures/files/pixel.png", import.meta.url)),
 );

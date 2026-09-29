@@ -15,13 +15,7 @@ import type {
   PiReadToolResult,
 } from "../src/index.ts";
 
-/**
- * Call once at the top of each test file. Returns a function that makes a
- * temporary directory with the given files, and registers an afterAll in
- * that file that removes every directory it made. A single afterAll here
- * would run for the first test file that imports this module only, and
- * leave every other file's directories behind.
- */
+// Call once per test file: a module-level afterAll would clean up after the first importing file only.
 export function fixtures(): (files?: Record<string, string | Uint8Array>) => Promise<string> {
   const roots: string[] = [];
   afterAll(async () => {
@@ -39,12 +33,10 @@ export function fixtures(): (files?: Record<string, string | Uint8Array>) => Pro
   };
 }
 
-/** A Pi context. The adapter reads only `cwd`; the rest stays as Pi sent it. */
 export function piContext(cwd: string): ExtensionContext {
   return { cwd } as ExtensionContext;
 }
 
-/** One Pi execution. `onUpdate` is unused by this adapter. */
 export function execute(
   tool: PiReadTool,
   input: JsonObject,
@@ -54,7 +46,6 @@ export function execute(
   return tool.execute("pi-read-call", input, signal, undefined, piContext(cwd));
 }
 
-/** One Pi execution of a write tool. */
 export function run(
   tool: PiMutationTool,
   input: JsonObject,

@@ -29,7 +29,7 @@ const fixture = fixtures();
 const PATCH = (...lines: string[]) => ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
 
 describe("pi write tool shapes", () => {
-  test("edit matches Pi's built-in edit name, prompt text, and parameter keys (D17)", () => {
+  test("edit matches Pi's built-in edit name, prompt text, and parameter keys", () => {
     const tool = createPiEditTool();
     const builtIn = createBuiltInPiEditTool(process.cwd());
 
@@ -59,7 +59,7 @@ describe("pi write tool shapes", () => {
     );
   });
 
-  test("apply_patch defaults to the freeform signature with an openai_lark grammar (D18)", () => {
+  test("apply_patch defaults to the freeform signature with an openai_lark grammar", () => {
     const tool = createPiApplyPatchTool();
     const signature = freeformPatchSignature();
     expect(tool.name).toBe("apply_patch");
@@ -176,7 +176,7 @@ describe("pi write tools: execute", () => {
     expect(await readFile(path.join(parent, "b", "x.txt"), "utf8")).toBe("B\n");
   });
 
-  test("newFileMode and newDirectoryMode reach the filesystem of each root (Q5)", async () => {
+  test("newFileMode and newDirectoryMode reach the filesystem of each root", async () => {
     const cwd = await fixture();
     const write = createPiWriteTool({ newFileMode: 0o600, newDirectoryMode: 0o700 });
     await run(write, { path: "d/x.txt", content: "x\n" }, cwd);

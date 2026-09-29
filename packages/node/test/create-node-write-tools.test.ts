@@ -67,7 +67,6 @@ describe("createNode*Tool defaults", () => {
   test("a state without a digest is refused, as in the core", () => {
     // @ts-expect-error: StateNeedsDigestOrDefault refuses a state with digest null.
     expect(() => createNodeEditTool({ state: memoryStore(), digest: null })).toThrow(TypeError);
-    // Without digest, the default nodeDigest() pairs with the state.
     expect(() => createNodeEditTool({ state: memoryStore() })).not.toThrow();
   });
 
@@ -106,7 +105,6 @@ describe("createNode*Tool defaults", () => {
   });
 });
 
-/** The error of a result, or null when its status is not "error". */
 function errorOf<T extends { readonly status: string }>(
   result: T,
 ): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {

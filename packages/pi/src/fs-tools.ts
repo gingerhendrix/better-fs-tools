@@ -22,10 +22,9 @@ import type { PiRootOptions } from "./roots.ts";
 import { adaptPiReadTool, piReadDeps, piReadParts } from "./tool.ts";
 import type { CreatePiReadToolOptions, PiReadTool } from "./tool.ts";
 
-/** Set once for all four tools. */
-type Shared = FsToolsSharedKey | keyof PiRootOptions;
+type BundleSharedKey = FsToolsSharedKey | keyof PiRootOptions;
 
-const KNOWN: ReadonlySet<string> = new Set([
+const KNOWN_OPTIONS: ReadonlySet<string> = new Set([
   "state",
   "digest",
   "locks",
@@ -36,21 +35,21 @@ const KNOWN: ReadonlySet<string> = new Set([
   "write",
   "applyPatch",
 ]);
-const SHARED_KEYS = ["state", "digest", "locks", "clock", ...PI_ROOT_KEYS] as const;
+const BUNDLE_SHARED_KEYS = ["state", "digest", "locks", "clock", ...PI_ROOT_KEYS] as const;
 
 export interface CreatePiFsToolsOptions extends PiRootOptions {
-  /** Default memoryStore({ clock }), on the bundle clock. null turns read-before-write off. */
+  /** Default a memory store on the bundle clock. null turns read-before-write off. */
   readonly state?: ReadStateStore | null;
-  /** Default nodeDigest(), as in createNodeFsTools. */
+  /** Default nodeDigest(). */
   readonly digest?: Digest;
   /** Default memoryLocks(). */
   readonly locks?: LockManager;
   /** Default () => new Date(). */
   readonly clock?: Clock;
-  readonly read?: Omit<CreatePiReadToolOptions, Shared>;
-  readonly edit?: Omit<CreatePiEditToolOptions, Shared>;
-  readonly write?: Omit<CreatePiWriteToolOptions, Shared>;
-  readonly applyPatch?: Omit<CreatePiApplyPatchToolOptions, Shared>;
+  readonly read?: Omit<CreatePiReadToolOptions, BundleSharedKey>;
+  readonly edit?: Omit<CreatePiEditToolOptions, BundleSharedKey>;
+  readonly write?: Omit<CreatePiWriteToolOptions, BundleSharedKey>;
+  readonly applyPatch?: Omit<CreatePiApplyPatchToolOptions, BundleSharedKey>;
 }
 
 export interface PiFsTools {
@@ -64,31 +63,29 @@ export interface PiFsTools {
   readonly locks: LockManager;
   readonly clock: Clock;
   /**
-   * Deletes the record for a path under the call's ctx.cwd, so the next edit
-   * needs a read. Pass the call: in a bash afterRun hook it is ctx.call.
-   * Without it there is no ctx.cwd, so the outcome is { ok: false } with
-   * reason "unsupported", as in the portable bundle over an fs factory.
-   * Never throws. With state null it still stats, and reports recorded: false.
+   * Forgets the read record for a path under the call's ctx.cwd, so the next
+   * edit needs a read. Pass the call; in a bash afterRun hook it is ctx.call.
+   * Without it the outcome is { ok: false } with reason "unsupported". Never
+   * throws. With state null it reports recorded: false.
    */
   invalidate(path: string, call?: ToolCallContext<ExtensionContext>): Promise<InvalidateOutcome>;
 }
 
 /**
- * createFsTools from @better-fs-tools/write, over one root cache on ctx.cwd,
- * with nodeDigest(). The four tools share one store, one digest, one lock
- * manager, and one clock. Throws TypeError on fs, cwd, or allowedRoots, at
- * the top level or in any tool's options, on an unknown top-level key, and
- * on a shared option (state, digest, locks, clock, or a root option) in a
- * tool's options. No bash: register createPiBashTool() for that, and call
- * invalidate from its afterRun hook.
+ * Creates Pi read, edit, write, and apply_patch tools rooted at each call's
+ * ctx.cwd. They share one read state store, digest, lock manager, and clock.
+ * Throws TypeError on fs, cwd, or allowedRoots anywhere in the options, on an
+ * unknown key, and on a shared option (state, digest, locks, clock, or a root
+ * option) inside one tool's options. There is no bash: register
+ * createPiBashTool() and call invalidate from its afterRun hook.
  */
 export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools {
   checkPiOptions(options, "fs");
   for (const key of Object.keys(options)) {
-    if (!KNOWN.has(key)) throw new TypeError(`Unknown createPiFsTools option: ${key}`);
+    if (!KNOWN_OPTIONS.has(key)) throw new TypeError(`Unknown createPiFsTools option: ${key}`);
   }
   const state: unknown = (options as Record<string, unknown>).state;
-  if (state !== undefined && state !== null && !isStore(state)) {
+  if (state !== undefined && state !== null && !isReadStateStore(state)) {
     throw new TypeError(
       `createPiFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory`,
     );
@@ -101,7 +98,7 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
   };
   for (const [key, value] of Object.entries(given)) {
     checkPiOptions(value, key);
-    for (const shared of SHARED_KEYS) {
+    for (const shared of BUNDLE_SHARED_KEYS) {
       if (Object.hasOwn(value, shared)) {
         throw new TypeError(
           `createPiFsTools ${key} options cannot set ${shared}: set it once at the top level`,
@@ -167,8 +164,7 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
   });
 }
 
-/** A read state store: an object with get, put, and delete. A per-call factory is not one. */
-function isStore(value: unknown): boolean {
+function isReadStateStore(value: unknown): boolean {
   if (value === null || typeof value !== "object") return false;
   const store = value as Record<string, unknown>;
   return ["get", "put", "delete"].every((key) => typeof store[key] === "function");

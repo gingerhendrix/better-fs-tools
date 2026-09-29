@@ -29,7 +29,6 @@ import {
 import type { NodeContext, TargetPaths } from "./policy.ts";
 import { nodeStat } from "./stat.ts";
 
-/** The calls that change the disk. Tests swap one to inject a failure. */
 export interface NodeWriteIo {
   readonly open: typeof open;
   readonly link: typeof link;
@@ -60,17 +59,6 @@ export interface NodeWrites {
   remove(path: string, options: MutateOptions): Promise<MutationOutcome>;
 }
 
-/**
- * write, stage, and remove for nodeFileSystem.
- *
- * stage() checks the path like open(), creates missing parents, and writes the
- * bytes to a 0o600 temp file next to the target: write, chmod to the old mode
- * or the new-file mode (see createModes), then fsync. publish() takes an in-process lock for
- * the real path, checks the precondition against a fresh lstat, and publishes:
- * link() for a create, so a concurrent creator makes it fail with exists, and
- * rename() for a replace. Any failure removes the temp file and the
- * directories stage() created.
- */
 export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO): NodeWrites {
   const { config } = context;
 
@@ -103,7 +91,7 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
         temp = null;
       }
       for (const directory of [...created].reverse()) {
-        // rmdir refuses a directory that is not empty, which is the rule.
+        // rmdir refuses a directory that is not empty, so only empty ones are removed.
         await io.rmdir(directory).catch(() => {});
       }
       created.length = 0;
@@ -149,7 +137,6 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
     };
   };
 
-  /** Creates each missing parent, outermost first, and checks it is a real directory. */
   const createParents = async (
     directories: readonly string[],
     created: string[],
@@ -159,7 +146,7 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
       try {
         await io.mkdir(directory, mode);
         created.push(directory);
-        // mkdir applies the umask. A configured mode is exact, so set it again.
+        // mkdir applies the umask; chmod makes the mode exact.
         await io.chmod(directory, mode);
       } catch (error) {
         if (errorCode(error) !== "EEXIST") return mapMutationError(error, "create-parent");
@@ -186,7 +173,7 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
       async publish(): Promise<MutationOutcome> {
         if (used || settled) throw new TypeError("node staged write: publish() is single-use");
         used = true;
-        const outcome = await withPathLock(target.resolvedPath, async () => {
+        const outcome = await withInProcessPathLock(target.resolvedPath, async () => {
           try {
             const refused = await publishConflict(target, options);
             if (refused !== null) return fail(refused);
@@ -217,7 +204,6 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
     });
   };
 
-  /** The hardLinks "in-place" policy: truncate and write through the existing inode. */
   const inPlaceStage = (
     target: TargetPaths,
     bytes: Uint8Array,
@@ -231,7 +217,7 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
         if (used || settled) throw new TypeError("node staged write: publish() is single-use");
         used = true;
         settled = true;
-        return withPathLock(target.resolvedPath, async () => {
+        return withInProcessPathLock(target.resolvedPath, async () => {
           let handle: FileHandle;
           try {
             handle = await io.open(target.resolvedPath, constants.O_WRONLY | NO_FOLLOW | NON_BLOCK);
@@ -267,7 +253,6 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
     });
   };
 
-  /** The precondition and type checks under the lock, against a fresh lstat. */
   const publishConflict = async (
     target: TargetPaths,
     options: WriteOptions,
@@ -319,7 +304,7 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
     const conflict = preconditionConflict(current, { precondition });
     if (conflict !== null) return fail(conflict);
     const target = { resolvedPath: current.resolvedPath, displayPath: current.displayPath };
-    return withPathLock(target.resolvedPath, async () => {
+    return withInProcessPathLock(target.resolvedPath, async () => {
       try {
         const now = await lstat(target.resolvedPath, { bigint: true });
         if (!now.isFile()) {
@@ -345,7 +330,6 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
   return { write, stage, remove };
 }
 
-/** The early precondition check on the stat. publish() checks again under the lock. */
 function preconditionConflict(
   current: FileStat,
   options: Pick<MutateOptions, "precondition">,
@@ -377,14 +361,15 @@ function mutated(
   };
 }
 
-/** `.<name>.<random>.tmp` next to the target. The name part is cut so the result stays short. */
+const TEMP_NAME_MAX_CHARS = 48;
+
 function tempPathFor(resolvedPath: string): string {
-  const name = path.basename(resolvedPath).slice(0, 48);
+  const name = path.basename(resolvedPath).slice(0, TEMP_NAME_MAX_CHARS);
   return path.join(path.dirname(resolvedPath), `.${name}.${randomBytes(6).toString("hex")}.tmp`);
 }
 
-/** Makes the rename or unlink durable. Best effort: some filesystems refuse fsync on a directory. */
 async function syncDirectory(directory: string): Promise<void> {
+  // Best effort: some filesystems refuse fsync on a directory.
   const handle = await open(directory, constants.O_RDONLY | constants.O_DIRECTORY).catch(
     () => null,
   );
@@ -393,31 +378,25 @@ async function syncDirectory(directory: string): Promise<void> {
   await handle.close().catch(() => {});
 }
 
-const pathLocks = new Map<string, Promise<void>>();
+const inProcessPathLocks = new Map<string, Promise<void>>();
 
-/**
- * Runs `run` after every earlier holder of the same real path. The lock is
- * per process: it orders this module's publishes and removes, not other
- * processes.
- */
-async function withPathLock<T>(key: string, run: () => Promise<T>): Promise<T> {
-  const previous = pathLocks.get(key) ?? Promise.resolve();
+async function withInProcessPathLock<T>(key: string, run: () => Promise<T>): Promise<T> {
+  const previous = inProcessPathLocks.get(key) ?? Promise.resolve();
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
   const tail = previous.then(() => held);
-  pathLocks.set(key, tail);
+  inProcessPathLocks.set(key, tail);
   await previous;
   try {
     return await run();
   } finally {
     release();
-    if (pathLocks.get(key) === tail) pathLocks.delete(key);
+    if (inProcessPathLocks.get(key) === tail) inProcessPathLocks.delete(key);
   }
 }
 
-/** mapError plus the four mutation reasons of plan section 4.11. */
 export function mapMutationError(
   error: unknown,
   phase: string,

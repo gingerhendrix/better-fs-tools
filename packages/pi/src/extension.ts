@@ -1,20 +1,16 @@
 /**
- * Pi package extension entry. `package.json` points `pi.extensions` here, so
- * installing the package into a Pi project registers read, edit, write, and
- * apply_patch, and nothing else. The four tools share one in-memory read
- * store (D27), so edit and write need a read first. Nothing is written
- * outside the process: no settings file, no session file.
+ * Pi package extension entry. Installing the package into a Pi project
+ * registers read, edit, write, and apply_patch, and nothing else. The four
+ * tools share one in-memory read store, so edit and write need a read first.
+ * Nothing is written outside the process: no settings file, no session file.
  */
 import { createPiFsTools } from "./fs-tools.ts";
 import type { PiMutationTool } from "./mutation-tools.ts";
 import type { PiReadTool } from "./tool.ts";
 
-/**
- * The ExtensionAPI subset this entry uses. Pi's full API satisfies it. Two
- * overloads, not a union, so Pi's generic registerTool infers the details
- * type of each tool.
- */
+/** The part of Pi's ExtensionAPI this extension uses. Pi's full API satisfies it. */
 export interface PiExtensionApi {
+  // Two overloads, not a union, so Pi's generic registerTool infers each tool's details type.
   registerTool(tool: PiReadTool): void;
   registerTool(tool: PiMutationTool): void;
 }

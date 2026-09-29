@@ -28,7 +28,6 @@ describe("pi extension", () => {
       expect(Object.hasOwn(tool, "renderCall")).toBe(false);
       expect(Object.hasOwn(tool, "renderResult")).toBe(false);
     }
-    // Pi's own edit shape (D17) and the freeform patch grammar (D18).
     const edit = registered[1]?.parameters as { properties?: object } | undefined;
     expect(Object.keys(edit?.properties ?? {})).toEqual(["path", "edits"]);
     expect((registered[3] as PiMutationTool).constrainedSampling?.type).toBe("grammar");
@@ -69,8 +68,7 @@ describe("pi extension", () => {
       await mkdir(agentDir, { recursive: true });
       await writeFile(path.join(project, "fixture.txt"), "one\ntwo\nthree\nfour\n");
 
-      // A package manifest for the global lane, a bare file for the project
-      // lane: the two shapes Pi's loader discovers.
+      // Pi's loader discovers a package in the global lane and a bare file in the project lane.
       const entry = `export { default } from ${JSON.stringify(EXTENSION_SOURCE)};\n`;
       if (scope === "global") {
         const packageDir = path.join(agentDir, "extensions", "better-fs-tools-read");
@@ -86,8 +84,7 @@ describe("pi extension", () => {
         await writeFile(path.join(extensionsDir, "better-fs-tools-read.ts"), entry);
       }
 
-      // Nothing may reach the real ~/.pi: HOME and the agent directory both
-      // point inside the temporary tree, and no settings file is written.
+      // Keep Pi away from the real ~/.pi.
       const previous = { home: process.env.HOME, agent: process.env.PI_CODING_AGENT_DIR };
       process.env.HOME = home;
       process.env.PI_CODING_AGENT_DIR = agentDir;

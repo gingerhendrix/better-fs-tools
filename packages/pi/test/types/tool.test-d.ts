@@ -1,7 +1,4 @@
-/**
- * Type tests. `tsc -b` checks this file through the package tsconfig. Bun never
- * runs it: the name does not match Bun's test file pattern.
- */
+// Type tests: tsc checks this file through the package tsconfig; Bun does not run it.
 import type {
   ExtensionAPI,
   ExtensionContext,

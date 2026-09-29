@@ -8,8 +8,7 @@ import { execute, fixtures, textOf } from "./helpers.ts";
 
 const fixture = fixtures();
 
-// Counts core tools. The wrapper delegates to the real function, so other test
-// files that share this module registry behave the same.
+// Delegates to the real function, because other test files share this module registry.
 let built = 0;
 const real = { ...read };
 void mock.module("@better-fs-tools/read", () => ({

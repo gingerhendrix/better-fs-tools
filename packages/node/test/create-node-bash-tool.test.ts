@@ -17,8 +17,7 @@ async function workdir(): Promise<string> {
   return realpath(await mkdtemp(join(tmpdir(), "bash-tool-")));
 }
 
-/** True while a process whose command line holds `marker` exists. */
-function running(marker: string): boolean {
+function isProcessWithMarkerRunning(marker: string): boolean {
   const list = spawnSync("ps", ["-eo", "args"], { encoding: "utf8" }).stdout;
   return list.split("\n").some((line) => line.includes(marker) && !line.includes("ps -eo"));
 }
@@ -48,7 +47,7 @@ describe("createNodeBashTool", () => {
     const bash = createNodeBashTool({ limits: { killGraceMs: 200 } });
     const result = await bash({ command: `${marker} & ${marker}`, timeoutMs: 300 });
     expect(result.status).toBe("timeout");
-    expect(await waitUntil(() => !running(marker), 2_000)).toBe(true);
+    expect(await waitUntil(() => !isProcessWithMarkerRunning(marker), 2_000)).toBe(true);
   });
 
   test("a SIGTERM trap does not save the tree: SIGKILL follows the grace time", async () => {
@@ -57,7 +56,7 @@ describe("createNodeBashTool", () => {
     const command = `trap '' TERM; (trap '' TERM; ${marker}) & ${marker}`;
     const result = await bash({ command, timeoutMs: 300 });
     expect(result.status).toBe("timeout");
-    expect(await waitUntil(() => !running(marker), 2_000)).toBe(true);
+    expect(await waitUntil(() => !isProcessWithMarkerRunning(marker), 2_000)).toBe(true);
   });
 
   test("abort during a run stops the tree and returns the output so far", async () => {
@@ -69,7 +68,7 @@ describe("createNodeBashTool", () => {
     const result = await pending;
     expect(result.status === "error" ? result.error.code : result.status).toBe("ABORTED");
     expect(result.output?.head).toBe("started");
-    expect(await waitUntil(() => !running(marker), 2_000)).toBe(true);
+    expect(await waitUntil(() => !isProcessWithMarkerRunning(marker), 2_000)).toBe(true);
   });
 
   test("a command that reads stdin gets end of file", async () => {
@@ -129,7 +128,7 @@ describe("createNodeBashTool", () => {
     );
   });
 
-  test("a relative cwd resolves against process.cwd(), as in nodeFileSystem (CF-18)", async () => {
+  test("a relative cwd resolves against process.cwd(), as in nodeFileSystem", async () => {
     const parent = await workdir();
     await mkdir(join(parent, "packages"));
     const before = process.cwd();
@@ -154,7 +153,7 @@ describe("createNodeBashTool", () => {
 });
 
 describe("createNodeFsTools bash", () => {
-  test("is off by default: the bundle has no bash tool and starts no process (Q3)", () => {
+  test("is off by default: the bundle has no bash tool and starts no process", () => {
     expect(createNodeFsTools().bash).toBeNull();
     expect(createNodeFsTools({ bash: false }).bash).toBeNull();
   });
@@ -231,7 +230,6 @@ describe("createNodeFsTools bash", () => {
   });
 });
 
-/** The error of a result, or null when its status is not "error". */
 function errorOf<T extends { readonly status: string }>(
   result: T,
 ): (T extends { readonly status: "error"; readonly error: infer E } ? E : never) | null {

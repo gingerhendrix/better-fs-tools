@@ -21,7 +21,6 @@ describe("pi working directory confinement", () => {
     const tool = createPiReadTool();
 
     expect(textOf(await execute(tool, { path: "same.txt" }, first))).toBe("1|first root");
-    // The cwd changes between calls on the same tool, and the root follows it.
     expect(textOf(await execute(tool, { path: "same.txt" }, second))).toBe("1|second root");
     expect(textOf(await execute(tool, { path: path.join(first, "same.txt") }, first))).toBe(
       "1|first root",
@@ -29,7 +28,6 @@ describe("pi working directory confinement", () => {
     expect(textOf(await execute(tool, { path: path.join(first, "same.txt") }, second))).toMatch(
       /^\[read:outside-allowed-roots\]/u,
     );
-    // Back to the first root: the cache is keyed by directory, not by recency.
     expect(textOf(await execute(tool, { path: "same.txt" }, first))).toBe("1|first root");
 
     for (const escape of ["../secret.txt", path.join(parent, "secret.txt")]) {
@@ -91,10 +89,7 @@ describe("pi working directory confinement", () => {
 
 describe("pi root cache", () => {
   test("reuses one filesystem for each resolved working directory", async () => {
-    // The cached filesystem resolved its root once. Repointing the symlink the
-    // caller passes as ctx.cwd changes nothing for the cached root, while a
-    // fresh tool follows the link to the new directory. That difference shows
-    // the reuse.
+    // A cached root was resolved once, so repointing the ctx.cwd symlink shows whether it is reused.
     const parent = await fixture({ "one/a.txt": "one", "two/a.txt": "two" });
     const link = path.join(parent, "cwd");
     await symlink(path.join(parent, "one"), link);
@@ -124,7 +119,6 @@ describe("pi root cache", () => {
     for (const [index, root] of roots.entries()) {
       expect(textOf(await execute(tool, { path: "a.txt" }, root))).toBe(`1|root ${index}`);
     }
-    // Evicted roots are rebuilt, not lost, and stay confined to themselves.
     expect(textOf(await execute(tool, { path: "a.txt" }, roots[0] as string))).toBe("1|root 0");
     expect(textOf(await execute(tool, { path: "../root-1/a.txt" }, roots[0] as string))).toMatch(
       /^\[read:outside-allowed-roots\]/u,

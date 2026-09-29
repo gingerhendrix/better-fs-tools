@@ -43,7 +43,6 @@ afterAll(async () => {
 });
 
 let counter = 0;
-/** A fresh directory inside the temp root for each test. */
 async function freshRoot(): Promise<string> {
   counter += 1;
   const root = join(base, `case-${counter}`);
@@ -96,7 +95,6 @@ async function tempFiles(root: string): Promise<string[]> {
 
 const modeOf = async (path: string) => (await stat(path)).mode & 0o7777;
 
-/** Runs with a strict umask, so a mode that ignores it shows. */
 async function withUmask<T>(mask: number, run: () => Promise<T>): Promise<T> {
   const previous = process.umask(mask);
   try {
@@ -169,7 +167,7 @@ describe("node stat", () => {
 });
 
 describe("node write: replace and create", () => {
-  test("a replace keeps the mode, and a new file gets 0o666 without the umask (Q5)", async () => {
+  test("a replace keeps the mode, and a new file gets 0o666 without the umask", async () => {
     const root = await freshRoot();
     const fs = fsAt(root);
     await writeFile(join(root, "kept.txt"), "old\n");
@@ -188,7 +186,6 @@ describe("node write: replace and create", () => {
     expect(await modeOf(join(root, "kept.txt"))).toBe(0o640);
     expect(await readFile(join(root, "kept.txt"), "utf8")).toBe("new\n");
     expect(await modeOf(join(root, "new.txt"))).toBe(0o600);
-    // The umask is read at each create, not when the filesystem is built.
     await withUmask(0o002, async () =>
       expectOk(await fs.write("shared.txt", encode("x\n"), options({ precondition: ABSENT }))),
     );
@@ -551,7 +548,7 @@ describe("node write: special files and parents", () => {
     expectReason(await fsAt(root).write("dir", encode("x\n"), options()), "not-a-file");
   });
 
-  test("createParents creates 0o777 directories without the umask (Q5)", async () => {
+  test("createParents creates 0o777 directories without the umask", async () => {
     const root = await freshRoot();
     const file = await withUmask(0o077, async () =>
       expectOk(

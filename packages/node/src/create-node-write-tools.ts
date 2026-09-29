@@ -14,7 +14,7 @@ import { nodeDigest } from "./digest.ts";
 import { nodeFileSystem } from "./filesystem.ts";
 import type { NodeFileSystem } from "./filesystem.ts";
 
-/** The edit tool's dependencies, all optional. A state needs a digest that is not null. */
+/** Options for createNodeEditTool, all optional. A `state` needs a digest that is not null. */
 export type CreateNodeEditToolOptions<THost = undefined> = Partial<EditToolDeps<THost>> &
   StateNeedsDigestOrDefault;
 /** As CreateNodeEditToolOptions, for write. */
@@ -27,9 +27,9 @@ export type CreateNodeApplyPatchToolOptions<THost = undefined> = Partial<
   StateNeedsDigestOrDefault;
 
 /**
- * The zero-config local edit tool. `fs` defaults to nodeFileSystem rooted at
- * process.cwd(). `digest` defaults to nodeDigest(); pass `digest: null` to
- * turn it off. `state` stays null, so read-before-write is off: use
+ * Creates an edit tool for local files. `fs` defaults to nodeFileSystem rooted
+ * at process.cwd(). `digest` defaults to nodeDigest(); pass `digest: null` to
+ * turn it off. Read-before-write is off unless you pass a `state`; use
  * createNodeFsTools() for a store shared with read.
  */
 export function createNodeEditTool<THost = undefined>(
@@ -42,7 +42,7 @@ export function createNodeEditTool<THost = undefined>(
   return createEditTool<THost>({ ...deps, fs, digest: deps.digest ?? nodeDigest() });
 }
 
-/** The zero-config local write tool. Defaults as createNodeEditTool. */
+/** Creates a write tool for local files, with the same defaults as createNodeEditTool. */
 export function createNodeWriteTool<THost = undefined>(
   deps: CreateNodeWriteToolOptions<THost> = {},
 ): WriteTool<THost> {
@@ -52,7 +52,7 @@ export function createNodeWriteTool<THost = undefined>(
   return createWriteTool<THost>({ ...deps, fs, digest: deps.digest ?? nodeDigest() });
 }
 
-/** The zero-config local apply_patch tool. Defaults as createNodeEditTool. */
+/** Creates an apply_patch tool for local files, with the same defaults as createNodeEditTool. */
 export function createNodeApplyPatchTool<THost = undefined>(
   deps: CreateNodeApplyPatchToolOptions<THost> = {},
 ): ApplyPatchTool<THost> {

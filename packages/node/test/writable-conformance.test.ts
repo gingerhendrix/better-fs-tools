@@ -8,7 +8,6 @@ import { runWritableFileSystemConformance } from "@better-fs-tools/fs";
 
 import { nodeFileSystem } from "../src/index.ts";
 
-/** A fresh, empty directory for each run. The suite cannot remove the directories it creates. */
 async function withScratch(run: (root: string) => Promise<void>): Promise<void> {
   const root = await realpath(await mkdtemp(join(tmpdir(), "better-fs-tools-write-conformance-")));
   try {
@@ -32,7 +31,6 @@ describe("write conformance", () => {
         "publish checks the precondition again",
       );
       expect(report.checks.map((check) => check.name)).toContain("a replace keeps the mode");
-      // No temp file survives the run.
       const names = await readdir(root, { recursive: true });
       expect(names.filter((name) => name.endsWith(".tmp"))).toEqual([]);
     });

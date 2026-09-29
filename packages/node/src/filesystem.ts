@@ -52,18 +52,10 @@ export interface NodeFileSystem
 }
 
 /**
- * Descriptor-backed POSIX filesystem.
- *
- * All policy lives here: containment, symlink handling and refused namespaces.
- * `open()` resolves, authorizes, checks the target type and opens one
- * descriptor with `O_NOFOLLOW | O_NONBLOCK`, then works from that descriptor
- * only. Statting the descriptor rather than the path is what closes the
- * time-of-check to time-of-use gap, and opening non-blocking is what stops a
- * FIFO from wedging the caller before the type check runs.
- *
- * `stat()`, `write()`, `stage()`, and `remove()` apply the same roots, deny
- * roots, and symlink policy. A replace goes through a temp file and rename(),
- * a create through link(). See stat.ts and write.ts.
+ * A filesystem over local files on POSIX, confined to the allowed roots, with
+ * the deny roots and the symlink policy applied to every call. A file swapped
+ * after the checks is not read, a FIFO cannot block a read, and a write
+ * replaces a file atomically.
  */
 export function nodeFileSystem(options: NodeFileSystemOptions): NodeFileSystem {
   if (process.platform === "win32") {
@@ -116,6 +108,7 @@ export function nodeFileSystem(options: NodeFileSystemOptions): NodeFileSystem {
       const refused = checkResolved(roots, target);
       if (refused !== null) return fail(refused);
 
+      // O_NONBLOCK stops a FIFO from blocking before the descriptor type check.
       const noFollow = typeof constants.O_NOFOLLOW === "number" ? constants.O_NOFOLLOW : 0;
       const nonBlock = typeof constants.O_NONBLOCK === "number" ? constants.O_NONBLOCK : 0;
       const targetPaths = pathsOf(config.cwd, target);
@@ -123,8 +116,7 @@ export function nodeFileSystem(options: NodeFileSystemOptions): NodeFileSystem {
       try {
         handle = await open(target, constants.O_RDONLY | noFollow | nonBlock);
       } catch (error) {
-        // Linux refuses open() on a socket with ENXIO, before the descriptor
-        // type check can run. Name the kind from the path instead.
+        // Linux refuses open() on a socket with ENXIO, before the descriptor type check.
         if (errorCode(error) === "ENXIO") {
           const stats = await lstat(target, { bigint: true }).catch(() => null);
           if (stats !== null && !stats.isFile()) return fail(notAFile(stats, targetPaths));
@@ -191,7 +183,7 @@ export function nodeFileSystem(options: NodeFileSystemOptions): NodeFileSystem {
             });
           }
         } finally {
-          await closeDirectory(opened);
+          await closeDirectoryIfStillOpen(opened);
         }
       } catch (error) {
         return fail(mapError(error, "list"));
@@ -200,8 +192,6 @@ export function nodeFileSystem(options: NodeFileSystemOptions): NodeFileSystem {
     },
   });
 }
-
-/* -------------------------------------------------------------------------- */
 
 function nodeOpenFile(
   handle: FileHandle,
@@ -232,8 +222,7 @@ function nodeOpenFile(
             async next(): Promise<IteratorResult<Uint8Array>> {
               if (stopped || closed) return { done: true, value: undefined };
               if (signal?.aborted) return { done: true, value: undefined };
-              // A fresh buffer for each chunk: a consumer may keep a chunk
-              // after it asks for the next one.
+              // A fresh buffer per chunk: a consumer may keep a chunk after asking for the next.
               const buffer = new Uint8Array(DESCRIPTOR_READ_BYTES);
               const { bytesRead } = await handle.read(buffer, 0, buffer.byteLength, null);
               if (stopped || closed || bytesRead === 0) {
@@ -267,8 +256,7 @@ function nodeOpenFile(
   };
 }
 
-/** `for await` closes the directory itself when it runs to the end. */
-async function closeDirectory(directory: Dir): Promise<void> {
+async function closeDirectoryIfStillOpen(directory: Dir): Promise<void> {
   try {
     // Bun's Dir.close() resolves to undefined, so this cannot chain.
     await directory.close();

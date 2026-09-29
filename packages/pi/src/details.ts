@@ -21,14 +21,10 @@ export interface PiReadDetails {
 }
 
 /**
- * `view` is formatter output in "view" mode, or null when the formatter returned
- * parts or the result is not a plain line or byte stop. null gives {}.
- *
- * Pi's read renderer prints "showing N of M lines" from these numbers, so an
- * approximate record is worse than none. A scan-capped read has no exact total,
- * a clamped line or a view-budget stop is not a line or byte stop, and an
- * error or a refusal has no view. Each of those gives {}, and Pi renders the
- * text alone.
+ * Converts a read result to Pi's read details, from which Pi prints "showing
+ * N of M lines". `view` is the formatted text in "view" mode, or null. Returns
+ * {} unless the read stopped exactly at a line or byte limit with an exact
+ * total, because an approximate count is worse than none.
  */
 export function toPiReadDetails(
   result: ReadResult,

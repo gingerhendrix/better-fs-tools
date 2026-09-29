@@ -10,24 +10,22 @@ import type {
   RunRequest,
 } from "@better-fs-tools/shell";
 
-/** How long the output may stay open after the shell exits, when a background child holds the pipes. */
-const PIPE_GRACE_MS = 100;
+const BACKGROUND_CHILD_PIPE_GRACE_MS = 100;
 
 export interface NodeCommandRunnerOptions {
-  /** Default process.cwd(). A relative cwd resolves against process.cwd(), as in nodeFileSystem. */
+  /** Default process.cwd(). A relative path resolves against process.cwd(). */
   readonly cwd?: string;
-  /** Default "bash". Run as `<shell> -c <command>`. */
+  /** The shell, run as `<shell> -c <command>`. Default "bash". */
   readonly shell?: string;
   /** Default "node". */
   readonly id?: string;
 }
 
 /**
- * Runs `bash -c <command>` in its own process group, with stdin closed
- * (/dev/null), so a command that reads input gets end of file. On a stop,
- * it sends SIGTERM to the group, then SIGKILL after request.killGraceMs.
- * A background child that outlives a normal exit keeps running; the output
- * stops PIPE_GRACE_MS after the shell exits. POSIX only.
+ * A command runner that runs `bash -c <command>` on the local machine, with
+ * stdin closed. Stopping a command sends SIGTERM to its process group, then
+ * SIGKILL after killGraceMs. A background child that outlives the shell keeps
+ * running, but its output is no longer captured. POSIX only.
  */
 export function nodeCommandRunner(options: NodeCommandRunnerOptions = {}): CommandRunner {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
@@ -98,13 +96,12 @@ async function start(shell: string, request: RunRequest, queue: ChunkQueue): Pro
       if (settled) return;
       settled = true;
       request.signal.removeEventListener("abort", stopTree);
-      // Release pipes that a background child still holds.
-      const release = setTimeout(() => {
+      const releasePipesHeldByBackgroundChild = setTimeout(() => {
         child.stdout.destroy();
         child.stderr.destroy();
         queue.end();
-      }, PIPE_GRACE_MS);
-      release.unref();
+      }, BACKGROUND_CHILD_PIPE_GRACE_MS);
+      releasePipesHeldByBackgroundChild.unref();
       // A stopped tree still gets its SIGKILL: grandchildren may outlive the shell.
       if (!request.signal.aborted) clearTimeout(forceTimer);
       resolve(value);
@@ -139,7 +136,6 @@ function signalGroup(pid: number | undefined, signal: NodeJS.Signals): void {
   }
 }
 
-/** A push-based async iterable. `return()` ends it early. */
 class ChunkQueue implements AsyncIterable<OutputChunk> {
   #items: OutputChunk[] = [];
   #ended = false;

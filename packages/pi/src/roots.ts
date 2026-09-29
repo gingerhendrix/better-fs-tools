@@ -6,18 +6,16 @@ import type { ToolCallContext } from "@better-fs-tools/read";
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-/** Distinct working directories whose filesystems are kept (D19). */
 const MAX_CACHED_ROOTS = 8;
 
-/** Options that would widen the root. The root is always the call's ctx.cwd (D5). */
-const FORBIDDEN_OPTIONS = ["fs", "cwd", "allowedRoots"] as const;
+const ROOT_WIDENING_OPTIONS = ["fs", "cwd", "allowedRoots"] as const;
 
-/** The filesystem policy a Pi tool may set. The root is not one of them. */
+/** Filesystem options for a Pi tool. The root is always ctx.cwd. */
 export interface PiRootOptions {
   /** Added to /dev, /proc, /sys. */
   readonly denyRoots?: readonly string[];
   readonly symlinks?: NodeFileSystemOptions["symlinks"];
-  /** A replace of a file with more than one hard link. Default "refuse" (W12). */
+  /** How to replace a file with more than one hard link. Default "refuse". */
   readonly hardLinks?: "refuse" | "in-place";
   /** Mode of a new file, exactly. Default 0o666 less the process umask. */
   readonly newFileMode?: number;
@@ -25,7 +23,6 @@ export interface PiRootOptions {
   readonly newDirectoryMode?: number;
 }
 
-/** The keys of PiRootOptions, which every Pi file tool and bundle takes. */
 export const PI_ROOT_KEYS = [
   "denyRoots",
   "symlinks",
@@ -34,15 +31,13 @@ export const PI_ROOT_KEYS = [
   "newDirectoryMode",
 ] as const satisfies readonly (keyof PiRootOptions)[];
 
-/** The fs factory every Pi tool uses: one Node filesystem for each ctx.cwd. */
 export type PiFileSystems = (call: ToolCallContext<ExtensionContext>) => NodeFileSystem;
 
-/** Throws TypeError when options are not an object, or set fs, cwd, or allowedRoots (D5). */
 export function checkPiOptions(options: unknown, tool: string): void {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError(`Pi ${tool} tool options must be an object`);
   }
-  for (const key of FORBIDDEN_OPTIONS) {
+  for (const key of ROOT_WIDENING_OPTIONS) {
     if (Object.hasOwn(options, key)) {
       throw new TypeError(
         `Pi ${tool} tool options cannot set ${key}: the root is bound to ctx.cwd on every call`,
@@ -51,7 +46,6 @@ export function checkPiOptions(options: unknown, tool: string): void {
   }
 }
 
-/** Throws TypeError unless ctx is an object with a non-empty cwd. */
 export function checkPiContext(ctx: unknown, tool: string): void {
   if (
     ctx === null ||
@@ -63,10 +57,6 @@ export function checkPiContext(ctx: unknown, tool: string): void {
   }
 }
 
-/**
- * A factory over ctx.cwd with an 8-root cache (D19). Each root gets
- * nodeFileSystem({ cwd: root, allowedRoots: [root] }) and the given policy.
- */
 export function piFileSystems(options: PiRootOptions): PiFileSystems {
   const { denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode } = options;
   const fileSystemFor = rootCache((root) =>
@@ -83,10 +73,6 @@ export function piFileSystems(options: PiRootOptions): PiFileSystems {
   return (call) => fileSystemFor(path.resolve(call.host.cwd));
 }
 
-/**
- * One filesystem for each resolved root, at most MAX_CACHED_ROOTS. The oldest
- * insertion goes first. An evicted root is rebuilt on its next call.
- */
 function rootCache(build: (root: string) => NodeFileSystem): (root: string) => NodeFileSystem {
   const cache = new Map<string, NodeFileSystem>();
   return (root) => {

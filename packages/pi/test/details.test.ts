@@ -20,7 +20,6 @@ function expectOk(result: ReadResult): ReadOk & ReadResult {
   return result;
 }
 
-/** A read of `text` through the Pi tool, plus the same read through the core. */
 async function detailsFor(
   text: string,
   input: { path: string; offset?: number; limit?: number },
@@ -73,8 +72,6 @@ describe("pi details mapping", () => {
     const ok = expectOk(result);
 
     expect(ok.truncation.primary).toBe("bytes");
-    // outputBytes is source bytes in the view, newlines included: the same
-    // quantity maxViewBytes bounds, not the length of the numbered content.
     expect(details.truncation).toMatchObject({
       content: "1|one\n2|two",
       truncatedBy: "bytes",

@@ -180,7 +180,7 @@ describe("createPiFsTools", () => {
     }
   });
 
-  test("exposes state, digest, locks, and clock, and takes locks and clock (CF-16)", () => {
+  test("exposes state, digest, locks, and clock, and takes locks and clock", () => {
     const locks = memoryLocks();
     const clock = () => new Date("2026-09-29T00:00:00.000Z");
     const tools = createPiFsTools({ locks, clock });
@@ -200,7 +200,7 @@ describe("createPiFsTools", () => {
     });
   });
 
-  test("a bash afterRun hook can invalidate a read record with ctx.call (CF-16)", async () => {
+  test("a bash afterRun hook can invalidate a read record with ctx.call", async () => {
     const cwd = await fixture({ "a.txt": "one\n" });
     const tools = createPiFsTools();
     const bash = createPiBashTool({

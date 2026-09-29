@@ -50,12 +50,9 @@ describe("pi tool shape", () => {
     expect(parameters.type).toBe(builtInParameters.type);
     expect(parameters.required).toEqual(builtInParameters.required);
     expect(Object.keys(parameters.properties)).toEqual(Object.keys(builtInParameters.properties));
-    // G7: one default schema. Pi's built-in says "number"; the signature says "integer".
     expect(parameters.properties.offset?.type).toBe("integer");
     expect(parameters.properties.limit?.type).toBe("integer");
 
-    // Pi's inherited read renderer is the point of the details record, so
-    // neither hook may be present, not even as an undefined own property.
     expect(Object.hasOwn(tool, "renderCall")).toBe(false);
     expect(Object.hasOwn(tool, "renderResult")).toBe(false);
     expect(Object.hasOwn(builtIn, "renderCall")).toBe(true);

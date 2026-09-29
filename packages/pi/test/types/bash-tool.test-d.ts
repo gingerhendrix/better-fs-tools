@@ -1,13 +1,9 @@
-/**
- * Type tests. `tsc -b` checks this file through the package tsconfig. Bun never
- * runs it: the name does not match Bun's test file pattern.
- */
+// Type tests: tsc checks this file through the package tsconfig; Bun does not run it.
 import { nodeCommandRunner } from "@better-fs-tools/node";
 
 import { createPiBashTool } from "../../src/index.ts";
 import type { CreatePiBashToolOptions } from "../../src/index.ts";
 
-// The directory is bound to ctx.cwd, so the options type has no cwd.
 // @ts-expect-error cwd is not a Pi bash option
 createPiBashTool({ cwd: "/tmp" });
 // @ts-expect-error cwd is not a Pi bash option

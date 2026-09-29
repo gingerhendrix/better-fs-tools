@@ -12,24 +12,23 @@ import type {
 const DEFAULT_DENY_ROOTS = Object.freeze(["/dev", "/proc", "/sys"]);
 
 /**
- * The shared root options. `cwd` defaults to process.cwd(), and a relative
- * `cwd` resolves against it. `denyRoots` are added to /dev, /proc, and /sys
- * and refused as dangerous-path before any inspection. `symlinks` defaults to
- * "follow-within-roots". `identity` is always "required": Node reports device
- * and inode. `id` defaults to "node".
+ * Options for nodeFileSystem. `cwd` defaults to process.cwd(), and a relative
+ * `cwd` resolves against it. `denyRoots` are added to /dev, /proc, and /sys,
+ * and a path under any of them is refused as dangerous-path. `symlinks`
+ * defaults to "follow-within-roots". `identity` is always "required". `id`
+ * defaults to "node".
  */
 export interface NodeFileSystemOptions extends FileSystemRootOptions<SymlinkPolicy, "required"> {
-  /** A replace of a file with more than one hard link. Default "refuse" (W12). "in-place" truncates and writes, not atomic. */
+  /** How to replace a file with more than one hard link. Default "refuse". "in-place" truncates and writes, which is not atomic. */
   readonly hardLinks?: "refuse" | "in-place";
   /**
    * Mode of a new file, exactly: the umask does not apply to a mode you set.
-   * Default 0o666 with the process umask cleared from it, as open(2) does
-   * (0o644 under the usual umask 0o022).
+   * Default 0o666 less the process umask (0o644 under the usual umask 0o022).
    */
   readonly newFileMode?: number;
   /**
-   * Mode of a directory that createParents makes, exactly. Default 0o777 with
-   * the process umask cleared from it, as mkdir(2) does (0o755 under 0o022).
+   * Mode of a directory that createParents makes, exactly. Default 0o777 less
+   * the process umask (0o755 under 0o022).
    */
   readonly newDirectoryMode?: number;
 }
@@ -41,9 +40,9 @@ export interface NodeConfig {
   readonly denyRoots: readonly string[];
   readonly symlinks: SymlinkPolicy;
   readonly hardLinks: "refuse" | "in-place";
-  /** null: 0o666 without the umask, read when the file is made. */
+  /** null: the default, which depends on the umask when the file is made. */
   readonly newFileMode: number | null;
-  /** null: 0o777 without the umask, read when the directory is made. */
+  /** null: the default, which depends on the umask when the directory is made. */
   readonly newDirectoryMode: number | null;
 }
 
@@ -52,7 +51,6 @@ export interface Roots {
   readonly denied: readonly string[];
 }
 
-/** The resolved options and the lazily resolved real roots of one nodeFileSystem. */
 export interface NodeContext {
   readonly config: NodeConfig;
   roots(): Promise<Roots>;
@@ -93,17 +91,11 @@ export function nodeContext(options: NodeFileSystemOptions): NodeContext {
   return { config, roots };
 }
 
-/**
- * The checks that run before the filesystem is touched: the raw request and
- * its lexical form against the deny roots, and the lexical form against the
- * allowed roots. Returns the lexical absolute path.
- */
 export function checkRequest(
   config: NodeConfig,
   requested: string,
 ): { readonly lexical: string } | { readonly error: FileSystemError } {
-  // The refused namespaces are checked on the raw request too, so a request
-  // for /dev/... is refused before the filesystem is touched.
+  // The raw request is checked too, so /dev/... is refused before the filesystem is touched.
   const rawDangerous = matchDenyRoot(requested, config.denyRoots);
   if (rawDangerous !== null) return { error: { reason: "dangerous-path", detail: rawDangerous } };
   const lexical = path.resolve(config.cwd, requested);
@@ -117,7 +109,6 @@ export function checkRequest(
   return { lexical };
 }
 
-/** Checks a real path against the real roots. null when it is allowed. */
 export function checkResolved(roots: Roots, target: string): FileSystemError | null {
   if (!insideRoots(roots.allowed, target)) return { reason: "outside-allowed-roots" };
   const dangerous = matchDenyRoot(target, roots.denied);
@@ -175,11 +166,6 @@ function resolveOptions(options: NodeFileSystemOptions): NodeConfig {
   };
 }
 
-/**
- * The mode of a new file and of a new directory. A configured mode is exact.
- * The defaults, 0o666 and 0o777, lose the bits of the process umask as it is
- * now, which is what open(2) and mkdir(2) do.
- */
 export function createModes(config: NodeConfig): {
   readonly file: number;
   readonly directory: number;
@@ -234,7 +220,6 @@ export function matchDenyRoot(candidate: string, denyRoots: readonly string[]): 
   return null;
 }
 
-/** True when an existing component of the path is a symbolic link. Missing components end the walk. */
 export async function hasSymlinkComponent(candidate: string): Promise<boolean> {
   const parsed = path.parse(candidate);
   const relative = path.relative(parsed.root, candidate);
@@ -253,12 +238,10 @@ export async function hasSymlinkComponent(candidate: string): Promise<boolean> {
   return false;
 }
 
-/** Device, inode, size and both nanosecond timestamps. */
 export function nodeIdentity(stats: BigIntStats): string {
   return `${stats.dev}:${stats.ino}:${stats.size}:${stats.mtimeNs}:${stats.ctimeNs}`;
 }
 
-/** The object is not a regular file. Devices keep their character or block detail. */
 export function notAFile(stats: BigIntStats, target: TargetPaths): FileSystemError {
   const kind: NodeKind = stats.isDirectory()
     ? "directory"
@@ -279,10 +262,6 @@ export function notAFile(stats: BigIntStats, target: TargetPaths): FileSystemErr
     : { reason: "not-a-file", kind, target, detail };
 }
 
-/**
- * Maps a Node error to a typed refusal. The errno code and the adapter step go
- * in `cause`; `detail` stays for the few cases with a useful plain reason.
- */
 export function mapError(error: unknown, phase: string, target?: TargetPaths): FileSystemError {
   const code = errorCode(error);
   const cause = { code: code ?? "UNKNOWN", phase };

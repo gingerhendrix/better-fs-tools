@@ -19,13 +19,6 @@ import type { NodeContext, Roots } from "./policy.ts";
 
 const DANGLING = "the path is a symbolic link whose target does not exist";
 
-/**
- * `stat()` for nodeFileSystem. The same checks as open(): raw and lexical deny
- * roots, lexical roots, symlink policy, then the real path against the real
- * roots. Nothing is opened, so a FIFO cannot block. A missing path is resolved
- * through its nearest existing ancestor, which must be a directory inside the
- * roots. A dangling link is refused.
- */
 export async function nodeStat(
   context: NodeContext,
   requested: string,
@@ -52,7 +45,7 @@ export async function nodeStat(
     target = await realpath(lexical);
   } catch (error) {
     if (errorCode(error) !== "ENOENT") return fail(mapError(error, "resolve"));
-    return missing(context, roots, lexical);
+    return statMissingPath(context, roots, lexical);
   }
 
   const refused = checkResolved(roots, target);
@@ -86,15 +79,17 @@ export async function nodeStat(
   }
 }
 
-/** Walks up to the nearest existing ancestor and joins the missing segments to its real path. */
-async function missing(context: NodeContext, roots: Roots, lexical: string): Promise<StatOutcome> {
+async function statMissingPath(
+  context: NodeContext,
+  roots: Roots,
+  lexical: string,
+): Promise<StatOutcome> {
   const segments: string[] = [];
   let current = lexical;
   for (;;) {
-    // An entry that lstat sees but realpath cannot resolve is a dangling link.
-    const entry = await lstat(current).catch(() => null);
-    if (entry?.isSymbolicLink()) return fail({ reason: "denied", detail: DANGLING });
-    if (entry !== null) {
+    const unresolvableEntry = await lstat(current).catch(() => null);
+    if (unresolvableEntry?.isSymbolicLink()) return fail({ reason: "denied", detail: DANGLING });
+    if (unresolvableEntry !== null) {
       return fail({ reason: "io", detail: "the path changed while it was resolved" });
     }
     segments.unshift(path.basename(current));
@@ -108,11 +103,11 @@ async function missing(context: NodeContext, roots: Roots, lexical: string): Pro
       if (errorCode(error) === "ENOENT") continue;
       return fail(mapError(error, "resolve"));
     }
-    return missingUnder(context, roots, ancestor, segments);
+    return statMissingUnderAncestor(context, roots, ancestor, segments);
   }
 }
 
-async function missingUnder(
+async function statMissingUnderAncestor(
   context: NodeContext,
   roots: Roots,
   ancestor: string,

@@ -15,25 +15,22 @@ import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
 import { checkPiContext, checkPiOptions } from "./roots.ts";
 
-/** Pi 0.84.4's bashToolSystemPromptContribution snippet, so the system prompt is unchanged. */
-const BASH_SNIPPET = "Execute bash commands (ls, grep, find, etc.)";
-/** Directories whose runners are kept. */
+const PI_BUILTIN_BASH_PROMPT_SNIPPET = "Execute bash commands (ls, grep, find, etc.)";
 const MAX_CACHED_RUNNERS = 8;
 
-/** No cwd: the directory is bound to ctx.cwd on every call. */
+/** Options for createPiBashTool. Commands always run in ctx.cwd. */
 export interface CreatePiBashToolOptions extends Omit<
   ShellToolDeps<ExtensionContext>,
   "runner" | "cwd" | "env"
 > {
-  /** Default a nodeCommandRunner at ctx.cwd, one for each directory. */
+  /** Default a nodeCommandRunner at ctx.cwd. */
   readonly runner?: ShellToolDeps<ExtensionContext>["runner"];
-  /** Default shellEnv(() => process.env): Pi runs commands with the host's environment. */
+  /** Default process.env with defaultShellEnv over it. */
   readonly env?: ShellToolDeps<ExtensionContext>["env"];
   /**
-   * Default defaultBashSignature({ timeoutUnit: "s", cwd: false, limits }):
-   * Pi's own shape, { command, timeout } in seconds, so Pi's bash renderer and
-   * prompt fit. The description names the configured timeouts and output
-   * limits, and a given runner object's id.
+   * Default Pi's own bash input, { command, timeout } with the timeout in
+   * seconds, so Pi's bash renderer and prompt fit. Its description names the
+   * configured timeouts, output limits, and runner id.
    */
   readonly signature?: BashSignature;
   readonly promptSnippet?: string;
@@ -57,7 +54,7 @@ export interface PiBashTool {
   readonly description: string;
   readonly promptSnippet: string;
   readonly promptGuidelines: string[];
-  /** Type.Unsafe(signature.schema). */
+  /** The JSON Schema of the tool input. */
   readonly parameters: TSchema;
   execute(
     toolCallId: string,
@@ -69,21 +66,19 @@ export interface PiBashTool {
 }
 
 /**
- * The bash tool over ctx.cwd. Throws TypeError on fs, cwd, or allowedRoots
- * in options: the directory is bound to ctx.cwd on every call, also with a
- * supplied runner, whose own cwd is not used. execute throws TypeError when
- * ctx.cwd is not an absolute path. env defaults
- * to process.env with defaultShellEnv over it. The Pi extension entry does
- * not register this tool, so Pi's own bash stays in place unless a host
- * registers it.
+ * Creates a Pi bash tool that runs commands in ctx.cwd, also with your own
+ * runner. Throws TypeError when options set fs, cwd, or allowedRoots, and
+ * execute throws TypeError when ctx.cwd is not an absolute path. The Pi
+ * extension does not register this tool, so Pi's own bash stays in place
+ * unless you register it.
  */
 export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashTool {
   checkPiOptions(options, "bash");
   const {
     signature: given,
-    promptSnippet = BASH_SNIPPET,
+    promptSnippet = PI_BUILTIN_BASH_PROMPT_SNIPPET,
     promptGuidelines = [],
-    runner = piRunners(),
+    runner = recentRunnerPerCwd(),
     ...deps
   } = options;
   const runnerId = typeof runner === "function" ? undefined : runner.id;
@@ -113,13 +108,11 @@ export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashT
       checkPiContext(ctx, "bash");
       if (!isAbsolute(ctx.cwd))
         throw new TypeError("Pi bash execution requires an absolute ctx.cwd");
-      // Pi's ctx itself is the host: no copy, no spread, no freeze.
       const call: ToolCallContext<ExtensionContext> = {
         ...(signal === undefined ? {} : { signal }),
         callId: toolCallId,
         host: ctx,
       };
-      // A tool error is a result, not a throw, as for the other Pi tools.
       const result = await bash(signature.toInput(input), call);
       const spill = result.output?.spill ?? null;
       return {
@@ -130,8 +123,7 @@ export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashT
   });
 }
 
-/** One nodeCommandRunner for each ctx.cwd, the most recent eight kept. */
-function piRunners(): (call: ToolCallContext<ExtensionContext>) => CommandRunner {
+function recentRunnerPerCwd(): (call: ToolCallContext<ExtensionContext>) => CommandRunner {
   const cache = new Map<string, CommandRunner>();
   return (call) => {
     const cwd = call.host.cwd;

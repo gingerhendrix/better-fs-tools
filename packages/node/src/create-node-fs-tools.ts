@@ -30,7 +30,7 @@ import { nodeDigest } from "./digest.ts";
 import { nodeFileSystem } from "./filesystem.ts";
 import type { NodeFileSystem } from "./filesystem.ts";
 
-const KNOWN: ReadonlySet<string> = new Set([
+const KNOWN_OPTIONS: ReadonlySet<string> = new Set([
   "cwd",
   "allowedRoots",
   "denyRoots",
@@ -49,8 +49,7 @@ const KNOWN: ReadonlySet<string> = new Set([
   "bash",
 ]);
 
-/** The keys each tool's options may not set, because the bundle shares them. */
-const SHARED_KEYS = {
+const BUNDLE_SHARED_KEYS_BY_TOOL = {
   read: ["fs", "state", "digest", "clock"],
   edit: ["fs", "state", "digest", "locks", "clock"],
   write: ["fs", "state", "digest", "locks", "clock"],
@@ -59,7 +58,7 @@ const SHARED_KEYS = {
 } as const;
 
 /**
- * The bash tool's dependencies, all optional. `runner` defaults to
+ * Options for the bundle's bash tool, all optional. `runner` defaults to
  * nodeCommandRunner({ cwd }), and `env` to shellEnv(() => process.env).
  */
 export type NodeFsToolsBashOptions<THost = undefined> = Omit<
@@ -79,7 +78,7 @@ export interface CreateNodeFsToolsOptions<THost = undefined> {
   readonly newFileMode?: number;
   /** Mode of a directory that createParents makes, exactly. Default 0o777 less the umask. */
   readonly newDirectoryMode?: number;
-  /** Default memoryStore({ clock }), on the bundle clock. null turns read-before-write off. */
+  /** Default a memory store on the bundle clock. null turns read-before-write off. */
   readonly state?: ReadStateStore | null;
   /** Default nodeDigest(). */
   readonly digest?: Digest;
@@ -92,12 +91,10 @@ export interface CreateNodeFsToolsOptions<THost = undefined> {
   readonly write?: Omit<Partial<WriteToolDeps<THost>>, FsToolsSharedKey>;
   readonly applyPatch?: Omit<Partial<ApplyPatchToolDeps<THost>>, FsToolsSharedKey>;
   /**
-   * Off by default: the bundle starts no process unless you ask. `true` or
-   * an options object adds bash, with the bundle's digest and clock. The
-   * runner defaults to nodeCommandRunner({ cwd }), and env to
-   * shellEnv(() => process.env). With a given runner, an explicit top-level
-   * cwd becomes the bash cwd dependency, so commands still run there.
-   * bash.cwd wins over both.
+   * `true` or an options object adds a bash tool. Off by default. The runner
+   * defaults to nodeCommandRunner({ cwd }), and env to
+   * shellEnv(() => process.env). With your own runner, commands still run in
+   * an explicit top-level cwd. bash.cwd wins over both.
    */
   readonly bash?: boolean | NodeFsToolsBashOptions<THost>;
 }
@@ -115,9 +112,8 @@ export interface NodeFsTools<THost = undefined> {
   readonly locks: LockManager;
   readonly clock: Clock;
   /**
-   * Deletes the record for a path. With state null it still stats, and
-   * reports recorded: false. `call` is ignored: the Node filesystem is fixed.
-   * It is there so every bundle takes (path, call?).
+   * Forgets the read record for a path, so the next edit needs a fresh read.
+   * With state null it reports recorded: false. `call` is ignored.
    */
   invalidate(path: string, call?: ToolCallContext<THost>): Promise<InvalidateOutcome>;
 }
@@ -128,13 +124,11 @@ export interface NodeFsToolsWithBash<THost = undefined> extends NodeFsTools<THos
 }
 
 /**
- * createFsTools over one nodeFileSystem, with nodeDigest() for the digest.
- * read, edit, write, and apply_patch share one store, one digest, one lock
- * manager, and one clock. The write tools take the lock; read and bash take
- * none (D25). With `bash`, a bash tool in the same cwd. The allowed roots do
- * not limit what a bash command touches. A host that wants the next edit
- * after a command to need a read calls invalidate(path) from a bash afterRun
- * hook.
+ * Creates read, edit, write, and apply_patch tools over one local filesystem.
+ * They share one read state store, digest, lock manager, and clock. With
+ * `bash`, adds a bash tool in the same cwd. The allowed roots do not limit
+ * what a bash command touches. To make the next edit after a command need a
+ * read, call invalidate(path) from a bash afterRun hook.
  */
 export function createNodeFsTools<THost = undefined>(
   options: CreateNodeFsToolsOptions<THost> & {
@@ -152,13 +146,19 @@ export function createNodeFsTools<THost = undefined>(
   const fs = nodeFileSystem({
     cwd,
     allowedRoots: options.allowedRoots ?? [cwd],
-    ...pick(options, ["denyRoots", "symlinks", "hardLinks", "newFileMode", "newDirectoryMode"]),
+    ...pickDefined(options, [
+      "denyRoots",
+      "symlinks",
+      "hardLinks",
+      "newFileMode",
+      "newDirectoryMode",
+    ]),
   });
   const bash = options.bash === true ? {} : options.bash;
   const tools = createFsTools<THost>({
     fs,
     digest: options.digest ?? nodeDigest(),
-    ...pick(options, ["state", "locks", "clock", "read", "edit", "write", "applyPatch"]),
+    ...pickDefined(options, ["state", "locks", "clock", "read", "edit", "write", "applyPatch"]),
     ...(bash === undefined || bash === false ? {} : { bash: bashDeps(bash, options.cwd, cwd) }),
   });
   return Object.freeze<NodeFsTools<THost>>({
@@ -176,21 +176,20 @@ export function createNodeFsTools<THost = undefined>(
   });
 }
 
-/** An object, known keys, and no shared key inside a tool's options (GA-16). */
 function checkOptions(options: unknown): void {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("createNodeFsTools options must be an object");
   }
   for (const key of Object.keys(options)) {
-    if (!KNOWN.has(key)) throw new TypeError(`Unknown createNodeFsTools option: ${key}`);
+    if (!KNOWN_OPTIONS.has(key)) throw new TypeError(`Unknown createNodeFsTools option: ${key}`);
   }
   const state: unknown = (options as Record<string, unknown>).state;
-  if (state !== undefined && state !== null && !isStore(state)) {
+  if (state !== undefined && state !== null && !isReadStateStore(state)) {
     throw new TypeError(
       `createNodeFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory`,
     );
   }
-  for (const [tool, keys] of Object.entries(SHARED_KEYS)) {
+  for (const [tool, keys] of Object.entries(BUNDLE_SHARED_KEYS_BY_TOOL)) {
     const part: unknown = (options as Record<string, unknown>)[tool];
     if (part === undefined || (tool === "bash" && typeof part === "boolean")) continue;
     if (part === null || typeof part !== "object" || Array.isArray(part)) {
@@ -206,8 +205,7 @@ function checkOptions(options: unknown): void {
   }
 }
 
-/** The given keys whose value is not undefined, so an absent option stays absent. */
-function pick<T extends object, K extends keyof T>(
+function pickDefined<T extends object, K extends keyof T>(
   options: T,
   keys: readonly K[],
 ): Partial<Pick<T, K>> {
@@ -218,23 +216,19 @@ function pick<T extends object, K extends keyof T>(
   return picked;
 }
 
-/**
- * The bash dependencies. Without a runner, nodeCommandRunner({ cwd }) runs in
- * cwd. A given runner has its own default cwd, so an explicit top-level cwd
- * is passed as the bash cwd dependency: it must not be dropped in silence.
- */
 function bashDeps<THost>(
   bash: NodeFsToolsBashOptions<THost>,
-  given: string | undefined,
+  explicitCwd: string | undefined,
   cwd: string,
 ): Omit<ShellToolDeps<THost>, "digest" | "clock"> {
   const deps = withNodeShellDefaults(bash, cwd);
-  if (bash.runner === undefined || given === undefined || bash.cwd !== undefined) return deps;
+  const customRunnerNeedsExplicitCwd =
+    bash.runner !== undefined && explicitCwd !== undefined && bash.cwd === undefined;
+  if (!customRunnerNeedsExplicitCwd) return deps;
   return { ...deps, cwd };
 }
 
-/** A read state store: an object with get, put, and delete. A per-call factory is not one. */
-function isStore(value: unknown): boolean {
+function isReadStateStore(value: unknown): boolean {
   if (value === null || typeof value !== "object") return false;
   const store = value as Record<string, unknown>;
   return ["get", "put", "delete"].every((key) => typeof store[key] === "function");
