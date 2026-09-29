@@ -49,6 +49,18 @@ describe("createAiSdkFsTools", () => {
     expect(Object.isFrozen(tools)).toBe(true);
   });
 
+  test("the default store expires records on the bundle clock", async () => {
+    let now = Date.parse("2026-09-29T00:00:00.000Z");
+    const tools = createAiSdkFsTools({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      clock: () => new Date(now),
+    });
+    await tools.read.execute({ path: "/a.txt", offset: null, limit: null }, executeOptions());
+    expect(await tools.state?.get("/a.txt")).not.toBeNull();
+    now += 31 * 60 * 1_000;
+    expect(await tools.state?.get("/a.txt")).toBeNull();
+  });
+
   test("each tool takes its own signature; tools is keyed by the signature names", async () => {
     const tools = createAiSdkFsTools({
       fs: memoryFileSystem({ files: { "/a.txt": "one\ntwo\n" } }),

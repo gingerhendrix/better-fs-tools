@@ -42,6 +42,16 @@ describe("createPiFsTools", () => {
     expect(await readFile(path.join(cwd, "a.txt"), "utf8")).toBe("1\n2\n");
   });
 
+  test("the default store expires records on the bundle clock", async () => {
+    const cwd = await fixture({ "a.txt": "one\n" });
+    let now = Date.parse("2026-09-29T00:00:00.000Z");
+    const tools = createPiFsTools({ clock: () => new Date(now) });
+    await execute(tools.read, { path: "a.txt" }, cwd);
+    expect(await tools.state?.get(path.join(cwd, "a.txt"))).not.toBeNull();
+    now += 31 * 60 * 1_000;
+    expect(await tools.state?.get(path.join(cwd, "a.txt"))).toBeNull();
+  });
+
   test("a change on disk after the read gives STALE for write", async () => {
     const cwd = await fixture({ "a.txt": "one\n" });
     const tools = createPiFsTools();

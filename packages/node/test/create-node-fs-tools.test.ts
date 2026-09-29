@@ -251,6 +251,16 @@ describe("createNodeFsTools sharing", () => {
     );
   });
 
+  test("the default store expires records on the bundle clock", async () => {
+    const cwd = await workspace({ "app.ts": "x\n" });
+    let now = Date.parse("2026-09-29T00:00:00.000Z");
+    const tools = createNodeFsTools({ cwd, clock: () => new Date(now) });
+    await tools.read({ path: "app.ts" });
+    expect(await tools.state?.get(join(cwd, "app.ts"))).not.toBeNull();
+    now += 31 * 60 * 1_000;
+    expect(await tools.state?.get(join(cwd, "app.ts"))).toBeNull();
+  });
+
   test("a per-tool object that sets a shared dependency throws TypeError", () => {
     expect(() => createNodeFsTools({ read: { state: null } } as never)).toThrow(
       "createNodeFsTools read options cannot set state: set it once at the top level",

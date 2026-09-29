@@ -30,7 +30,7 @@ export type FsToolsBashOptions<THost = undefined> = Omit<ShellToolDeps<THost>, "
 export interface CreateFsToolsOptions<THost = undefined> {
   /** Required. A backend, or a factory called once for each call. */
   readonly fs: WritableFileSystem | ((call: ToolCallContext<THost>) => WritableFileSystem);
-  /** Default createMemoryStore(). null turns read-before-write off. */
+  /** Default createMemoryStore({ clock }), on the bundle clock. null turns read-before-write off. */
   readonly state?: ReadStateStore | null;
   /** Default sha256Digest(): plain JavaScript, so a Worker needs no host digest. */
   readonly digest?: Digest;
@@ -130,10 +130,11 @@ export function createFsTools<THost = undefined>(
 ): FsTools<THost> {
   checkFsToolsOptions("createFsTools", options, KNOWN, SHARED_KEYS);
   const { fs } = options;
-  const state = options.state === undefined ? createMemoryStore() : options.state;
+  const clock = options.clock ?? (() => new Date());
+  // The default store expires records on the bundle's clock too.
+  const state = options.state === undefined ? createMemoryStore({ clock }) : options.state;
   const digest = options.digest ?? sha256Digest();
   const locks = options.locks ?? memoryLocks();
-  const clock = options.clock ?? (() => new Date());
   const shared = { fs, state, digest, clock };
   const bash = options.bash === undefined || options.bash === false ? null : options.bash;
   if ((bash as unknown) === true) {
