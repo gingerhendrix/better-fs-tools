@@ -59,7 +59,7 @@ After a normal exit, the core reads output for one more second, then lets go of 
 
 The core keeps at most `maxCaptureBytes` in memory. The model view is at most `maxOutputBytes` and `maxOutputLines`: a head of `headPercent`, then a gap line, then the tail. Errors are usually at the end, so the tail gets most of it. A spill sink gets every byte in arrival order, and its reference goes into the gap line.
 
-A failing output stream, or chunks that are not output, end the capture with an `output-incomplete` warning. The status still comes from the exit.
+A failing output stream, chunks that are not output, or a stream that has not ended one second after the exit, end the capture with an `output-incomplete` warning. After that deadline the core lets go of the stream and captures no later chunk. The status still comes from the exit. A stop the tool started (timeout, abort, output cap) has its own note and adds no `output-incomplete` for the stream it cut.
 
 ## Host code
 

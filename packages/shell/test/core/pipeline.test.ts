@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, jest, test } from "bun:test";
 
 import { createBashTool, defaultShellEnv, parseBashInput, shellEnv } from "@better-fs-tools/shell";
 import type {
@@ -691,6 +691,88 @@ describe("output stream failures", () => {
     });
     const result = await bashTool({ runner })({ command: "x" });
     expect(result.notes.map((note) => note.code)).toEqual(["output-incomplete"]);
+  });
+
+  /** Runs `call` with fake timers, moving time on in steps until it settles. */
+  async function withFakeTime<T>(call: () => Promise<T>, stepMs: number): Promise<T> {
+    jest.useFakeTimers();
+    try {
+      let settled = false;
+      const pending = call().finally(() => {
+        settled = true;
+      });
+      for (let step = 0; step < 200 && !settled; step++) {
+        for (let tick = 0; tick < 20; tick++) await Promise.resolve();
+        jest.advanceTimersByTime(stepMs);
+      }
+      return await pending;
+    } finally {
+      jest.useRealTimers();
+    }
+  }
+
+  test("an output stream that has not ended at the drain deadline gives output-incomplete", async () => {
+    let late: (() => void) | undefined;
+    const runner = runnerWith({
+      async *[Symbol.asyncIterator]() {
+        yield out("early\n");
+        // A background child holds the stream open past the exit and the drain deadline.
+        await new Promise<void>((resolve) => {
+          late = resolve;
+        });
+        yield out("late\n");
+      },
+    });
+    const result = await withFakeTime(() => bashTool({ runner })({ command: "x" }), 100);
+    late?.();
+    expect(result.status).toBe("ok");
+    expect(result.output?.head).toBe("early");
+    expect(result.notes).toEqual([
+      {
+        code: "output-incomplete",
+        severity: "warning",
+        message:
+          "The output may be incomplete: the output had not ended 1000 ms after the command exited. The exit status is still the command's.",
+        data: { skippedChunks: 0, drainMs: 1000 },
+      },
+    ]);
+  });
+
+  test("a stream that ends within the drain deadline gives no note", async () => {
+    const runner = runnerWith({
+      async *[Symbol.asyncIterator]() {
+        yield out("a\n");
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        yield out("b\n");
+      },
+    });
+    const result = await withFakeTime(() => bashTool({ runner })({ command: "x" }), 100);
+    expect(result.output?.head).toBe("a\nb");
+    expect(result.notes).toEqual([]);
+  });
+
+  test("a stop the tool started does not add output-incomplete for the unfinished stream", async () => {
+    const runner: CommandRunner = {
+      id: "hang",
+      cwd: "/work",
+      run: (request) => ({
+        output: (async function* () {
+          yield out("x\n");
+          await new Promise(() => {});
+        })(),
+        exit: new Promise((resolve) => {
+          request.signal.addEventListener("abort", () =>
+            resolve({ code: null, signal: "SIGTERM" }),
+          );
+        }),
+      }),
+    };
+    const result = await withFakeTime(
+      () => bashTool({ runner })({ command: "x", timeoutMs: 200 }),
+      100,
+    );
+    expect(result.status).toBe("timeout");
+    expect(result.notes.map((note) => note.code)).not.toContain("output-incomplete");
   });
 
   test("malformed chunks are skipped and counted", async () => {

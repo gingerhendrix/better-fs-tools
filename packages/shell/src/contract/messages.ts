@@ -30,8 +30,15 @@ export interface ShellMessageCatalog extends ToolMessages {
   unconfirmedStop(): string;
   abortedBeforeStart(): string;
   spillFailed(c: { sink: string }): string;
-  /** The output stream failed (`detail`), or gave chunks that were not output. */
-  outputIncomplete(c: { detail: string | null; skippedChunks: number }): string;
+  /**
+   * The output stream failed (`detail`), gave chunks that were not output
+   * (`skippedChunks`), or had not ended `drainMs` after the exit.
+   */
+  outputIncomplete(c: {
+    detail: string | null;
+    skippedChunks: number;
+    drainMs: number | null;
+  }): string;
   noOutput(): string;
   /** The line between the head and the tail. */
   omitted(c: { lines: number; bytes: number; spill: string | null }): string;

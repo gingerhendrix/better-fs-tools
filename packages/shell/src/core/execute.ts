@@ -82,11 +82,18 @@ export async function execute<THost>(
   const iterator = handle.output[Symbol.asyncIterator]();
   let skippedChunks = 0;
   let streamFailed: string | null = null;
+  // True once the stream reported its end. Capture stops at the drain deadline.
+  let ended = false;
+  let letGo = false;
   const drain = (async () => {
     try {
       for (;;) {
         const next = await iterator.next();
-        if (next.done === true) return;
+        if (letGo) return;
+        if (next.done === true) {
+          ended = true;
+          return;
+        }
         const chunk = validChunk(next.value);
         if (chunk === null) {
           skippedChunks += 1;
@@ -109,10 +116,13 @@ export async function execute<THost>(
     return exit;
   });
   const exit = await waitForExit(exitPromise, controller.signal, limits.killGraceMs);
-  const drainWait = delay(exit === null ? 0 : DRAIN_MS);
+  const drainMs = exit === null ? 0 : DRAIN_MS;
+  const drainWait = delay(drainMs);
   await Promise.race([drain, drainWait.done]);
   drainWait.cancel();
   // Let go of an output stream that a background child still holds open.
+  // A chunk that arrives later is not captured, so the output stays as reported.
+  letGo = true;
   void Promise.resolve(iterator.return?.()).catch(() => undefined);
   release();
   const durationMs = Date.now() - started;
@@ -129,14 +139,20 @@ export async function execute<THost>(
   }
   const reason = stoppedBy as StopReason | null;
   if (exit === null) scope.notes.push(warning("unconfirmed-stop", messages.unconfirmedStop()));
-  // After a stop, the runner may end its stream with an error: that is not lost output.
+  // After a stop the tool started, the runner may end its stream early or
+  // with an error: that is not lost output, and the stop has its own note.
   const failed = reason === null ? (streamFailed as string | null) : null;
-  if (failed !== null || skippedChunks > 0) {
+  const unfinished = reason === null && failed === null && !ended ? drainMs : null;
+  if (failed !== null || unfinished !== null || skippedChunks > 0) {
     scope.notes.push(
       warning(
         "output-incomplete",
-        messages.outputIncomplete({ detail: failed, skippedChunks }),
-        failed === null ? { skippedChunks } : { skippedChunks, detail: failed },
+        messages.outputIncomplete({ detail: failed, skippedChunks, drainMs: unfinished }),
+        {
+          skippedChunks,
+          ...(failed === null ? {} : { detail: failed }),
+          ...(unfinished === null ? {} : { drainMs: unfinished }),
+        },
       ),
     );
   }
