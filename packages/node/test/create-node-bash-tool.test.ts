@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import {
   createNodeBashTool,
@@ -106,6 +106,17 @@ describe("createNodeBashTool", () => {
     });
     delete process.env.BASH_TOOL_TEST;
     expect(result.output?.head).toBe("cat cat 1 dumb yes");
+  });
+
+  test("a relative cwd resolves against process.cwd(), as nodeCommandRunner does", async () => {
+    const cwd = await realpath(await workdir());
+    const rel = relative(process.cwd(), cwd);
+    const bash = createNodeBashTool({ cwd: rel });
+    const result = await bash({ command: "pwd" });
+    expect(result.status).toBe("ok");
+    expect(result.run?.cwd).toBe(cwd);
+    const bundled = createNodeFsTools({ cwd, bash: { cwd: rel } });
+    expect((await bundled.bash({ command: "pwd" })).run?.cwd).toBe(cwd);
   });
 
   test("a missing cwd is CWD_NOT_FOUND and a file cwd is CWD_NOT_A_DIRECTORY", async () => {
