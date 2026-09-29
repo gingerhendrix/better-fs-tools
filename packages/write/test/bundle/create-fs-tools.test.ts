@@ -106,6 +106,31 @@ describe("createFsTools", () => {
     }
   });
 
+  test("an abort before the start is ABORTED in phase input in every tool", async () => {
+    const tools = createFsTools({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      bash: {
+        runner: quietRunner(),
+        env: shellEnv(),
+        beforeRun: [{ id: "noop", beforeRun: () => ({ allow: true }) }],
+      },
+    });
+    const call = { signal: AbortSignal.abort() } as const;
+    const patch = "*** Begin Patch\n*** Add File: b.txt\n+b\n*** End Patch";
+    for (const result of [
+      await tools.read({ path: "/a.txt" }, call),
+      await tools.edit({ path: "/a.txt", edits: [{ oldText: "one", newText: "1" }] }, call),
+      await tools.write({ path: "/b.txt", content: "b" }, call),
+      await tools.applyPatch({ patch }, call),
+      await tools.bash({ command: "ls" }, call),
+    ]) {
+      expect(result.status === "error" ? [result.error.code, result.error.phase] : null).toEqual([
+        "ABORTED",
+        "input",
+      ]);
+    }
+  });
+
   test("the three writers take the one lock manager", async () => {
     const locks = spyLocks();
     const tools = createFsTools({

@@ -75,8 +75,9 @@ async function patchStages<THost>(
   request: ApplyPatchRequest,
 ): Promise<MutationReport> {
   const operations = parsePatchText(scope, deps.patchParser, request.patch);
-  scope.enter("resolve");
+  // An abort before the call started is phase input in every tool.
   scope.checkAbort();
+  scope.enter("resolve");
   const fs = scope.fileSystem();
   const slots: Slot[] = [];
   for (const op of operations) {

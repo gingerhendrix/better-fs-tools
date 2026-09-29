@@ -111,8 +111,9 @@ async function singleFileStages<THost>(
   tool: SingleFilePlan<THost>,
 ): Promise<MutationReport> {
   const { messages, limits } = scope.deps;
-  scope.enter("resolve");
+  // An abort before the call started is phase input in every tool.
   scope.checkAbort();
+  scope.enter("resolve");
   const fs = scope.fileSystem();
   const path = await resolvePath(scope, fs, requested);
   const target = { requestedPath: requested, path };

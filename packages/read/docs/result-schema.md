@@ -122,21 +122,21 @@ Field notes:
 
 `request` is `null` only for `INVALID_INPUT`. `file` is set only for failures found after the file was opened and allowed: `CHANGED_DURING_READ`, `UNSUPPORTED_BACKEND` from the classifiers, and a failed `verify()`. It is `null` for every other failure. `DENIED` from an authorizer always has `file: null`.
 
-| `error.code`            | `error.phase`                                     | Meaning                                                                                                       |
-| ----------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `INVALID_INPUT`         | `input`                                           | The input failed validation                                                                                   |
-| `NOT_FOUND`             | `resolve`                                         | No such file. `note.data.suggestions` can hold nearby names. A miss in `open()` is reported in this phase too |
-| `NOT_A_FILE`            | `open`, `verification`                            | A directory with no directory converter, or a FIFO, socket, or device. `note.data.kind` names it.             |
-| `DANGEROUS_PATH`        | `open`, `verification`, `conversion`              | A refused namespace such as `/dev`, or a filesystem deny root                                                 |
-| `OUTSIDE_ALLOWED_ROOTS` | `open`, `verification`, `conversion`              | Outside every allowed root                                                                                    |
-| `PERMISSION_DENIED`     | `open`, `verification`, `conversion`              | The operating system refused access                                                                           |
-| `DENIED`                | `authorize`, `open`, `verification`, `conversion` | A policy refusal: an authorizer (`authorize`), or a filesystem rule such as a rejected symlink                |
-| `TOO_LARGE`             | `open`                                            | The file is over a byte ceiling of the filesystem backend, such as `maxBufferedBytes`                         |
-| `CHANGED_DURING_READ`   | `verification`                                    | The file changed while it was read. The note has a retry of the same range.                                   |
-| `ABORTED`               | the phase at the time                             | The signal fired. `note.data.phase` names the stage. Nothing was recorded.                                    |
-| `UNSUPPORTED_BACKEND`   | `open`, `sampling`, `scan`                        | No classifier had an opinion, or the filesystem cannot serve the read                                         |
-| `EXTENSION_FAILED`      | the phase of the host code                        | Host code threw or broke a rule. `note.data` has `extension`, `phase`, and `id` when the extension has one.   |
-| `IO_ERROR`              | any                                               | Any other backend failure, including a filesystem method that threw                                           |
+| `error.code`            | `error.phase`                                     | Meaning                                                                                                                                              |
+| ----------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INVALID_INPUT`         | `input`                                           | The input failed validation                                                                                                                          |
+| `NOT_FOUND`             | `resolve`                                         | No such file. `note.data.suggestions` can hold nearby names. A miss in `open()` is reported in this phase too                                        |
+| `NOT_A_FILE`            | `open`, `verification`                            | A directory with no directory converter, or a FIFO, socket, or device. `note.data.kind` names it.                                                    |
+| `DANGEROUS_PATH`        | `open`, `verification`, `conversion`              | A refused namespace such as `/dev`, or a filesystem deny root                                                                                        |
+| `OUTSIDE_ALLOWED_ROOTS` | `open`, `verification`, `conversion`              | Outside every allowed root                                                                                                                           |
+| `PERMISSION_DENIED`     | `open`, `verification`, `conversion`              | The operating system refused access                                                                                                                  |
+| `DENIED`                | `authorize`, `open`, `verification`, `conversion` | A policy refusal: an authorizer (`authorize`), or a filesystem rule such as a rejected symlink                                                       |
+| `TOO_LARGE`             | `open`                                            | The file is over a byte ceiling of the filesystem backend, such as `maxBufferedBytes`                                                                |
+| `CHANGED_DURING_READ`   | `verification`                                    | The file changed while it was read. The note has a retry of the same range.                                                                          |
+| `ABORTED`               | `input`, or the phase at the time                 | The signal fired. A signal that had fired before the call is `input`, as in write and bash. `note.data.phase` names the stage. Nothing was recorded. |
+| `UNSUPPORTED_BACKEND`   | `open`, `sampling`, `scan`                        | No classifier had an opinion, or the filesystem cannot serve the read                                                                                |
+| `EXTENSION_FAILED`      | the phase of the host code                        | Host code threw or broke a rule. `note.data` has `extension`, `phase`, and `id` when the extension has one.                                          |
+| `IO_ERROR`              | any                                               | Any other backend failure, including a filesystem method that threw                                                                                  |
 
 `conversion` is the phase of a directory listing that failed. `hooks` is the phase of an `afterRead` hook failure.
 

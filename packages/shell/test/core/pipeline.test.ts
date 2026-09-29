@@ -84,8 +84,8 @@ describe("statuses", () => {
     controller.abort();
     const result = await bashTool({ runner })({ command: "x" }, { signal: controller.signal });
     expect(result.status).toBe("error");
-    // The default env is the first host call, and it sees the abort.
-    expect(errorOf(result)).toEqual({ code: "ABORTED", phase: "env", message: anyMessage });
+    // Checked once right after parse, before any host call.
+    expect(errorOf(result)).toEqual({ code: "ABORTED", phase: "input", message: anyMessage });
     expect(result.notes.map((note) => note.code)).toEqual(["aborted"]);
     expect(result.run).toBeNull();
     expect(runner.requests).toHaveLength(0);

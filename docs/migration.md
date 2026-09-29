@@ -5,6 +5,7 @@ The `feature-api-fixes` branch changed the public API of every package after `ma
 ## All tools
 
 - Every result has `tool` and `status`, and is a union on `status`. Only `status: "error"` has `error`, and it is never null: `{ code, phase, message, data? }`. There is no `error: null` on other results.
+- An abort before the call started is `ABORTED` in phase `input` in every tool. A later abort names the stage it hit.
 - Error codes are UPPER_SNAKE. Note codes are kebab case in every tool, and an error note's code is its error code in kebab case. This holds for a host refusal too: when an authorizer, a `beforeRun` hook, or a guard refuses with its own `note`, the note keeps its message and data, its code becomes the error code in kebab case, its severity becomes `warning`, and the host's own code moves to `data.source`. Allow notes and other host notes stay as the host gave them.
 - A formatter that throws keeps the status, adds an `extension-failed` warning, and the default formatter runs.
 - Limits: a per-call value over its ceiling is clamped with a `clamped` info note. Two limits you set that conflict throw `TypeError`. A default over a ceiling you set is lowered to it.

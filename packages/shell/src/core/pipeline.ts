@@ -67,8 +67,12 @@ export async function runBash<THost>(
     call,
   };
   const scope: CallScope<THost> = { deps, call, notes, ctx };
+  // A function, so a check after an await is not narrowed away.
+  const aborted = () => call.signal?.aborted === true;
 
   try {
+    // An abort before the call started is phase input in every tool.
+    if (aborted()) throw new AbortStop("input");
     const runner = runnerFor(deps, call);
     const base = baseCwd(deps, call, runner);
     const cwd = await resolveCwd(scope, base, request.cwd);
@@ -79,7 +83,7 @@ export async function runBash<THost>(
     });
     await authorize(scope, run, base);
     const env = await environment(scope, run);
-    if (call.signal?.aborted === true) throw new AbortStop("run");
+    if (aborted()) throw new AbortStop("run");
     const executed = await execute(scope, runner, run, env);
     return finish(deps, call, await afterRun(scope, executed));
   } catch (error) {

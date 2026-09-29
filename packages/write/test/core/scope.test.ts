@@ -383,8 +383,8 @@ describe("call scope (section 5.1)", () => {
     expect(errorOf(result)).toEqual({
       message: expect.any(String),
       code: "ABORTED",
-      phase: "resolve",
-      data: { phase: "resolve" },
+      phase: "input",
+      data: { phase: "input" },
     });
     expect(fs.peek("/a.txt")).toBeNull();
   });
