@@ -8,7 +8,7 @@ import { cloudflareShellFileSystem } from "../src/index.ts";
 import type { CloudflareShellWorkspaceLike } from "../src/index.ts";
 import { ROOT, fakeWorkspace, fsFor } from "./fake-workspace.ts";
 import type { FakeWorkspace } from "./fake-workspace.ts";
-import { expectFsError, sourceSpecifiers } from "./helpers.ts";
+import { expectFsError, expectMutationError, sourceSpecifiers } from "./helpers.ts";
 
 const ENCODER = new TextEncoder();
 
@@ -105,6 +105,35 @@ describe("shell workspace options", () => {
 });
 
 describe("shell workspace policy", () => {
+  test("refuses a symlink above the allowed root, for reads and writes, with nested roots too", async () => {
+    for (const allowedRoots of [["/safe/link/nested"], ["/safe", "/safe/link/nested"]]) {
+      const workspace = fakeWorkspace({ "/safe/link/nested/x.txt": "x\n" });
+      /* A backend that resolves the ancestor link: lstat of the link says symlink, lstat below it does not. */
+      workspace.entries.set("/safe/link", { type: "symlink", target: "/elsewhere", updatedAt: 1 });
+      const fs = cloudflareShellFileSystem(workspace, { allowedRoots });
+      const error = expectFsError(await fs.open("/safe/link/nested/x.txt", {}), "denied");
+      expect(error.detail).toMatch(/symbolic link/u);
+      expectFsError(await fs.list("/safe/link/nested", { limit: 4 }), "denied");
+      expectMutationError(await fs.stat("/safe/link/nested/x.txt", {}), "denied");
+      expectMutationError(
+        await fs.write("/safe/link/nested/new.txt", ENCODER.encode("n"), {
+          precondition: { kind: "absent" },
+          createParents: false,
+        }),
+        "denied",
+      );
+      expectMutationError(
+        await fs.remove("/safe/link/nested/x.txt", {
+          precondition: { kind: "any" },
+        }),
+        "denied",
+      );
+      expect(
+        workspace.calls.filter((call) => /^(readFileBytes|writeFileBytes|mkdir|rm):/u.test(call)),
+      ).toEqual([]);
+    }
+  });
+
   test("refuses a path outside the root before touching the workspace", async () => {
     const { workspace, fs } = fsFor({ "/other/secret.txt": "secret\n" });
 

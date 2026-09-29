@@ -10,6 +10,7 @@
  * a replace. The adapter passes the mode `lstat` reported, so a replace keeps
  * it (`preserveMode: true`).
  */
+import { containsPosix } from "@better-fs-tools/fs";
 import type {
   FileStat,
   MutateOptions,
@@ -65,20 +66,21 @@ export function computerWrites(
 ): ComputerWrites {
   const { cwd } = roots;
   /**
-   * `lstat` every component from the root down. A symlink anywhere is refused.
+   * `lstat` every component from `/` down. A symlink anywhere is refused, also
+   * above the root.
    * The first missing component ends the walk: it and every component below
-   * it are missing. The root itself must exist.
+   * it are missing. The root and its ancestors must exist.
    */
   const locate = async (root: string, target: string): Promise<Located> => {
     const missing: string[] = [];
-    for (const component of components(root, target)) {
+    for (const component of components(target)) {
       if (missing.length > 0) {
         missing.push(component);
         continue;
       }
       const entry = await lstatOrNull(component);
       if (entry === null) {
-        if (component === root) {
+        if (containsPosix(component, root)) {
           throw refuse({ reason: "not-found", detail: "the root does not exist" });
         }
         missing.push(component);

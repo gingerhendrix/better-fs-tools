@@ -100,9 +100,9 @@ export function cloudflareComputerFileSystem(
   const id = options.id ?? "cloudflare-computer";
   if (typeof id !== "string" || id === "") throw new TypeError("id must be a non-empty string");
 
-  /** Refuse a symlinked root, a symlinked parent and a symlinked leaf. */
-  const walk = async (root: string, target: string): Promise<CloudflareComputerStat> => {
-    for (const component of components(root, target)) {
+  /** Refuse a symlink anywhere from `/` down: above the root, the root, a parent, or the leaf. */
+  const walk = async (target: string): Promise<CloudflareComputerStat> => {
+    for (const component of components(target)) {
       const stat = await inspect(workspaceFs, "lstat", component, component !== target);
       if (stat.isSymbolicLink) {
         throw refuse({
@@ -139,8 +139,8 @@ export function cloudflareComputerFileSystem(
       if (signal?.aborted) return { ok: false, error: { reason: "aborted" } };
 
       try {
-        const { root, target } = authorize(roots, requested);
-        await walk(root, target);
+        const { target } = authorize(roots, requested);
+        await walk(target);
 
         /* `stat` follows links, but `walk` has already refused every one. */
         const stat = await inspect(workspaceFs, "stat", target, false);
@@ -172,9 +172,9 @@ export function cloudflareComputerFileSystem(
         };
       }
       try {
-        const { root, target } = authorize(roots, requested);
+        const { target } = authorize(roots, requested);
         /* A root of "/" has no component for walk() to inspect, and it is a directory. */
-        const stat = target === "/" ? null : await walk(root, target);
+        const stat = target === "/" ? null : await walk(target);
         /* Same rule as memoryFileSystem: listing a non-directory is not-found. */
         if (stat !== null && !stat.isDirectory) {
           throw refuse({ reason: "not-found", detail: "not a directory" });

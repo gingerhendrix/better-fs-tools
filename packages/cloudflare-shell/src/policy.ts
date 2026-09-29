@@ -56,14 +56,17 @@ function configuredRoot(base: string, value: unknown): string {
   return resolvePosix(base, value);
 }
 
-/** Root, then every component beneath it, ending at the target. */
-export function components(root: string, target: string): string[] {
-  const found: string[] = root === "/" ? [] : [root];
-  const relative = target === root ? "" : target.slice(root === "/" ? 1 : root.length + 1);
-  let current = root;
-  for (const segment of relative.split("/")) {
+/**
+ * Every component of `target` from `/` down, ending at the target. The walk
+ * starts at `/`, not at the allowed root, so `symlinks: "reject"` also covers
+ * the ancestors of the root.
+ */
+export function components(target: string): string[] {
+  const found: string[] = [];
+  let current = "";
+  for (const segment of target.split("/")) {
     if (segment === "") continue;
-    current = current === "/" ? `/${segment}` : `${current}/${segment}`;
+    current = `${current}/${segment}`;
     found.push(current);
   }
   return found;
@@ -73,8 +76,7 @@ export function components(root: string, target: string): string[] {
  * Lexical containment, before the Workspace is touched at all. A relative path
  * is resolved against `cwd`, so a Worker prompt can use either form, and `..`
  * is folded by the resolver before the check rather than after it. Returns the
- * target and the innermost allowed root that holds it, where the symlink walk
- * starts.
+ * target and the innermost allowed root that holds it.
  */
 export function authorize(
   roots: Roots,

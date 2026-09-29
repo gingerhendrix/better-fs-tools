@@ -8,7 +8,7 @@ import { cloudflareComputerFileSystem } from "../src/index.ts";
 import type { CloudflareComputerFileSystemLike } from "../src/index.ts";
 import { ROOT, fakeComputer, fsError, fsFor, streamOf } from "./fake-computer.ts";
 import type { FakeComputer } from "./fake-computer.ts";
-import { expectFsError, sourceSpecifiers } from "./helpers.ts";
+import { expectFsError, expectMutationError, sourceSpecifiers } from "./helpers.ts";
 
 const ENCODER = new TextEncoder();
 
@@ -128,6 +128,35 @@ describe("computer filesystem options", () => {
 });
 
 describe("computer filesystem policy", () => {
+  test("refuses a symlink above the allowed root, for reads and writes, with nested roots too", async () => {
+    for (const allowedRoots of [["/safe/link/nested"], ["/safe", "/safe/link/nested"]]) {
+      const backend = fakeComputer({ "/safe/link/nested/x.txt": "x\n" });
+      /* A backend that resolves the ancestor link: lstat of the link says symlink, lstat below it does not. */
+      backend.entries.set("/safe/link", { type: "symlink", target: "/elsewhere", mtime: 1 });
+      const fs = cloudflareComputerFileSystem(backend, { allowedRoots });
+      const error = expectFsError(await fs.open("/safe/link/nested/x.txt", {}), "denied");
+      expect(error.detail).toMatch(/symbolic link/u);
+      expectFsError(await fs.list("/safe/link/nested", { limit: 4 }), "denied");
+      expectMutationError(await fs.stat("/safe/link/nested/x.txt", {}), "denied");
+      expectMutationError(
+        await fs.write("/safe/link/nested/new.txt", ENCODER.encode("n"), {
+          precondition: { kind: "absent" },
+          createParents: false,
+        }),
+        "denied",
+      );
+      expectMutationError(
+        await fs.remove("/safe/link/nested/x.txt", {
+          precondition: { kind: "any" },
+        }),
+        "denied",
+      );
+      expect(backend.calls.filter((call) => /^(readFile|writeFile|mkdir|rm):/u.test(call))).toEqual(
+        [],
+      );
+    }
+  });
+
   test("refuses a path outside the root before any backend call", async () => {
     const { backend, fs } = fsFor({ "/other/secret.txt": "secret\n" });
 

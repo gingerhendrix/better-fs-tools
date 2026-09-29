@@ -47,7 +47,7 @@ export function computerTools(workspace: Workspace) {
 - `cloudflareComputerFileSystem(workspace.fs, options)` takes the shared `FileSystemRootOptions` from `@better-fs-tools/fs`: `allowedRoots` (required), `denyRoots`, `cwd`, `id`, `symlinks`, and `identity`. It refuses every path outside the allowed roots, or inside a deny root, before it calls the workspace. A deny root gives `dangerous-path`, as in every adapter.
 - `cwd` must be absolute and defaults to the first allowed root. Relative paths and relative roots resolve against it. Display paths are relative to `cwd`, and absolute outside it. `id` defaults to `"cloudflare-computer"`. `symlinks` can only be `"reject"` and `identity` only `"none"`. Reads stream, so there is no `maxBufferedBytes`.
 - The filesystem exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, and `identity`.
-- It walks each path with `lstat`, so symlinks are refused before any byte is read.
+- It walks each path with `lstat` from `/`, so a symlink above the root, a symlinked root, parent, or file is refused before any byte is read.
 - It streams the file that `readFile` returns. `open()` starts the `readFile` stream, so the request reaches the backend before the read tool's `authorize` runs, but no chunk is read until `authorize` allows it. If a denied read must not reach the backend, deny it in the adapter with `denyRoots` or `allowedRoots`.
 - `verify()` compares size and modification time, so results have a `weak-identity` note.
 - `list()` lists directories, so suggestions and `directoryListing()` work.
