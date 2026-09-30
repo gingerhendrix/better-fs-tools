@@ -1,0 +1,139 @@
+---
+title: Read files
+description: Give your agent a read tool, and control what it returns.
+---
+
+## Read a file
+
+```ts
+import { createNodeReadTool } from "@better-fs-tools/node";
+import { textOf } from "@better-fs-tools/read";
+
+const read = createNodeReadTool();
+
+const result = await read({ path: "src/greet.ts" });
+console.log(textOf(result));
+```
+
+This is the text the model sees:
+
+```text
+1|export function greet(name: string): string {
+2|  return `Hello, ${name}!`;
+3|}
+4|
+5|export function farewell(name: string): string {
+6|  return `Goodbye, ${name}!`;
+7|}
+```
+
+`createNodeReadTool()` reads from `process.cwd()` and refuses paths outside it. A host package such as [AI SDK](/hosts/ai-sdk) or [Pi](/hosts/pi) passes the result to the model for you.
+
+The result also holds the same data as fields, for your own code:
+
+```ts
+result.status; // "ok"
+result.totals; // { lines: 7, exact: true, bytes: 158 }
+result.view.lines[0]; // { number: 1, text: "export function greet(name: string): string {", ... }
+```
+
+## Read part of a file
+
+`offset` is the first line to read. `limit` is the number of lines.
+
+```ts
+await read({ path: "src/greet.ts", offset: 2, limit: 2 });
+```
+
+```text
+2|  return `Hello, ${name}!`;
+3|}
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"src/greet.ts","offset":4,"limit":2}.
+```
+
+The model can copy the call from the `continue` note. Your code gets the same call from `result.continuation.next`.
+
+## Change the limits
+
+A read stops at 2,000 lines or 128 KiB, whichever comes first. Set lower limits to keep reads small:
+
+```ts
+const read = createNodeReadTool({
+  limits: { maxLines: 500, maxViewBytes: 32 * 1024 },
+});
+```
+
+To limit by tokens, set a `budget`. The read stops at the last whole line that fits:
+
+```ts
+import { charsPerToken } from "@better-fs-tools/read";
+
+const read = createNodeReadTool({
+  budget: charsPerToken({ ratio: 4, max: 25_000 }),
+});
+```
+
+```text
+[read:continue] Output stopped at the view budget. Continue with {"path":"src/greet.ts","offset":2,"limit":2000}.
+```
+
+The [read reference](/reference/read) lists every limit.
+
+## Images, PDFs, and directories
+
+By default the tool reads text only. Other files get a note that tells the model why:
+
+```text
+[read:unsupported-image] This content is not supported as UTF-8 text. Use an image or vision tool.
+```
+
+```text
+[read:not-a-file] docs is a directory; directories, FIFOs, sockets, and devices are refused before any content read.
+```
+
+Add converters to read more:
+
+```ts
+import { directoryListing, imageConverter, notebookConverter } from "@better-fs-tools/read";
+
+const read = createNodeReadTool({
+  converters: [imageConverter(), notebookConverter(), directoryListing()],
+});
+```
+
+Now an image returns as a media part, and a directory returns one entry on each line:
+
+```text
+1|diagram.png
+2|setup.md
+```
+
+For PDFs and other formats, wrap your own extractor with `textConverter()`. The converted text works with `offset`, `limit`, and the limits the same as a text file.
+
+```ts
+import { textConverter } from "@better-fs-tools/read";
+
+// Your own extractor, for example pdftotext.
+declare function pdfToText(source: AsyncIterable<Uint8Array>): AsyncIterable<string>;
+
+const pdf = textConverter({
+  id: "pdftotext",
+  accepts: (match) =>
+    match.classification.kind === "unsupported" && match.classification.code === "PDF",
+  mimeType: "text/plain",
+  run: (source) => pdfToText(source),
+});
+
+const read = createNodeReadTool({ converters: [pdf] });
+```
+
+## When a file is missing
+
+The tool looks in the parent folder and suggests close names:
+
+```text
+[read:not-found] docs/setpu.md was not found. Nearby names: "setup.md".
+```
+
+The tool never opens a suggested file. The model must call again. Pass `suggest: null` to turn suggestions off.
