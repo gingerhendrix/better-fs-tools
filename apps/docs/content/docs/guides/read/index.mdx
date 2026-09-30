@@ -1,140 +1,217 @@
 ---
-title: Read files
-description: Give your agent a read tool, and use what it returns.
+title: Read tool
+description: Create the read function with createReadTool, and configure it with options.
 ---
 
-## Read a file
+<Callout type="info">
+To give a read tool to an agent, use a provider integration such as [AI SDK](/hosts/ai-sdk) or [Pi](/hosts/pi). The integration gives you the tool definition: the name, the description, and the parameter schema. It takes the options on this page, plus a `signature` for the tool definition.
+</Callout>
+
+`createReadTool` is the lower-level API. It creates the function that implements the tool. Use it when you write your own integration, or when your code reads files for the agent.
+
+`createReadTool` needs a [filesystem](/backends) in `fs`. All other options are optional:
 
 ```ts
-import { createNodeReadTool } from "@better-fs-tools/node";
-import { textOf } from "@better-fs-tools/read";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool } from "@better-fs-tools/read";
 
-const read = createNodeReadTool();
-
-const result = await read({ path: "src/greet.ts" });
-console.log(textOf(result));
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const read = createReadTool({ fs });
 ```
 
-This is the text the model sees:
+On Node or Bun, `createNodeReadTool()` from `@better-fs-tools/node` does the same with a filesystem rooted at `process.cwd()`. It takes the same options.
+
+| Option | Default | Use it to |
+| --- | --- | --- |
+| `fs` | Required | Set the filesystem, the allowed folders, and the symlink policy |
+| `formatter` | `lineNumberFormatter()` | Change the text the tool returns |
+| `messages` | `defaultReadMessages` | Change the wording of notes |
+| `resolve` | `null` | Rewrite paths before the tool opens them |
+| `suggest` | `defaultSuggest()` | Suggest names when a file is missing |
+| `authorize` | `null` (allow all) | Refuse paths, large files, or ask the user |
+| `classifiers` | `defaultClassifiers()` | Decide which files are text, images, PDFs, or binary |
+| `converters` | `[]` | Read images, notebooks, PDFs, and folders |
+| `limits` | `defaultReadLimits` | Change the line, byte, and size limits |
+| `budget` | `null` | Stop a read at a token budget |
+| `hooks` | `[]` | Change a result after the read, for example to redact secrets |
+| `state` | `null` | Store each read, so later calls and tools know what was read |
+| `digest` | `null` | Hash file content. `state` needs it |
+| `clock` | `() => new Date()` | Set the time used in stored reads |
+
+`limits` and `messages` merge with their defaults key by key. Every other option replaces its default. `createReadTool` throws `TypeError` for an unknown option or an option with the wrong shape.
+
+## The read function
+
+`createReadTool` returns `read(input, ctx?)`. `input` is `{ path, offset?, limit? }`. `offset` is the first line, from 1. `limit` is the number of lines. `read` returns a `Promise<ReadResult>`:
+
+```ts
+import { textOf } from "@better-fs-tools/read";
+
+const result = await read({ path: "src/greet.ts", limit: 3 });
+
+result.status; // "ok"
+textOf(result); // the text for the model
+if (result.status === "ok") {
+  result.view.lines; // [{ number: 1, text: "export function greet(name: string): string {", ... }, ...]
+  result.continuation.next; // { path: "src/greet.ts", offset: 4, limit: 3 }
+}
+```
+
+`status` is `ok`, `media`, `unsupported`, or `error`. `result.content` holds the parts to send to the model, and `textOf(result)` joins its text parts. `result.notes` holds each note as data. The [read reference](/reference/read#readresult) lists every field.
+
+`ctx` is optional. It holds `signal` to cancel the read, `callId`, and `host`. The tool passes `host` to your options, for example to find the store for a session. See [Remember reads and change results](/guides/read/hooks).
+
+## Formatting
+
+By default the tool returns line-numbered text, followed by notes for errors, warnings, and continuation:
 
 ```text
 1|export function greet(name: string): string {
 2|  return `Hello, ${name}!`;
 3|}
-4|
-5|export function farewell(name: string): string {
-6|  return `Goodbye, ${name}!`;
-7|}
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"src/greet.ts","offset":4,"limit":3}.
 ```
 
-`createNodeReadTool()` reads from `process.cwd()` and refuses paths outside it. To change the folders it can read, see [Paths and missing files](/guides/read/paths).
-
-## Read part of a file
-
-`offset` is the first line to read. `limit` is the number of lines.
-
-```ts
-await read({ path: "src/greet.ts", offset: 2, limit: 2 });
-```
-
-```text
-2|  return `Hello, ${name}!`;
-3|}
-
-[read:continue] Output stopped at the line limit. Continue with {"path":"src/greet.ts","offset":4,"limit":2}.
-```
-
-The model can copy the call from the `continue` note. Your code gets the same call from `result.continuation.next`.
-
-A `limit` over the line limit is cut down, and the model gets a note:
-
-```ts
-await read({ path: "src/greet.ts", limit: 5000 });
-```
-
-```text
-[read:clamped] The requested line count of 5000 is over the maximum, so at most 2000 lines are shown.
-```
-
-## Read a long file
-
-A read stops at 2,000 lines or 128 KiB of text. The model then gets a `continue` note for the next part:
-
-```ts
-await read({ path: "logs/server.log" });
-```
-
-```text
-1999|2026-09-30T10:33:18Z request 1998 ok
-2000|2026-09-30T10:33:19Z request 1999 ok
-
-[read:continue] Output stopped at the line limit. Continue with {"path":"logs/server.log","offset":2001,"limit":2000}.
-```
-
-A line longer than 2,000 characters is cut, so one minified file cannot fill the context. The model gets a `line-clamped` note.
-
-To change these limits or set a token budget, see [Limit what a read returns](/guides/read/limits).
-
-## Use the result
-
-The result holds the same data as fields. Check `status` first:
-
-```ts
-const result = await read({ path: "src/greet.ts" });
-
-if (result.status === "ok") {
-  result.view.lines[0]; // { number: 1, text: "export function greet(name: string): string {", ... }
-  result.totals; // { lines: 7, exact: true, bytes: 158 }
-  result.continuation; // { available: false, next: null }
-} else if (result.status === "error") {
-  result.error.code; // for example "NOT_FOUND"
-}
-```
-
-| Status | When |
-| --- | --- |
-| `ok` | The tool read text. An empty file is `ok` with an `empty` note. |
-| `media` | A converter returned content parts, for example an image. |
-| `unsupported` | The tool does not read this format. `result.code` says why, for example `"PDF"`. |
-| `error` | The read failed. `result.error.code` says why. |
-
-`result.notes` holds each note as data, with a `code`, a `severity`, and a `message`. Use the `code` in your own code. The wording can change.
-
-## When a read fails
-
-The model gets a note that says what went wrong:
-
-```text
-[read:outside-allowed-roots] ../outside.txt is outside every configured allowed root.
-```
+Every other option can add a note. A failed read returns only a note:
 
 ```text
 [read:not-found] docs/setpu.md was not found. Nearby names: "setup.md".
 ```
 
-```text
-[read:not-a-file] docs is a directory; directories, FIFOs, sockets, and devices are refused before any content read.
-```
-
-The tool never opens a suggested name. The model must call again. [Paths and missing files](/guides/read/paths) shows how to change suggestions, and [Read images, notebooks, PDFs, and folders](/guides/read/file-types) shows how to read a folder.
-
-## Give the tool to a model
-
-With the AI SDK, put the tool in `tools`:
+Set `formatter` to change the layout, and `messages` to change the wording of a note:
 
 ```ts
-import { generateText, type LanguageModel } from "ai";
-import { createAiSdkReadTool } from "@better-fs-tools/ai-sdk";
-import { nodeFileSystem } from "@better-fs-tools/node";
+import { plainFormatter } from "@better-fs-tools/read";
 
-const cwd = process.cwd();
-const read = createAiSdkReadTool({ fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }) });
-
-export async function ask(model: LanguageModel, prompt: string) {
-  return generateText({ model, prompt, tools: { [read.name]: read } });
-}
+const read = createReadTool({
+  fs,
+  formatter: plainFormatter(),
+  messages: {
+    notFound: ({ request }) => `No file at ${request.path}. List the folder first.`,
+  },
+});
 ```
 
-In Pi, install `@better-fs-tools/pi`. Its extension replaces Pi's `read` tool. See [AI SDK](/hosts/ai-sdk) and [Pi](/hosts/pi) for each host.
+```text
+[read:not-found] No file at docs/setpu.md. List the folder first.
+```
 
-Every option on the pages that follow works with `createNodeReadTool()`, `createAiSdkReadTool()`, and `createPiReadTool()`.
+The formatter changes only `result.content`. The other fields of the result stay the same. The [formatting guide](/guides/read/output) shows the built-in formatters, the formats of other harnesses, line hashes, JSON output, and how to hide notes.
+
+## Path handling
+
+The filesystem decides which paths the tool can open. `nodeFileSystem` refuses a path outside `allowedRoots`:
+
+```text
+[read:outside-allowed-roots] ../outside.txt is outside every configured allowed root.
+```
+
+Set `resolve` to rewrite paths before the tool opens them, for example to accept `@src/greet.ts` or `~/notes.md`:
+
+```ts
+import { homedir } from "node:os";
+import { expandHome, pathResolvers, stripPrefixes } from "@better-fs-tools/read";
+
+const read = createReadTool({
+  fs,
+  resolve: pathResolvers(stripPrefixes(), expandHome({ home: homedir() })),
+});
+```
+
+A resolver cannot give access to more files. The filesystem checks the rewritten path. `result.file.resolvedFrom` holds the original path when a resolver changed it.
+
+When a file is missing, `suggest` finds similar names in the same folder, as in the `not-found` note above. Set `suggest: null` to turn this off. See [Paths and missing files](/guides/read/paths).
+
+## Permissions
+
+Set `authorize` to refuse reads that the filesystem allows:
+
+```ts
+import { denyPaths, readAuthorizers, sizeCeiling } from "@better-fs-tools/read";
+
+const read = createReadTool({
+  fs,
+  authorize: readAuthorizers(
+    denyPaths(["**/.env", "**/*.pem"]),
+    sizeCeiling({ maxBytes: 64 * 1024, unrangedOnly: true }),
+  ),
+});
+```
+
+A refused read returns status `error` with code `DENIED`:
+
+```text
+[read:denied] .env was refused by policy (the path matches a denied pattern).
+```
+
+`askUser` asks the user before each read. Some backends fetch the whole file before `authorize` runs. See [Control what the model can read](/guides/read/permissions).
+
+## File types
+
+By default the tool reads text. It returns `unsupported` for images, PDFs, notebooks, Office documents, and binary files, and `error` for a folder. Set `converters` to read them:
+
+```ts
+import { directoryListing, imageConverter } from "@better-fs-tools/read";
+
+const read = createReadTool({ fs, converters: [imageConverter(), directoryListing()] });
+```
+
+An image then returns status `media`, with the image in `result.content`. A folder returns one entry for each line. Set `classifiers` to change how the tool decides the file type. See [Read images, notebooks, PDFs, and folders](/guides/read/file-types).
+
+## Limits
+
+A read stops at 2,000 lines or 128 KiB, and a line stops at 2,000 characters. The result then has a continuation for the next part. Set `limits` to change these values, and `budget` to stop at a token count:
+
+```ts
+import { charsPerToken } from "@better-fs-tools/read";
+
+const read = createReadTool({
+  fs,
+  limits: { maxLines: 500 },
+  budget: charsPerToken({ ratio: 4, max: 2_000 }),
+});
+```
+
+`result.truncation` tells you which limit stopped the read. See [Limit what a read returns](/guides/read/limits) for every limit.
+
+## Hooks
+
+Hooks run after the read and before the formatter. A hook can change the lines, the notes, and the content. `redact` replaces secrets:
+
+```ts
+import { redact } from "@better-fs-tools/read";
+
+const read = createReadTool({
+  fs,
+  hooks: [redact({ patterns: [/AKIA[0-9A-Z]{16}/g] })],
+});
+```
+
+```text
+1|export const region = "eu-west-1";
+2|export const accessKeyId = "[REDACTED]";
+
+[read:view-modified] The redact hook changed this view, so it is not the exact file text.
+```
+
+A hook cannot turn a failed read into a successful one. If a hook throws, the read returns `EXTENSION_FAILED`. See [Remember reads and change results](/guides/read/hooks) to write your own hook.
+
+## State
+
+Set `state` to store a record of each read. When the edit and write tools share the store, they use the records to check that the model read a file before it changes it. `state` needs a `digest`:
+
+```ts
+import { nodeDigest } from "@better-fs-tools/node";
+import { memoryStore, repeatReadGuard } from "@better-fs-tools/read";
+
+const read = createReadTool({
+  fs,
+  digest: nodeDigest(),
+  state: memoryStore(),
+  hooks: [repeatReadGuard()],
+});
+```
+
+`repeatReadGuard` uses the records. When the model reads the same unchanged lines again, it returns a note in place of the lines. `sha256Digest()` from `@better-fs-tools/read` works where `node:crypto` is not available. To use one store for each session, pass a function as `state`. See [Remember reads and change results](/guides/read/hooks).
