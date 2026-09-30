@@ -1,0 +1,4 @@
+{
+  "title": "Read tool",
+  "pages": ["index", "limits", "file-types", "paths", "permissions", "output", "tool-schema", "hooks"]
+}

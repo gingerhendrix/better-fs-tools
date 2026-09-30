@@ -1,0 +1,109 @@
+---
+title: Name the tool and its parameters
+description: Change the tool name, the parameter names, the range model, and the descriptions the model sees.
+---
+
+The model sees a tool name, a description, and a JSON Schema. A signature sets all three. Pass it to a host factory such as `createAiSdkReadTool()` or `createPiReadTool()`.
+
+## Use the default signature
+
+With no signature, the tool is `read` with `path`, `offset`, and `limit`. The model sees this description:
+
+```text
+Read a UTF-8 text file. `offset` is a one-based source line and `limit` is a number of source lines. Output is bounded by line, byte, and line-length limits. When the result reports truncation, follow the continuation it returns instead of guessing the next `offset`. Paths outside the allowed roots, binary content, and special files are refused.
+```
+
+## Write your own descriptions
+
+```ts
+import { createAiSdkReadTool } from "@better-fs-tools/ai-sdk";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { defaultReadSignature } from "@better-fs-tools/read/signature";
+
+const cwd = process.cwd();
+
+const read = createAiSdkReadTool({
+  fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
+  signature: defaultReadSignature({
+    description: "Read a file in the repository.",
+    describe: { path: "Path relative to the repository root." },
+  }),
+});
+```
+
+`description` replaces the tool description. `describe` replaces the description of each parameter you name.
+
+## Rename the tool and its parameters
+
+```ts
+const signature = defaultReadSignature({
+  name: "read_file",
+  names: { path: "file_path", offset: "start", limit: "max_lines" },
+});
+```
+
+The schema now has `file_path`, `start`, and `max_lines`. The default description uses the new names too.
+
+## Use a start line and an end line
+
+Some models expect an inclusive line range. `lineRangeSignature()` gives the model `start_line` and `end_line` in place of `offset` and `limit`:
+
+```ts
+import { lineRangeSignature } from "@better-fs-tools/read/signature";
+
+const read = createAiSdkReadTool({
+  fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
+  signature: lineRangeSignature({
+    name: "read_file",
+    names: { path: "file_path", start: "start_line", end: "end_line" },
+  }),
+});
+```
+
+The model calls `read_file` with `{ "file_path": "src/greet.ts", "start_line": 1, "end_line": 2 }`. The `continue` note uses the same names:
+
+```text
+1|export function greet(name: string): string {
+2|  return `Hello, ${name}!`;
+
+[read:continue] Output stopped at the line limit. Continue with {"file_path":"src/greet.ts","start_line":3,"end_line":4}.
+```
+
+Your code still gets `{ path, offset, limit }` in `result.continuation.next`:
+
+```ts
+if (result.status === "ok") {
+  result.continuation.next; // { path: "src/greet.ts", offset: 3, limit: 2 }
+}
+```
+
+## What happens with the wrong names
+
+The tool does not guess. A call with names from another signature fails, and the error lists the names it expects:
+
+```text
+Unknown read input key: path. Expected file_path, start_line, end_line
+```
+
+The AI SDK host reports this to the model as a tool error, so the model can call again.
+
+## Use a signature with your own tool
+
+To put the core read behind your own tool, turn the model input into a read call with `toInput`. Pass `readSignatureMessages()` so the notes use the same names:
+
+```ts
+import { createNodeReadTool } from "@better-fs-tools/node";
+import { lineRangeSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
+
+const signature = lineRangeSignature({
+  name: "read_file",
+  names: { path: "file_path", start: "start_line", end: "end_line" },
+});
+const read = createNodeReadTool({ messages: readSignatureMessages(signature) });
+
+await read(signature.toInput({ file_path: "src/greet.ts", start_line: 1, end_line: 2 }));
+```
+
+`signature.name`, `signature.description`, and `signature.schema` give what you need to register the tool.
+
+The tool reads one path for each call. For a tool that reads many files at once, call `read()` once for each file in your own tool.

@@ -1,0 +1,185 @@
+---
+title: Read images, notebooks, PDFs, and folders
+description: Add converters so the read tool can return more than text.
+---
+
+## What the tool refuses
+
+By default the tool reads UTF-8 text only. For other files, the model gets a note that says why:
+
+```text
+[read:unsupported-image] This content is not supported as UTF-8 text. Use an image or vision tool.
+```
+
+```text
+[read:unsupported-pdf] This content is not supported as UTF-8 text. Use a PDF extraction tool.
+```
+
+```text
+[read:unsupported-notebook] This content is not supported as UTF-8 text. Use a notebook handler.
+```
+
+```text
+[read:not-a-file] docs is a directory; directories, FIFOs, sockets, and devices are refused before any content read.
+```
+
+The tool also refuses binary files and text in an encoding it does not know. Add a converter for each type you want to read.
+
+## Read images
+
+```ts
+import { createNodeReadTool } from "@better-fs-tools/node";
+import { imageConverter } from "@better-fs-tools/read";
+
+const read = createNodeReadTool({ converters: [imageConverter()] });
+
+const result = await read({ path: "docs/diagram.png" });
+```
+
+The status is `media`, and `result.content` holds the image:
+
+```ts
+result.content; // [{ type: "media", mediaType: "image/png", data: Uint8Array, name: "diagram.png" }]
+```
+
+The AI SDK and Pi hosts send the image to the model as a file part.
+
+To make large images smaller first, pass `transform`. It gets the bytes and returns new bytes of the same media type:
+
+```ts
+// Your own image code, for example with sharp.
+declare function resize(bytes: Uint8Array, mediaType: string, width: number): Promise<Uint8Array>;
+
+imageConverter({ transform: (bytes, mediaType) => resize(bytes, mediaType, 1024) });
+```
+
+## Read notebooks
+
+```ts
+import { notebookConverter } from "@better-fs-tools/read";
+
+const read = createNodeReadTool({ converters: [notebookConverter()] });
+
+await read({ path: "notebooks/explore.ipynb" });
+```
+
+```text
+1|[cell 1: markdown]
+2|# Explore
+3|
+4|[cell 2: code]
+5|1 + 1
+6|[output]
+7|2
+```
+
+Pass `notebookConverter({ outputs: false })` to leave out cell outputs.
+
+## Read PDFs and other formats
+
+Wrap your own text extractor, for example `pdftotext`, `pandoc`, or `markitdown`, with `textConverter()`:
+
+```ts
+import { textConverter } from "@better-fs-tools/read";
+
+// Your own extractor. It gets the file bytes and yields text.
+declare function pdfToText(source: AsyncIterable<Uint8Array>): AsyncIterable<string>;
+
+const pdf = textConverter({
+  id: "pdftotext",
+  accepts: (match) =>
+    match.classification.kind === "unsupported" && match.classification.code === "PDF",
+  mimeType: "text/plain",
+  run: (source) => pdfToText(source),
+});
+
+const read = createNodeReadTool({ converters: [pdf] });
+```
+
+```text
+1|Manual
+2|
+3|Chapter 1. Install
+```
+
+`offset`, `limit`, and the limits work on the converted lines, the same as a text file. The converter runs again for each continuation, so cache the output if it is slow.
+
+A converter that starts a process needs Node or Bun. It does not work in a Cloudflare Worker.
+
+## List folders
+
+```ts
+import { directoryListing } from "@better-fs-tools/read";
+
+const read = createNodeReadTool({
+  converters: [directoryListing({ trailingSlash: true, sort: "type-then-name" })],
+});
+
+await read({ path: "." });
+```
+
+```text
+1|docs/
+2|logs/
+3|notebooks/
+4|src/
+5|.env
+```
+
+Each entry is one line, so `offset` and `limit` work on entries. The default sort is `"name"`, with no trailing slash. A listing stops at 200 entries.
+
+## Use more than one converter
+
+Put all your converters in one list. The first converter that accepts a file reads it:
+
+```ts
+const read = createNodeReadTool({
+  converters: [imageConverter(), notebookConverter(), pdf, directoryListing()],
+});
+```
+
+## Decide what counts as text
+
+The tool looks at the first bytes of a file to decide its type. To decide by extension, put an `extensionClassifier()` before the defaults:
+
+```ts
+import { defaultClassifiers, extensionClassifier } from "@better-fs-tools/read";
+
+const read = createNodeReadTool({
+  classifiers: [
+    extensionClassifier({
+      unsupported: { ".log": { code: "BINARY" } },
+      text: [".lock"],
+    }),
+    ...defaultClassifiers(),
+  ],
+});
+```
+
+```text
+[read:unsupported-binary] Files with the .log extension are not supported as UTF-8 text.
+```
+
+Include `defaultClassifiers()` in the list. Without it, the tool does not find images, PDFs, or binary files.
+
+To change the note for a refused format, pass `notes` to `defaultClassifiers()`:
+
+```ts
+defaultClassifiers({
+  notes: { PDF: { message: "PDFs are not supported here. Ask the user for a text copy." } },
+});
+```
+
+```text
+[read:unsupported-pdf] PDFs are not supported here. Ask the user for a text copy.
+```
+
+## Large files and images
+
+A converter reads at most 64 MiB of a file. The media in one result can be at most 5 MiB. Past these limits, the status is `unsupported` with code `TOO_LARGE`:
+
+```text
+[read:too-large] The media converted from docs/diagram.png is larger than the 10-byte media limit, so it was not returned.
+```
+
+Set `limits.maxConvertBytes` and `limits.maxMediaBytes` to change them. This output comes from `maxMediaBytes: 10`.

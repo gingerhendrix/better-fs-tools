@@ -1,0 +1,140 @@
+---
+title: Read files
+description: Give your agent a read tool, and use what it returns.
+---
+
+## Read a file
+
+```ts
+import { createNodeReadTool } from "@better-fs-tools/node";
+import { textOf } from "@better-fs-tools/read";
+
+const read = createNodeReadTool();
+
+const result = await read({ path: "src/greet.ts" });
+console.log(textOf(result));
+```
+
+This is the text the model sees:
+
+```text
+1|export function greet(name: string): string {
+2|  return `Hello, ${name}!`;
+3|}
+4|
+5|export function farewell(name: string): string {
+6|  return `Goodbye, ${name}!`;
+7|}
+```
+
+`createNodeReadTool()` reads from `process.cwd()` and refuses paths outside it. To change the folders it can read, see [Paths and missing files](/guides/read/paths).
+
+## Read part of a file
+
+`offset` is the first line to read. `limit` is the number of lines.
+
+```ts
+await read({ path: "src/greet.ts", offset: 2, limit: 2 });
+```
+
+```text
+2|  return `Hello, ${name}!`;
+3|}
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"src/greet.ts","offset":4,"limit":2}.
+```
+
+The model can copy the call from the `continue` note. Your code gets the same call from `result.continuation.next`.
+
+A `limit` over the line limit is cut down, and the model gets a note:
+
+```ts
+await read({ path: "src/greet.ts", limit: 5000 });
+```
+
+```text
+[read:clamped] The requested line count of 5000 is over the maximum, so at most 2000 lines are shown.
+```
+
+## Read a long file
+
+A read stops at 2,000 lines or 128 KiB of text. The model then gets a `continue` note for the next part:
+
+```ts
+await read({ path: "logs/server.log" });
+```
+
+```text
+1999|2026-09-30T10:33:18Z request 1998 ok
+2000|2026-09-30T10:33:19Z request 1999 ok
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"logs/server.log","offset":2001,"limit":2000}.
+```
+
+A line longer than 2,000 characters is cut, so one minified file cannot fill the context. The model gets a `line-clamped` note.
+
+To change these limits or set a token budget, see [Limit what a read returns](/guides/read/limits).
+
+## Use the result
+
+The result holds the same data as fields. Check `status` first:
+
+```ts
+const result = await read({ path: "src/greet.ts" });
+
+if (result.status === "ok") {
+  result.view.lines[0]; // { number: 1, text: "export function greet(name: string): string {", ... }
+  result.totals; // { lines: 7, exact: true, bytes: 158 }
+  result.continuation; // { available: false, next: null }
+} else if (result.status === "error") {
+  result.error.code; // for example "NOT_FOUND"
+}
+```
+
+| Status | When |
+| --- | --- |
+| `ok` | The tool read text. An empty file is `ok` with an `empty` note. |
+| `media` | A converter returned content parts, for example an image. |
+| `unsupported` | The tool does not read this format. `result.code` says why, for example `"PDF"`. |
+| `error` | The read failed. `result.error.code` says why. |
+
+`result.notes` holds each note as data, with a `code`, a `severity`, and a `message`. Use the `code` in your own code. The wording can change.
+
+## When a read fails
+
+The model gets a note that says what went wrong:
+
+```text
+[read:outside-allowed-roots] ../outside.txt is outside every configured allowed root.
+```
+
+```text
+[read:not-found] docs/setpu.md was not found. Nearby names: "setup.md".
+```
+
+```text
+[read:not-a-file] docs is a directory; directories, FIFOs, sockets, and devices are refused before any content read.
+```
+
+The tool never opens a suggested name. The model must call again. [Paths and missing files](/guides/read/paths) shows how to change suggestions, and [Read images, notebooks, PDFs, and folders](/guides/read/file-types) shows how to read a folder.
+
+## Give the tool to a model
+
+With the AI SDK, put the tool in `tools`:
+
+```ts
+import { generateText, type LanguageModel } from "ai";
+import { createAiSdkReadTool } from "@better-fs-tools/ai-sdk";
+import { nodeFileSystem } from "@better-fs-tools/node";
+
+const cwd = process.cwd();
+const read = createAiSdkReadTool({ fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }) });
+
+export async function ask(model: LanguageModel, prompt: string) {
+  return generateText({ model, prompt, tools: { [read.name]: read } });
+}
+```
+
+In Pi, install `@better-fs-tools/pi`. Its extension replaces Pi's `read` tool. See [AI SDK](/hosts/ai-sdk) and [Pi](/hosts/pi) for each host.
+
+Every option on the pages that follow works with `createNodeReadTool()`, `createAiSdkReadTool()`, and `createPiReadTool()`.

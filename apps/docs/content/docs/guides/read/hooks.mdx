@@ -1,0 +1,146 @@
+---
+title: Remember reads and change results
+description: Store what the model has read, stop repeat reads, redact secrets, and add your own notes.
+---
+
+## Remember what the model has read
+
+Pass a `state` store. The tool then records each read: the file, the range, and a hash of the content.
+
+```ts
+import { createNodeReadTool } from "@better-fs-tools/node";
+import { memoryStore } from "@better-fs-tools/read";
+
+const store = memoryStore();
+const read = createNodeReadTool({ state: store });
+```
+
+`memoryStore()` keeps up to 1,000 records for 30 minutes. Set `maxEntries` and `ttlMs` to change this.
+
+If you use the `edit` and `write` tools, build all the tools together with `createNodeFsTools()`. They then share one store, so the write tools know what the model has read. See [One bundle for all tools](/guides/one-bundle).
+
+## Stop repeat reads
+
+`repeatReadGuard()` stops the model from reading the same unchanged range twice. It needs a `state` store:
+
+```ts
+import { memoryStore, repeatReadGuard } from "@better-fs-tools/read";
+
+const read = createNodeReadTool({
+  state: memoryStore(),
+  hooks: [repeatReadGuard()],
+});
+
+await read({ path: "src/greet.ts" });
+await read({ path: "src/greet.ts" });
+```
+
+The second read returns no lines:
+
+```text
+[read:repeat-read] src/greet.ts has not changed since it was read with the same range at 2026-09-30T00:25:17.227Z. That output is still current, so it is not repeated.
+[read:view-modified] The repeat-read-guard hook changed this view, so it is not the exact file text.
+```
+
+A read of another range, or of a changed file, goes through as normal.
+
+## Redact secrets
+
+`redact()` replaces text that matches a pattern before the model sees it. Each pattern needs the `g` flag:
+
+```ts
+import { redact } from "@better-fs-tools/read";
+
+const read = createNodeReadTool({
+  hooks: [redact({ patterns: [/AKIA[0-9A-Z]{16}/g] })],
+});
+
+await read({ path: "src/config.ts" });
+```
+
+```text
+1|export const region = "eu-west-1";
+2|export const accessKeyId = "[REDACTED]";
+
+[read:view-modified] The redact hook changed this view, so it is not the exact file text.
+```
+
+Pass `replacement` to use other text. `redact()` works one line at a time, so it does not find a secret that runs across two lines.
+
+A write tool does not treat a redacted read as a read of the whole file.
+
+## Add your own note
+
+A hook gets the result before the model sees it and returns a new result. This hook tells the model when a file is large:
+
+```ts
+import type { ReadHook } from "@better-fs-tools/read";
+
+const sizeNote: ReadHook<unknown> = {
+  id: "size-note",
+  afterRead(outcome) {
+    const lines = outcome.status === "ok" ? outcome.totals.lines : null;
+    if (lines === null || lines < 1_000) return outcome;
+    const note = {
+      code: "large-file",
+      severity: "info" as const,
+      message: `This file has ${lines} lines. Search it before you read more.`,
+    };
+    return { ...outcome, notes: [...outcome.notes, note] };
+  },
+};
+
+const read = createNodeReadTool({ hooks: [sizeNote] });
+```
+
+```text
+1|2026-09-30T10:00:00Z request 0 ok
+2|2026-09-30T10:00:01Z request 1 ok
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"logs/server.log","offset":3,"limit":2}.
+[read:large-file] This file has 5000 lines. Search it before you read more.
+```
+
+Hooks run in list order. A hook can change the lines, the notes, and the content parts. It cannot change the file or the range, and it cannot turn a failed read into a success. If a hook breaks a rule or throws, the read fails with `EXTENSION_FAILED`.
+
+A hook runs as your own code. If it reads other files, the tool does not check those reads.
+
+## Keep one store for each session
+
+The second argument of a read is the call context. Put your own session object in `host`. The tool passes it to your functions as `call.host`:
+
+```ts
+import { askUser, memoryStore, repeatReadGuard } from "@better-fs-tools/read";
+import type { ReadStateStore } from "@better-fs-tools/read";
+
+interface Session {
+  readonly id: string;
+  readonly approved: Set<string>;
+  confirm(question: string): Promise<boolean>;
+}
+
+declare const session: Session;
+const stores = new Map<string, ReadStateStore>();
+
+const read = createNodeReadTool<Session>({
+  state: (call) => {
+    let store = stores.get(call.host.id);
+    if (store === undefined) stores.set(call.host.id, (store = memoryStore()));
+    return store;
+  },
+  hooks: [repeatReadGuard()],
+  authorize: askUser<Session>(async (target, ctx) => {
+    const session = ctx.call.host;
+    if (session.approved.has(target.resolvedPath)) return true;
+    const ok = await session.confirm(`Read ${target.displayPath}?`);
+    if (ok) session.approved.add(target.resolvedPath);
+    return ok;
+  }),
+});
+
+await read({ path: "src/greet.ts" }, { host: session });
+```
+
+Each session now has its own store and remembers its own answers. With a host type, the call context is required.
+
+The AI SDK host puts its tool call options in `host`, and the Pi host puts Pi's extension context there. The context can also hold a `signal` to stop the read and a `callId`.

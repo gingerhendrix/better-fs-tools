@@ -1,0 +1,145 @@
+---
+title: Paths and missing files
+description: Choose the folders the tool can read, fix common path mistakes, and suggest names on a miss.
+---
+
+## Choose the folders
+
+Pass your own `nodeFileSystem()` to set the folders that the tool can read:
+
+```ts
+import { createNodeReadTool, nodeFileSystem } from "@better-fs-tools/node";
+
+const cwd = process.cwd();
+
+const read = createNodeReadTool({
+  fs: nodeFileSystem({
+    cwd,
+    allowedRoots: [`${cwd}/src`, `${cwd}/docs`],
+    denyRoots: [`${cwd}/docs/private`],
+  }),
+});
+
+await read({ path: "logs/server.log" });
+```
+
+```text
+[read:outside-allowed-roots] logs/server.log is outside every configured allowed root.
+```
+
+| Option | Default | Use |
+| --- | --- | --- |
+| `cwd` | `process.cwd()` | The folder that relative paths start from |
+| `allowedRoots` | required | The folders the tool can read |
+| `denyRoots` | none | Folders inside the roots that the tool refuses |
+| `symlinks` | `"follow-within-roots"` | `"reject"` refuses every symbolic link |
+
+By default the tool follows a symbolic link only when its target is inside the roots. With `symlinks: "reject"`, every link is refused:
+
+```text
+[read:denied] src/settings was refused by policy (the path contains a symbolic link and policy rejects symlinks).
+```
+
+The tool always refuses `/dev`, `/proc`, and `/sys`, and it never opens a FIFO, socket, or device.
+
+## Fix common path mistakes
+
+Models often send `@src/a.ts`, `file:///repo/a.ts`, or `~/notes.md`. Pass `resolve` to fix these paths before the tool opens them:
+
+```ts
+import { homedir } from "node:os";
+import { expandHome, pathResolvers, stripPrefixes } from "@better-fs-tools/read";
+
+const read = createNodeReadTool({
+  resolve: pathResolvers(stripPrefixes(), expandHome({ home: homedir() })),
+});
+
+await read({ path: "@src/greet.ts", limit: 1 });
+```
+
+```text
+1|export function greet(name: string): string {
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"@src/greet.ts","offset":2,"limit":1}.
+```
+
+The continuation keeps the path that the model sent. `result.file.resolvedFrom` holds that path when a resolver changed it, and `null` when no resolver changed it.
+
+| Resolver | Fixes |
+| --- | --- |
+| `stripPrefixes()` | A `file://` prefix and a leading `@`. Pass `{ at: false }` if your paths start with `@`, for example `@types/node`. |
+| `expandHome({ home })` | `~` and `~/…` |
+| `reanchorLeadingSlash({ firstSegmentExists })` | `/src/a.ts` as `src/a.ts`, when your function says `src` exists |
+| `unicodeRepair()` | A name with a different space or quote character, for example a macOS screenshot name |
+
+`pathResolvers()` runs them left to right. A resolver only changes the path. The root checks still apply to the new path.
+
+## Repair names with odd spaces
+
+macOS puts a narrow no-break space in screenshot names. A model usually types a normal space, so the read misses. By default the model gets the correct name as a suggestion:
+
+```text
+[read:not-found] docs/notes 10.42 AM.md was not found. Nearby names: "notes 10.42 AM.md".
+```
+
+With `resolve: unicodeRepair()`, the tool opens the one matching file and adds a note:
+
+```text
+1|# Meeting notes
+
+[read:path-repaired] The requested filename "docs/notes 10.42 AM.md" was repaired to the unique Unicode-equivalent path "docs/notes 10.42 AM.md".
+```
+
+Pass `unicodeRepair({ note: false })` to repair with no note. `unicodeRepair()` lists the parent folder on every read, so it is off by default.
+
+## Write your own resolver
+
+A resolver has an `id` and a `resolve` function that returns the new path:
+
+```ts
+import type { PathResolver } from "@better-fs-tools/read";
+
+const srcAlias: PathResolver<unknown> = {
+  id: "src-alias",
+  resolve: (path) =>
+    path.startsWith("$SRC/")
+      ? { kind: "path", path: `src/${path.slice(5)}` }
+      : { kind: "path", path },
+};
+
+const read = createNodeReadTool({ resolve: srcAlias });
+```
+
+A resolver can also return `{ kind: "not-found" }`. If it throws, the read fails with `EXTENSION_FAILED`.
+
+## Suggest names on a miss
+
+When a file is missing, the tool lists the parent folder and suggests up to five close names:
+
+```text
+[read:not-found] docs/setpu.md was not found. Nearby names: "setup.md".
+```
+
+The names are also in `result.error.data.suggestions`. The tool never opens a suggested file.
+
+To rank names your own way, pass `suggest`. It gets the folder entries and returns names:
+
+```ts
+const read = createNodeReadTool({
+  suggest: (ctx) =>
+    ctx.entries
+      .map((entry) => entry.name)
+      .filter((name) => name.endsWith(".md"))
+      .slice(0, ctx.max),
+});
+```
+
+```text
+[read:not-found] docs/setpu.md was not found. Nearby names: "setup.md", "notes 10.42 AM.md".
+```
+
+Pass `suggest: null` to turn suggestions off:
+
+```text
+[read:not-found] docs/setpu.md was not found.
+```

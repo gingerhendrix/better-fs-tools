@@ -1,0 +1,74 @@
+---
+title: Limit what a read returns
+description: Set line, byte, and token limits for each read.
+---
+
+## Change the line and byte limits
+
+A read stops at 2,000 lines or 128 KiB of text, whichever comes first. Set lower limits to keep reads small:
+
+```ts
+import { createNodeReadTool } from "@better-fs-tools/node";
+
+const read = createNodeReadTool({
+  limits: { maxLines: 500, maxViewBytes: 8 * 1024 },
+});
+
+await read({ path: "logs/server.log" });
+```
+
+This read stops at the byte limit before it gets to 500 lines:
+
+```text
+[read:continue] Output stopped at the view-byte limit. Continue with {"path":"logs/server.log","offset":231,"limit":500}.
+```
+
+`maxLines` is also the largest `limit` that the model can ask for. You only set the limits you want to change. The others keep their defaults.
+
+## Cut long lines sooner
+
+`maxCharsPerLine` sets where a long line is cut. The default is 2,000 characters.
+
+```ts
+const read = createNodeReadTool({ limits: { maxCharsPerLine: 80 } });
+
+await read({ path: "src/bundle.min.js" });
+```
+
+```text
+1|var a=1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+1+… [line truncated at 80 chars]
+
+[read:line-clamped] Source line 1 exceeded 80 characters and was clamped.
+```
+
+## Set a token budget
+
+Set `budget` to limit a read by tokens. The read stops at the last whole line that fits:
+
+```ts
+import { charsPerToken } from "@better-fs-tools/read";
+
+const read = createNodeReadTool({
+  budget: charsPerToken({ ratio: 4, max: 2_000 }),
+});
+
+await read({ path: "logs/server.log" });
+```
+
+```text
+[read:continue] Output stopped at the view budget. Continue with {"path":"logs/server.log","offset":201,"limit":2000}.
+```
+
+`charsPerToken()` counts each line as its length divided by `ratio`, plus one token. The budget never stops the first line of a read, so the model always gets at least one line.
+
+To count tokens your own way, pass an object with a `measure(text)` function that returns a number. The tool calls it once for each line, so keep it fast.
+
+## Refuse large files
+
+The limits cut a read short. To refuse a whole-file read of a large file, use the `sizeCeiling()` authorizer. See [Control what the model can read](/guides/read/permissions#refuse-large-files).
+
+## Other limits
+
+The limits for sniffing file types, folder listings, suggestions, converters, and images have defaults that suit most hosts. The [read reference](/reference/read) lists each one.
+
+A limit must be a positive whole number. `createNodeReadTool()` throws a `TypeError` for a limit it does not know or a value it cannot use.
