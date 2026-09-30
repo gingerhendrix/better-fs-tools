@@ -4,7 +4,7 @@ description: Create the read function with createReadTool, and configure it with
 ---
 
 <Callout type="info">
-To give a read tool to an agent, use a provider integration such as [AI SDK](/hosts/ai-sdk) or [Pi](/hosts/pi). The integration gives you the tool definition: the name, the description, and the parameter schema. It takes the options on this page, plus a `signature` for the tool definition.
+To give a read tool to an agent, use a provider integration such as [AI SDK](/hosts/ai-sdk) or [Pi](/hosts/pi). The integration gives you the tool definition: the name, the description, and the parameter schema. It takes the options on this page, plus a [`signature`](/hosts/tool-definition) for the tool definition.
 </Callout>
 
 `createReadTool` is the lower-level API. It creates the function that implements the tool. Use it when you write your own integration, or when your code reads files for the agent.
@@ -20,7 +20,7 @@ const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
 const read = createReadTool({ fs });
 ```
 
-On Node or Bun, `createNodeReadTool()` from `@better-fs-tools/node` does the same with a filesystem rooted at `process.cwd()`. It takes the same options.
+On Node or Bun, `createNodeReadTool()` from `@better-fs-tools/node` does the same with a filesystem rooted at `process.cwd()`, and sets `digest: nodeDigest()`. It takes the same options.
 
 | Option | Default | Use it to |
 | --- | --- | --- |
@@ -60,7 +60,7 @@ if (result.status === "ok") {
 
 `status` is `ok`, `media`, `unsupported`, or `error`. `result.content` holds the parts to send to the model, and `textOf(result)` joins its text parts. `result.notes` holds each note as data. The [read reference](/reference/read#readresult) lists every field.
 
-`ctx` is optional. It holds `signal` to cancel the read, `callId`, and `host`. The tool passes `host` to your options, for example to find the store for a session. See [Remember reads and change results](/guides/read/hooks).
+`ctx` is optional. It holds `signal` to cancel the read, `callId`, and `host`. The tool passes `host` to your options, for example to find the store for a session. See [Hooks and state](/guides/read/hooks-and-state#use-one-store-for-each-session).
 
 ## Formatting
 
@@ -98,7 +98,7 @@ const read = createReadTool({
 [read:not-found] No file at docs/setpu.md. List the folder first.
 ```
 
-The formatter changes only `result.content`. The other fields of the result stay the same. The [formatting guide](/guides/read/output) shows the built-in formatters, the formats of other harnesses, line hashes, JSON output, and how to hide notes.
+The formatter changes only `result.content`. The other fields of the result stay the same. [Customise formatting](/guides/read/formatting) shows the built-in formatters, the formats of other harnesses, line hashes, JSON output, and how to hide notes.
 
 ## Path handling
 
@@ -122,7 +122,7 @@ const read = createReadTool({
 
 A resolver cannot give access to more files. The filesystem checks the rewritten path. `result.file.resolvedFrom` holds the original path when a resolver changed it.
 
-When a file is missing, `suggest` finds similar names in the same folder, as in the `not-found` note above. Set `suggest: null` to turn this off. See [Paths and missing files](/guides/read/paths).
+When a file is missing, `suggest` finds similar names in the same folder, as in the `not-found` note above. Set `suggest: null` to turn this off. See [Path handling](/guides/read/paths).
 
 ## Permissions
 
@@ -146,7 +146,7 @@ A refused read returns status `error` with code `DENIED`:
 [read:denied] .env was refused by policy (the path matches a denied pattern).
 ```
 
-`askUser` asks the user before each read. Some backends fetch the whole file before `authorize` runs. See [Control what the model can read](/guides/read/permissions).
+`askUser` asks the user before each read. Some backends fetch the whole file before `authorize` runs. See [Permissions](/guides/read/permissions).
 
 ## File types
 
@@ -158,7 +158,7 @@ import { directoryListing, imageConverter } from "@better-fs-tools/read";
 const read = createReadTool({ fs, converters: [imageConverter(), directoryListing()] });
 ```
 
-An image then returns status `media`, with the image in `result.content`. A folder returns one entry for each line. Set `classifiers` to change how the tool decides the file type. See [Read images, notebooks, PDFs, and folders](/guides/read/file-types).
+An image then returns status `media`, with the image in `result.content`. A folder returns one entry for each line. Set `classifiers` to change how the tool decides the file type. See [File types](/guides/read/file-types).
 
 ## Limits
 
@@ -174,7 +174,7 @@ const read = createReadTool({
 });
 ```
 
-`result.truncation` tells you which limit stopped the read. See [Limit what a read returns](/guides/read/limits) for every limit.
+`result.truncation` tells you which limit stopped the read. See [Limits](/guides/read/limits) for every limit.
 
 ## Hooks
 
@@ -196,7 +196,7 @@ const read = createReadTool({
 [read:view-modified] The redact hook changed this view, so it is not the exact file text.
 ```
 
-A hook cannot turn a failed read into a successful one. If a hook throws, the read returns `EXTENSION_FAILED`. See [Remember reads and change results](/guides/read/hooks) to write your own hook.
+A hook cannot turn a failed read into a successful one. If a hook throws, the read returns `EXTENSION_FAILED`. See [Hooks and state](/guides/read/hooks-and-state) to write your own hook.
 
 ## State
 
@@ -214,4 +214,4 @@ const read = createReadTool({
 });
 ```
 
-`repeatReadGuard` uses the records. When the model reads the same unchanged lines again, it returns a note in place of the lines. `sha256Digest()` from `@better-fs-tools/read` works where `node:crypto` is not available. To use one store for each session, pass a function as `state`. See [Remember reads and change results](/guides/read/hooks).
+`repeatReadGuard` uses the records. When the model reads the same unchanged lines again, it returns a note in place of the lines. `sha256Digest()` from `@better-fs-tools/read` works where `node:crypto` is not available. To use one store for each session, pass a function as `state`. See [Hooks and state](/guides/read/hooks-and-state#state).

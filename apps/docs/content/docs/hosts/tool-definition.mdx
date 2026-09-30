@@ -1,0 +1,109 @@
+---
+title: Customise the tool definition
+description: Change the tool name, the parameter names, and the descriptions of the read tool with a signature.
+---
+
+The model sees a tool definition: a name, a description, and a JSON Schema for the parameters. A signature makes all three, and turns the model input into the input of `read`. Set `signature` on a provider integration:
+
+```ts
+import { createAiSdkReadTool } from "@better-fs-tools/ai-sdk";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { defaultReadSignature } from "@better-fs-tools/read/signature";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const read = createAiSdkReadTool({
+  fs,
+  signature: defaultReadSignature({
+    description: "Read a file in the repository.",
+    describe: { path: "Path relative to the repository root." },
+  }),
+});
+```
+
+`createPiReadTool()` takes the same `signature` option. In a bundle, set it for each tool, for example `createAiSdkFsTools({ fs, read: { signature } })`. The other options are the [read tool options](/guides/read).
+
+The default signature is `defaultReadSignature()`. The tool is `read`, with the parameters `path`, `offset`, and `limit`.
+
+## Change the descriptions
+
+`defaultReadSignature()` takes these options:
+
+| Option | Sets |
+| --- | --- |
+| `name` | The tool name |
+| `description` | The tool description |
+| `describe` | The description of each parameter you name |
+| `names` | A new name for each parameter you name |
+
+This is the default tool description:
+
+```text
+Read a UTF-8 text file. `offset` is a one-based source line and `limit` is a number of source lines. Output is bounded by line, byte, and line-length limits. When the result reports truncation, follow the continuation it returns instead of guessing the next `offset`. Paths outside the allowed roots, binary content, and special files are refused.
+```
+
+## Rename the tool and its parameters
+
+Set `name` and `names`:
+
+```ts
+const signature = defaultReadSignature({
+  name: "read_file",
+  names: { path: "file_path", offset: "start", limit: "max_lines" },
+});
+```
+
+The schema then has `file_path`, `start`, and `max_lines`, and the default description uses the new names. The integration also changes the notes, so a `continue` note gives the next call with the new names.
+
+## Use a start line and an end line
+
+`lineRangeSignature()` gives the model an inclusive line range in place of `offset` and `limit`. It takes the same options. Its parameters are `path`, `start`, and `end`:
+
+```ts
+import { lineRangeSignature } from "@better-fs-tools/read/signature";
+
+const read = createAiSdkReadTool({
+  fs,
+  signature: lineRangeSignature({
+    name: "read_file",
+    names: { path: "file_path", start: "start_line", end: "end_line" },
+  }),
+});
+```
+
+A model call `{ "file_path": "src/greet.ts", "start_line": 1, "end_line": 2 }` gives this text:
+
+```text
+1|export function greet(name: string): string {
+2|  return `Hello, ${name}!`;
+
+[read:continue] Output stopped at the line limit. Continue with {"file_path":"src/greet.ts","start_line":3,"end_line":4}.
+```
+
+The result is the same as for any read. `result.continuation.next` is `{ path: "src/greet.ts", offset: 3, limit: 2 }`.
+
+## Input with the wrong names
+
+The signature does not guess. Input with an unknown name throws a `TypeError` that lists the names it expects:
+
+```text
+TypeError: Unknown read input key: path. Expected file_path, start_line, end_line
+```
+
+The AI SDK gives a thrown error back to the model as a tool error, so the model can call again.
+
+## Use a signature in your own integration
+
+Use the signature parts to register the tool with your framework. `signature.name`, `signature.description`, and `signature.schema` give the definition. `signature.toInput()` turns the model input into the input of `read`. Set `messages: readSignatureMessages(signature)`, so the notes use the names from the signature:
+
+```ts
+import { createReadTool } from "@better-fs-tools/read";
+import { lineRangeSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
+
+const signature = lineRangeSignature({ name: "read_file" });
+const read = createReadTool({ fs, messages: readSignatureMessages(signature) });
+
+const result = await read(signature.toInput({ path: "src/greet.ts", start: 1, end: 2 }));
+```
+
+The tool reads one path in each call. For a tool that reads many files in one call, call `read` once for each file.
