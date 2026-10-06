@@ -1,0 +1,68 @@
+core:changelogs:
+  - content: "---\npackages:\n  group:better-fs-tools:\n    type: minor\n---\n\n## First npm release\n\nThe first public release of the Better FS Tools packages. Each package ships compiled ES modules and TypeScript declarations from `dist/`.\n"
+    filename: first-npm-release.md
+    v: 0.0.0
+core:packages:
+  - changelogIds:
+      - first-npm-release.md
+    id: npm:@better-fs-tools/ai-sdk
+    updated: true
+  - changelogIds:
+      - first-npm-release.md
+    id: npm:@better-fs-tools/cloudflare-computer
+    updated: true
+  - changelogIds:
+      - first-npm-release.md
+    id: npm:@better-fs-tools/fs
+    updated: true
+  - changelogIds:
+      - first-npm-release.md
+    id: npm:@better-fs-tools/cloudflare-shell
+    updated: true
+  - changelogIds:
+      - first-npm-release.md
+    id: npm:@better-fs-tools/just-bash
+    updated: true
+  - changelogIds:
+      - first-npm-release.md
+    id: npm:@better-fs-tools/pi
+    updated: true
+  - changelogIds:
+      - first-npm-release.md
+    id: npm:@better-fs-tools/read
+    updated: true
+  - changelogIds:
+      - first-npm-release.md
+    id: npm:@better-fs-tools/shell
+    updated: true
+  - changelogIds:
+      - first-npm-release.md
+    id: npm:@better-fs-tools/write
+    updated: true
+  - changelogIds:
+      - first-npm-release.md
+    id: npm:@better-fs-tools/node
+    updated: true
+npm:mark-latest:
+  - id: npm:@better-fs-tools/ai-sdk
+  - id: npm:@better-fs-tools/cloudflare-computer
+  - id: npm:@better-fs-tools/fs
+  - id: npm:@better-fs-tools/cloudflare-shell
+  - id: npm:@better-fs-tools/just-bash
+  - id: npm:@better-fs-tools/pi
+  - id: npm:@better-fs-tools/read
+  - id: npm:@better-fs-tools/shell
+  - id: npm:@better-fs-tools/write
+  - id: npm:@better-fs-tools/node
+npm:packages:
+  - id: npm:@better-fs-tools/ai-sdk
+  - id: npm:@better-fs-tools/cloudflare-computer
+  - id: npm:@better-fs-tools/fs
+  - id: npm:@better-fs-tools/cloudflare-shell
+  - id: npm:@better-fs-tools/just-bash
+  - id: npm:@better-fs-tools/pi
+  - id: npm:@better-fs-tools/read
+  - id: npm:@better-fs-tools/shell
+  - id: npm:@better-fs-tools/write
+  - id: npm:@better-fs-tools/node
+  - id: npm:@better-fs-tools/examples

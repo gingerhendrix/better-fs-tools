@@ -1,6 +1,6 @@
 {
   "name": "@better-fs-tools/fs",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "The filesystem contract, POSIX path helpers, an in-memory filesystem, and a conformance suite.",
   "license": "MIT",
   "repository": {

@@ -1,6 +1,6 @@
 {
   "name": "@better-fs-tools/cloudflare-computer",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "A readable and writable filesystem over a Cloudflare Computer workspace (experimental).",
   "license": "MIT",
   "repository": {
