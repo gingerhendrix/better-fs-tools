@@ -2,6 +2,8 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+# Tegami packs each package to pkg.tgz before it publishes
+pkg.tgz
 .DS_Store
 
 # TanStack Start, Fumadocs, and Alchemy generated state
