@@ -1,6 +1,6 @@
 {
   "name": "@better-fs-tools/pi",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "The Better FS Tools read, edit, write, apply_patch, and bash tools and extension for the Pi coding agent.",
   "license": "MIT",
   "repository": {
