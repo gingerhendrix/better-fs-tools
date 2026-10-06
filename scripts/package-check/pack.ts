@@ -2,8 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-/** publishConfig keys that configure the registry call, not the manifest. */
-const REGISTRY_KEYS = new Set(["access", "tag", "registry"]);
+import { formatManifest, publishManifest } from "../release/publish-manifest.ts";
 
 /**
  * Returns the tarball path. `bun pm pack` does not apply `publishConfig` overrides,
@@ -12,14 +11,7 @@ const REGISTRY_KEYS = new Set(["access", "tag", "registry"]);
 export async function packPackage(directory: string, destination: string): Promise<string> {
   const path = join(directory, "package.json");
   const original = await readFile(path, "utf8");
-  const manifest = JSON.parse(original) as Record<string, unknown>;
-  const overrides = Object.entries(
-    (manifest.publishConfig ?? {}) as Record<string, unknown>,
-  ).filter(([key]) => !REGISTRY_KEYS.has(key));
-  await writeFile(
-    path,
-    `${JSON.stringify({ ...manifest, ...Object.fromEntries(overrides) }, null, 2)}\n`,
-  );
+  await writeFile(path, formatManifest(publishManifest(JSON.parse(original))));
   try {
     const packed = spawnSync(
       "bun",
