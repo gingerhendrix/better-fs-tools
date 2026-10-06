@@ -43,6 +43,17 @@ core:packages:
       - first-npm-release.md
     id: npm:@better-fs-tools/node
     updated: true
+npm:mark-latest:
+  - id: npm:@better-fs-tools/ai-sdk
+  - id: npm:@better-fs-tools/cloudflare-computer
+  - id: npm:@better-fs-tools/fs
+  - id: npm:@better-fs-tools/cloudflare-shell
+  - id: npm:@better-fs-tools/just-bash
+  - id: npm:@better-fs-tools/pi
+  - id: npm:@better-fs-tools/read
+  - id: npm:@better-fs-tools/shell
+  - id: npm:@better-fs-tools/write
+  - id: npm:@better-fs-tools/node
 npm:packages:
   - id: npm:@better-fs-tools/ai-sdk
   - id: npm:@better-fs-tools/cloudflare-computer
