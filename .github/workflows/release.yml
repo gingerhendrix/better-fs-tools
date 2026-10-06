@@ -1,0 +1,53 @@
+# npm trusted publishing names this file. Rename it only together with the trusted
+# publisher of every package and `npm.trustedPublish.workflow` in scripts/tegami.mts.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Version and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      # Tegami needs Node 24 or newer.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      # npm trusted publishing (OIDC) needs npm 11.5.1 or newer.
+      - run: npm install --global npm@11.11.0
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run check
+
+      # Builds dist/ for every package and checks the packed tarballs. Tegami packs the same dist/.
+      - run: bun run check:packages
+
+      # Opens or updates the Version Packages pull request when .tegami/ has release notes.
+      # After that pull request merges, publishes from .tegami/publish-lock.yaml with OIDC.
+      - name: Version or publish packages
+        run: bun run tegami ci
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
