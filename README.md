@@ -38,13 +38,18 @@ bun run format
 bun run build
 bun run build:packages
 bun run check:packages
+bun run tegami
 ```
 
 `bun run check` verifies formatting, lint rules, TypeScript, and tests. `bun run build` builds the documentation site.
 
 `bun run build:packages` builds every package to `dist/` (JavaScript and declarations) with `tsc -b tsconfig.build.json`. `bun run check:packages` builds, packs each package with `bun pm pack`, and checks each tarball: its exports, files, dependency ranges, peers, the Pi extension entry, and every relative Markdown link. It then installs the tarballs into a throwaway project, runs them under Node, creates and edits a file and runs a command there with `createNodeFsTools()`, and type-checks their declarations. Pass `--out <dir>` to keep the tarballs.
 
-Bun does not apply `publishConfig` when it packs. `scripts/check-packages.ts` applies `publishConfig.exports` and `publishConfig.pi` for the length of the pack, so publish the tarballs that it writes.
+Bun does not apply `publishConfig` when it packs. `scripts/check-packages.ts` and the release both apply `publishConfig.exports` and `publishConfig.pi` for the length of the pack, with the same code in `scripts/release/publish-manifest.ts`.
+
+## Releasing
+
+[Tegami](https://tegami.fuma-nama.dev) versions and publishes the packages from GitHub Actions with npm trusted publishing. Add a release note under `.tegami/` with each user-facing change. Do not edit package versions by hand. [docs/releasing.md](docs/releasing.md) describes the flow and the first-release setup.
 
 ## Documentation site
 
