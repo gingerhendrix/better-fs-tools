@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "description": "A readable and writable filesystem over a Cloudflare Shell Workspace.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gingerhendrix/better-fs-tools.git",
+    "directory": "packages/cloudflare-shell"
+  },
   "files": [
     "dist"
   ],

@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "description": "A readable and writable filesystem and a bash command runner over just-bash.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gingerhendrix/better-fs-tools.git",
+    "directory": "packages/just-bash"
+  },
   "files": [
     "dist"
   ],

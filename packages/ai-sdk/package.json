@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "description": "The Better FS Tools read, edit, write, apply_patch, and bash tools for AI SDK 7.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gingerhendrix/better-fs-tools.git",
+    "directory": "packages/ai-sdk"
+  },
   "files": [
     "dist"
   ],

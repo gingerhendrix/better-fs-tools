@@ -11,6 +11,9 @@ export interface PackageRule {
 
 export const SCOPE = "@better-fs-tools";
 
+/** npm trusted publishing matches `repository.url` against the GitHub repository that publishes. */
+export const REPOSITORY_URL = "git+https://github.com/gingerhendrix/better-fs-tools.git";
+
 export const RULES: Readonly<Record<string, PackageRule>> = {
   fs: { dependencies: [], peers: {}, node: false, extraFiles: [] },
   read: { dependencies: ["fs"], peers: {}, node: false, extraFiles: ["docs"] },
@@ -62,6 +65,11 @@ export interface Manifest {
   readonly name: string;
   readonly version: string;
   readonly license?: string;
+  readonly repository?: {
+    readonly type?: string;
+    readonly url?: string;
+    readonly directory?: string;
+  };
   readonly type?: string;
   readonly sideEffects?: boolean;
   readonly exports: Readonly<Record<string, string | ExportTarget>>;
@@ -99,6 +107,10 @@ export function checkManifest(
   if (packed.type !== "module") fail("type should be module");
   if (packed.sideEffects !== false) fail("sideEffects should be false");
   if (packed.license !== "MIT") fail("license should be MIT");
+  if (packed.repository?.url !== REPOSITORY_URL) fail(`repository.url should be ${REPOSITORY_URL}`);
+  if (packed.repository?.directory !== `packages/${folder}`) {
+    fail(`repository.directory should be packages/${folder}`);
+  }
 
   for (const field of RANGE_FIELDS) {
     for (const [name, range] of Object.entries(packed[field] ?? {})) {
