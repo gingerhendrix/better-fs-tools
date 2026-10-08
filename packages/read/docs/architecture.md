@@ -113,10 +113,10 @@ handle.verify()  did the opened object change?
 handle.close()   always, from a finally block
 ```
 
-Two capabilities remain, and each one decides one thing:
+Two capabilities remain. Neither adds a note to the result, because the model cannot act on either one:
 
-- `streaming: false` adds a `buffered-backend` note.
-- `identity: false` adds a `weak-identity` note, because the observation cannot back a write precondition.
+- `streaming` says whether `bytes()` yields more than one chunk. The read core reads both kinds the same way.
+- `identity: false` sets `file.identity` to `null`. The write tools then judge freshness by the content hash only.
 
 An optional `list()` is the list capability. Without it, there are no suggestions and no directory listings.
 

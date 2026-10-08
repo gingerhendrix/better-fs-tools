@@ -20,7 +20,6 @@ import {
 import { AbortReadError, raceAbort } from "./cursor.ts";
 import type { ByteCursor } from "./cursor.ts";
 import { extensionId } from "./extension-error.ts";
-import { capabilityNotes } from "./notes.ts";
 import { buildObservation } from "./observation.ts";
 import { ReadStop } from "./outcomes.ts";
 import { textOutcome } from "./text-outcome.ts";
@@ -166,7 +165,7 @@ function mediaOutcome<THost>(
   notes: ReadMedia["notes"],
   source: ConvertSource<THost>,
 ): ReadMedia {
-  const { deps, fs, request, file, converter } = input;
+  const { deps, request, file, converter } = input;
   return {
     tool: "read",
     status: "media",
@@ -183,6 +182,6 @@ function mediaOutcome<THost>(
       // Media is not source text, so it cannot back a text edit.
       wholeFileVisible: false,
     }),
-    notes: [...notes, ...capabilityNotes(fs, deps.messages)],
+    notes,
   };
 }

@@ -90,6 +90,6 @@ Every backend takes the shared `FileSystemRootOptions` from `@better-fs-tools/fs
 
 ### Buffered reads and authorization
 
-The read tool calls `authorize` after `fs.open()` and before it reads any content byte. A buffered backend (just-bash and Cloudflare Shell) has already fetched the whole file inside `open()`, so those bytes have left the backend before `authorize` runs. Cloudflare Computer opens the read stream in `open()`: the request reaches the backend, but no chunk is read. In every backend, the core passes no content byte to a classifier, a converter, or the model until `authorize` allows it. A read result from a buffered backend has a `buffered-backend` info note.
+The read tool calls `authorize` after `fs.open()` and before it reads any content byte. A buffered backend (just-bash and Cloudflare Shell) has already fetched the whole file inside `open()`, so those bytes have left the backend before `authorize` runs. Cloudflare Computer opens the read stream in `open()`: the request reaches the backend, but no chunk is read. In every backend, the core passes no content byte to a classifier, a converter, or the model until `authorize` allows it.
 
 If a denied read must not reach the backend at all, refuse the path in the backend itself, with `denyRoots` or by leaving it out of `allowedRoots`. The write tools are not affected: they authorize after `stat`, before they open the file.

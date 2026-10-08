@@ -548,7 +548,7 @@ export const read = createNodeReadTool({
     gutter: hashlineGutter({ width: 2 }), // "12:a3|text"
     header: fileHashHeader(), // "file-hash: sha256:..."
     footer: eofFooter((n) => `(End of file - total ${n} lines)`),
-    notes: (note) => (note.code === "weak-identity" ? null : note),
+    notes: (note) => (note.severity === "info" ? null : note),
   }),
 });
 ```
@@ -683,7 +683,7 @@ Your dependencies can narrow access. They cannot widen it.
 - The filesystem is the only place that grants access. It checks roots, deny roots, the realpath, and the type in one `open()` call. `resolve` runs before it and `authorize` runs after it.
 - Each read opens at most one file. A resolver only changes the path that goes into that open.
 - `nodeFileSystem` opens files with `O_NOFOLLOW | O_NONBLOCK` and checks the type first. It refuses directories, FIFOs, sockets, and devices before any content read. It refuses `/dev`, `/proc`, and `/sys` before it touches the filesystem.
-- The core reads no content byte before `authorize` allows it, so no content reaches a classifier, a converter, or the model. `@better-fs-tools/cloudflare-shell` and `@better-fs-tools/just-bash` (a result with a `buffered-backend` note) have already fetched the whole file in `open()`. `@better-fs-tools/cloudflare-computer` has started a `readFile` stream but read no chunk. If a denied read must not reach the backend, use a deny root, or leave the path out of the filesystem's allowed roots.
+- The core reads no content byte before `authorize` allows it, so no content reaches a classifier, a converter, or the model. `@better-fs-tools/cloudflare-shell` and `@better-fs-tools/just-bash` have already fetched the whole file in `open()`. `@better-fs-tools/cloudflare-computer` has started a `readFile` stream but read no chunk. If a denied read must not reach the backend, use a deny root, or leave the path out of the filesystem's allowed roots.
 - The scan is bounded. Converters get a capped stream from the open file, never a path.
 - Change detection runs after the scan and after conversion. A file that changed returns `CHANGED_DURING_READ`.
 - A suggested name is never opened.

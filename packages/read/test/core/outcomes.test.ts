@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type { FileSystem } from "@better-fs-tools/fs";
 
 import { createReadTool, textOf } from "../../src/index.ts";
-import { expectFailure, expectOk, harness, note } from "../helpers.ts";
+import { expectFailure, expectOk, harness } from "../helpers.ts";
 
 describe("filesystem refusals", () => {
   test("a missing file is NOT_FOUND with nearby names", async () => {
@@ -101,16 +101,15 @@ describe("filesystem refusals", () => {
   });
 });
 
-describe("capability disclosure", () => {
-  test("a buffered backend without identity discloses both", async () => {
+describe("capabilities", () => {
+  test("a buffered backend without identity adds no notes and clears the identity", async () => {
     const { read } = harness({
       files: { "/a.txt": "one\n" },
       fsOptions: { streaming: false, identity: "none" },
     });
     const result = expectOk(await read({ path: "/a.txt" }));
     expect(result.file.identity).toBeNull();
-    expect(note(result, "weak-identity")).toBeDefined();
-    expect(note(result, "buffered-backend")).toBeDefined();
+    expect(result.notes).toEqual([]);
   });
 
   test("the file info names the backend, with resolvedFrom null when no resolver ran", async () => {

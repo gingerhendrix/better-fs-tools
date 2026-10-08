@@ -15,7 +15,7 @@ function readFor(files: Record<string, string | Uint8Array> = {}) {
 }
 
 describe("shell workspace through the read tool", () => {
-  test("reads a file and discloses both weak capabilities", async () => {
+  test("reads a file with a null identity and no capability notes", async () => {
     const { read } = readFor({ "/workspace/src/index.ts": "const a = 1;\nconst b = 2;\n" });
     const result = expectOk(await read({ path: "src/index.ts" }));
 
@@ -24,8 +24,7 @@ describe("shell workspace through the read tool", () => {
     expect(result.file.displayPath).toBe("src/index.ts");
     expect(result.file.identity).toBeNull();
     const codes = result.notes.map((note) => note.code);
-    expect(codes).toContain("weak-identity");
-    expect(codes).toContain("buffered-backend");
+    expect(codes).toEqual([]);
   });
 
   test("refuses binary content, escapes, and missing files", async () => {

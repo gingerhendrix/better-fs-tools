@@ -10,7 +10,7 @@ import type {
   ReadOk,
   TruncationReason,
 } from "../contract/result.ts";
-import { buildViewNotes, capabilityNotes, emptyNote } from "./notes.ts";
+import { buildViewNotes, emptyNote } from "./notes.ts";
 import { buildObservation } from "./observation.ts";
 import type { ScanOutcome } from "./scan.ts";
 
@@ -95,7 +95,6 @@ export function textOutcome<THost>(input: TextOutcomeInput<THost>): ReadOk {
       ...(conversion === null && reachedEof && scannedBytes === 0
         ? [emptyNote(deps.messages, file.displayPath)]
         : []),
-      ...(fs === null ? [] : capabilityNotes(fs, deps.messages)),
     ],
   };
 }

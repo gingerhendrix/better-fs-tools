@@ -11,6 +11,6 @@ export const read = createNodeReadTool({
     gutter: hashlineGutter({ width: 2 }), // "12:a3|text"
     header: fileHashHeader(), // "file-hash: sha256:..."
     footer: eofFooter((n) => `(End of file - total ${n} lines)`),
-    notes: (note) => (note.code === "weak-identity" ? null : note),
+    notes: (note) => (note.severity === "info" ? null : note),
   }),
 });

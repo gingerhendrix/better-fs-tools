@@ -55,10 +55,6 @@ const catalog: ReadMessageCatalog = {
     `No classifier had an opinion about ${request.path}${detail === null ? "" : ` (${detail})`}; this is a configuration problem rather than a property of the file.`,
   viewModified: ({ hook }) =>
     `The ${hook} hook changed this view, so it is not the exact file text.`,
-  weakIdentity: ({ backend }) =>
-    `The ${backend} backend has no stable identity, so this observation cannot back a write precondition.`,
-  bufferedBackend: ({ backend }) =>
-    `The ${backend} backend buffers whole objects instead of streaming them.`,
   formatterFailed: ({ formatter }) =>
     `The ${formatter} formatter failed, so the default formatter formatted this result.`,
 };

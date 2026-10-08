@@ -1,5 +1,3 @@
-import type { FileSystem } from "@better-fs-tools/fs";
-
 import type { ReadInput, ReadRequest } from "../contract/input.ts";
 import type { ReadLimits } from "../contract/limits.ts";
 import type { ReadMessageCatalog } from "../contract/messages.ts";
@@ -115,30 +113,6 @@ export function buildViewNotes(context: ViewNoteContext): ReadNote[] {
 
 export function emptyNote(messages: Readonly<ReadMessageCatalog>, path: string): ReadNote {
   return { code: "empty", severity: "info", message: messages.empty({ path }) };
-}
-
-export function capabilityNotes(
-  fs: FileSystem,
-  messages: Readonly<ReadMessageCatalog>,
-): ReadNote[] {
-  const notes: ReadNote[] = [];
-  if (!fs.capabilities.identity) {
-    notes.push({
-      code: "weak-identity",
-      severity: "info",
-      message: messages.weakIdentity({ backend: fs.id }),
-      data: { backend: fs.id },
-    });
-  }
-  if (!fs.capabilities.streaming) {
-    notes.push({
-      code: "buffered-backend",
-      severity: "info",
-      message: messages.bufferedBackend({ backend: fs.id }),
-      data: { backend: fs.id },
-    });
-  }
-  return notes;
 }
 
 function retryFrom(request: ReadRequest, offset: number): ReadInput {

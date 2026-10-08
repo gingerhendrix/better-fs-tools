@@ -49,7 +49,7 @@ export function computerTools(workspace: Workspace) {
 - The filesystem exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, and `identity`.
 - It walks each path with `lstat` from `/`, so a symlink above the root, a symlinked root, parent, or file is refused before any byte is read.
 - It streams the file that `readFile` returns. `open()` starts the `readFile` stream, so the request reaches the backend before the read tool's `authorize` runs, but no chunk is read until `authorize` allows it. If a denied read must not reach the backend, deny it in the adapter with `denyRoots` or `allowedRoots`.
-- `verify()` compares size and modification time, so results have a `weak-identity` note.
+- `verify()` compares size and modification time.
 - `list()` lists directories, so suggestions and `directoryListing()` work.
 
 ## How it writes

@@ -11,7 +11,7 @@ import { adapter } from "./backend.ts";
 import { expectFailure, expectOk } from "./helpers.ts";
 
 describe("just-bash through the read tool", () => {
-  test("reads a file with a strong identity and discloses buffering", async () => {
+  test("reads a file with a strong identity and no capability notes", async () => {
     const fs = new InMemoryFs({ "/workspace/src/index.ts": "const a = 1;\nconst b = 2;\n" });
     const read = createReadTool({ fs: adapter(fs) });
     const result = expectOk(await read({ path: "src/index.ts" }));
@@ -21,8 +21,7 @@ describe("just-bash through the read tool", () => {
     expect(result.file.displayPath).toBe("src/index.ts");
     expect(result.file.identity).toContain("test-just-bash");
     const codes = result.notes.map((note) => note.code);
-    expect(codes).not.toContain("weak-identity");
-    expect(codes).toContain("buffered-backend");
+    expect(codes).toEqual([]);
   });
 
   test("refuses binary content, escapes, and missing files", async () => {

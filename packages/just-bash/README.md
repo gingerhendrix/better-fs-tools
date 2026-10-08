@@ -34,9 +34,6 @@ const read = createReadTool({
 
 console.log(textOf(await read({ path: "src/index.ts" })));
 // 1|const a = 1;
-//
-// [read:weak-identity] The sandbox backend has no stable identity, ...
-// [read:buffered-backend] The sandbox backend buffers whole objects instead of streaming them.
 ```
 
 The same filesystem, with the write tools:
@@ -73,9 +70,9 @@ console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;
 
 - `justBashFileSystem(fs, options)` takes the shared `FileSystemRootOptions` and `maxBufferedBytes` from `@better-fs-tools/fs`. It checks each path against `allowedRoots` and `denyRoots` before it touches the backend, and again after `realpath()`. `cwd` must be absolute and defaults to `/`.
 - `id` defaults to `"just-bash"`. It namespaces versions, so two backends that share one state store need two ids.
-- `maxBufferedBytes` defaults to 16 MiB. `just-bash` returns whole buffers, so reads are buffered and results have a `buffered-backend` note. A larger file gives `too-large`, which the tools report as `TOO_LARGE`.
+- `maxBufferedBytes` defaults to 16 MiB. `just-bash` returns whole buffers, so reads are buffered. A larger file gives `too-large`, which the tools report as `TOO_LARGE`.
 - Reads are buffered inside `open()`, so the whole file has left the backend before the read tool's `authorize` runs. The core still passes no byte to a classifier, a converter, or the model until `authorize` allows it. If a denied read must not reach the backend, deny it in the adapter with `denyRoots` or `allowedRoots`.
-- `identity` defaults to `"none"`: change detection compares size and modification time, and results have a `weak-identity` note. With `identity: "required"`, the backend's `stat()` must give an identity or a device and inode for every file. A file without one is refused as `UNSUPPORTED_BACKEND`.
+- `identity` defaults to `"none"`: change detection compares size and modification time. With `identity: "required"`, the backend's `stat()` must give an identity or a device and inode for every file. A file without one is refused as `UNSUPPORTED_BACKEND`.
 - `symlinks` defaults to `"reject"`, which refuses a symlink in any component of the path, as in the Node and Cloudflare adapters. `"follow-within-roots"` follows links, and the real path must still be inside the roots.
 - The resolved options are on the filesystem as `cwd`, `allowedRoots`, `denyRoots`, `maxBufferedBytes`, `identity`, and `symlinks`.
 - For a read-only view, wrap it: `readOnlyFileSystem(justBashFileSystem(bash, options))` from `@better-fs-tools/fs` drops the write methods.

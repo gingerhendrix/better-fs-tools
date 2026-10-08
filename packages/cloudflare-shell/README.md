@@ -47,9 +47,9 @@ export function workspaceTools(workspace: Workspace) {
 - `cwd` must be absolute and defaults to the first allowed root. Relative paths and relative roots resolve against it. Display paths are relative to `cwd`, and absolute outside it. `id` defaults to `"cloudflare-shell"`.
 - `symlinks` can only be `"reject"` and `identity` only `"none"`. It walks each path with `lstat` from `/`, so a symlink above the root, a symlinked root, parent, or file is refused before any byte is read.
 - The filesystem exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, `identity`, and `maxBufferedBytes`.
-- Reads are buffered: the Workspace returns whole files. `maxBufferedBytes` defaults to 16 MiB, as in every buffering adapter. When you use converters, set it at or above `maxConvertBytes` and `maxMediaBytes`. Results have a `buffered-backend` note.
+- Reads are buffered: the Workspace returns whole files. `maxBufferedBytes` defaults to 16 MiB, as in every buffering adapter. When you use converters, set it at or above `maxConvertBytes` and `maxMediaBytes`.
 - Because reads are buffered inside `open()`, the whole file has left the Workspace before the read tool's `authorize` runs. The core still passes no byte to a classifier, a converter, or the model until `authorize` allows it. If a denied read must not reach the Workspace, deny it in the adapter with `denyRoots` or `allowedRoots`.
-- `verify()` compares size and modification time. A same-size edit within the same millisecond is not detected. Results have a `weak-identity` note.
+- `verify()` compares size and modification time. A same-size edit within the same millisecond is not detected.
 - `list()` lists directories, so suggestions and `directoryListing()` work. Opening a directory gives a `not-a-file` error with `kind: "directory"`.
 
 ## How it writes
