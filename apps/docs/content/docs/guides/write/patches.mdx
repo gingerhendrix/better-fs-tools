@@ -1,0 +1,101 @@
+---
+title: Apply patches
+description: The patch format that apply_patch takes, how it checks a patch before it writes, and what happens when a write fails.
+---
+
+`apply_patch` changes several files in one call. It takes a patch in the format of the Codex harness, and returns one line for each file:
+
+```ts
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createApplyPatchTool } from "@better-fs-tools/write";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const applyPatch = createApplyPatchTool({ fs });
+
+await applyPatch({ patch });
+```
+
+```text
+Success. Updated the following files:
+M src/greet.ts
+A src/names.ts
+D src/old.ts
+
+[apply_patch:read-before-write-off] Read-before-write is off: this tool has no state store.
+```
+
+## The patch format
+
+A patch starts with `*** Begin Patch` and ends with `*** End Patch`. Between them are operations:
+
+```text
+*** Begin Patch
+*** Update File: src/greet.ts
+@@
+ export function farewell(name: string): string {
+-  return `Goodbye, ${name}!`;
++  return `Bye, ${name}!`;
+ }
+*** Add File: src/names.ts
++export const names = ["Ada", "Linus"];
+*** Delete File: src/old.ts
+*** End Patch
+```
+
+| Operation               | Does                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `*** Add File: path`    | Creates a file. Each line of the content starts with `+`                                        |
+| `*** Update File: path` | Changes a file with one or more hunks. Add `*** Move to: path` on the next line to also move it |
+| `*** Delete File: path` | Deletes a file                                                                                  |
+
+A hunk starts with `@@`. Text after `@@`, such as `@@ export function farewell`, names a line above the change. In the hunk, a line that starts with a space stays, `-` removes a line, and `+` adds a line. Each hunk matches at the first place after the previous hunk.
+
+The tool also accepts a patch in a code fence or a heredoc, with CRLF line breaks, or with no final line break. A patch it cannot read returns `PATCH_PARSE`:
+
+```text
+[apply_patch:patch-parse] The patch could not be parsed at line 2: "*** Frobnicate File: x" is not a valid operation header. Use "*** Add File: <path>", "*** Delete File: <path>", or "*** Update File: <path>".
+```
+
+## Every operation is checked first
+
+The tool checks the whole patch before it changes a file. When any operation cannot apply, the call fails with `PATCH_VERIFY`, no file changes, and the note lists every problem:
+
+```text
+[apply_patch:patch-verify] Patch validation failed (no files were modified):
+- src/greet.ts: hunk 1: failed to find the expected lines:
+      return `Hi, ${name}!`;
+- package.json already exists. Use *** Update File, or the write tool to replace it.
+- src/missing.ts does not exist, so it cannot be deleted.
+[apply_patch:read-before-write-off] Read-before-write is off: this tool has no state store.
+```
+
+Hunk lines match with `defaultPatchMatchers()`: exact, then normalized, then with no spaces at the start and end of each line. A loose match shows in the result line, for example `M src/greet.ts (hunk 1 matched by line-trimmed)`. Lines that stay keep the bytes of the file. Set `matchers` to change the list, as for [edit](/guides/write/matching#loose-matches).
+
+[Read before write](/guides/write/read-before-write), [permissions](/guides/write/permissions), and [guards](/guides/write/guards-and-hooks) apply to each file of the patch. The first refusal stops the whole call.
+
+## When a write fails
+
+The tool writes the files in patch order. When a write fails, the tool undoes the files it already changed, from the last to the first. The call returns the code of the failed write, and `result.commit` tells you what happened:
+
+```ts
+const result = await applyPatch({ patch });
+
+if (result.status === "error" && result.commit !== null) {
+  result.commit.rolledBack; // true
+  result.commit.files; // [{ path: "src/greet.ts", state: "restored" }, { path: "src/names.ts", state: "unchanged", code: "NO_SPACE" }, { path: "src/old.ts", state: "unchanged" }]
+}
+```
+
+```text
+[apply_patch:no-space] Patch commit failed at src/names.ts (NO_SPACE). The patch was rolled back. No files are changed.
+[apply_patch:read-before-write-off] Read-before-write is off: this tool has no state store.
+```
+
+When an undo also fails, the code is `PARTIAL_COMMIT`. The note and `result.commit.files` list the state of each file, so the model and your code know which files changed. `result.changes` then lists the files that stay changed.
+
+The tool keeps the list of steps in memory. If the process stops during the writes, some files stay changed. Undoing a new file deletes it, but not the folders that the tool made for it.
+
+## Use another patch format
+
+Set `patchParser` to read another format. A parser is an object with an `id` and a synchronous `parse(text)` function. It returns `{ ok: true, plan }` with the operations, or `{ ok: false, error: { line, detail } }`. It must not throw. `parsePatch` and `codexPatchParser` from `@better-fs-tools/write/patch` read the Codex format. The [write reference](/reference/write#patchparser) lists the operation types.

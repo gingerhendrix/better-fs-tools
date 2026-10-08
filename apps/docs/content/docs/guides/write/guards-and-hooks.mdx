@@ -1,0 +1,133 @@
+---
+title: Guards and hooks
+description: Refuse damaged changes before a write with guards, and run your own code after each changed file with hooks.
+---
+
+## Guards
+
+A guard checks each planned change before the tool writes it. The first guard that refuses stops the call with `GUARD_REFUSED`, and no file changes. The note tells the model how to fix the change.
+
+### The default guards
+
+The default `guards` is `defaultGuards()`:
+
+| Guard                     | Refuses                                                            |
+| ------------------------- | ------------------------------------------------------------------ |
+| `readPrefixGuard()`       | New lines that start with read tool line numbers, such as `12\|`   |
+| `truncationNoticeGuard()` | New text that holds a read tool note, such as `[read:continue] …`  |
+| `omissionGuard()`         | A placeholder such as `// ... rest of code` in place of real lines |
+| `syntaxGuard()`           | A change that makes a valid `.json` file invalid                   |
+| `nonTextGuard()`          | New content that the classifiers do not find to be text            |
+
+Each guard lets through text that is already in the file, and a file that was already broken:
+
+```text
+[edit:guard-refused] The change would make package.json invalid JSON, and it was valid before. Fix the newText and retry. The parser said: JSON Parse error: Property name must be a string literal
+[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
+```
+
+### Change the guards
+
+Setting `guards` replaces the whole list. Keep `...defaultGuards()` in the list, and add guards after it. Set `guards: []` to turn the guards off:
+
+```ts
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createWriteTool, defaultGuards, generatedFileGuard } from "@better-fs-tools/write";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const write = createWriteTool({ fs, guards: [...defaultGuards(), generatedFileGuard()] });
+```
+
+```text
+[write:guard-refused] src/api.generated.ts looks generated: its name, api.generated.ts, is a generated-file name. Change its source or generator instead, then regenerate it.
+[write:read-before-write-off] Read-before-write is off: this tool has no state store.
+```
+
+`generatedFileGuard()` refuses changes to files with names such as `*.min.*` and `*.generated.*`, or with `@generated` or `DO NOT EDIT` near the top. It allows a new file.
+
+To check more file types, give `syntaxGuard()` a parser for each extension. A parser throws on bad text. Replace the default `syntaxGuard()`, so the list has one syntax guard:
+
+```ts
+import { syntaxGuard } from "@better-fs-tools/write";
+
+declare function parseYaml(text: string): unknown;
+
+const guards = [
+  ...defaultGuards().filter((guard) => guard.id !== "syntax"),
+  syntaxGuard({ parsers: { yaml: parseYaml, yml: parseYaml } }),
+];
+```
+
+### Write your own guard
+
+A guard is an object with an `id` and a `check(change, ctx)` function. It returns `{ allow: true }`, or `{ allow: false, note }` with the note for the model. It can be async:
+
+```ts
+import type { Guard } from "@better-fs-tools/write";
+
+const noTabsInYaml: Guard<unknown> = {
+  id: "no-tabs-in-yaml",
+  check: (change) =>
+    /\.ya?ml$/.test(change.resolvedPath) && change.fragments.some((f) => f.newText.includes("\t"))
+      ? {
+          allow: false,
+          note: {
+            code: "yaml-tabs",
+            severity: "warning",
+            message: `${change.displayPath}: YAML does not allow tabs.`,
+          },
+        }
+      : { allow: true },
+};
+```
+
+```text
+[write:guard-refused] ci.yaml: YAML does not allow tabs.
+```
+
+`change` has the `kind`, the paths, the text `before` and `after`, the `diff`, and `fragments`. A fragment is one pair of `oldText` and `newText`: an edit pair, a hunk, or the whole content of a `write`. The note code becomes `guard-refused`, and your code moves to `result.error.data.source`. If a guard throws, the call fails with `EXTENSION_FAILED`.
+
+## Hooks
+
+A hook runs after the tool writes a file, once for each changed file. The default `hooks` is `[]`. Two hooks come with the package:
+
+```ts
+import { executableShebang, verifyWrite } from "@better-fs-tools/write";
+
+const write = createWriteTool({ fs, hooks: [executableShebang(), verifyWrite()] });
+```
+
+```text
+Created build.sh (2 lines).
+
+[write:executable] Made build.sh executable (mode 755) because it starts with "#!".
+```
+
+`executableShebang()` gives a new file that starts with `#!` the mode `0o755`. `verifyWrite()` reads each file back, and adds a warning when it does not match what the tool wrote. Put `verifyWrite()` before any hook that rewrites files.
+
+### Write your own hook
+
+A hook is an object with an `id` and an `afterWrite(change, ctx)` function. `change` is the entry of `result.changes` for the file. `ctx.fs` is the filesystem of the call. This hook logs each change:
+
+```ts
+import type { WriteHook } from "@better-fs-tools/write";
+
+const logChanges: WriteHook<unknown> = {
+  id: "log-changes",
+  afterWrite(change) {
+    console.log(`${change.kind} ${change.path} (+${change.linesAdded} -${change.linesRemoved})`);
+    return {};
+  },
+};
+```
+
+A hook returns `{ notes }` to add notes for the model. When the hook changed the file, for example with a code formatter, it returns `{ rewrote: true }`. The tool then reads the file again, updates `result.changes`, and adds a `hook-rewrote` note. The model must read the file before its next `write`.
+
+The file is already written when a hook runs. If a hook throws, the tool adds a warning, and the status stays `ok`:
+
+```text
+[write:hook-failed] The format hook failed after src/names.ts was written. The file is changed.
+```
+
+The abort signal does not stop a hook. A hook that never returns holds the call open.

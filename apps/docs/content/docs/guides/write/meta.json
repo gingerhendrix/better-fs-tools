@@ -1,0 +1,12 @@
+{
+  "title": "Write tools",
+  "pages": [
+    "index",
+    "formatting",
+    "read-before-write",
+    "permissions",
+    "matching",
+    "patches",
+    "guards-and-hooks"
+  ]
+}

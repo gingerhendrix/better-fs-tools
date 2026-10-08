@@ -1,0 +1,223 @@
+---
+title: Write tools
+description: Create the edit, write, and apply_patch functions, and configure them with options.
+---
+
+<Callout type="info">
+  To give the write tools to an agent, use a provider integration such as [AI SDK](/hosts/ai-sdk) or
+  [Pi](/hosts/pi). The integration gives you the tool definitions, and its bundle shares the read
+  records between the tools. It takes the options on this page, plus a
+  [`signature`](/hosts/tool-definition) for each tool definition.
+</Callout>
+
+The three write tools share their options and their result:
+
+- `edit` replaces text in a file that exists.
+- `write` creates a file, or replaces a whole file.
+- `apply_patch` applies a patch that adds, changes, moves, and deletes files.
+
+`createEditTool`, `createWriteTool`, and `createApplyPatchTool` are the lower-level API. Each creates the function that implements one tool. Use them when you write your own integration, or when your code changes files for the agent.
+
+Each factory needs a writable [filesystem](/backends) in `fs`. All other options are optional:
+
+```ts
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createApplyPatchTool, createEditTool, createWriteTool } from "@better-fs-tools/write";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const edit = createEditTool({ fs });
+const write = createWriteTool({ fs });
+const applyPatch = createApplyPatchTool({ fs });
+```
+
+<Callout type="warn">
+  With only `fs`, the tools change files that the model has not read. To make them check, give them
+  the `state` and `digest` of the read tool. See [Read before write](#read-before-write).
+</Callout>
+
+On Node or Bun, `createNodeEditTool()`, `createNodeWriteTool()`, and `createNodeApplyPatchTool()` from `@better-fs-tools/node` do the same with a filesystem rooted at `process.cwd()`, and set `digest: nodeDigest()`. They take the same options.
+
+`createFsTools({ fs })` creates `read`, `edit`, `write`, and `applyPatch` together. They share one store, so read before write is on. See [One bundle for all tools](/guides/one-bundle).
+
+| Option          | Default                                                                   | Use it to                                                       |
+| --------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `fs`            | Required                                                                  | Set the filesystem, the allowed folders, and the symlink policy |
+| `formatter`     | `defaultWriteFormatter()`                                                 | Change the text the tool returns                                |
+| `messages`      | `defaultWriteMessages`                                                    | Change the wording of notes                                     |
+| `state`         | `null`                                                                    | Refuse changes to files the model has not read                  |
+| `digest`        | `null`                                                                    | Hash file content. `state` needs it                             |
+| `preconditions` | see [Read before write](/guides/write/read-before-write#change-the-rules) | Change the read-before-write rules                              |
+| `locks`         | `memoryLocks()`                                                           | Stop two calls from changing one file at the same time          |
+| `resolve`       | `null`                                                                    | Rewrite paths before the tool opens them                        |
+| `authorize`     | `null` (allow all)                                                        | Refuse paths, or ask the user before a change                   |
+| `matchers`      | `defaultEditMatchers()` or `defaultPatchMatchers()`                       | Decide how old text matches the file. Not on `write`            |
+| `patchParser`   | `codexPatchParser()`                                                      | Read another patch format. Only on `apply_patch`                |
+| `guards`        | `defaultGuards()`                                                         | Refuse damaged changes, such as pasted line numbers             |
+| `hooks`         | `[]`                                                                      | Run your code after each changed file                           |
+| `classifiers`   | `defaultClassifiers()`                                                    | Refuse files that are not text                                  |
+| `codecs`        | `[utf8Codec()]`                                                           | Decode and encode file text                                     |
+| `limits`        | `defaultWriteLimits`                                                      | Change the size limits                                          |
+| `clock`         | `() => new Date()`                                                        | Set the time used in stored records                             |
+
+`limits`, `messages`, and `preconditions` merge with their defaults key by key. Every other option replaces its default. The factories throw `TypeError` for an unknown option or an option with the wrong shape.
+
+## The functions
+
+Each factory returns a function `(input, ctx?)` that returns a `Promise<MutationResult>`:
+
+| Function     | `input`                                                |
+| ------------ | ------------------------------------------------------ |
+| `edit`       | `{ path, edits: [{ oldText, newText, replaceAll? }] }` |
+| `write`      | `{ path, content }`                                    |
+| `applyPatch` | `{ patch }`                                            |
+
+```ts
+import { textOf } from "@better-fs-tools/write";
+
+const result = await edit({
+  path: "src/greet.ts",
+  edits: [{ oldText: "Hello", newText: "Hi" }],
+});
+
+result.status; // "ok"
+textOf(result); // the text for the model
+result.changes; // [{ kind: "update", path: "src/greet.ts", linesAdded: 1, linesRemoved: 1, diff: "--- a/src/greet.ts\n...", ... }]
+```
+
+`status` is `ok`, `no-change`, or `error`. `no-change` is not an error. For example, the file already has the new text. On `error`, `result.error.code` tells you why. No file changed, unless the code is `PARTIAL_COMMIT`. `result.changes` has one entry for each changed file, with its full diff. `result.notes` holds each note as data. The [write reference](/reference/write#mutationresult) lists every field and code.
+
+`ctx` is the call context of the read tool: `signal`, `callId`, and `host`. When `signal` aborts before the first write, the call returns `ABORTED`. After the first write, the call does not stop. It finishes, or it undoes the files it changed.
+
+## Formatting
+
+By default the tool returns one line that tells what changed, then the notes. `edit` also shows the new lines around each change:
+
+```text
+Edited src/greet.ts: 1 replacement at line 2.
+1|export function greet(name: string): string {
+2|  return `Hi, ${name}!`;
+3|}
+4|
+5|export function farewell(name: string): string {
+
+[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
+```
+
+A failed call returns only notes:
+
+```text
+[edit:not-read] Read src/greet.ts with the read tool before changing it.
+```
+
+Set `formatter` to change the layout, and `messages` to change the wording of a note:
+
+```ts
+import { defaultWriteFormatter } from "@better-fs-tools/write";
+
+const edit = createEditTool({
+  fs,
+  formatter: defaultWriteFormatter({ diff: true }),
+  messages: {
+    notFound: ({ path }) => `No file at ${path}. Create it with the write tool.`,
+  },
+});
+```
+
+`diff: true` adds the full diff of each file to the text. See [Customise formatting](/guides/write/formatting).
+
+## Read before write
+
+Give the write tools the same `state` and `digest` as the read tool. They then refuse to change a file that the model has not read, or that changed after the read. Give them one `locks` too:
+
+```ts
+import { nodeDigest } from "@better-fs-tools/node";
+import { createReadTool, memoryStore } from "@better-fs-tools/read";
+import { memoryLocks } from "@better-fs-tools/write";
+
+const shared = { fs, digest: nodeDigest(), state: memoryStore() };
+const read = createReadTool(shared);
+const locks = memoryLocks();
+const edit = createEditTool({ ...shared, locks });
+const write = createWriteTool({ ...shared, locks });
+```
+
+```text
+[write:not-read] Read src/greet.ts with the read tool before changing it.
+```
+
+`edit` and `apply_patch` accept a read of part of the file. `write` needs a read of the whole file. A new file needs no read. Without `state`, each change to a file that exists gets a `read-before-write-off` note. See [Read before write](/guides/write/read-before-write).
+
+## Permissions
+
+The filesystem decides which folders the tools can change, as for the [read tool](/guides/read/paths#set-the-folders). Set `authorize` to refuse changes inside those folders:
+
+```ts
+import { denyPaths } from "@better-fs-tools/read";
+import { protectPaths, writeAuthorizers } from "@better-fs-tools/write";
+
+const write = createWriteTool({
+  fs,
+  authorize: writeAuthorizers(denyPaths(["**/.env", "**/.env.*"]), protectPaths()),
+});
+```
+
+```text
+[write:denied] AGENTS.md was refused by policy (the path is protected).
+```
+
+`protectPaths()` refuses `AGENTS.md`, `CLAUDE.md`, and `.git/**`. `askBeforeWrite()` shows the user every change of a call, with its diff, and asks once. See [Permissions](/guides/write/permissions).
+
+## Matching
+
+Each `oldText` of an `edit` must match one place in the file. Set `replaceAll: true` to change every match. When the text matches more than once, the call fails:
+
+```text
+[edit:ambiguous-match] Edit 1: the oldText matches 2 places in src/greet.ts (lines 1, 5). Add surrounding lines to make it unique, or set replaceAll.
+[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
+```
+
+When the exact text is not found, the tool tries looser matchers, for example with no trailing spaces. A loose match adds a `fuzzy-match` note. Set `matchers` to change the list. See [Match old text](/guides/write/matching).
+
+## Patches
+
+`apply_patch` takes a patch in the Codex format:
+
+```text
+*** Begin Patch
+*** Update File: src/greet.ts
+@@
+ export function farewell(name: string): string {
+-  return `Goodbye, ${name}!`;
++  return `Bye, ${name}!`;
+ }
+*** Delete File: src/old.ts
+*** End Patch
+```
+
+The tool checks every operation before it changes a file. If a write fails, it undoes the files it already changed. See [Apply patches](/guides/write/patches).
+
+## Guards and hooks
+
+Guards check each change before the tool writes it. `defaultGuards()` refuses pasted line numbers, read tool notes, placeholders such as `// ... rest of code`, a change that breaks a JSON file, and content that is not text:
+
+```text
+[edit:guard-refused] The newText for src/greet.ts has a placeholder instead of code: "// ... rest of code". It would delete the lines it stands for. Write those lines out in full, or make the oldText smaller so they stay unchanged.
+[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
+```
+
+Hooks run after each changed file. `executableShebang()` makes a new file that starts with `#!` executable, and `verifyWrite()` reads each file back:
+
+```ts
+import { executableShebang, verifyWrite } from "@better-fs-tools/write";
+
+const write = createWriteTool({ fs, hooks: [executableShebang(), verifyWrite()] });
+```
+
+A hook that throws adds a warning note. The file is already changed, so the status stays `ok`. See [Guards and hooks](/guides/write/guards-and-hooks).
+
+## Limits and file types
+
+The tools refuse an existing file larger than 8 MiB, new content larger than 8 MiB, and a patch larger than 4 MiB or with more than 100 operations. An `edit` takes at most 100 pairs. Set `limits` to change these values. The [write reference](/reference/write#limits) lists every limit.
+
+The tools change only text files. `classifiers` decides which files are text, and a file that is not text returns `NOT_TEXT`. `utf8Codec()` keeps the byte order mark and the line endings of a file.

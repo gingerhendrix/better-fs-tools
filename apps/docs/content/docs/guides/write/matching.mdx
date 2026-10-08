@@ -1,0 +1,104 @@
+---
+title: Match old text
+description: How edit finds each old text in the file, how to change the matchers, and what the model gets when a match fails.
+---
+
+An `edit` call holds one or more pairs of `oldText` and `newText`. The tool finds every `oldText` in the same copy of the file, then replaces them all, or none. Pairs must not overlap. The tool puts `newText` in as written, so `$&` and `$1` stay as they are.
+
+## Match more than once
+
+Each `oldText` must match one place in the file. When it matches more than once, the call fails with `AMBIGUOUS_MATCH`:
+
+```text
+[edit:ambiguous-match] Edit 1: the oldText matches 2 places in src/greet.ts (lines 1, 5). Add surrounding lines to make it unique, or set replaceAll.
+[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
+```
+
+Set `replaceAll: true` on the pair to change every match:
+
+```ts
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createEditTool } from "@better-fs-tools/write";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const edit = createEditTool({ fs });
+
+await edit({
+  path: "src/greet.ts",
+  edits: [{ oldText: "name: string", newText: "name: Name", replaceAll: true }],
+});
+```
+
+```text
+Edited src/greet.ts: 2 replacements (replace all) at lines 1, 5.
+1|export function greet(name: Name): string {
+2|  return `Hello, ${name}!`;
+3|}
+4|
+5|export function farewell(name: Name): string {
+6|  return `Goodbye, ${name}!`;
+7|}
+
+[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
+```
+
+## Loose matches
+
+When the exact text is not found, the tool tries the next matcher in `matchers`. The first matcher that finds the text wins. The default is `defaultEditMatchers()`:
+
+| Matcher               | Finds the text when it differs by                                                                         |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| `exactMatcher()`      | Nothing                                                                                                   |
+| `normalizedMatcher()` | Trailing spaces, Unicode forms, curly quotes, dashes, and special spaces                                  |
+| `escapeMatcher()`     | Escape sequences such as `\n` or `\"` written out in `oldText`. The tool unescapes `newText` the same way |
+
+A loose match adds a note:
+
+```text
+[edit:fuzzy-match] Edit 1 matched src/greet.ts at lines 2-3 only with the normalized matcher, not exactly. Check the result.
+```
+
+Apart from `escapeMatcher()` and `indentationMatcher()`, the tool writes `newText` as the model sent it. For example, when the model sent straight quotes and the file has curly quotes, the file gets straight quotes. The tool refuses a loose match with `MATCH_REFUSED` when it is much longer than `oldText`, or when `replaceAll` is set.
+
+Three more matchers are off by default. `lineTrimmedMatcher()` ignores spaces at the start and end of each line. `indentationMatcher()` ignores a different indent, and re-indents `newText` to match the file. `blockAnchorMatcher()` matches a block of 3 or more lines by its first and last lines. Add them after the defaults:
+
+```ts
+import {
+  defaultEditMatchers,
+  indentationMatcher,
+  lineTrimmedMatcher,
+} from "@better-fs-tools/write";
+
+const edit = createEditTool({
+  fs,
+  matchers: [...defaultEditMatchers(), lineTrimmedMatcher(), indentationMatcher()],
+});
+```
+
+Each loose matcher makes it more likely that the tool changes text that the model did not mean. Keep `exactMatcher()` first.
+
+## When the old text is not found
+
+The call fails with `NO_MATCH`. When part of the file is close to `oldText`, the note shows that region with line numbers, so the model can copy the real text:
+
+```text
+[edit:no-match] Edit 1: the oldText was not found in src/greet.ts.
+The closest region is:
+4|
+5|export function farewell(name: string): string {
+6|  return `Goodbye, ${name}!`;
+7|}
+[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
+```
+
+When the file already has `newText` and not `oldText`, the pair counts as done. If every pair is done, the status is `no-change`:
+
+```text
+No change to src/greet.ts.
+
+[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
+[edit:already-applied] Edit 1 is already applied: the newText is in src/greet.ts and the oldText is not. Do not send this edit again.
+```
+
+After three misses in a row on one file, the tool adds a `repeated-miss` note that tells the model to read the file again. The tool counts misses in the function that the factory returns. Create the tool once, not for each call, or the model never gets this note.
