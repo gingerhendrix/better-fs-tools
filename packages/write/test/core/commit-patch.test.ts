@@ -298,12 +298,12 @@ describe("a backend without compare-and-swap", () => {
     expect(text(tools.fs, "/c.ts")).toBe("c\n");
   });
 
-  test("a clean commit adds the no-compare-and-swap note", async () => {
+  test("a clean commit without compare-and-swap adds no capability note", async () => {
     const tools = harness({ files: FILES, writeFs: unchecked });
     for (const path of Object.keys(FILES)) await tools.read({ path });
     const result = await tools.applyPatch({ patch: PATCH });
     expect(result.status).toBe("ok");
-    expect(codes(result)).toContain("no-compare-and-swap");
+    expect(codes(result)).toEqual(["directories-created"]);
   });
 });
 

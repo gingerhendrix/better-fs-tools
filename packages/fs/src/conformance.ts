@@ -256,7 +256,6 @@ export function shapeProblem(fs: FileSystem): string | null {
   if (fs.list !== undefined && typeof fs.list !== "function") {
     return "list must be a function when present";
   }
-  if (typeof fs.capabilities.streaming !== "boolean") return "capabilities.streaming missing";
   if (typeof fs.capabilities.identity !== "boolean") return "capabilities.identity missing";
   return null;
 }

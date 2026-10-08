@@ -27,12 +27,11 @@ export interface WritableFileSystem extends FileSystem {
 }
 
 export interface WriteCapabilities {
-  /** A replace is all or nothing: readers see the old bytes or the new bytes. */
-  readonly atomic: boolean;
-  /** The precondition is checked inside the backend, next to the publish, under the backend's own lock. */
+  /**
+   * The precondition is checked inside the backend, next to the publish, under the backend's own lock.
+   * When false, the write tools stat the target again just before the write and check the precondition themselves.
+   */
   readonly compareAndSwap: boolean;
-  /** The mode bits of an existing file survive a replace. */
-  readonly preserveMode: boolean;
 }
 
 export type StatOutcome =
@@ -82,7 +81,7 @@ export interface MutateOptions {
 export interface WriteOptions extends MutateOptions {
   /** Create missing parent directories inside the roots. */
   readonly createParents: boolean;
-  /** Mode for a new file. The backend keeps the mode of an existing file when preserveMode. */
+  /** Mode for a new file. A backend with modes keeps the mode of an existing file. */
   readonly mode?: number;
 }
 
@@ -99,8 +98,6 @@ export interface MutatedFile {
   readonly size: number | null;
   /** Resolved paths, outermost first. */
   readonly createdDirectories: readonly string[];
-  /** false when this call replaced in place, for example the Node hardLinks "in-place" policy. */
-  readonly atomic: boolean;
 }
 
 export type StageOutcome =

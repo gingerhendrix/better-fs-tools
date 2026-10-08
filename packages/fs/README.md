@@ -47,7 +47,7 @@ console.log(textOf(await read({ path: "/src/b.ts" }))); // "1|export const b = 2
 - `open(path)` does the whole access decision in one call: resolve, check roots and deny roots, follow or refuse symlinks, check the type, and open. It returns one handle, or a typed error.
 - A handle has `info`, a single-use `bytes()` stream, `verify()` for change detection, and `close()`.
 - `list(path, { limit })` is optional. Without it, the read tool makes no suggestions and no directory listings.
-- `capabilities.streaming` says whether `bytes()` streams. `capabilities.identity` says whether `info.identity` is stable across calls.
+- `capabilities.identity` says whether `info.identity` is stable across calls.
 - Errors have a `reason`: `not-found`, `not-a-file`, `dangerous-path`, `outside-allowed-roots`, `permission-denied`, `denied`, `too-large`, `unsupported`, `aborted`, or `io`. A `too-large` error has the backend's byte `limit` and the `size` it saw (or `null`), and the tools report it as `TOO_LARGE`. A `not-a-file` error has a `kind` (`directory`, `fifo`, `socket`, `device`, or `other`) and, when the adapter reached the object, a `target` with its paths.
 - `list()` on a path that is not a directory gives `not-found`.
 
@@ -74,20 +74,20 @@ if (stat.ok && stat.stat.exists) {
 - `stage(path, bytes, options)` is optional. It prepares a write. `publish()` checks the precondition again and replaces the target. `discard()` removes the staged bytes and any directory `stage()` created that is still empty.
 - `remove(path, options)` is optional. Its presence is the capability.
 - `version` changes with every change of the bytes. `stat().version` equals `open().info.version` for the same file.
-- `writeCapabilities` reports `atomic`, `compareAndSwap`, and `preserveMode`.
+- `writeCapabilities.compareAndSwap` says whether the backend checks the precondition next to the publish.
 - Mutation errors add four reasons to the read reasons: `changed`, `exists`, `read-only`, and `no-space`. A byte ceiling of the backend is `too-large`, not `no-space`.
 
-The write tools turn each `false` in `writeCapabilities` into a note for the model, and check the precondition themselves just before the write when `compareAndSwap` is false. `docs/architecture.md` in `@better-fs-tools/write` has a guide to writing a writable adapter.
+When `compareAndSwap` is false, the write tools check the precondition themselves just before the write. `docs/architecture.md` in `@better-fs-tools/write` has a guide to writing a writable adapter.
 
-| Adapter                          | `atomic` | `compareAndSwap`    | `preserveMode` | `stage()` | `remove()` |
-| -------------------------------- | -------- | ------------------- | -------------- | --------- | ---------- |
-| `memoryFileSystem()`             | yes      | yes                 | yes            | yes       | yes        |
-| `nodeFileSystem()`               | yes      | yes, in one process | yes            | yes       | yes        |
-| `cloudflareShellFileSystem()`    | no       | no                  | no             | no        | yes        |
-| `cloudflareComputerFileSystem()` | yes      | no                  | yes            | no        | yes        |
-| `justBashFileSystem()`           | no       | no                  | yes            | no        | yes        |
+| Adapter                          | `compareAndSwap`    | Atomic replace | Keeps the mode | `stage()` | `remove()` |
+| -------------------------------- | ------------------- | -------------- | -------------- | --------- | ---------- |
+| `memoryFileSystem()`             | yes                 | yes            | yes            | yes       | yes        |
+| `nodeFileSystem()`               | yes, in one process | yes            | yes            | yes       | yes        |
+| `cloudflareShellFileSystem()`    | no                  | no             | no modes       | no        | yes        |
+| `cloudflareComputerFileSystem()` | no                  | yes            | yes            | no        | yes        |
+| `justBashFileSystem()`           | no                  | no             | yes            | no        | yes        |
 
-`memoryFileSystem` checks the precondition and publishes in one synchronous step. Its options `readOnly`, `faults`, `stage: false`, `remove: false`, and `writeCapabilities` let tests simulate other backends.
+`memoryFileSystem` checks the precondition and publishes in one synchronous step. Its options `streaming: false`, `readOnly`, `faults`, `stage: false`, `remove: false`, and `writeCapabilities` let tests simulate other backends.
 
 Paths are POSIX only in this release.
 

@@ -226,7 +226,7 @@ describe("node write: replace and create", () => {
     expect(await readdir(root)).toEqual([]);
   });
 
-  test("the outcome reports the version open() sees, and atomic true", async () => {
+  test("the outcome reports the version open() sees", async () => {
     const root = await freshRoot();
     const fs = fsAt(root);
     const file = expectOk(
@@ -237,7 +237,6 @@ describe("node write: replace and create", () => {
       displayPath: "a.txt",
       size: 4,
       createdDirectories: [],
-      atomic: true,
     });
     expect(file.version).toBe((await existing(fs, "a.txt")).version);
     expect(file.identity).toBe(file.version);
@@ -480,7 +479,7 @@ describe("node write: hard links", () => {
     expect(await tempFiles(root)).toEqual([]);
   });
 
-  test('"in-place" writes through both names with atomic false', async () => {
+  test('"in-place" writes through both names', async () => {
     const root = await freshRoot();
     await writeFile(join(root, "a.txt"), "old, longer text\n");
     await chmod(join(root, "a.txt"), 0o640);
@@ -494,7 +493,6 @@ describe("node write: hard links", () => {
         options({ precondition: { kind: "version", version: before.version } }),
       ),
     );
-    expect(file.atomic).toBe(false);
     expect(file.size).toBe(4);
     expect(file.version).toBe((await existing(fs, "a.txt")).version);
     expect(await readFile(join(root, "b.txt"), "utf8")).toBe("new\n");

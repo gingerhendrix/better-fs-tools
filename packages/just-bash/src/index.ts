@@ -51,8 +51,8 @@ export type { JustBashBackend, JustBashFileSystem, JustBashFileSystemOptions } f
  * returned, not the backend's own directory read.
  *
  * `stat`, `write` and `remove` keep the same roots, deny roots and symlink
- * policy as `open()`. `writeCapabilities` is `{ atomic: false,
- * compareAndSwap: false, preserveMode: true }`. There is no `stage()`. For a
+ * policy as `open()`. `writeCapabilities` is `{ compareAndSwap: false }`.
+ * There is no `stage()`. For a
  * read-only view, wrap the result in `readOnlyFileSystem()` from
  * `@better-fs-tools/fs`.
  */
@@ -76,10 +76,7 @@ function readMethods(fs: JustBashBackend, configured: JustBashSettings): ReadMet
 
   return {
     id,
-    capabilities: Object.freeze({
-      streaming: false,
-      identity: identity === "required",
-    }),
+    capabilities: Object.freeze({ identity: identity === "required" }),
     paths: posixPaths,
     cwd,
     allowedRoots,

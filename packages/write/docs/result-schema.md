@@ -162,23 +162,20 @@ Every error result has exactly one warning note whose `code` is the error code i
 
 Notes on a successful call:
 
-| `code`                             | Severity | From                                                 | `data`                                                              |
-| ---------------------------------- | -------- | ---------------------------------------------------- | ------------------------------------------------------------------- |
-| `fuzzy-match`                      | info     | a loose match                                        | edit: `{ index, matcher, lines }`. patch: `{ path, hunk, matcher }` |
-| `already-applied`                  | info     | `edit`                                               | `{ index }`                                                         |
-| `stale-rematched`                  | info     | `edit`, `apply_patch`                                | none                                                                |
-| `repeated-miss`                    | info     | `edit`, with a `NO_MATCH`                            | `{ misses }`                                                        |
-| `read-before-write-off`            | warning  | no store                                             | none                                                                |
-| `user-modified`                    | warning  | an authorizer returned `content`                     | none                                                                |
-| `directories-created`              | info     | the commit                                           | `{ paths }`                                                         |
-| `not-atomic`                       | warning  | `writeCapabilities.atomic` false                     | none                                                                |
-| `no-compare-and-swap`              | info     | `writeCapabilities.compareAndSwap` false             | none                                                                |
-| `mode-not-kept`                    | info     | `writeCapabilities.preserveMode` false, on a replace | none                                                                |
-| `hook-failed`                      | warning  | a hook threw after the commit                        | `{ hook }`                                                          |
-| `extension-failed`                 | warning  | the formatter failed; the default formatter ran      | `{ extension: "formatter", id? }`                                   |
-| `hook-rewrote`                     | warning  | a hook returned `rewrote: true`                      | `{ hook }`                                                          |
-| `executable`                       | info     | `executableShebang()`                                | `{ mode }`                                                          |
-| `verify-mismatch`, `verify-failed` | warning  | `verifyWrite()`                                      | none                                                                |
+| `code`                             | Severity | From                                            | `data`                                                              |
+| ---------------------------------- | -------- | ----------------------------------------------- | ------------------------------------------------------------------- |
+| `fuzzy-match`                      | info     | a loose match                                   | edit: `{ index, matcher, lines }`. patch: `{ path, hunk, matcher }` |
+| `already-applied`                  | info     | `edit`                                          | `{ index }`                                                         |
+| `stale-rematched`                  | info     | `edit`, `apply_patch`                           | none                                                                |
+| `repeated-miss`                    | info     | `edit`, with a `NO_MATCH`                       | `{ misses }`                                                        |
+| `read-before-write-off`            | warning  | no store                                        | none                                                                |
+| `user-modified`                    | warning  | an authorizer returned `content`                | none                                                                |
+| `directories-created`              | info     | the commit                                      | `{ paths }`                                                         |
+| `hook-failed`                      | warning  | a hook threw after the commit                   | `{ hook }`                                                          |
+| `extension-failed`                 | warning  | the formatter failed; the default formatter ran | `{ extension: "formatter", id? }`                                   |
+| `hook-rewrote`                     | warning  | a hook returned `rewrote: true`                 | `{ hook }`                                                          |
+| `executable`                       | info     | `executableShebang()`                           | `{ mode }`                                                          |
+| `verify-mismatch`, `verify-failed` | warning  | `verifyWrite()`                                 | none                                                                |
 
 Guards and authorizers may add allow notes of their own.
 

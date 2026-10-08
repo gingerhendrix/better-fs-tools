@@ -33,9 +33,7 @@ import type { JustBashBackend } from "./contract.ts";
 import type { JustBashSettings, ValidatedStat } from "./policy.ts";
 
 export const JUST_BASH_WRITE_CAPABILITIES: WriteCapabilities = Object.freeze({
-  atomic: false,
   compareAndSwap: false,
-  preserveMode: true,
 });
 
 export interface JustBashWrites {
@@ -166,7 +164,6 @@ export function justBashWrites(fs: JustBashBackend, settings: JustBashSettings):
     identity: after?.exists === true && identity === "required" ? after.version : null,
     size: after?.exists === true ? after.stat.size : null,
     createdDirectories: created,
-    atomic: JUST_BASH_WRITE_CAPABILITIES.atomic,
   });
 
   return {

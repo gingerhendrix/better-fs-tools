@@ -58,7 +58,7 @@ export function stallingFileSystem(
     release: () => held.resolve(),
     fs: {
       id: "stalling",
-      capabilities: { streaming: true, identity: true },
+      capabilities: { identity: true },
       paths: posixPaths,
       open: async (requested): Promise<OpenOutcome> =>
         requested === path ? { ok: true, file } : { ok: false, error: { reason: "not-found" } },

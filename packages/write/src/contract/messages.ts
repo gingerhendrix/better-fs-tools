@@ -109,9 +109,6 @@ export interface WriteMessageCatalog extends ToolMessages {
     files: readonly { readonly path: string; readonly state: string }[];
   }): string;
 
-  notAtomic(c: { backend: string }): string;
-  noCompareAndSwap(c: { backend: string }): string;
-  modeNotKept(c: { backend: string }): string;
   directoriesCreated(c: { paths: readonly string[] }): string;
   userModified(c: { path: string }): string;
   hookRewrote(c: { hook: string; path: string }): string;

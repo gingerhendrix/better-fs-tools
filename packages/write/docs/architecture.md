@@ -118,7 +118,7 @@ The precondition stage reads the record at the real path. A record of another sc
 | Not fresh, `onStale: "rematch"`     | Exact rematch of every pair, or `STALE` | `STALE`    | Exact rematch of every hunk, or `STALE`. A Delete gives `STALE` |
 | Not fresh, `onStale: "reject"`      | `STALE`                                 | `STALE`    | `STALE`                                                         |
 
-The commit carries a precondition: `absent` for a create, and the loaded `version` for a replace or a remove. A backend that reports `compareAndSwap: true` checks it next to the publish. For a backend that does not, the core stats the target again just before the write and gives `STALE` or `EXISTS` itself, and adds a `no-compare-and-swap` note. The window between that stat and the write stays.
+The commit carries a precondition: `absent` for a create, and the loaded `version` for a replace or a remove. A backend that reports `compareAndSwap: true` checks it next to the publish. For a backend that does not, the core stats the target again just before the write and gives `STALE` or `EXISTS` itself. The window between that stat and the write stays.
 
 ## Matching
 
@@ -201,14 +201,14 @@ A backend keeps the policy. The core never checks roots or symlinks itself. A wr
 - never replaces a symbolic link: it follows a link inside the roots to its real path, or refuses it;
 - reports a `version` that changes with every change of the bytes, and the same token from `stat()` and from `open().info.version`;
 - enforces `absent`, `version`, and `any`, and gives `exists` or `changed`;
-- reports `writeCapabilities` honestly. The core turns each `false` into a note for the model.
+- reports `writeCapabilities.compareAndSwap` honestly. When it is false, the core checks the precondition itself just before the write.
 
 `runWritableFileSystemConformance(fs, { scratchDirectory })` from `@better-fs-tools/fs` checks these rules. The three virtual adapters show three ways to meet them with weaker backends:
 
 | Adapter                          | Backend calls                                 | How it meets the contract                                                                                                                     |
 | -------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `cloudflareShellFileSystem()`    | `writeFileBytes`, `mkdir`, `rm`               | Walks the path with `lstat` first, because `writeFileBytes` creates parents and follows a leaf link. Passes the old mime type back. No modes  |
-| `cloudflareComputerFileSystem()` | `writeFile`, `mkdir`, `rm`                    | One transaction, so `atomic`. `exclusive: true` for a create. Passes the old mode back, because `writeFile` resets it                         |
+| `cloudflareComputerFileSystem()` | `writeFile`, `mkdir`, `rm`                    | One transaction, so a replace is atomic. `exclusive: true` for a create. Passes the old mode back, because `writeFile` resets it              |
 | `justBashFileSystem()`           | `writeFile`, `mkdir`, `rm`, `chmod`, `utimes` | `chmod` after a replace, because `InMemoryFs` resets the mode. Moves `mtime` on by 1 ms when a write left it the same, so the version changes |
 
 None of them has `stage()`, so `apply_patch` writes each file in turn and undoes the journal on a failure.

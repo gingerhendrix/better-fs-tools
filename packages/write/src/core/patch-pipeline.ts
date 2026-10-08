@@ -7,7 +7,7 @@ import type { PatchOperation } from "../contract/patch.ts";
 import type { MutationReport, MutationResult } from "../contract/result.ts";
 import { authorizeAccess, authorizeChanges } from "./authorize.ts";
 import type { AccessRequest } from "./authorize.ts";
-import { addCapabilityNotes, fileChange } from "./commit.ts";
+import { addDirectoryNotes, fileChange } from "./commit.ts";
 import { commitPatch, deleteChange } from "./commit-patch.ts";
 import type { PatchFile, PatchStep } from "./commit-patch.ts";
 import { encodePlanned } from "./encode.ts";
@@ -124,7 +124,7 @@ async function patchStages<THost>(
           rewrittenByHook: false,
         };
       }
-      addCapabilityNotes(scope, fs, plannedStep, file);
+      addDirectoryNotes(scope, file);
       const base = fileChange(scope, plannedStep, step.bytes as Uint8Array, file);
       const change = source === null ? base : { ...base, movedFrom: source.displayPath };
       return committedFile(scope, plannedStep, change, file);

@@ -1,5 +1,4 @@
 import type { MutatedFile, Precondition, WritableFileSystem } from "@better-fs-tools/fs";
-import type { Note } from "@better-fs-tools/read";
 
 import type { FileChange } from "../contract/result.ts";
 import { hashBytes } from "./bytes.ts";
@@ -40,7 +39,7 @@ export async function commitOne<THost>(
   if (!isRecord(outcome) || outcome.ok !== true || !isMutatedFile(outcome.file)) {
     throw ioFailure(scope, target.requestedPath, "malformed write outcome");
   }
-  addCapabilityNotes(scope, fs, planned, outcome.file);
+  addDirectoryNotes(scope, outcome.file);
   return outcome.file;
 }
 
@@ -66,41 +65,15 @@ export async function checkBeforeCommit<THost>(
   }
 }
 
-export function addCapabilityNotes<THost>(
-  scope: MutationScope<THost>,
-  fs: WritableFileSystem,
-  planned: Planned,
-  file: MutatedFile,
-): void {
-  const { messages } = scope.deps;
-  const capabilities = fs.writeCapabilities;
-  const backend = fs.id;
-  const add = (note: Note) => {
-    if (!scope.notes.some((existing) => existing.code === note.code)) scope.notes.push(note);
-  };
-  if (!capabilities.atomic || !file.atomic) {
-    add({ code: "not-atomic", severity: "warning", message: messages.notAtomic({ backend }) });
-  }
-  if (!capabilities.compareAndSwap) {
-    add({
-      code: "no-compare-and-swap",
-      severity: "info",
-      message: messages.noCompareAndSwap({ backend }),
-    });
-  }
-  const replacesExistingFile = planned.precondition.kind !== "absent";
-  if (!capabilities.preserveMode && replacesExistingFile) {
-    add({ code: "mode-not-kept", severity: "info", message: messages.modeNotKept({ backend }) });
-  }
-  if (file.createdDirectories.length > 0) {
-    const paths = file.createdDirectories;
-    scope.notes.push({
-      code: "directories-created",
-      severity: "info",
-      message: messages.directoriesCreated({ paths }),
-      data: { paths: [...paths] },
-    });
-  }
+export function addDirectoryNotes<THost>(scope: MutationScope<THost>, file: MutatedFile): void {
+  if (file.createdDirectories.length === 0) return;
+  const paths = file.createdDirectories;
+  scope.notes.push({
+    code: "directories-created",
+    severity: "info",
+    message: scope.deps.messages.directoriesCreated({ paths }),
+    data: { paths: [...paths] },
+  });
 }
 
 export function fileChange<THost>(
@@ -142,7 +115,6 @@ export function isMutatedFile(value: unknown): value is MutatedFile {
     isRecord(value) &&
     typeof value.resolvedPath === "string" &&
     (value.version === null || typeof value.version === "string") &&
-    Array.isArray(value.createdDirectories) &&
-    typeof value.atomic === "boolean"
+    Array.isArray(value.createdDirectories)
   );
 }

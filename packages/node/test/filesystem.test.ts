@@ -285,7 +285,7 @@ describe("node filesystem reads", () => {
 
   test("capabilities have no list flag; list presence is the capability", () => {
     const fs = nodeFileSystem({ cwd: root, allowedRoots: [root] });
-    expect(fs.capabilities).toEqual({ streaming: true, identity: true });
+    expect(fs.capabilities).toEqual({ identity: true });
     expect(typeof fs.list).toBe("function");
   });
 

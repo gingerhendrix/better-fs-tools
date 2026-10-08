@@ -130,7 +130,6 @@ describe("memoryFileSystem write", () => {
       identity: versionOf(fs, "/a.txt"),
       size: 3,
       createdDirectories: [],
-      atomic: true,
     });
     expect(textOf(fs, "/a.txt")).toBe("new");
     expect(fs.peek("/a.txt")?.mode).toBe(0o644);
@@ -196,18 +195,6 @@ describe("memoryFileSystem write", () => {
     expect(file.version).toBe(versionOf(fs, "/a.sh"));
     expect(fs.peek("/a.sh")?.mode).toBe(0o755);
     expect(textOf(fs, "/a.sh")).toBe("two");
-  });
-
-  test("preserveMode: false gives a replaced file the new-file mode", async () => {
-    const fs = memoryFileSystem({ writeCapabilities: { preserveMode: false } });
-    fs.setFile("/a.sh", "one", { mode: 0o755 });
-    await fs.write("/a.sh", bytes("two"), { precondition: ANY, createParents: false });
-    expect(fs.peek("/a.sh")?.mode).toBe(0o644);
-    expect(fs.writeCapabilities).toEqual({
-      atomic: true,
-      compareAndSwap: true,
-      preserveMode: false,
-    });
   });
 
   test("any replaces without a check", async () => {
@@ -340,7 +327,6 @@ describe("memoryFileSystem remove", () => {
       identity: null,
       size: null,
       createdDirectories: [],
-      atomic: true,
     });
     expect(fs.peek("/a.txt")).toBeNull();
   });

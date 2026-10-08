@@ -190,7 +190,7 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
           await syncDirectory(path.dirname(target.resolvedPath));
           const stats = await temp.handle.stat({ bigint: true }).catch(() => null);
           await temp.handle.close().catch(() => {});
-          return { ok: true as const, file: mutated(target, stats, createdDirectories, true) };
+          return { ok: true as const, file: mutated(target, stats, createdDirectories) };
         });
         settled = true;
         if (!outcome.ok) await cleanup();
@@ -239,7 +239,7 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
             await handle.writeFile(bytes);
             await handle.sync();
             const after = await handle.stat({ bigint: true });
-            return { ok: true as const, file: mutated(target, after, [], false) };
+            return { ok: true as const, file: mutated(target, after, []) };
           } catch (error) {
             return fail(mapMutationError(error, "publish", target));
           } finally {
@@ -323,7 +323,7 @@ export function nodeWrites(context: NodeContext, io: NodeWriteIo = NODE_WRITE_IO
         return fail(mapMutationError(error, "remove", target));
       }
       await syncDirectory(path.dirname(target.resolvedPath));
-      return { ok: true as const, file: mutated(target, null, [], true) };
+      return { ok: true as const, file: mutated(target, null, []) };
     });
   };
 
@@ -348,7 +348,6 @@ function mutated(
   target: TargetPaths,
   stats: BigIntStats | null,
   createdDirectories: readonly string[],
-  atomic: boolean,
 ): MutatedFile {
   const version = stats === null ? null : nodeIdentity(stats);
   return {
@@ -357,7 +356,6 @@ function mutated(
     identity: version,
     size: stats === null ? null : Number(stats.size),
     createdDirectories,
-    atomic,
   };
 }
 

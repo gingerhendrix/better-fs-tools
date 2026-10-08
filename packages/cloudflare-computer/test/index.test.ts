@@ -110,10 +110,10 @@ describe("computer filesystem options", () => {
     expect(stub).toBeNull();
   });
 
-  test("advertises a streaming, weakly identified, listable backend", () => {
+  test("advertises a weakly identified, listable backend", () => {
     const { fs } = fsFor();
     expect(fs.id).toBe("cloudflare-computer");
-    expect(fs.capabilities).toEqual({ streaming: true, identity: false });
+    expect(fs.capabilities).toEqual({ identity: false });
     expect(typeof fs.list).toBe("function");
     expect(fs.paths).toBe(posixPaths);
     expect(fs.cwd).toBe(ROOT);

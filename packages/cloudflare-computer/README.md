@@ -56,7 +56,7 @@ export function computerTools(workspace: Workspace) {
 
 - `stat()`, `write()`, and `remove()` use `lstat`, `writeFile`, `mkdir`, and `rm`. They check the roots and refuse every symlink on the path before any write, as `open()` does.
 - `writeFile`, `mkdir`, and `rm` are optional in `CloudflareComputerFileSystemLike`. They are checked when a write runs, not when the filesystem is built. A read-only wrapper backs the read tool, and a write to it gives `unsupported`, which the tools report as `UNSUPPORTED_BACKEND`.
-- `writeCapabilities` is `{ atomic: true, compareAndSwap: false, preserveMode: true }`. `writeFile` runs in one transaction. It has no version check, so the adapter checks the precondition with a fresh `lstat` just before the write, and the write tools add a `no-compare-and-swap` note. A create passes `exclusive: true`, so two creators cannot both win.
+- `writeCapabilities` is `{ compareAndSwap: false }`. `writeFile` runs in one transaction, so a replace is atomic. It has no version check, so the adapter checks the precondition with a fresh `lstat` just before the write. A create passes `exclusive: true`, so two creators cannot both win.
 - `writeFile` sets the mode to `0o644` unless it gets one, also on a replace. The adapter passes the mode that `lstat` reported, so a replace keeps it. `stat()` reports the mode.
 - There is no `stage()`: Computer has no rename. `apply_patch` writes each file in turn, and undoes them on a failure.
 - The version is the size and the modification time in milliseconds. The write tools also compare the content hash of what the model read, so a same-size change after the read is still `STALE`.

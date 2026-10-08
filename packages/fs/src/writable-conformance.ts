@@ -83,9 +83,8 @@ export async function runWritableFileSystemConformance(
     if (fs.remove !== undefined && typeof fs.remove !== "function") {
       return "remove must be a function when present";
     }
-    for (const key of ["atomic", "compareAndSwap", "preserveMode"] as const) {
-      if (typeof fs.writeCapabilities?.[key] !== "boolean")
-        return `writeCapabilities.${key} missing`;
+    if (typeof fs.writeCapabilities?.compareAndSwap !== "boolean") {
+      return "writeCapabilities.compareAndSwap missing";
     }
     return null;
   });
@@ -189,20 +188,18 @@ export async function runWritableFileSystemConformance(
     return mode === null || mode === 0o600 ? null : `mode was ${mode.toString(8)}`;
   });
 
-  if (fs.writeCapabilities.preserveMode) {
-    await check("a replace keeps the mode", async () => {
-      const before = await existing(modeTarget);
-      const outcome = await write(
-        modeTarget,
-        "y\n",
-        { kind: "version", version: before.version },
-        { mode: 0o644 },
-      );
-      if (!outcome.ok) return `write failed with ${outcome.error.reason}`;
-      const mode = (await existing(modeTarget)).mode;
-      return mode === before.mode ? null : `mode changed to ${mode?.toString(8)}`;
-    });
-  }
+  await check("a replace keeps the mode", async () => {
+    const before = await existing(modeTarget);
+    const outcome = await write(
+      modeTarget,
+      "y\n",
+      { kind: "version", version: before.version },
+      { mode: 0o644 },
+    );
+    if (!outcome.ok) return `write failed with ${outcome.error.reason}`;
+    const mode = (await existing(modeTarget)).mode;
+    return mode === before.mode ? null : `mode changed to ${mode?.toString(8)}`;
+  });
 
   const directoryPath = fixtures.directoryPath ?? scratch;
   await check("a directory target gives not-a-file", async () => {

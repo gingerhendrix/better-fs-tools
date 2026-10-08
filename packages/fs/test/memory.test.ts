@@ -54,7 +54,7 @@ describe("memoryFileSystem open", () => {
     const chunks: number[] = [];
     for await (const chunk of opened.file.bytes()) chunks.push(chunk.byteLength);
     expect(chunks).toEqual([6]);
-    expect(fs.capabilities).toEqual({ streaming: false, identity: true });
+    expect(fs.capabilities).toEqual({ identity: true });
   });
 
   test("bytes() is single use", async () => {

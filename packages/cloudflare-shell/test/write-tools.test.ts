@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createReadTool, memoryStore, textOf } from "@better-fs-tools/read";
+import { createReadTool, memoryStore } from "@better-fs-tools/read";
 import {
   createApplyPatchTool,
   createEditTool,
@@ -35,7 +35,7 @@ function codes(result: MutationResult): string[] {
 }
 
 describe("shell workspace through the write tools", () => {
-  test("edit after a read changes the file and shows the capability notes", async () => {
+  test("edit after a read changes the file and adds no notes", async () => {
     const tools = toolsFor({ "/workspace/app.ts": "const a = 1;\nconst b = 2;\n" });
     expect((await tools.read({ path: "app.ts" })).status).toBe("ok");
 
@@ -45,12 +45,7 @@ describe("shell workspace through the write tools", () => {
     });
     expect(result.status).toBe("ok");
     expect(tools.text("/workspace/app.ts")).toBe("const a = 10;\nconst b = 2;\n");
-    expect(codes(result)).toEqual(
-      expect.arrayContaining(["not-atomic", "no-compare-and-swap", "mode-not-kept"]),
-    );
-    expect(textOf(result)).toContain(
-      "The cloudflare-shell backend cannot check the file version at the moment of the write.",
-    );
+    expect(codes(result)).toEqual([]);
 
     const again = await tools.edit({
       path: "app.ts",
@@ -65,10 +60,7 @@ describe("shell workspace through the write tools", () => {
     const created = await tools.write({ path: "docs/guide/intro.md", content: "# Intro\n" });
     expect(created.status).toBe("ok");
     expect(tools.text("/workspace/docs/guide/intro.md")).toBe("# Intro\n");
-    expect(codes(created)).toEqual(
-      expect.arrayContaining(["not-atomic", "no-compare-and-swap", "directories-created"]),
-    );
-    expect(codes(created)).not.toContain("mode-not-kept");
+    expect(codes(created)).toEqual(["directories-created"]);
 
     expect(errorOf(await tools.write({ path: "README.md", content: "new\n" }))?.code).toBe(
       "NOT_READ",
@@ -124,7 +116,7 @@ describe("shell workspace through the write tools", () => {
     expect(tools.text("/workspace/a.txt")).toBe("one\nTWO\n");
     expect(tools.text("/workspace/new/b.txt")).toBe("hello\n");
     expect(tools.workspace.entries.has("/workspace/old.txt")).toBe(false);
-    expect(codes(result)).toContain("no-compare-and-swap");
+    expect(codes(result)).toEqual(["directories-created"]);
   });
 
   test("a failed backend write in a patch undoes the files already written", async () => {

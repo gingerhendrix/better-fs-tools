@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createReadTool, memoryStore, textOf } from "@better-fs-tools/read";
+import { createReadTool, memoryStore } from "@better-fs-tools/read";
 import {
   createApplyPatchTool,
   createEditTool,
@@ -31,7 +31,7 @@ function codes(result: MutationResult): string[] {
 }
 
 describe("just-bash through the write tools", () => {
-  test("edit after a read keeps the mode and shows the capability notes", async () => {
+  test("edit after a read keeps the mode and adds no notes", async () => {
     const tools = toolsFor({ "/workspace/run.sh": "#!/bin/sh\necho one\n" });
     await tools.backend.chmod("/workspace/run.sh", 0o755);
     expect((await tools.read({ path: "run.sh" })).status).toBe("ok");
@@ -43,11 +43,7 @@ describe("just-bash through the write tools", () => {
     expect(result.status).toBe("ok");
     expect(await tools.backend.readFile("/workspace/run.sh")).toBe("#!/bin/sh\necho two\n");
     expect((await tools.backend.stat("/workspace/run.sh")).mode & 0o7777).toBe(0o755);
-    expect(codes(result)).toEqual(expect.arrayContaining(["not-atomic", "no-compare-and-swap"]));
-    expect(codes(result)).not.toContain("mode-not-kept");
-    expect(textOf(result)).toContain(
-      "The test-just-bash backend does not replace files atomically",
-    );
+    expect(codes(result)).toEqual([]);
 
     const again = await tools.edit({
       path: "run.sh",

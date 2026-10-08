@@ -9,7 +9,6 @@ import type {
   StageOutcome,
   StatOutcome,
   WritableFileSystem,
-  WriteCapabilities,
   WriteOptions,
 } from "./writable.ts";
 
@@ -41,7 +40,6 @@ export interface MemoryState {
 }
 
 export interface MemoryWriteSettings {
-  readonly writeCapabilities: WriteCapabilities;
   readonly readOnly: boolean;
   readonly faults: MemoryFaults;
 }
@@ -50,7 +48,7 @@ type MemoryWrites = Pick<WritableFileSystem, "stat" | "write"> &
   Required<Pick<WritableFileSystem, "stage" | "remove">>;
 
 export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings): MemoryWrites {
-  const { writeCapabilities, readOnly, faults } = settings;
+  const { readOnly, faults } = settings;
   const unsettledStagedPaths: string[] = [];
 
   /** Missing ancestors, outermost first. null when an ancestor is a file. */
@@ -155,7 +153,7 @@ export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings):
     created: readonly string[],
   ): MutatedFile => {
     for (const directory of created) state.directories.add(directory);
-    const keepExistingMode = state.files.has(absolute) && writeCapabilities.preserveMode;
+    const keepExistingMode = state.files.has(absolute);
     const entry = state.put(absolute, bytes, keepExistingMode ? undefined : (mode ?? DEFAULT_MODE));
     const version = state.versionOf(absolute, entry);
     return {
@@ -165,7 +163,6 @@ export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings):
       identity: state.identity ? version : null,
       size: bytes.byteLength,
       createdDirectories: created,
-      atomic: writeCapabilities.atomic,
     };
   };
 
@@ -256,7 +253,6 @@ export function memoryWrites(state: MemoryState, settings: MemoryWriteSettings):
         identity: null,
         size: null,
         createdDirectories: [],
-        atomic: writeCapabilities.atomic,
       },
     };
   };

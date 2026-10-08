@@ -163,13 +163,7 @@ exports[`golden write output weak backends and no store 1`] = `
   {
     "error": null,
     "status": "ok",
-    "text": 
-"Updated /a.txt (+1 -1 lines).
-
-[write:not-atomic] The no-cas backend does not replace files atomically, so a reader could have seen a partial file.
-[write:no-compare-and-swap] The no-cas backend cannot check the file version at the moment of the write. The tool checked it just before.
-[write:mode-not-kept] The no-cas backend does not keep file modes, so the file's permissions may have changed."
-,
+    "text": "Updated /a.txt (+1 -1 lines).",
   },
   {
     "error": null,

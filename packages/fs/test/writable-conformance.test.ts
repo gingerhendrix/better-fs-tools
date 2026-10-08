@@ -72,11 +72,19 @@ describe("runWritableFileSystemConformance", () => {
     expect(names).not.toContain("a refused path gives a policy reason");
   });
 
-  test("without preserveMode the mode check on replace is skipped", async () => {
-    const fs = memoryFixture({ writeCapabilities: { preserveMode: false } });
-    const report = await runWritableFileSystemConformance(fs, FIXTURES);
-    expect(report.passed).toBe(true);
-    expect(report.checks.map((check) => check.name)).not.toContain("a replace keeps the mode");
+  test("a backend without modes passes the mode checks", async () => {
+    const fs = memoryFixture();
+    const withoutModes: WritableFileSystem = {
+      ...fs,
+      stat: async (path, options) => {
+        const outcome = await fs.stat(path, options);
+        if (!outcome.ok || !outcome.stat.exists) return outcome;
+        return { ok: true, stat: { ...outcome.stat, mode: null } };
+      },
+    };
+    const report = await runWritableFileSystemConformance(withoutModes, FIXTURES);
+    expect(failed(report)).toEqual([]);
+    expect(report.checks.map((check) => check.name)).toContain("a replace keeps the mode");
   });
 
   test("an adapter that ignores the version precondition fails", async () => {
@@ -132,7 +140,7 @@ describe("runWritableFileSystemConformance", () => {
   test("missing write capabilities fail the write shape check", async () => {
     const fs = memoryFixture();
     const report = await runWritableFileSystemConformance(
-      { ...fs, writeCapabilities: { atomic: true } } as unknown as WritableFileSystem,
+      { ...fs, writeCapabilities: {} } as unknown as WritableFileSystem,
       FIXTURES,
     );
     const shape = report.checks.find((check) => check.name === "write shape");

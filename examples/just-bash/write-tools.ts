@@ -19,7 +19,4 @@ await read({ path: "src/index.ts" });
 console.log(textOf(await edit({ path: "src/index.ts", edits: [{ oldText: "1", newText: "2" }] })));
 // Edited src/index.ts: 1 replacement at line 1.
 // 1|const a = 2;
-//
-// [edit:not-atomic] The sandbox backend does not replace files atomically, ...
-// [edit:no-compare-and-swap] The sandbox backend cannot check the file version ...
 console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;

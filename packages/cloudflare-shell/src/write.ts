@@ -28,10 +28,7 @@ import {
 import type { Roots } from "./policy.ts";
 
 export const SHELL_WRITE_CAPABILITIES: WriteCapabilities = Object.freeze({
-  /* Objects above the R2 threshold are written in several steps. */
-  atomic: false,
   compareAndSwap: false,
-  preserveMode: false,
 });
 
 export interface ShellWrites {
@@ -137,7 +134,6 @@ export function shellWrites(
     identity: null,
     size: entry?.size ?? null,
     createdDirectories: created,
-    atomic: SHELL_WRITE_CAPABILITIES.atomic,
   });
 
   return {

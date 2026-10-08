@@ -123,12 +123,6 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
             ...files.map((file) => `${file.state} ${file.path}`),
           ].join("\n"),
 
-    notAtomic: ({ backend }) =>
-      `The ${backend} backend does not replace files atomically, so a reader could have seen a partial file.`,
-    noCompareAndSwap: ({ backend }) =>
-      `The ${backend} backend cannot check the file version at the moment of the write. The tool checked it just before.`,
-    modeNotKept: ({ backend }) =>
-      `The ${backend} backend does not keep file modes, so the file's permissions may have changed.`,
     directoriesCreated: ({ paths }) =>
       `Created ${paths.length === 1 ? "the directory" : "the directories"} ${paths.join(", ")}.`,
     userModified: ({ path }) =>

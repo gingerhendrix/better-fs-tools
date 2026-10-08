@@ -23,13 +23,11 @@ function writes(calls: readonly string[]): string[] {
 }
 
 describe("cloudflare computer writes: shape", () => {
-  test("reports atomic, mode-keeping writes without compare-and-swap, and no stage", () => {
+  test("reports writes without compare-and-swap, remove, and no stage", () => {
     const { fs } = fsFor();
     expect(isWritableFileSystem(fs)).toBe(true);
     expect(fs.writeCapabilities).toEqual({
-      atomic: true,
       compareAndSwap: false,
-      preserveMode: true,
     });
     expect(typeof fs.remove).toBe("function");
     expect("stage" in fs).toBe(false);
@@ -151,7 +149,6 @@ describe("cloudflare computer writes: write", () => {
       identity: null,
       size: 4,
       createdDirectories: [],
-      atomic: true,
     });
 
     const version = created.file.version ?? "";
@@ -287,7 +284,6 @@ describe("cloudflare computer writes: remove", () => {
         identity: null,
         size: null,
         createdDirectories: [],
-        atomic: true,
       },
     });
     expect(backend.entries.has("/workspace/a.txt")).toBe(false);

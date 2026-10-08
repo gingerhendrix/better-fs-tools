@@ -23,13 +23,11 @@ function writes(calls: readonly string[]): string[] {
 }
 
 describe("shell workspace writes: shape", () => {
-  test("reports weak write capabilities, remove, and no stage", () => {
+  test("reports writes without compare-and-swap, remove, and no stage", () => {
     const { fs } = fsFor();
     expect(isWritableFileSystem(fs)).toBe(true);
     expect(fs.writeCapabilities).toEqual({
-      atomic: false,
       compareAndSwap: false,
-      preserveMode: false,
     });
     expect(typeof fs.remove).toBe("function");
     expect("stage" in fs).toBe(false);
@@ -142,7 +140,6 @@ describe("shell workspace writes: write", () => {
       identity: null,
       size: 4,
       createdDirectories: [],
-      atomic: false,
     });
     const version = created.file.version ?? "";
     const replaced = await fs.write("a.txt", ENCODER.encode("two\n"), {
@@ -300,7 +297,6 @@ describe("shell workspace writes: remove", () => {
         identity: null,
         size: null,
         createdDirectories: [],
-        atomic: false,
       },
     });
     expect(workspace.entries.has("/workspace/a.txt")).toBe(false);

@@ -31,16 +31,16 @@ async function contents(file: OpenFile): Promise<Uint8Array> {
 }
 
 describe("justBashFileSystem", () => {
-  test("validates fixed policy and advertises buffered capabilities", () => {
+  test("validates fixed policy and advertises capabilities", () => {
     const fs = new InMemoryFs({ "/workspace/a.txt": "alpha" });
     const wrapped = adapter(fs, { identity: "none" });
-    expect(wrapped.capabilities).toEqual({ streaming: false, identity: false });
+    expect(wrapped.capabilities).toEqual({ identity: false });
     expect(typeof wrapped.list).toBe("function");
     expect(wrapped.paths).toBe(posixPaths);
     expect(wrapped.cwd).toBe("/workspace");
     expect(wrapped.identity).toBe("none");
     expect(wrapped.symlinks).toBe("reject");
-    expect(adapter(fs).capabilities).toEqual({ streaming: false, identity: true });
+    expect(adapter(fs).capabilities).toEqual({ identity: true });
 
     expect(() => adapter(fs, { allowedRoots: [] })).toThrow("allowedRoots");
     expect(() => adapter(fs, { maxBufferedBytes: 0 })).toThrow("maxBufferedBytes");

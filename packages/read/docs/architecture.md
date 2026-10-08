@@ -113,10 +113,11 @@ handle.verify()  did the opened object change?
 handle.close()   always, from a finally block
 ```
 
-Two capabilities remain. Neither adds a note to the result, because the model cannot act on either one:
+One capability remains. It adds no note to the result, because the model cannot act on it:
 
-- `streaming` says whether `bytes()` yields more than one chunk. The read core reads both kinds the same way.
 - `identity: false` sets `file.identity` to `null`. The write tools then judge freshness by the content hash only.
+
+The read core reads `bytes()` the same way whether it yields one chunk or many, so a backend does not report which.
 
 An optional `list()` is the list capability. Without it, there are no suggestions and no directory listings.
 

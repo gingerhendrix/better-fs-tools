@@ -107,7 +107,6 @@ describe("golden write output", () => {
   test("weak backends and no store", async () => {
     const weak = harness({
       files: { "/a.txt": "one\n" },
-      fsOptions: { writeCapabilities: { atomic: false, preserveMode: false } },
       writeFs: withoutCompareAndSwap,
     });
     await weak.read({ path: "/a.txt" });

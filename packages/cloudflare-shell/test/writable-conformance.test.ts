@@ -21,6 +21,6 @@ describe("shell workspace write conformance", () => {
     expect(names).toContain("remove with a stale version gives changed");
     expect(names).toContain("a refused path gives a policy reason");
     expect(names).not.toContain("stage then publish replaces the target");
-    expect(names).not.toContain("a replace keeps the mode");
+    expect(names).toContain("a replace keeps the mode");
   });
 });

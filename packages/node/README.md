@@ -96,7 +96,7 @@ export async function afterShell(path: string): Promise<boolean> {
 
 A write goes to a `0o600` temp file next to the target. The bytes are written and synced, and the file gets the old mode or the new-file mode. Publishing takes an in-process lock for the real path and checks the precondition against a fresh `lstat`. A create is published with `link()`, so a concurrent creator makes it fail with `exists`. A replace is published with `rename()`. Any failure removes the temp file and the directories the write created. The version token is the read identity: device, inode, size, and both change times. `EROFS` gives `read-only`, and `ENOSPC` and `EDQUOT` give `no-space`.
 
-`writeCapabilities` is `{ atomic: true, compareAndSwap: true, preserveMode: true }`, and `stage()` and `remove()` exist. Some of this holds with limits:
+`writeCapabilities` is `{ compareAndSwap: true }`. A replace is atomic and keeps the mode, and `stage()` and `remove()` exist. Some of this holds with limits:
 
 - `compareAndSwap` holds inside one process only. The lock orders writes inside one process. Another process can still change the file between the final check and the rename, and that change is then lost.
 - A replace keeps the permission bits only. The owner, the group, extended attributes, and ACLs are not kept, because `rename()` publishes a new file owned by the writing user.

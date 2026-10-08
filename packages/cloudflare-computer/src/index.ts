@@ -82,7 +82,7 @@ export function cloudflareComputerFileSystem(
 
   return Object.freeze({
     id,
-    capabilities: Object.freeze({ streaming: true, identity: false }),
+    capabilities: Object.freeze({ identity: false }),
     paths: posixPaths,
     cwd,
     allowedRoots: roots.allowedRoots,

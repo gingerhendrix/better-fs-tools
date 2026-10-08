@@ -15,8 +15,6 @@ export interface FileSystem {
 }
 
 export interface FileSystemCapabilities {
-  /** bytes() yields incrementally. false means one buffered chunk. */
-  readonly streaming: boolean;
   /** info.identity is stable and comparable across calls. */
   readonly identity: boolean;
 }

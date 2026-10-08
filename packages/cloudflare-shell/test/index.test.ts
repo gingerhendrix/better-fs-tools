@@ -87,10 +87,10 @@ describe("shell workspace options", () => {
     expect(workspace).toBeNull();
   });
 
-  test("advertises a buffered, weakly identified, listable backend", () => {
+  test("advertises a weakly identified, listable backend", () => {
     const { fs } = fsFor();
     expect(fs.id).toBe("cloudflare-shell");
-    expect(fs.capabilities).toEqual({ streaming: false, identity: false });
+    expect(fs.capabilities).toEqual({ identity: false });
     expect(typeof fs.list).toBe("function");
     expect(fs.paths).toBe(posixPaths);
     expect(fs.cwd).toBe(ROOT);

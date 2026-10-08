@@ -38,7 +38,7 @@ export interface JustBashFileSystemOptions
   extends FileSystemRootOptions, BufferedFileSystemOptions {}
 
 /**
- * `writeCapabilities` is `{ atomic: false, compareAndSwap: false, preserveMode: true }`.
+ * `writeCapabilities` is `{ compareAndSwap: false }`.
  * The write methods need `writeFile`, `mkdir`, `chmod`, `utimes`, and `rm` on
  * the backend. They are checked when a write runs, so a backend without them
  * still serves reads.

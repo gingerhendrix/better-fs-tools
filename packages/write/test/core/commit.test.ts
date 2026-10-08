@@ -11,7 +11,6 @@ import {
   deferred,
   errorCode,
   harness,
-  note,
   text,
   withoutCompareAndSwap,
 } from "../helpers.ts";
@@ -61,7 +60,7 @@ describe("commit", () => {
     expect(text(fs, "/a.txt")).toBe("theirs\n");
   });
 
-  test("without compare-and-swap a success carries the no-compare-and-swap note", async () => {
+  test("without compare-and-swap a success adds no note", async () => {
     const { fs, read, write } = harness({
       files: { "/a.txt": "one\n" },
       writeFs: withoutCompareAndSwap,
@@ -69,7 +68,7 @@ describe("commit", () => {
     await read({ path: "/a.txt" });
     const result = await write({ path: "/a.txt", content: "two\n" });
     expect(result.status).toBe("ok");
-    expect(note(result, "no-compare-and-swap")?.message).toContain("no-cas backend");
+    expect(codes(result)).toEqual([]);
     expect(text(fs, "/a.txt")).toBe("two\n");
   });
 
@@ -131,18 +130,6 @@ describe("commit", () => {
     expect(first.status).toBe("ok");
     expect(second.status).toBe("ok");
     expect(codes(second)).toContain("read-before-write-off");
-  });
-
-  test("capability notes: not-atomic and mode-not-kept", async () => {
-    const { read, write } = harness({
-      files: { "/a.txt": "one\n" },
-      fsOptions: { writeCapabilities: { atomic: false, preserveMode: false } },
-    });
-    const created = await write({ path: "/b.txt", content: "x" });
-    expect(codes(created)).toEqual(["not-atomic"]);
-    await read({ path: "/a.txt" });
-    const replaced = await write({ path: "/a.txt", content: "two\n" });
-    expect(codes(replaced)).toEqual(["not-atomic", "mode-not-kept"]);
   });
 
   test.each([

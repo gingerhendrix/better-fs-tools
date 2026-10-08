@@ -42,9 +42,7 @@ describe("just-bash writes: shape", () => {
     const wrapped = writable(fs);
     expect(isWritableFileSystem(wrapped)).toBe(true);
     expect(wrapped.writeCapabilities).toEqual({
-      atomic: false,
       compareAndSwap: false,
-      preserveMode: true,
     });
     expect(typeof wrapped.remove).toBe("function");
     expect("stage" in wrapped).toBe(false);
@@ -218,7 +216,6 @@ describe("just-bash writes: write", () => {
       displayPath: "a.txt",
       size: 4,
       createdDirectories: [],
-      atomic: false,
     });
     expect((await fs.stat("/workspace/a.txt")).mode & 0o7777).toBe(0o600);
 
@@ -350,7 +347,6 @@ describe("just-bash writes: remove", () => {
         identity: null,
         size: null,
         createdDirectories: [],
-        atomic: false,
       },
     });
     expect(await fs.exists("/workspace/a.txt")).toBe(false);

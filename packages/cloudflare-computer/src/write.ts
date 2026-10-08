@@ -28,9 +28,7 @@ import {
 import type { Roots } from "./policy.ts";
 
 export const COMPUTER_WRITE_CAPABILITIES: WriteCapabilities = Object.freeze({
-  atomic: true,
   compareAndSwap: false,
-  preserveMode: true,
 });
 
 export interface ComputerWrites {
@@ -146,7 +144,6 @@ export function computerWrites(
     identity: null,
     size: entry?.size ?? null,
     createdDirectories: created,
-    atomic: COMPUTER_WRITE_CAPABILITIES.atomic,
   });
 
   return {

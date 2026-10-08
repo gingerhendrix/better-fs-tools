@@ -25,15 +25,15 @@ export interface MemoryFileSystemOptions
   readonly directories?: readonly string[];
   /** Bytes per chunk. Default 64 KiB. */
   readonly chunkBytes?: number;
-  /** Default true. */
+  /** Default true. false yields the whole file as one chunk, like a buffered backend. */
   readonly streaming?: boolean;
   /** Default "required". */
   readonly identity?: IdentityMode;
   /** Default true. false removes list(). */
   readonly list?: boolean;
   /**
-   * Default { atomic: true, compareAndSwap: true, preserveMode: true }.
-   * preserveMode: false resets the mode on a replace. The other two are reported only.
+   * Default { compareAndSwap: true }. The memory backend always checks the precondition.
+   * compareAndSwap: false makes the write tools also stat the target just before the write.
    */
   readonly writeCapabilities?: Partial<WriteCapabilities>;
   /** Default true. false removes stage(). */
@@ -71,9 +71,7 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
   }
   const identityCapability = identity === "required";
   const writeCapabilities: WriteCapabilities = Object.freeze({
-    atomic: true,
     compareAndSwap: true,
-    preserveMode: true,
     ...options.writeCapabilities,
   });
   const denyRoots = (options.denyRoots ?? []).map((root) => resolvePosix("/", root));
@@ -201,7 +199,6 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
     },
   };
   const { stat, write, stage, remove } = memoryWrites(state, {
-    writeCapabilities,
     readOnly: options.readOnly ?? false,
     faults: options.faults ?? (() => null),
   });
@@ -241,7 +238,7 @@ export function memoryFileSystem(options: MemoryFileSystemOptions = {}): MemoryF
 
   return Object.freeze({
     id: options.id ?? "memory",
-    capabilities: Object.freeze({ streaming, identity: identityCapability }),
+    capabilities: Object.freeze({ identity: identityCapability }),
     writeCapabilities,
     paths: posixPaths,
     setFile,

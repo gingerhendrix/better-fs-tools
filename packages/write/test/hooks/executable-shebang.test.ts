@@ -11,7 +11,7 @@ function withoutModes(fs: WritableFileSystem): WritableFileSystem {
     id: "no-modes",
     capabilities: fs.capabilities,
     paths: fs.paths,
-    writeCapabilities: { ...fs.writeCapabilities, preserveMode: false },
+    writeCapabilities: fs.writeCapabilities,
     open: (path, options) => fs.open(path, options),
     write: (path, bytes, options) => fs.write(path, bytes, options),
     stat: async (path, options) => {

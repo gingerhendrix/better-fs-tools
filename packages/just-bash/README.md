@@ -60,9 +60,6 @@ await read({ path: "src/index.ts" });
 console.log(textOf(await edit({ path: "src/index.ts", edits: [{ oldText: "1", newText: "2" }] })));
 // Edited src/index.ts: 1 replacement at line 1.
 // 1|const a = 2;
-//
-// [edit:not-atomic] The sandbox backend does not replace files atomically, ...
-// [edit:no-compare-and-swap] The sandbox backend cannot check the file version ...
 console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;
 ```
 
@@ -84,7 +81,7 @@ console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;
 `write()` needs `writeFile`, `mkdir`, `chmod`, and `utimes` on the backend, and `remove()` needs `rm`. They are checked when a write runs, not when the filesystem is built, so a backend without them still serves reads. A write to such a backend gives `unsupported`, which the tools report as `UNSUPPORTED_BACKEND`. The `fs` parameter has the type `JustBashBackend`: `lstat`, `realpath`, `stat`, `readFileBuffer`, and `readdir` are required, and `readdirWithFileTypes` and the write methods are optional. A full `IFileSystem` fits it, and so does a read-only backend, with no cast.
 
 - Writes apply the same roots, deny roots, and symlink policy as `open()`. Under `"reject"`, a symlink anywhere on the path is refused. Under `"follow-within-roots"`, a link inside the roots is followed to its real path and the link stays. A link out of the roots and a dangling link are refused.
-- `writeCapabilities` is `{ atomic: false, compareAndSwap: false, preserveMode: true }`. A write is `writeFile` and then `chmod`, and `IFileSystem` has no version check, so the adapter checks the precondition with a fresh stat just before the write. The write tools add a `not-atomic` and a `no-compare-and-swap` note.
+- `writeCapabilities` is `{ compareAndSwap: false }`. A write is `writeFile` and then `chmod`, so it is not atomic. `IFileSystem` has no version check, so the adapter checks the precondition with a fresh stat just before the write.
 - `InMemoryFs` resets the mode to `0o644` on every write, so a replace calls `chmod` with the old mode.
 - `InMemoryFs` keeps `mtime` when two writes fall in one millisecond. When a replace leaves `mtime` where it was, the adapter moves it on by one millisecond with `utimes`, so every write through the adapter changes the version.
 - `identity: "required"` makes the write tools trust the version, which is the identity, size, and `mtime`. Another writer that changes a file to the same size inside the same millisecond is then not seen. With the default, `identity: "none"`, the write tools also compare the content hash of what the model read.

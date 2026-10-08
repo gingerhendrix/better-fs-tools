@@ -73,10 +73,10 @@ describe("defaultWriteFormatter", () => {
   });
 
   test("notes follow a blank line; view mode drops them", () => {
-    const notes = [{ code: "not-atomic", severity: "warning" as const, message: "Careful." }];
+    const notes = [{ code: "user-modified", severity: "warning" as const, message: "Careful." }];
     const withNotes = report({ changes: [change({})], notes });
     expect(formatter.format(withNotes, ctx())).toBe(
-      "Updated src/app.ts (+12 -3 lines).\n\n[write:not-atomic] Careful.",
+      "Updated src/app.ts (+12 -3 lines).\n\n[write:user-modified] Careful.",
     );
     expect(formatter.format(withNotes, ctx("view"))).toBe("Updated src/app.ts (+12 -3 lines).");
   });

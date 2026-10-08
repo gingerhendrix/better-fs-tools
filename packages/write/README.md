@@ -377,15 +377,15 @@ console.log(textOf(result)); // What the model sees
 
 ## Backends
 
-The core adds a note when the backend cannot keep a promise: `not-atomic` when a reader could see a partial file, `no-compare-and-swap` when the backend cannot check the version at the moment of the write, and `mode-not-kept` when a replace may change the file's permissions.
+The core reads one write capability, `compareAndSwap`. The other columns describe each backend for the host developer. The model gets no note about them.
 
-| Backend                          | `atomic` | `compareAndSwap`    | `preserveMode` | `stage()` | `remove()` |
-| -------------------------------- | -------- | ------------------- | -------------- | --------- | ---------- |
-| `memoryFileSystem()`             | yes      | yes                 | yes            | yes       | yes        |
-| `nodeFileSystem()`               | yes      | yes, in one process | yes            | yes       | yes        |
-| `cloudflareShellFileSystem()`    | no       | no                  | no             | no        | yes        |
-| `cloudflareComputerFileSystem()` | yes      | no                  | yes            | no        | yes        |
-| `justBashFileSystem()`           | no       | no                  | yes            | no        | yes        |
+| Backend                          | `compareAndSwap`    | Atomic replace | Keeps the mode | `stage()` | `remove()` |
+| -------------------------------- | ------------------- | -------------- | -------------- | --------- | ---------- |
+| `memoryFileSystem()`             | yes                 | yes            | yes            | yes       | yes        |
+| `nodeFileSystem()`               | yes, in one process | yes            | yes            | yes       | yes        |
+| `cloudflareShellFileSystem()`    | no                  | no             | no modes       | no        | yes        |
+| `cloudflareComputerFileSystem()` | no                  | yes            | yes            | no        | yes        |
+| `justBashFileSystem()`           | no                  | no             | yes            | no        | yes        |
 
 Without compare-and-swap, the core checks the version with a fresh `stat` just before the write. Another writer can still change the file between that check and the write.
 
