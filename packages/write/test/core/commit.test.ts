@@ -129,7 +129,7 @@ describe("commit", () => {
     expect(order).toEqual(["start a", "end a", "start b", "end b"]);
     expect(first.status).toBe("ok");
     expect(second.status).toBe("ok");
-    expect(codes(second)).toContain("read-before-write-off");
+    expect(second.notes).toEqual([]);
   });
 
   test.each([

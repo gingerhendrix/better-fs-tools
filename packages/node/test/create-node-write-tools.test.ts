@@ -45,7 +45,7 @@ describe("createNode*Tool defaults", () => {
       edits: [{ oldText: "one", newText: "two" }],
     });
     expect(edit.status).toBe("ok");
-    expect(edit.notes.map((note) => note.code)).toContain("read-before-write-off");
+    expect(edit.notes).toEqual([]);
     expect(await readFile(join(root, "a.txt"), "utf8")).toBe("two\n");
 
     const patch = await createNodeApplyPatchTool({ fs })({ patch: PATCH("b.txt") });
@@ -81,9 +81,7 @@ describe("createNode*Tool defaults", () => {
       },
     });
     const result = await write({ path: "/a.txt", content: "y\n" }, call);
-    expect(textOf(result)).toBe(
-      "Updated /a.txt (+1 -1 lines).\n\n[write:read-before-write-off] Read-before-write is off: this tool has no state store.",
-    );
+    expect(textOf(result)).toBe("Updated /a.txt (+1 -1 lines).");
     expect(seen).toEqual([call]);
     expect(seen[0]).toBe(call);
   });

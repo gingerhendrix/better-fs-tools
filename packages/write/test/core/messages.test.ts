@@ -14,9 +14,6 @@ describe("write messages", () => {
     expect(m.stale({ tool: "write", path: "a.ts" })).toBe(
       "a.ts changed since it was last read. Read it again, then retry.",
     );
-    expect(m.readBeforeWriteOff({ tool: "write" })).toBe(
-      "Read-before-write is off: this tool has no state store.",
-    );
     expect(m.notFound({ tool: "edit", path: "a.ts" })).toBe(
       "a.ts does not exist. Use the write tool to create it.",
     );

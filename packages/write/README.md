@@ -66,7 +66,7 @@ An unknown option key, a shared key (`fs`, `state`, `digest`, `locks`, or `clock
 | Pi coding agent                       | [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)                                | `createPiFsTools()`, one factory for each tool, and a `pi.extensions` entry                                    |
 | Cloudflare Shell, Computer, just-bash | `@better-fs-tools/cloudflare-shell`, `@better-fs-tools/cloudflare-computer`, `@better-fs-tools/just-bash` | Writable filesystems for `createFsTools()`, `createAiSdkFsTools()`, or the single factories                    |
 
-The standalone factories (`createNodeEditTool()`, `createAiSdkEditTool()`, `createPiEditTool()`, and the others) default to `state: null`. Every update then carries a `read-before-write-off` note. Use a bundle (`createFsTools()`, `createNodeFsTools()`, `createPiFsTools()`, or `createAiSdkFsTools()`), or pass the same `state`, `digest`, and `locks` to the read tool and the write tools.
+The standalone factories (`createNodeEditTool()`, `createAiSdkEditTool()`, `createPiEditTool()`, and the others) default to `state: null`. The tools then change files that the model has not read, and nothing tells the model. Use a bundle (`createFsTools()`, `createNodeFsTools()`, `createPiFsTools()`, or `createAiSdkFsTools()`), or pass the same `state`, `digest`, and `locks` to the read tool and the write tools.
 
 [docs/hosts.md](docs/hosts.md) lists the defaults of every bundle and single factory, the default signature of each tool in each host, and what each backend can do.
 
@@ -137,7 +137,7 @@ With the read tool's `state` store and a `digest`, the write tools check what th
 - `createInvalidator({ fs, state })` returns `invalidate(path)`. Call it when something else, for example a shell tool, may have changed a file. The next edit then needs a read. It never throws. It resolves to an `InvalidateOutcome`: `{ ok: true, resolvedPath, recorded }`, where `recorded` says whether a record was there, or `{ ok: false, phase }` when the stat (`phase: "stat"`, with the backend `error`) or the store (`phase: "state"`, with a `detail`) failed. After `ok: false` the record may still be there.
 - `preconditions: { requireRead: "off" }` turns the check off. `partialRead` and `onStale` change the other two rules.
 
-`state` without `digest` is a `TypeError`, as in the read tool, and the `StateNeedsDigest` type refuses it at compile time. `state: null` turns the check off, and every update carries a `read-before-write-off` note.
+`state` without `digest` is a `TypeError`, as in the read tool, and the `StateNeedsDigest` type refuses it at compile time. `state: null` turns the check off. The result has no note about this, because the model cannot change the host's setup.
 
 ## Dependencies
 
@@ -370,8 +370,8 @@ if (result.status === "error") {
     console.log(change.after?.version); // The backend version after the commit
   }
 }
-// Without a state store, every update carries a read-before-write-off note.
-console.log(result.notes.map((note) => note.code)); // [ "read-before-write-off" ]
+// Notes for the model, such as fuzzy-match. This plain update has none.
+console.log(result.notes.map((note) => note.code)); // []
 console.log(textOf(result)); // What the model sees
 ```
 

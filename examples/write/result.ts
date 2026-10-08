@@ -22,6 +22,6 @@ if (result.status === "error") {
     console.log(change.after?.version); // The backend version after the commit
   }
 }
-// Without a state store, every update carries a read-before-write-off note.
-console.log(result.notes.map((note) => note.code)); // [ "read-before-write-off" ]
+// Notes for the model, such as fuzzy-match. This plain update has none.
+console.log(result.notes.map((note) => note.code)); // []
 console.log(textOf(result)); // What the model sees

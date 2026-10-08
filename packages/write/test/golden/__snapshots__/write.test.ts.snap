@@ -168,11 +168,7 @@ exports[`golden write output weak backends and no store 1`] = `
   {
     "error": null,
     "status": "ok",
-    "text": 
-"Updated /a.txt (+1 -1 lines).
-
-[write:read-before-write-off] Read-before-write is off: this tool has no state store."
-,
+    "text": "Updated /a.txt (+1 -1 lines).",
   },
 ]
 `;

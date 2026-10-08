@@ -102,7 +102,7 @@ describe("createPiFsTools", () => {
     const cwd = await fixture({ "a.txt": "x\n" });
     const tools = createPiFsTools({ state: null });
     const result = await run(tools.edit, EDIT("x", "y"), cwd);
-    expect(textOf(result)).toContain("[edit:read-before-write-off]");
+    expect(textOf(result)).not.toContain("[edit:");
   });
 
   test("per-tool options reach their tool", async () => {

@@ -31,10 +31,8 @@ export async function checkPrecondition<THost>(
     return { precondition: { kind: "absent" }, record: null, mustRematch: false };
   }
   const version: Precondition = { kind: "version", version: loaded.version };
-  if (preconditions.requireRead === "off")
-    return { precondition: version, record: null, mustRematch: false };
-  if (store === null) {
-    addReadBeforeWriteOffNote(scope, tool);
+  // With no store, the check is off. The host chose this, so the model is not told.
+  if (preconditions.requireRead === "off" || store === null) {
     return { precondition: version, record: null, mustRematch: false };
   }
 
@@ -85,13 +83,4 @@ function partialAllowed(policy: Readonly<PreconditionPolicy>, tool: WriteToolNam
   if (policy.partialRead === "always") return true;
   if (policy.partialRead === "never") return false;
   return tool === "edit" || tool === "apply_patch";
-}
-
-function addReadBeforeWriteOffNote<THost>(scope: MutationScope<THost>, tool: WriteToolName): void {
-  if (scope.notes.some((note) => note.code === "read-before-write-off")) return;
-  scope.notes.push({
-    code: "read-before-write-off",
-    severity: "warning",
-    message: scope.deps.messages.readBeforeWriteOff({ tool }),
-  });
 }

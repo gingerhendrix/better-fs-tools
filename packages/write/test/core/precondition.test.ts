@@ -22,15 +22,15 @@ describe("precondition table for write", () => {
     });
     const result = await write({ path: "/a.txt", content: "x" });
     expect(result.status).toBe("ok");
-    expect(codes(result)).not.toContain("read-before-write-off");
+    expect(result.notes).toEqual([]);
     expect(text(fs, "/a.txt")).toBe("x");
   });
 
-  test("row 3: no store goes on with a read-before-write-off note", async () => {
+  test("row 3: no store goes on with no note", async () => {
     const { fs, write } = harness({ files: FILE, deps: { state: null } });
     const result = await write({ path: "/a.txt", content: "x" });
     expect(result.status).toBe("ok");
-    expect(note(result, "read-before-write-off")).toMatchObject({ severity: "warning" });
+    expect(result.notes).toEqual([]);
     expect(text(fs, "/a.txt")).toBe("x");
   });
 
@@ -38,7 +38,7 @@ describe("precondition table for write", () => {
     const { write } = harness({ files: FILE, deps: { state: () => null } });
     const result = await write({ path: "/a.txt", content: "x" });
     expect(result.status).toBe("ok");
-    expect(codes(result)).toContain("read-before-write-off");
+    expect(result.notes).toEqual([]);
   });
 
   test("row 3: a create with no store has no note", async () => {

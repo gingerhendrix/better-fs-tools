@@ -168,7 +168,6 @@ Notes on a successful call:
 | `already-applied`                  | info     | `edit`                                          | `{ index }`                                                         |
 | `stale-rematched`                  | info     | `edit`, `apply_patch`                           | none                                                                |
 | `repeated-miss`                    | info     | `edit`, with a `NO_MATCH`                       | `{ misses }`                                                        |
-| `read-before-write-off`            | warning  | no store                                        | none                                                                |
 | `user-modified`                    | warning  | an authorizer returned `content`                | none                                                                |
 | `directories-created`              | info     | the commit                                      | `{ paths }`                                                         |
 | `hook-failed`                      | warning  | a hook threw after the commit                   | `{ hook }`                                                          |

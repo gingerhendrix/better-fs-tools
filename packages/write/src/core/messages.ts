@@ -45,7 +45,6 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
     stale: ({ path }) => `${path} changed since it was last read. Read it again, then retry.`,
     staleRematched: ({ path }) =>
       `${path} changed since it was last read, but every old text still matched exactly once, so the edit was applied.`,
-    readBeforeWriteOff: () => "Read-before-write is off: this tool has no state store.",
     tooLarge: ({ path, what, limit, existing }) => {
       if (what === "patch") {
         return `The patch is over the limit of ${limit}. Split it into smaller patches.`;

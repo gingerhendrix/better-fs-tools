@@ -44,7 +44,6 @@ export interface WriteMessageCatalog extends ToolMessages {
   notRead(c: { tool: WriteToolName; path: string; wholeFile: boolean }): string;
   stale(c: { tool: WriteToolName; path: string }): string;
   staleRematched(c: { path: string }): string;
-  readBeforeWriteOff(c: { tool: WriteToolName }): string;
   /** `existing` is true when `what` is "content" and the file exists. */
   tooLarge(c: {
     path: string | null;

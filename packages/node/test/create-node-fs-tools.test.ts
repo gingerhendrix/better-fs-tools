@@ -159,7 +159,7 @@ describe("createNodeFsTools sharing", () => {
     expect(await tools.invalidate("app.ts")).toMatchObject({ ok: true, recorded: false });
     const result = await tools.edit(edit("x", "y"));
     expect(result.status).toBe("ok");
-    expect(result.notes.map((note) => note.code)).toContain("read-before-write-off");
+    expect(result.notes).toEqual([]);
     expect(tools.state).toBeNull();
   });
 

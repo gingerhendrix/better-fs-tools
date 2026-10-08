@@ -156,7 +156,7 @@ describe("createFsTools", () => {
     });
     const edited = await tools.edit({ path: "/a.txt", edits: [{ oldText: "one", newText: "1" }] });
     expect(edited.status).toBe("ok");
-    expect(edited.notes.map((note) => note.code)).toContain("read-before-write-off");
+    expect(edited.notes).toEqual([]);
     expect(await tools.invalidate("/a.txt")).toEqual({
       ok: true,
       resolvedPath: "/a.txt",

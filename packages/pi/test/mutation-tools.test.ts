@@ -136,7 +136,7 @@ describe("pi write tools: execute", () => {
       { patch: PATCH("*** Update File: a.txt", "@@", "-a", "+A", "*** Add File: b.txt", "+b") },
       cwd,
     );
-    expect(textOf(result)).toStartWith("Success. Updated the following files:\nM a.txt\nA b.txt\n");
+    expect(textOf(result)).toBe("Success. Updated the following files:\nM a.txt\nA b.txt");
     expect(result.details?.diff).toBe("a.txt\n-1 a\n+1 A\nb.txt\n+1 b");
     expect(await readFile(path.join(cwd, "b.txt"), "utf8")).toBe("b\n");
   });
@@ -220,8 +220,8 @@ describe("pi write tools: execute", () => {
       { path: "a.txt", old_string: "a", new_string: "b" },
       cwd,
     );
-    expect(textOf(result)).toStartWith(
-      "[edit:ambiguous-match] Edit 1: the old_string matches 2 places in a.txt (lines 1, 2). Add surrounding lines to make it unique, or set replace_all.\n",
+    expect(textOf(result)).toBe(
+      "[edit:ambiguous-match] Edit 1: the old_string matches 2 places in a.txt (lines 1, 2). Add surrounding lines to make it unique, or set replace_all.",
     );
     expect(result.details).toBeUndefined();
   });
@@ -233,8 +233,8 @@ describe("pi write tools: execute", () => {
       { path: "a.txt", edits: [{ oldText: "a", newText: "b" }] },
       cwd,
     );
-    expect(textOf(result)).toStartWith(
-      "[edit:ambiguous-match] Edit 1: the oldText matches 2 places in a.txt (lines 1, 2). Add surrounding lines to make it unique.\n",
+    expect(textOf(result)).toBe(
+      "[edit:ambiguous-match] Edit 1: the oldText matches 2 places in a.txt (lines 1, 2). Add surrounding lines to make it unique.",
     );
   });
 
