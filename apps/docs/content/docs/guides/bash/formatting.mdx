@@ -1,0 +1,116 @@
+---
+title: Customise formatting
+description: Change the layout of the bash output, the wording of notes, or write your own formatter.
+---
+
+A formatter turns the result of a call into `result.content`, the parts that go to the model. The default is `defaultShellFormatter()`. The formatter changes only `content`. `status`, `run`, `output`, `notes`, and the other fields stay the same.
+
+## The default layout
+
+`defaultShellFormatter()` prints three parts:
+
+1. A status line: `Exit code 2 · 0 s`, `Ended by SIGTERM · 0.2 s`, or `Timed out after 2 min. The process tree was stopped.`
+2. The output. When the output is too long, a line such as `[… 4995 lines (183.7 KB) not shown]` is between the first part and the last part. With no output, the line is `(no output)`.
+3. A blank line, then one line for each note: `[bash:code] message`.
+
+A call that did not start a command prints only the notes.
+
+## Restyle notes
+
+Set `noteLine` to change how each note is printed:
+
+```ts
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { createBashTool, defaultShellFormatter, shellEnv } from "@better-fs-tools/shell";
+
+const bash = createBashTool({
+  runner: nodeCommandRunner(),
+  env: shellEnv(() => process.env),
+  formatter: defaultShellFormatter({
+    noteLine: (note) => `<note code="${note.code}">${note.message}</note>`,
+  }),
+});
+```
+
+```text
+Exit code 0 · 0 s
+hi
+
+<note code="clamped">The requested timeout of 15 min is over the maximum, so 10 min was used.</note>
+```
+
+`noteLine` is the only option. To hide a note, remove it in an [`afterRun` hook](/guides/bash/policy#change-the-output). The [bash reference](/reference/bash#notes) lists every note code.
+
+## Change the wording
+
+Set `messages` to change the text of a status line or a note. Each message is a function that gets the details and returns a string. The messages you leave out keep their default text:
+
+```ts
+const bash = createBashTool({
+  runner: nodeCommandRunner(),
+  env: shellEnv(() => process.env),
+  messages: {
+    exited: ({ code, durationMs }) => `exit=${code} time=${durationMs}ms`,
+    noOutput: () => "(the command printed nothing)",
+  },
+});
+```
+
+```text
+exit=0 time=1ms
+(the command printed nothing)
+```
+
+The [bash reference](/reference/bash#messages) lists every message and its arguments.
+
+When your tool definition uses other parameter names or a timeout in seconds, give the messages the same names and unit with `bashSignatureMessages()`. The provider integrations do this for you:
+
+```ts
+import { bashSignatureMessages, defaultBashSignature } from "@better-fs-tools/shell/signature";
+
+const signature = defaultBashSignature({ timeoutUnit: "s" });
+const bash = createBashTool({
+  runner: nodeCommandRunner(),
+  env: shellEnv(() => process.env),
+  messages: bashSignatureMessages(signature),
+});
+
+await bash(signature.toInput({ command: "true", timeout: 900 }));
+```
+
+```text
+[bash:clamped] The requested timeout of 900 seconds is over the maximum, so 600 seconds was used.
+```
+
+## Write your own formatter
+
+A formatter is an object with an `id` and a `format(report, ctx)` function. `format` returns a string, or a list of content parts. It must be synchronous:
+
+```ts
+import type { ShellFormatter } from "@better-fs-tools/shell";
+
+const json: ShellFormatter = {
+  id: "json",
+  format(report) {
+    if (report.status === "error")
+      return JSON.stringify({ status: report.status, error: report.error.message });
+    return JSON.stringify({
+      status: report.status,
+      exitCode: report.run.exitCode,
+      output: report.output.head,
+    });
+  },
+};
+```
+
+```text
+{"status":"ok","exitCode":0,"output":"greet.ts"}
+```
+
+`report` is the result without `content`. When the output is cut, `report.output.head` holds the first part and `report.output.tail` the last part. `ctx` holds the `limits`, the `messages`, the `digest`, and the call context in `call`.
+
+If your formatter throws, the tool uses `defaultShellFormatter()` and adds a note. The status does not change:
+
+```text
+[bash:extension-failed] The json extension failed during the format phase. This is a host problem, not a problem with the command.
+```
