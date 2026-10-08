@@ -149,3 +149,5 @@ The formatter makes `content` once, with `mode: "model"`. A formatter that retur
 3. A blank line, then the note lines.
 
 A call that never started prints the note lines only. In `mode: "view"` the notes are left out.
+
+`defaultShellFormatter({ notes })` takes a function that rewrites a note, or returns `null` to hide it from the model text. `noteLine(note)` changes the text of one note line. The read and write formatters take the same `notes` option. The report keeps every note.

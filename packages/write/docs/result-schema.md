@@ -189,7 +189,7 @@ The formatter makes `content` once, with `mode: "model"`. A formatter that retur
 | `apply_patch` | `Success. Updated the following files:`                                       | One line for each file: `A`, `M`, or `D` and the path           |
 | any           | `No change to <path>.` for `no-change`. `write` adds the reason               | none                                                            |
 
-`defaultWriteFormatter({ diff: true })` adds each file's diff in a fenced block. `gutter` and `noteLine` change the snippet gutter and the note line.
+`defaultWriteFormatter({ diff: true })` adds each file's diff in a fenced block. `gutter` and `noteLine` change the snippet gutter and the note line. `notes(note, tool)` rewrites a note, or returns `null` to hide it from the model text. The read and bash formatters take the same `notes` option. The report keeps every note.
 
 ## The stored record
 

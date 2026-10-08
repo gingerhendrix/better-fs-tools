@@ -9,13 +9,16 @@ export interface WriteFormatterOptions {
   readonly gutter?: (line: number) => string;
   /** Add each change's diff to the model text. Default false. */
   readonly diff?: boolean;
+  /** Filter or rewrite a note for the model text. null hides it. Default: show every note. */
+  readonly notes?: (note: Note, tool: WriteToolName) => Note | null;
   /** Default: `[${tool}:${note.code}] ${note.message}`. */
   readonly noteLine?: (note: Note, tool: WriteToolName) => string;
 }
 
 /**
  * Formats a result as a line for each file, then the notes. An error shows the
- * notes only. "view" mode leaves the notes out.
+ * notes only. "view" mode leaves the notes out. The `notes` option hides or
+ * rewrites a note, as the read tool's formatters do.
  */
 export function defaultWriteFormatter(
   options: WriteFormatterOptions = {},
@@ -23,11 +26,17 @@ export function defaultWriteFormatter(
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("defaultWriteFormatter options must be an object");
   }
-  const { gutter = defaultGutter, diff = false, noteLine = defaultNoteLine } = options;
+  const {
+    gutter = defaultGutter,
+    diff = false,
+    notes: filter = showNote,
+    noteLine = defaultNoteLine,
+  } = options;
   if (typeof gutter !== "function") {
     throw new TypeError("gutter must be a function");
   }
   if (typeof diff !== "boolean") throw new TypeError("diff must be a boolean");
+  if (typeof filter !== "function") throw new TypeError("notes must be a function");
   if (typeof noteLine !== "function") throw new TypeError("noteLine must be a function");
   return Object.freeze<WriteFormatter<unknown>>({
     id: "default",
@@ -37,12 +46,30 @@ export function defaultWriteFormatter(
         ...(diff ? diffBlocks(report.changes) : []),
       ];
       if (ctx.mode === "view") return main.join("\n");
-      const notes = report.notes.map((note) => noteLine(note, report.tool));
+      const notes = noteLines(report.notes, report.tool, filter, noteLine);
       if (notes.length === 0) return main.join("\n");
       if (main.length === 0) return notes.join("\n");
       return `${main.join("\n")}\n\n${notes.join("\n")}`;
     },
   });
+}
+
+function noteLines(
+  notes: readonly Note[],
+  tool: WriteToolName,
+  filter: (note: Note, tool: WriteToolName) => Note | null,
+  line: (note: Note, tool: WriteToolName) => string,
+): string[] {
+  const lines: string[] = [];
+  for (const note of notes) {
+    const shown = filter(note, tool);
+    if (shown !== null) lines.push(line(shown, tool));
+  }
+  return lines;
+}
+
+function showNote(note: Note): Note {
+  return note;
 }
 
 function defaultNoteLine(note: Note, tool: WriteToolName): string {

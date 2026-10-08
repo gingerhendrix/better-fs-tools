@@ -121,4 +121,32 @@ describe("defaultShellFormatter golden text", () => {
     const noted = report({ notes: [{ code: "n", severity: "info", message: "n" }] });
     expect(format(noted, "view")).toBe("Exit code 0 · 0.4 s\nhello");
   });
+
+  test("a notes filter hides a note and rewrites another", () => {
+    const filtered = defaultShellFormatter({
+      notes: (note) =>
+        note.code === "spill-failed" ? null : { ...note, message: note.message.toUpperCase() },
+    });
+    const noted = report({
+      notes: [
+        { code: "spill-failed", severity: "warning", message: "No spill." },
+        { code: "clamped", severity: "info", message: "Shorter." },
+      ],
+    });
+    expect(filtered.format(noted, context)).toBe(
+      "Exit code 0 · 0.4 s\nhello\n\n[bash:clamped] SHORTER.",
+    );
+  });
+
+  test("a notes filter that hides every note leaves no blank line", () => {
+    const hidden = defaultShellFormatter({ notes: () => null });
+    const noted = report({ notes: [{ code: "n", severity: "info", message: "n" }] });
+    expect(hidden.format(noted, context)).toBe("Exit code 0 · 0.4 s\nhello");
+  });
+
+  test("notes must be a function", () => {
+    expect(() => defaultShellFormatter({ notes: "x" as never })).toThrow(
+      "notes must be a function",
+    );
+  });
 });

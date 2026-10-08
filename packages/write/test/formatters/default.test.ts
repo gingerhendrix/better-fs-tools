@@ -122,6 +122,38 @@ describe("defaultWriteFormatter", () => {
     expect(custom.format(failed, ctx())).toBe("write/stale");
   });
 
+  test("a notes filter hides a note and rewrites another", () => {
+    const filtered = defaultWriteFormatter({
+      notes: (note, tool) =>
+        note.code === "hook-failed" ? null : { ...note, message: `${tool}: ${note.message}` },
+    });
+    const noted = report({
+      changes: [change({})],
+      notes: [
+        { code: "hook-failed", severity: "warning", message: "The hook failed." },
+        { code: "fuzzy-match", severity: "info", message: "Check the result." },
+      ],
+    });
+    expect(filtered.format(noted, ctx())).toBe(
+      "Updated src/app.ts (+12 -3 lines).\n\n[write:fuzzy-match] write: Check the result.",
+    );
+  });
+
+  test("a notes filter that hides every note leaves no blank line", () => {
+    const hidden = defaultWriteFormatter({ notes: () => null });
+    const noted = report({
+      changes: [change({})],
+      notes: [{ code: "n", severity: "info", message: "n" }],
+    });
+    expect(hidden.format(noted, ctx())).toBe("Updated src/app.ts (+12 -3 lines).");
+  });
+
+  test("notes must be a function", () => {
+    expect(() => defaultWriteFormatter({ notes: "x" as never })).toThrow(
+      "notes must be a function",
+    );
+  });
+
   test("edit: one replacement with its snippet", () => {
     const edited = report({
       tool: "edit",
