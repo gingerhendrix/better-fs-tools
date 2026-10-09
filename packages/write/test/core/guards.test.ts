@@ -1,18 +1,19 @@
 import { describe, expect, test } from "bun:test";
 
+import { recommendedGuards } from "../../src/index.ts";
 import type { Guard } from "../../src/index.ts";
 import { errorOf, codes, errorCode, harness, text } from "../helpers.ts";
 
 describe("guards", () => {
-  test("the default guards are on, and guards: [] turns them off", async () => {
+  test("no guards run by default, and recommendedGuards() turns them on", async () => {
     const files = { "/a.ts": "const a = 1;\nconst b = 2;\nconst c = 3;\n" };
     const content = "const a = 1;\n// ... rest of code\n";
-    const on = harness({ files });
-    await on.read({ path: "/a.ts" });
-    expect(errorCode(await on.write({ path: "/a.ts", content }))).toBe("GUARD_REFUSED");
-    const off = harness({ files, deps: { guards: [] } });
+    const off = harness({ files });
     await off.read({ path: "/a.ts" });
     expect((await off.write({ path: "/a.ts", content })).status).toBe("ok");
+    const on = harness({ files, deps: { guards: recommendedGuards() } });
+    await on.read({ path: "/a.ts" });
+    expect(errorCode(await on.write({ path: "/a.ts", content }))).toBe("GUARD_REFUSED");
   });
 
   test("guards run in order, and allow notes are kept", async () => {

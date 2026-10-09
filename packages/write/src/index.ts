@@ -81,6 +81,7 @@ export { utf8Codec } from "./codecs/index.ts";
 export { memoryLocks } from "./locks/index.ts";
 export {
   defaultGuards,
+  recommendedGuards,
   generatedFileGuard,
   nonTextGuard,
   omissionGuard,

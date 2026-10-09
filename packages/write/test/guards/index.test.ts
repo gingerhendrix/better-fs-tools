@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { defaultGuards } from "../../src/index.ts";
+import { defaultGuards, recommendedGuards } from "../../src/index.ts";
 import { errorOf, harness } from "../helpers.ts";
 
 const ORDINARY: Record<string, string> = {
@@ -19,8 +19,15 @@ const ORDINARY: Record<string, string> = {
 };
 
 describe("defaultGuards", () => {
+  test("is empty", () => {
+    expect(defaultGuards()).toEqual([]);
+    expect(Object.isFrozen(defaultGuards())).toBe(true);
+  });
+});
+
+describe("recommendedGuards", () => {
   test("the order", () => {
-    expect(defaultGuards().map((guard) => guard.id)).toEqual([
+    expect(recommendedGuards().map((guard) => guard.id)).toEqual([
       "read-prefix",
       "truncation-notice",
       "omission",
@@ -30,11 +37,11 @@ describe("defaultGuards", () => {
   });
 
   test("each call gives new guard objects", () => {
-    expect(defaultGuards()[0]).not.toBe(defaultGuards()[0]);
+    expect(recommendedGuards()[0]).not.toBe(recommendedGuards()[0]);
   });
 
   test("ordinary files pass as creates and as rewrites", async () => {
-    const { read, write } = harness();
+    const { read, write } = harness({ deps: { guards: recommendedGuards() } });
     for (const [path, content] of Object.entries(ORDINARY)) {
       const created = await write({ path, content });
       expect([path, created.status, errorOf(created)]).toEqual([path, "ok", null]);
@@ -47,7 +54,7 @@ describe("defaultGuards", () => {
   });
 
   test("ordinary edits pass", async () => {
-    const { read, edit } = harness({ files: ORDINARY });
+    const { read, edit } = harness({ files: ORDINARY, deps: { guards: recommendedGuards() } });
     await read({ path: "/src/table.ts" });
     const result = await edit({
       path: "/src/table.ts",

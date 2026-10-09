@@ -44,14 +44,7 @@ describe("write tool dependencies", () => {
     expect(deps.locks.id).toBe("memory");
     expect(deps.classifiers.length).toBeGreaterThan(0);
     expect(deps.codecs.map((codec) => codec.id)).toEqual(["utf-8"]);
-    expect(deps.guards.map((guard) => guard.id)).toEqual([
-      "read-prefix",
-      "truncation-notice",
-      "omission",
-      "syntax",
-      "non-text",
-    ]);
-    expect(resolveWriteDependencies({ fs, guards: [] }, "write").guards).toEqual([]);
+    expect(deps.guards).toEqual([]);
     expect(deps.hooks).toEqual([]);
     expect(deps.formatter.id).toBe("default");
   });
@@ -140,7 +133,7 @@ describe("write tool dependencies", () => {
       "line-trimmed",
     ]);
     expect(deps.patchParser.id).toBe("codex");
-    expect(deps.guards.length).toBe(5);
+    expect(deps.guards).toEqual([]);
     const parser = codexPatchParser();
     expect(resolveApplyPatchDependencies({ fs, patchParser: parser }).patchParser).toBe(parser);
   });

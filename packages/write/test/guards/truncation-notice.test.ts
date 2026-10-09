@@ -5,7 +5,7 @@ import { createReadTool, plainFormatter, textOf } from "@better-fs-tools/read";
 import type { ReadFormatter } from "@better-fs-tools/read";
 import { deepAgentsFormat, hermesFormat, opencodeFormat } from "@better-fs-tools/read/formats";
 
-import { truncationNoticeGuard } from "../../src/index.ts";
+import { truncationNoticeGuard, recommendedGuards } from "../../src/index.ts";
 import { errorOf, errorCode, harness } from "../helpers.ts";
 import { change, guardContext, verdict } from "./helpers.ts";
 
@@ -89,8 +89,8 @@ describe("truncationNoticeGuard", () => {
     expect(() => truncationNoticeGuard({ patterns: ["x"] as never })).toThrow(TypeError);
   });
 
-  test("on by default for write", async () => {
-    const { write } = harness();
+  test("in recommendedGuards() for write", async () => {
+    const { write } = harness({ deps: { guards: recommendedGuards() } });
     const result = await write({
       path: "/n.txt",
       content: "a\n\n[read:continue] Continue with offset 4.\n",

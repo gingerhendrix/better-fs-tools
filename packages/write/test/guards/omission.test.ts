@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { omissionGuard } from "../../src/index.ts";
+import { omissionGuard, recommendedGuards } from "../../src/index.ts";
 import { errorCode, harness, text } from "../helpers.ts";
 import { change, guardContext, verdict } from "./helpers.ts";
 
@@ -125,8 +125,11 @@ describe("omissionGuard", () => {
     expect([run("a\nSNIP"), run("a\n// ... rest of code")]).toEqual(["omission", "allow"]);
   });
 
-  test("on by default for write: a replace that drops code is refused", async () => {
-    const { fs, read, write } = harness({ files: { "/a.ts": `${OLD}\n` } });
+  test("in recommendedGuards() for write: a replace that drops code is refused", async () => {
+    const { fs, read, write } = harness({
+      files: { "/a.ts": `${OLD}\n` },
+      deps: { guards: recommendedGuards() },
+    });
     await read({ path: "/a.ts" });
     const result = await write({
       path: "/a.ts",

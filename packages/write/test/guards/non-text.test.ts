@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { nonTextGuard } from "../../src/index.ts";
+import { nonTextGuard, recommendedGuards } from "../../src/index.ts";
 import { errorOf, errorCode, harness, text } from "../helpers.ts";
 import { change, guardContext, verdict } from "./helpers.ts";
 
@@ -47,8 +47,8 @@ describe("nonTextGuard", () => {
     expect(check("/a.txt", late)).toBe("allow");
   });
 
-  test("on by default: write refuses a new .ipynb and writes nothing", async () => {
-    const { fs, write } = harness();
+  test("in recommendedGuards(): write refuses a new .ipynb and writes nothing", async () => {
+    const { fs, write } = harness({ deps: { guards: recommendedGuards() } });
     const result = await write({ path: "/n.ipynb", content: NOTEBOOK });
     expect(errorCode(result)).toBe("GUARD_REFUSED");
     expect(errorOf(result)?.data).toMatchObject({ guard: "non-text", code: "NOTEBOOK" });

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  defaultGuards,
+  recommendedGuards,
   executableShebang,
   generatedFileGuard,
   protectPaths,
@@ -18,7 +18,7 @@ function shown(result: MutationResult) {
 const NOTEBOOK = JSON.stringify({ cells: [], metadata: {}, nbformat: 4, nbformat_minor: 5 });
 
 describe("golden guard output", () => {
-  test("each default guard's refusal", async () => {
+  test("each recommended guard's refusal", async () => {
     const yaml = (value: string) => {
       if (value.includes("\t")) throw new Error("tabs are not allowed");
     };
@@ -27,7 +27,7 @@ describe("golden guard output", () => {
         "/src/app.ts": "const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\n",
         "/config.yaml": "a: 1\n",
       },
-      deps: { guards: [...defaultGuards(), syntaxGuard({ parsers: { yaml } })] },
+      deps: { guards: [...recommendedGuards(), syntaxGuard({ parsers: { yaml } })] },
     });
     await read({ path: "/src/app.ts" });
     await read({ path: "/config.yaml" });

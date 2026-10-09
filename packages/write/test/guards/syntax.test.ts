@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { syntaxGuard } from "../../src/index.ts";
+import { syntaxGuard, recommendedGuards } from "../../src/index.ts";
 import { errorOf, errorCode, harness, text } from "../helpers.ts";
 import { change, guardContext, verdict } from "./helpers.ts";
 
@@ -63,8 +63,11 @@ describe("syntaxGuard", () => {
     expect(() => syntaxGuard({ parsers: [] as never })).toThrow(TypeError);
   });
 
-  test("on by default for edit", async () => {
-    const { fs, read, edit } = harness({ files: { "/p.json": '{"a": 1}\n' } });
+  test("in recommendedGuards() for edit", async () => {
+    const { fs, read, edit } = harness({
+      files: { "/p.json": '{"a": 1}\n' },
+      deps: { guards: recommendedGuards() },
+    });
     await read({ path: "/p.json" });
     const result = await edit({ path: "/p.json", edits: [{ oldText: "1}", newText: "1,}" }] });
     expect(errorCode(result)).toBe("GUARD_REFUSED");

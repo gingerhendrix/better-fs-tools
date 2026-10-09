@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { resolveWriteMessages, textOf } from "../../src/index.ts";
+import { recommendedGuards, resolveWriteMessages, textOf } from "../../src/index.ts";
 import type { MutationSignature } from "../../src/signature/index.ts";
 import {
   camelCaseEditSignature,
@@ -18,7 +18,7 @@ const FILE = "one\ntwo\none\nthree\n";
 async function editWith(signature: MutationSignature<unknown>, input: unknown) {
   const tools = harness({
     files: { "/a.txt": FILE },
-    editDeps: { messages: writeSignatureMessages(signature) },
+    editDeps: { messages: writeSignatureMessages(signature), guards: recommendedGuards() },
   });
   await tools.read({ path: "/a.txt" });
   return tools.edit(signature.toInput(input) as never);

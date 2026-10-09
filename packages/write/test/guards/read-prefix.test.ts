@@ -5,7 +5,7 @@ import { createReadTool, hashlineGutter, lineNumberFormatter, textOf } from "@be
 import type { Digest, ReadFormatter } from "@better-fs-tools/read";
 import { hashlineFormat, hermesFormat, opencodeFormat } from "@better-fs-tools/read/formats";
 
-import { readPrefixGuard } from "../../src/index.ts";
+import { readPrefixGuard, recommendedGuards } from "../../src/index.ts";
 import { errorOf, errorCode, harness, testDigest, text } from "../helpers.ts";
 import { change, guardContext, numbered, verdict } from "./helpers.ts";
 
@@ -170,8 +170,11 @@ describe("readPrefixGuard", () => {
     expect(() => readPrefixGuard({ gutter: "|" as never })).toThrow(TypeError);
   });
 
-  test("on by default: an edit that pastes read output is refused and nothing changes", async () => {
-    const { fs, read, edit } = harness({ files: { "/a.ts": "const a = 1;\nconst b = 2;\n" } });
+  test("in recommendedGuards(): an edit that pastes read output is refused and nothing changes", async () => {
+    const { fs, read, edit } = harness({
+      files: { "/a.ts": "const a = 1;\nconst b = 2;\n" },
+      deps: { guards: recommendedGuards() },
+    });
     await read({ path: "/a.ts" });
     const result = await edit({
       path: "/a.ts",

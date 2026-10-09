@@ -38,7 +38,7 @@ export interface WriteDependencies<THost = undefined> {
   readonly classifiers: readonly Classifier[];
   /** The first codec that accepts a file decodes it. Non-empty. */
   readonly codecs: readonly Codec[];
-  /** Default defaultGuards(). An empty array turns the guards off. */
+  /** Default none. recommendedGuards() gives the guards this package recommends. */
   readonly guards: readonly Guard<THost>[];
   readonly hooks: readonly WriteHook<THost>[];
   readonly formatter: WriteFormatter<THost>;

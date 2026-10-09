@@ -13,11 +13,20 @@ export { syntaxGuard } from "./syntax.ts";
 export { truncationNoticeGuard } from "./truncation-notice.ts";
 
 /**
- * The guards every write tool runs by default, in order: read prefix,
- * truncation notice, omission, syntax (JSON), and non-text.
- * generatedFileGuard is opt-in.
+ * The guards every write tool runs by default: none. Pass guards, for
+ * example recommendedGuards(), to turn them on.
  */
 export function defaultGuards(): readonly Guard<unknown>[] {
+  return Object.freeze([]);
+}
+
+/**
+ * The guards this package recommends, in order: read prefix, truncation
+ * notice, omission, syntax (JSON), and non-text. Each can refuse a write.
+ * They are off unless a host passes them as `guards`. generatedFileGuard is
+ * not in the list.
+ */
+export function recommendedGuards(): readonly Guard<unknown>[] {
   return Object.freeze([
     readPrefixGuard(),
     truncationNoticeGuard(),

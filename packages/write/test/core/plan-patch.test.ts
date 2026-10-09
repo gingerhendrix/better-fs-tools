@@ -2,7 +2,7 @@ import { describe, expect, spyOn, test } from "bun:test";
 
 import { textOf } from "@better-fs-tools/read";
 
-import { executableShebang, lineTrimmedMatcher } from "../../src/index.ts";
+import { executableShebang, lineTrimmedMatcher, recommendedGuards } from "../../src/index.ts";
 import type { WriteAuthorizeTarget } from "../../src/index.ts";
 import type { PatchParser } from "../../src/patch/index.ts";
 import { errorOf, codes, errorCode, harness, note, patchText, text } from "../helpers.ts";
@@ -586,8 +586,11 @@ describe("guards, authorize, and hooks", () => {
     expect(text(setup.fs, "/a.ts")).toBe("a\n");
   });
 
-  test("the default guards check patch fragments", async () => {
-    const { applyPatch, fs } = await readAll({ "/a.ts": "a\nb\n" });
+  test("the recommended guards check patch fragments", async () => {
+    const { applyPatch, fs } = await readAll(
+      { "/a.ts": "a\nb\n" },
+      { deps: { guards: recommendedGuards() } },
+    );
     const result = await applyPatch({
       patch: patchText("*** Update File: /a.ts", "@@", "-a", "-b", "+1|a", "+2|b"),
     });
