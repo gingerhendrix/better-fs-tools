@@ -31,7 +31,7 @@ function edit(oldText: string, newText: string) {
 describe("createNodeFsTools on disk", () => {
   test("read, edit, and edit again without another read", async () => {
     const cwd = await workspace({ "app.ts": "const a = 1;\nconst b = 2;\n" });
-    const tools = createNodeFsTools({ cwd });
+    const tools = createNodeFsTools({ cwd, state: memoryStore() });
 
     expect(errorOf(await tools.edit(edit("a = 1", "a = 10")))?.code).toBe("NOT_READ");
     expect((await tools.read({ path: "app.ts" })).status).toBe("ok");
@@ -42,7 +42,7 @@ describe("createNodeFsTools on disk", () => {
 
   test("invalidate(path) makes the next edit need a read", async () => {
     const cwd = await workspace({ "app.ts": "x\n" });
-    const tools = createNodeFsTools({ cwd });
+    const tools = createNodeFsTools({ cwd, state: memoryStore() });
     await tools.read({ path: "app.ts" });
     expect(await tools.invalidate("app.ts")).toEqual({
       ok: true,
@@ -66,7 +66,7 @@ describe("createNodeFsTools on disk", () => {
 
   test("invalidate of a missing or refused path reports it and keeps the record", async () => {
     const cwd = await workspace({ "app.ts": "x\n" });
-    const tools = createNodeFsTools({ cwd });
+    const tools = createNodeFsTools({ cwd, state: memoryStore() });
     await tools.read({ path: "app.ts" });
     expect(await tools.invalidate("missing.ts")).toMatchObject({ ok: true, recorded: false });
     expect(await tools.invalidate("/etc/hostname")).toMatchObject({
@@ -97,7 +97,7 @@ describe("createNodeFsTools on disk", () => {
 
   test("write needs a whole-file read, then creates and replaces", async () => {
     const cwd = await workspace({ "app.ts": "old\n" });
-    const tools = createNodeFsTools({ cwd });
+    const tools = createNodeFsTools({ cwd, state: memoryStore() });
 
     expect(errorOf(await tools.write({ path: "app.ts", content: "new\n" }))?.code).toBe("NOT_READ");
     expect((await tools.write({ path: "dir/new.md", content: "# New\n" })).status).toBe("ok");
@@ -109,7 +109,7 @@ describe("createNodeFsTools on disk", () => {
 
   test("apply_patch uses the same store: an updated file needs a read first", async () => {
     const cwd = await workspace({ "app.ts": "a\nb\n" });
-    const tools = createNodeFsTools({ cwd });
+    const tools = createNodeFsTools({ cwd, state: memoryStore() });
     const patch = ["*** Begin Patch", "*** Update File: app.ts", "@@", "-b", "+B", "*** End Patch"];
 
     expect(errorOf(await tools.applyPatch({ patch: patch.join("\n") }))?.code).toBe("NOT_READ");
@@ -146,16 +146,18 @@ describe("createNodeFsTools sharing", () => {
   test("exposes the shared fs, store, and lock manager", async () => {
     const cwd = await workspace();
     const locks = memoryLocks();
-    const tools = createNodeFsTools({ cwd, locks });
+    const state = memoryStore();
+    const tools = createNodeFsTools({ cwd, locks, state });
     expect(tools.locks).toBe(locks);
-    expect(tools.state).not.toBeNull();
+    expect(tools.state).toBe(state);
+    expect(createNodeFsTools({ cwd }).state).toBeNull();
     expect(tools.fs.id).toBe("node");
     expect(Object.isFrozen(tools)).toBe(true);
   });
 
-  test("state: null turns read-before-write off, and invalidate finds no record", async () => {
+  test("no store by default: edit needs no read, and invalidate finds no record", async () => {
     const cwd = await workspace({ "app.ts": "x\n" });
-    const tools = createNodeFsTools({ cwd, state: null });
+    const tools = createNodeFsTools({ cwd });
     expect(await tools.invalidate("app.ts")).toMatchObject({ ok: true, recorded: false });
     const result = await tools.edit(edit("x", "y"));
     expect(result.status).toBe("ok");
@@ -244,7 +246,7 @@ describe("createNodeFsTools sharing", () => {
   test("one clock for every tool; a tool cannot set its own", async () => {
     const cwd = await workspace({ "app.ts": "x\n" });
     const now = new Date("2026-09-29T00:00:00.000Z");
-    const tools = createNodeFsTools({ cwd, clock: () => now });
+    const tools = createNodeFsTools({ cwd, clock: () => now, state: memoryStore() });
     await tools.read({ path: "app.ts" });
     expect((await tools.state?.get(join(cwd, "app.ts")))?.observedAt).toBe(now.toISOString());
     expect(() => createNodeFsTools({ read: { clock: () => now } } as never)).toThrow(
@@ -255,10 +257,11 @@ describe("createNodeFsTools sharing", () => {
     );
   });
 
-  test("the default store expires records on the bundle clock", async () => {
+  test("a memoryStore on the bundle clock expires records", async () => {
     const cwd = await workspace({ "app.ts": "x\n" });
     let now = Date.parse("2026-09-29T00:00:00.000Z");
-    const tools = createNodeFsTools({ cwd, clock: () => new Date(now) });
+    const clock = () => new Date(now);
+    const tools = createNodeFsTools({ cwd, clock, state: memoryStore({ clock }) });
     await tools.read({ path: "app.ts" });
     expect(await tools.state?.get(join(cwd, "app.ts"))).not.toBeNull();
     now += 31 * 60 * 1_000;

@@ -39,8 +39,21 @@ function spyLocks(): LockManager & { taken: string[][] } {
 }
 
 describe("createFsTools", () => {
-  test("the four file tools share one store: edit needs a read first", async () => {
-    const tools = createFsTools({ fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }) });
+  test("by default there is no store: edit and write need no read", async () => {
+    const fs = memoryFileSystem({ files: { "/a.txt": "one\n", "/b.txt": "b\n" } });
+    const tools = createFsTools({ fs });
+    expect(tools.state).toBeNull();
+    const edited = await tools.edit({ path: "/a.txt", edits: [{ oldText: "one", newText: "1" }] });
+    expect(edited.status).toBe("ok");
+    expect(edited.notes).toEqual([]);
+    expect((await tools.write({ path: "/b.txt", content: "two\n" })).status).toBe("ok");
+  });
+
+  test("with a store the file tools share it: edit needs a read first", async () => {
+    const tools = createFsTools({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      state: memoryStore(),
+    });
     const before = await tools.edit({ path: "/a.txt", edits: [{ oldText: "one", newText: "1" }] });
     expect(errorOf(before)?.code).toBe("NOT_READ");
     await tools.read({ path: "/a.txt" });
@@ -49,23 +62,33 @@ describe("createFsTools", () => {
     expect((await tools.write({ path: "/a.txt", content: "two\n" })).status).toBe("ok");
   });
 
-  test("the defaults are a memory store, sha256Digest(), memoryLocks(), and no bash", async () => {
-    const tools = createFsTools({ fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }) });
-    expect(tools.state).not.toBeNull();
-    expect(tools.digest.id).toBe(sha256Digest().id);
-    expect(tools.locks.id).toBe(memoryLocks().id);
-    expect(tools.bash).toBeNull();
+  test("the defaults are no store, sha256Digest(), memoryLocks(), and no bash", async () => {
+    const defaults = createFsTools({ fs: memoryFileSystem() });
+    expect(defaults.state).toBeNull();
+    expect(defaults.digest.id).toBe(sha256Digest().id);
+    expect(defaults.locks.id).toBe(memoryLocks().id);
+    expect(defaults.bash).toBeNull();
+    expect(Object.isFrozen(defaults)).toBe(true);
+  });
+
+  test("a given store records reads with the default sha256Digest()", async () => {
+    const tools = createFsTools({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      state: memoryStore(),
+    });
     await tools.read({ path: "/a.txt" });
     const record = await tools.state?.get("/a.txt");
     expect(record?.contentId).toBe(sha256Digest().hash("one\n"));
     expect(Object.isFrozen(tools)).toBe(true);
   });
 
-  test("the default store expires records on the bundle clock", async () => {
+  test("a memoryStore on the bundle clock expires records", async () => {
     let now = Date.parse("2026-09-29T00:00:00.000Z");
+    const clock = () => new Date(now);
     const tools = createFsTools({
       fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
-      clock: () => new Date(now),
+      state: memoryStore({ clock }),
+      clock,
     });
     await tools.read({ path: "/a.txt" });
     expect(await tools.state?.get("/a.txt")).not.toBeNull();
@@ -165,7 +188,10 @@ describe("createFsTools", () => {
   });
 
   test("invalidate deletes the record, so the next edit needs a read", async () => {
-    const tools = createFsTools({ fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }) });
+    const tools = createFsTools({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      state: memoryStore(),
+    });
     await tools.read({ path: "/a.txt" });
     expect(await tools.invalidate("/a.txt")).toEqual({
       ok: true,
@@ -183,6 +209,7 @@ describe("createFsTools", () => {
     ]);
     const tools = createFsTools<{ readonly tenant: string }>({
       fs: (call) => backends.get(call.host.tenant) as WritableFileSystem,
+      state: memoryStore(),
     });
     const call: ToolCallContext<{ readonly tenant: string }> = { host: { tenant: "a" } };
     expect((await tools.read({ path: "/x.txt" }, call)).status).toBe("ok");

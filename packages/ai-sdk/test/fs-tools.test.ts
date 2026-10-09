@@ -32,16 +32,24 @@ const runner: CommandRunner = {
 const EDIT = { path: "/a.txt", old_string: "one", new_string: "1", replace_all: null };
 
 describe("createAiSdkFsTools", () => {
-  test("one call shares the store: edit needs a read first", async () => {
+  test("by default edit needs no read", async () => {
     const tools = createAiSdkFsTools({ fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }) });
+    expect((await tools.edit.execute(EDIT, executeOptions())).status).toBe("ok");
+  });
+
+  test("with a store, one call shares it: edit needs a read first", async () => {
+    const tools = createAiSdkFsTools({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      state: memoryStore(),
+    });
     expect(errorOf(await tools.edit.execute(EDIT, executeOptions()))?.code).toBe("NOT_READ");
     await tools.read.execute({ path: "/a.txt", offset: null, limit: null }, executeOptions());
     expect((await tools.edit.execute(EDIT, executeOptions())).status).toBe("ok");
   });
 
-  test("the defaults are a memory store, sha256Digest(), memoryLocks(), and no bash", () => {
+  test("the defaults are no store, sha256Digest(), memoryLocks(), and no bash", () => {
     const tools = createAiSdkFsTools({ fs: memoryFileSystem() });
-    expect(tools.state).not.toBeNull();
+    expect(tools.state).toBeNull();
     expect(tools.digest.id).toBe(sha256Digest().id);
     expect(tools.locks.id).toBe(memoryLocks().id);
     expect(tools.bash).toBeNull();
@@ -49,10 +57,11 @@ describe("createAiSdkFsTools", () => {
     expect(Object.isFrozen(tools)).toBe(true);
   });
 
-  test("the default store expires records on the bundle clock", async () => {
+  test("a memoryStore on the bundle clock expires records", async () => {
     let now = Date.parse("2026-09-29T00:00:00.000Z");
     const tools = createAiSdkFsTools({
       fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      state: memoryStore({ clock: () => new Date(now) }),
       clock: () => new Date(now),
     });
     await tools.read.execute({ path: "/a.txt", offset: null, limit: null }, executeOptions());
@@ -156,7 +165,10 @@ describe("createAiSdkFsTools", () => {
   });
 
   test("invalidate deletes the record, so the next edit needs a read", async () => {
-    const tools = createAiSdkFsTools({ fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }) });
+    const tools = createAiSdkFsTools({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      state: memoryStore(),
+    });
     await tools.read.execute({ path: "/a.txt", offset: null, limit: null }, executeOptions());
     expect(await tools.invalidate("/a.txt")).toMatchObject({ ok: true, recorded: true });
     expect(errorOf(await tools.edit.execute(EDIT, executeOptions()))?.code).toBe("NOT_READ");

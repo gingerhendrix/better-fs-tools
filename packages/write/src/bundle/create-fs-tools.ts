@@ -1,5 +1,5 @@
 import type { WritableFileSystem } from "@better-fs-tools/fs";
-import { createReadTool, memoryStore, sha256Digest } from "@better-fs-tools/read";
+import { createReadTool, sha256Digest } from "@better-fs-tools/read";
 import type {
   Clock,
   Digest,
@@ -30,7 +30,10 @@ export type FsToolsBashOptions<THost = undefined> = Omit<ShellToolDeps<THost>, "
 export interface CreateFsToolsOptions<THost = undefined> {
   /** Required. A backend, or a factory called once for each call. */
   readonly fs: WritableFileSystem | ((call: ToolCallContext<THost>) => WritableFileSystem);
-  /** Default: an in-memory store on the bundle clock. null turns read-before-write off. */
+  /**
+   * Default null: no read-before-write. A store, for example
+   * memoryStore({ clock }), turns it on for edit, write, and apply_patch.
+   */
   readonly state?: ReadStateStore | null;
   /** Default sha256Digest(). */
   readonly digest?: Digest;
@@ -125,7 +128,7 @@ export function createFsTools<THost = undefined>(
   checkFsToolsOptions("createFsTools", options, KNOWN_OPTION_KEYS, SHARED_KEYS_BY_TOOL);
   const { fs } = options;
   const clock = options.clock ?? (() => new Date());
-  const state = options.state === undefined ? memoryStore({ clock }) : options.state;
+  const state = options.state ?? null;
   const digest = options.digest ?? sha256Digest();
   const locks = options.locks ?? memoryLocks();
   const shared = { fs, state, digest, clock };

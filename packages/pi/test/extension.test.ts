@@ -33,7 +33,7 @@ describe("pi extension", () => {
     expect((registered[3] as PiMutationTool).constrainedSampling?.type).toBe("grammar");
   });
 
-  test("the registered tools share one store: edit needs a read first", async () => {
+  test("the registered tools keep no store: edit needs no read", async () => {
     const registered: (PiReadTool | PiMutationTool)[] = [];
     fsToolsExtension({
       registerTool: (tool: PiReadTool | PiMutationTool) => registered.push(tool),
@@ -43,14 +43,14 @@ describe("pi extension", () => {
     const context = { cwd } as ExtensionContext;
     const input = { path: "a.txt", edits: [{ oldText: "one", newText: "two" }] };
 
-    const first = await edit.execute("e1", input, undefined, undefined, context);
-    expect(first.content).toEqual([
-      { type: "text", text: "[edit:not-read] Read a.txt with the read tool before changing it." },
-    ]);
     await read.execute("r1", { path: "a.txt" }, undefined, undefined, context);
-    const second = await edit.execute("e2", input, undefined, undefined, context);
-    expect(second.details?.diff).toBe("-1 one\n+1 two");
-    expect(await readFile(path.join(cwd, "a.txt"), "utf8")).toBe("two\n");
+    const first = await edit.execute("e1", input, undefined, undefined, context);
+    expect(first.details?.diff).toBe("-1 one\n+1 two");
+    await writeFile(path.join(cwd, "a.txt"), "changed\n");
+    const unread = { path: "a.txt", edits: [{ oldText: "changed", newText: "three" }] };
+    const second = await edit.execute("e2", unread, undefined, undefined, context);
+    expect(second.details?.diff).toBe("-1 changed\n+1 three");
+    expect(await readFile(path.join(cwd, "a.txt"), "utf8")).toBe("three\n");
   });
 
   test("the package manifest points pi.extensions at the entry", async () => {

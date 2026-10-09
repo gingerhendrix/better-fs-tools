@@ -78,7 +78,7 @@ export interface CreateNodeFsToolsOptions<THost = undefined> {
   readonly newFileMode?: number;
   /** Mode of a directory that createParents makes, exactly. Default 0o777 less the umask. */
   readonly newDirectoryMode?: number;
-  /** Default a memory store on the bundle clock. null turns read-before-write off. */
+  /** Default null: no read-before-write. A store, for example memoryStore(), turns it on. */
   readonly state?: ReadStateStore | null;
   /** Default nodeDigest(). */
   readonly digest?: Digest;

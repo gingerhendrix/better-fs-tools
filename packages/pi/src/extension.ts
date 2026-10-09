@@ -1,7 +1,7 @@
 /**
  * Pi package extension entry. Installing the package into a Pi project
- * registers read, edit, write, and apply_patch, and nothing else. The four
- * tools share one in-memory read store, so edit and write need a read first.
+ * registers read, edit, write, and apply_patch, and nothing else. There is
+ * no read store, so edit and write do not check for a read first.
  * Nothing is written outside the process: no settings file, no session file.
  */
 import { createPiFsTools } from "./fs-tools.ts";

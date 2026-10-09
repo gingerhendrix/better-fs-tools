@@ -11,6 +11,7 @@ import {
   nodeFileSystem,
 } from "@better-fs-tools/node";
 import type { NodeFsToolsWithBash } from "@better-fs-tools/node";
+import { memoryStore } from "@better-fs-tools/read";
 import { textOf } from "@better-fs-tools/shell";
 
 async function workdir(): Promise<string> {
@@ -189,6 +190,7 @@ describe("createNodeFsTools bash", () => {
     let tools: NodeFsToolsWithBash | undefined;
     tools = createNodeFsTools({
       cwd,
+      state: memoryStore(),
       bash: {
         afterRun: [
           {

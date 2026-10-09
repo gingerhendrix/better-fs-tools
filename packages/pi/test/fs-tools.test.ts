@@ -31,9 +31,9 @@ describe("createPiFsTools", () => {
     expect(Object.isFrozen(tools)).toBe(true);
   });
 
-  test("one store: edit needs a read, then edits twice without another", async () => {
+  test("with a store, edit needs a read, then edits twice without another", async () => {
     const cwd = await fixture({ "a.txt": "one\ntwo\n" });
-    const tools = createPiFsTools();
+    const tools = createPiFsTools({ state: memoryStore() });
 
     expect(textOf(await run(tools.edit, EDIT("one", "1"), cwd))).toBe(
       "[edit:not-read] Read a.txt with the read tool before changing it.",
@@ -44,10 +44,13 @@ describe("createPiFsTools", () => {
     expect(await readFile(path.join(cwd, "a.txt"), "utf8")).toBe("1\n2\n");
   });
 
-  test("the default store expires records on the bundle clock", async () => {
+  test("a memoryStore on the bundle clock expires records", async () => {
     const cwd = await fixture({ "a.txt": "one\n" });
     let now = Date.parse("2026-09-29T00:00:00.000Z");
-    const tools = createPiFsTools({ clock: () => new Date(now) });
+    const tools = createPiFsTools({
+      state: memoryStore({ clock: () => new Date(now) }),
+      clock: () => new Date(now),
+    });
     await execute(tools.read, { path: "a.txt" }, cwd);
     expect(await tools.state?.get(path.join(cwd, "a.txt"))).not.toBeNull();
     now += 31 * 60 * 1_000;
@@ -76,7 +79,7 @@ describe("createPiFsTools", () => {
 
   test("a change on disk after the read gives STALE for write", async () => {
     const cwd = await fixture({ "a.txt": "one\n" });
-    const tools = createPiFsTools();
+    const tools = createPiFsTools({ state: memoryStore() });
     await execute(tools.read, { path: "a.txt" }, cwd);
     await writeFile(path.join(cwd, "a.txt"), "changed on disk\n");
 
@@ -87,7 +90,7 @@ describe("createPiFsTools", () => {
 
   test("apply_patch shares the store with read", async () => {
     const cwd = await fixture({ "a.txt": "a\n" });
-    const tools = createPiFsTools();
+    const tools = createPiFsTools({ state: memoryStore() });
     const patch = "*** Begin Patch\n*** Update File: a.txt\n@@\n-a\n+A\n*** End Patch";
     expect(textOf(await run(tools.applyPatch, { patch }, cwd))).toMatch(
       /^\[apply_patch:not-read\]/u,
@@ -98,9 +101,9 @@ describe("createPiFsTools", () => {
     );
   });
 
-  test("state: null turns read-before-write off for every tool", async () => {
+  test("no store by default: edit needs no read", async () => {
     const cwd = await fixture({ "a.txt": "x\n" });
-    const tools = createPiFsTools({ state: null });
+    const tools = createPiFsTools();
     const result = await run(tools.edit, EDIT("x", "y"), cwd);
     expect(textOf(result)).not.toContain("[edit:");
   });
@@ -183,11 +186,13 @@ describe("createPiFsTools", () => {
   test("exposes state, digest, locks, and clock, and takes locks and clock", () => {
     const locks = memoryLocks();
     const clock = () => new Date("2026-09-29T00:00:00.000Z");
-    const tools = createPiFsTools({ locks, clock });
-    expect(tools.state).not.toBeNull();
+    const state = memoryStore();
+    const tools = createPiFsTools({ locks, clock, state });
+    expect(tools.state).toBe(state);
     expect(tools.digest.id).toBe("sha256");
     expect(tools.locks).toBe(locks);
     expect(tools.clock).toBe(clock);
+    expect(createPiFsTools().state).toBeNull();
     expect(createPiFsTools({ state: null }).state).toBeNull();
   });
 
@@ -202,7 +207,7 @@ describe("createPiFsTools", () => {
 
   test("a bash afterRun hook can invalidate a read record with ctx.call", async () => {
     const cwd = await fixture({ "a.txt": "one\n" });
-    const tools = createPiFsTools();
+    const tools = createPiFsTools({ state: memoryStore() });
     const bash = createPiBashTool({
       afterRun: [
         {
@@ -235,7 +240,7 @@ describe("createPiFsTools", () => {
 
   test("invalidate follows the call's ctx.cwd", async () => {
     const parent = await fixture({ "a/x.txt": "a\n", "b/x.txt": "b\n" });
-    const tools = createPiFsTools();
+    const tools = createPiFsTools({ state: memoryStore() });
     await execute(tools.read, { path: "x.txt" }, path.join(parent, "a"));
     const call = { host: piContext(path.join(parent, "b")) };
     expect(await tools.invalidate("x.txt", call)).toMatchObject({ ok: true, recorded: false });
