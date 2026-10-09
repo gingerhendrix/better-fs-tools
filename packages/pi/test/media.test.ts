@@ -12,7 +12,9 @@ import type {
   ReadHookContext,
 } from "@better-fs-tools/read";
 
-import { createPiReadTool } from "../src/index.ts";
+import fsToolsExtension from "../src/extension.ts";
+import { createPiFsTools, createPiReadTool } from "../src/index.ts";
+import type { PiContentPart, PiMutationTool, PiReadTool } from "../src/index.ts";
 import { execute, fixtures, piContext, textOf } from "./helpers.ts";
 
 const fixture = fixtures();
@@ -20,6 +22,57 @@ const fixture = fixtures();
 const PNG = new Uint8Array(
   await readFile(new URL("../../read/test/fixtures/files/pixel.png", import.meta.url)),
 );
+
+const IMAGE_PART: PiContentPart = {
+  type: "image",
+  data: Buffer.from(PNG).toString("base64"),
+  mimeType: "image/png",
+};
+
+describe("pi images by default", () => {
+  test("createPiReadTool() returns an image as a Pi image part", async () => {
+    const cwd = await fixture({ "a.png": PNG });
+    const result = await execute(createPiReadTool(), { path: "a.png" }, cwd);
+    expect(result.content).toEqual([IMAGE_PART]);
+    expect(result.details).toEqual({});
+  });
+
+  test("converters: [] turns images off: the read refuses the image", async () => {
+    const cwd = await fixture({ "a.png": PNG });
+    const result = await execute(createPiReadTool({ converters: [] }), { path: "a.png" }, cwd);
+    expect(textOf(result)).toStartWith("[read:unsupported-image]");
+  });
+
+  test("a converter list without imageConverter() replaces the default", async () => {
+    const cwd = await fixture({ "a.png": PNG });
+    const tool = createPiReadTool({ converters: [directoryListing()] });
+    expect(textOf(await execute(tool, { path: "a.png" }, cwd))).toStartWith(
+      "[read:unsupported-image]",
+    );
+  });
+
+  test("createPiFsTools() reads an image; read.converters: [] turns it off", async () => {
+    const cwd = await fixture({ "a.png": PNG });
+    const on = await execute(createPiFsTools().read, { path: "a.png" }, cwd);
+    expect(on.content).toEqual([IMAGE_PART]);
+    const off = await execute(
+      createPiFsTools({ read: { converters: [] } }).read,
+      { path: "a.png" },
+      cwd,
+    );
+    expect(textOf(off)).toStartWith("[read:unsupported-image]");
+  });
+
+  test("the extension's read returns an image", async () => {
+    const registered: (PiReadTool | PiMutationTool)[] = [];
+    fsToolsExtension({
+      registerTool: (tool: PiReadTool | PiMutationTool) => registered.push(tool),
+    });
+    const read = registered[0] as PiReadTool;
+    const cwd = await fixture({ "a.png": PNG });
+    expect((await execute(read, { path: "a.png" }, cwd)).content).toEqual([IMAGE_PART]);
+  });
+});
 
 describe("pi media parts", () => {
   test("an image read becomes one Pi image part with {} details", async () => {

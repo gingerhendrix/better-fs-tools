@@ -8,12 +8,61 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 import { directoryListing, imageConverter, textOf } from "@better-fs-tools/read";
 import type { FileConverter, ReadHookContext, ReadResult } from "@better-fs-tools/read";
 
-import { createAiSdkReadTool, toAiSdkOutput } from "../src/index.ts";
+import { createAiSdkFsTools, createAiSdkReadTool, toAiSdkOutput } from "../src/index.ts";
+import type { AiSdkToolOutput } from "../src/index.ts";
 import { CLOCK, executeOptions, expectOk } from "./helpers.ts";
 
 const PNG = new Uint8Array(
   await readFile(new URL("../../read/test/fixtures/files/pixel.png", import.meta.url)),
 );
+
+const IMAGE_OUTPUT: AiSdkToolOutput = {
+  type: "content",
+  value: [
+    {
+      type: "file",
+      mediaType: "image/png",
+      data: { type: "data", data: Buffer.from(PNG).toString("base64") },
+    },
+  ],
+};
+
+describe("AI SDK images by default", () => {
+  test("createAiSdkReadTool() returns an image as a file part", async () => {
+    const read = createAiSdkReadTool({ fs: memoryFileSystem({ files: { "/a.png": PNG } }) });
+    const result = await read.execute({ path: "/a.png" }, executeOptions());
+    expect(result.status).toBe("media");
+    expect(read.toModelOutput({ output: result })).toEqual(IMAGE_OUTPUT);
+  });
+
+  test("converters: [] turns images off: the read refuses the image", async () => {
+    const read = createAiSdkReadTool({
+      fs: memoryFileSystem({ files: { "/a.png": PNG } }),
+      converters: [],
+    });
+    const result = await read.execute({ path: "/a.png" }, executeOptions());
+    expect(result.status).toBe("unsupported");
+    expect(result.notes[0]?.code).toBe("unsupported-image");
+  });
+
+  test("a converter list without imageConverter() replaces the default", async () => {
+    const read = createAiSdkReadTool({
+      fs: memoryFileSystem({ files: { "/a.png": PNG } }),
+      converters: [directoryListing()],
+    });
+    expect((await read.execute({ path: "/a.png" }, executeOptions())).status).toBe("unsupported");
+  });
+
+  test("createAiSdkFsTools() reads an image; read.converters: [] turns it off", async () => {
+    const fs = memoryFileSystem({ files: { "/a.png": PNG } });
+    const { read } = createAiSdkFsTools({ fs });
+    const result = await read.execute({ path: "/a.png" }, executeOptions());
+    expect(read.toModelOutput({ output: result })).toEqual(IMAGE_OUTPUT);
+
+    const off = createAiSdkFsTools({ fs, read: { converters: [] } }).read;
+    expect((await off.execute({ path: "/a.png" }, executeOptions())).status).toBe("unsupported");
+  });
+});
 
 describe("AI SDK media parts", () => {
   test("an image read becomes one base64 file part", async () => {

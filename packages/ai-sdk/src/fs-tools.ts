@@ -43,12 +43,15 @@ import { adaptBashTool, defaultAiSdkBashSignature } from "./bash-tool.ts";
 import type { AiSdkBashTool } from "./bash-tool.ts";
 import { adaptMutationTool, matchersOf } from "./mutation-tools.ts";
 import type { AiSdkMutationTool } from "./mutation-tools.ts";
-import { adaptReadTool } from "./tool.ts";
+import { adaptReadTool, aiSdkConverters } from "./tool.ts";
 import type { AiSdkReadTool } from "./tool.ts";
 
 type Host<C> = ToolExecutionOptions<C>;
 
-/** Read tool options for createAiSdkFsTools. Shared keys are set once at the top level. */
+/**
+ * Read tool options for createAiSdkFsTools. Shared keys are set once at the
+ * top level. converters defaults to [imageConverter()]; [] turns images off.
+ */
 export type AiSdkFsToolsReadOptions<C = unknown> = Omit<
   Partial<ReadToolDeps<Host<C>>>,
   FsToolsSharedKey
@@ -157,6 +160,7 @@ const SHARED_KEYS = {
 /**
  * Creates AI SDK read, edit, and write tools over one backend, sharing one
  * digest, lock manager, and clock, and the read store when `state` is given.
+ * read returns an image as a file part unless `read.converters` is set.
  * Needs no Node module, so it runs in a Worker. With `applyPatch`, also
  * creates an apply_patch tool. With `bash`, also creates a bash tool with the
  * same digest and clock.
@@ -215,7 +219,11 @@ export function createAiSdkFsTools<C = unknown>(
     ...(options.digest === undefined ? {} : { digest: options.digest }),
     ...(options.locks === undefined ? {} : { locks: options.locks }),
     ...(options.clock === undefined ? {} : { clock: options.clock }),
-    read: { ...read, messages: { ...readSignatureMessages(readSignature), ...read.messages } },
+    read: {
+      ...read,
+      converters: aiSdkConverters(read.converters),
+      messages: { ...readSignatureMessages(readSignature), ...read.messages },
+    },
     edit: { ...edit, messages: { ...writeSignatureMessages(editSignature), ...edit.messages } },
     write: {
       ...write,

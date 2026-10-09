@@ -4,8 +4,14 @@ import type { TSchema } from "typebox";
 
 import { nodeDigest } from "@better-fs-tools/node";
 import type { NodeFileSystemOptions } from "@better-fs-tools/node";
-import { createReadTool, lineNumberFormatter, resolveReadLimits } from "@better-fs-tools/read";
+import {
+  createReadTool,
+  imageConverter,
+  lineNumberFormatter,
+  resolveReadLimits,
+} from "@better-fs-tools/read";
 import type {
+  Converter,
   Digest,
   JsonObject,
   ReadContext,
@@ -46,7 +52,8 @@ export interface PiReadOptions {
 
 /**
  * Options for createPiReadTool. digest defaults to nodeDigest(); a state needs
- * a digest that is not null.
+ * a digest that is not null. converters defaults to [imageConverter()], as
+ * Pi's own read shows images. A list you pass replaces it: [] turns images off.
  */
 export type CreatePiReadToolOptions = Omit<ReadToolDeps<ExtensionContext>, "fs"> &
   StateNeedsDigestOrDefault &
@@ -82,7 +89,8 @@ export interface PiReadTool {
 /**
  * Creates a Pi read tool rooted at each call's ctx.cwd. Throws TypeError when
  * options set fs, cwd, or allowedRoots. It keeps no read state by default and
- * writes nothing outside the process.
+ * writes nothing outside the process. An image becomes a Pi image part unless
+ * options.converters leaves imageConverter() out.
  */
 export function createPiReadTool(options: CreatePiReadToolOptions = {}): PiReadTool {
   checkPiOptions(options, "read");
@@ -113,11 +121,15 @@ export interface PiReadParts {
   readonly limits: Readonly<ReadLimits>;
   readonly formatter: ReadFormatter<ExtensionContext>;
   readonly messages: Partial<ReadMessageCatalog>;
+  readonly converters: readonly Converter<ExtensionContext>[];
 }
 
 export function piReadParts(
   options: PiReadOptions &
-    Pick<Partial<ReadToolDeps<ExtensionContext>>, "limits" | "messages" | "formatter">,
+    Pick<
+      Partial<ReadToolDeps<ExtensionContext>>,
+      "limits" | "messages" | "formatter" | "converters"
+    >,
 ): PiReadParts {
   const signature = options.signature ?? defaultReadSignature({ name: "read" });
   return {
@@ -127,11 +139,18 @@ export function piReadParts(
     limits: resolveReadLimits(options.limits),
     formatter: options.formatter ?? lineNumberFormatter(),
     messages: { ...readSignatureMessages(signature), ...options.messages },
+    // Pi's own read returns images, so the Pi host turns them on.
+    converters: options.converters ?? [imageConverter<ExtensionContext>()],
   };
 }
 
 export function piReadDeps(parts: PiReadParts) {
-  return { limits: parts.limits, formatter: parts.formatter, messages: parts.messages };
+  return {
+    limits: parts.limits,
+    formatter: parts.formatter,
+    messages: parts.messages,
+    converters: parts.converters,
+  };
 }
 
 export function adaptPiReadTool(

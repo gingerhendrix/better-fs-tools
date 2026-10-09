@@ -10,7 +10,7 @@ npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @ea
 
 `@earendil-works/pi-coding-agent` (`^0.84.2`) and `typebox` (`^1.3.16`) are required peers. The package needs Node 24 or later.
 
-The package has a `pi.extensions` entry. When Pi loads the package, the entry registers `read`, `edit`, and `write` from `createPiFsTools()`, as Pi's own tools are. There is no read store, so `edit` and `write` do not check for a read first. Writes stay inside `ctx.cwd`. The entry writes no settings or session file.
+The package has a `pi.extensions` entry. When Pi loads the package, the entry registers `read`, `edit`, and `write` from `createPiFsTools()`, as Pi's own tools are. `read` returns images, as Pi's own `read` does. There is no read store, so `edit` and `write` do not check for a read first. Writes stay inside `ctx.cwd`. The entry writes no settings or session file.
 
 ## Example
 
@@ -71,6 +71,7 @@ export default function readExtension(pi: ExtensionAPI): void {
 - `fs`, `cwd`, and `allowedRoots` throw `TypeError`. Each call reads through `nodeFileSystem` with Pi's `ctx.cwd` as the only allowed root. When the working directory changes between calls, the root changes too. The tool keeps the filesystems for the last 8 working directories.
 - Pi's `ExtensionContext` is the host type. Host functions get it as `ctx.call.host`, for example `ctx.call.host.ui.confirm(...)` in `askUser`, or `ctx.call.host.sessionManager.getSessionId()` in a `state` factory.
 - The default signature is `defaultReadSignature({ name: "read" })`. Its schema has integer `offset` and `limit`, so a model that sends `2.5` gets Pi's validation error. `digest` defaults to `nodeDigest()`.
+- `converters` defaults to `[imageConverter()]`, as Pi's own `read` returns images. This holds for `createPiReadTool()`, `createPiFsTools()`, and the extension entry. A list you pass replaces the default, so `converters: []` turns images off, and a list without `imageConverter()` refuses images. In `createPiFsTools()` the option goes under `read`, for example `read: { converters: [] }`.
 - Image parts become Pi `image` parts. Other media becomes a text part that says what was left out.
 - `details.truncation` follows Pi's own read tool for line and byte stops. Its `content` comes from the formatter in `"view"` mode. For other results, or a formatter that returns parts, `details` is `{}`. `toPiReadDetails()` builds the details for your own tool.
 

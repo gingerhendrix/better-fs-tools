@@ -1,8 +1,14 @@
 import { jsonSchema } from "ai";
 import type { JSONSchema7, Schema, ToolExecutionOptions } from "ai";
 
-import { createReadTool, parseReadInput, resolveReadLimits } from "@better-fs-tools/read";
+import {
+  createReadTool,
+  imageConverter,
+  parseReadInput,
+  resolveReadLimits,
+} from "@better-fs-tools/read";
 import type {
+  Converter,
   JsonObject,
   ReadContext,
   ReadLimits,
@@ -18,7 +24,11 @@ import { toAiSdkOutput } from "./output.ts";
 import type { AiSdkToolOutput } from "./output.ts";
 import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
-/** Options for createAiSdkReadTool. A state store requires a digest. */
+/**
+ * Options for createAiSdkReadTool. A state store requires a digest.
+ * converters defaults to [imageConverter()]. A list you pass replaces it:
+ * [] turns images off.
+ */
 export type CreateAiSdkReadToolOptions<C = unknown> = ReadToolDeps<ToolExecutionOptions<C>> &
   StateNeedsDigest & {
     /** Defaults to defaultReadSignature(). */
@@ -37,7 +47,11 @@ export interface AiSdkReadTool<C = unknown> {
   toModelOutput(options: { output: ReadResult }): AiSdkToolOutput;
 }
 
-/** Creates an AI SDK read tool. `options.messages` override the signature's messages. */
+/**
+ * Creates an AI SDK read tool. `options.messages` override the signature's
+ * messages. An image becomes a file part unless `options.converters` leaves
+ * imageConverter() out.
+ */
 export function createAiSdkReadTool<C = unknown>(
   options: CreateAiSdkReadToolOptions<C>,
 ): AiSdkReadTool<C> {
@@ -47,9 +61,17 @@ export function createAiSdkReadTool<C = unknown>(
   const { signature = defaultReadSignature(), ...deps } = options;
   const read = createReadTool<ToolExecutionOptions<C>>({
     ...deps,
+    converters: aiSdkConverters(deps.converters),
     messages: { ...readSignatureMessages(signature), ...deps.messages },
   });
   return adaptReadTool(signature, read, deps.limits);
+}
+
+/** The host's converters, or [imageConverter()] when it passes none. */
+export function aiSdkConverters<THost>(
+  converters: readonly Converter<THost>[] | undefined,
+): readonly Converter<THost>[] {
+  return converters ?? [imageConverter<THost>()];
 }
 
 export function adaptReadTool<C>(

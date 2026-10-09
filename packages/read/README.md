@@ -372,7 +372,7 @@ A classifier only decides what a file is. A converter changes the content.
 
 ## File conversion, images, and directories
 
-`converters` is a list. It runs after classification. The first file converter whose `accepts` returns `true` handles the file. The first directory converter handles directories. With no converters, text is read, other formats are `unsupported`, and a directory gives `NOT_A_FILE`.
+`converters` is a list. It runs after classification. The first file converter whose `accepts` returns `true` handles the file. The first directory converter handles directories. With no converters, text is read, other formats are `unsupported`, and a directory gives `NOT_A_FILE`. The core has no converters by default. The Pi and AI SDK hosts add `imageConverter()` when you pass no `converters`.
 
 ```ts
 import { createNodeReadTool } from "@better-fs-tools/node";
