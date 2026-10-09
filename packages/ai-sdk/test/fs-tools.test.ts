@@ -7,6 +7,7 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 import { memoryStore, sha256Digest } from "@better-fs-tools/read";
 import type { Digest } from "@better-fs-tools/read";
 import { lineRangeSignature } from "@better-fs-tools/read/signature";
+import { freeformPatchSignature } from "@better-fs-tools/write/signature";
 import { shellEnv } from "@better-fs-tools/shell";
 import type { CommandRunner, RunExit } from "@better-fs-tools/shell";
 import { memoryLocks } from "@better-fs-tools/write";
@@ -47,13 +48,14 @@ describe("createAiSdkFsTools", () => {
     expect((await tools.edit.execute(EDIT, executeOptions())).status).toBe("ok");
   });
 
-  test("the defaults are no store, sha256Digest(), memoryLocks(), and no bash", () => {
+  test("the defaults are no store, sha256Digest(), memoryLocks(), no apply_patch, and no bash", () => {
     const tools = createAiSdkFsTools({ fs: memoryFileSystem() });
     expect(tools.state).toBeNull();
     expect(tools.digest.id).toBe(sha256Digest().id);
     expect(tools.locks.id).toBe(memoryLocks().id);
     expect(tools.bash).toBeNull();
-    expect(Object.keys(tools.tools)).toEqual(["read", "edit", "write", "apply_patch"]);
+    expect(tools.applyPatch).toBeNull();
+    expect(Object.keys(tools.tools)).toEqual(["read", "edit", "write"]);
     expect(Object.isFrozen(tools)).toBe(true);
   });
 
@@ -85,12 +87,27 @@ describe("createAiSdkFsTools", () => {
       },
     });
     expect(tools.read.name).toBe("read_file");
-    expect(Object.keys(tools.tools)).toEqual(["read_file", "edit", "write", "apply_patch"]);
+    expect(Object.keys(tools.tools)).toEqual(["read_file", "edit", "write"]);
     const result = await tools.read.execute(
       { file_path: "/a.txt", start: 2, end: null },
       executeOptions(),
     );
     expect(result.status).toBe("ok");
+  });
+
+  test("applyPatch: true or an options object adds apply_patch to tools", async () => {
+    const fs = memoryFileSystem({ files: { "/a.txt": "one\n" } });
+    const on = createAiSdkFsTools({ fs, applyPatch: true });
+    expect(on.applyPatch.name).toBe("apply_patch");
+    expect(Object.keys(on.tools)).toEqual(["read", "edit", "write", "apply_patch"]);
+    const patch = "*** Begin Patch\n*** Update File: /a.txt\n@@\n-one\n+1\n*** End Patch";
+    expect((await on.applyPatch.execute({ patch }, executeOptions())).status).toBe("ok");
+    const named = createAiSdkFsTools({
+      fs,
+      applyPatch: { signature: freeformPatchSignature({ name: "patch" }) },
+    });
+    expect(Object.keys(named.tools)).toEqual(["read", "edit", "write", "patch"]);
+    expect(createAiSdkFsTools({ fs, applyPatch: false }).applyPatch).toBeNull();
   });
 
   test("bash is on only with a runner and an env, and gets the shared digest and clock", async () => {

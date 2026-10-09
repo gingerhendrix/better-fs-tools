@@ -7,6 +7,7 @@ export type {
   AiSdkFsToolsBashOptions,
   AiSdkFsToolsEditOptions,
   AiSdkFsToolsReadOptions,
+  AiSdkFsToolsWithApplyPatch,
   AiSdkFsToolsWithBash,
   AiSdkFsToolsWriteOptions,
   CreateAiSdkFsToolsOptions,

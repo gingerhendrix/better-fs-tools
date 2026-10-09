@@ -62,11 +62,12 @@ describe("createFsTools", () => {
     expect((await tools.write({ path: "/a.txt", content: "two\n" })).status).toBe("ok");
   });
 
-  test("the defaults are no store, sha256Digest(), memoryLocks(), and no bash", async () => {
+  test("the defaults are no store, sha256Digest(), memoryLocks(), no apply_patch, and no bash", async () => {
     const defaults = createFsTools({ fs: memoryFileSystem() });
     expect(defaults.state).toBeNull();
     expect(defaults.digest.id).toBe(sha256Digest().id);
     expect(defaults.locks.id).toBe(memoryLocks().id);
+    expect(defaults.applyPatch).toBeNull();
     expect(defaults.bash).toBeNull();
     expect(Object.isFrozen(defaults)).toBe(true);
   });
@@ -80,6 +81,19 @@ describe("createFsTools", () => {
     const record = await tools.state?.get("/a.txt");
     expect(record?.contentId).toBe(sha256Digest().hash("one\n"));
     expect(Object.isFrozen(tools)).toBe(true);
+  });
+
+  test("applyPatch: true or an options object adds apply_patch; false leaves it out", async () => {
+    const fs = memoryFileSystem({ files: { "/a.txt": "one\n" } });
+    const patch = "*** Begin Patch\n*** Update File: /a.txt\n@@\n-one\n+1\n*** End Patch";
+    const on = createFsTools({ fs, applyPatch: true });
+    expect((await on.applyPatch({ patch })).status).toBe("ok");
+    const limited = createFsTools({ fs, applyPatch: { limits: { maxPatchBytes: 10 } } });
+    expect(errorOf(await limited.applyPatch({ patch }))?.code).toBe("INVALID_INPUT");
+    expect(createFsTools({ fs, applyPatch: false }).applyPatch).toBeNull();
+    expect(() => createFsTools({ fs, applyPatch: "yes" } as never)).toThrow(
+      "createFsTools applyPatch options must be an object",
+    );
   });
 
   test("a memoryStore on the bundle clock expires records", async () => {
@@ -129,6 +143,7 @@ describe("createFsTools", () => {
   test("an abort before the start is ABORTED in phase input in every tool", async () => {
     const tools = createFsTools({
       fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      applyPatch: true,
       bash: {
         runner: quietRunner(),
         env: shellEnv(),
@@ -163,6 +178,7 @@ describe("createFsTools", () => {
     const tools = createFsTools({
       fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
       state: null,
+      applyPatch: true,
       locks,
     });
     expect(tools.locks).toBe(locks);

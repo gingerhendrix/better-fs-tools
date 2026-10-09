@@ -15,6 +15,7 @@ import type {
   CreatePiApplyPatchToolOptions,
   CreatePiEditToolOptions,
   CreatePiWriteToolOptions,
+  PiMutationOptions,
   PiMutationTool,
 } from "./mutation-tools.ts";
 import { checkPiOptions, PI_ROOT_KEYS, piFileSystems } from "./roots.ts";
@@ -49,14 +50,16 @@ export interface CreatePiFsToolsOptions extends PiRootOptions {
   readonly read?: Omit<CreatePiReadToolOptions, BundleSharedKey>;
   readonly edit?: Omit<CreatePiEditToolOptions, BundleSharedKey>;
   readonly write?: Omit<CreatePiWriteToolOptions, BundleSharedKey>;
-  readonly applyPatch?: Omit<CreatePiApplyPatchToolOptions, BundleSharedKey>;
+  /** Off by default. `true` or an options object adds an apply_patch tool. */
+  readonly applyPatch?: boolean | Omit<CreatePiApplyPatchToolOptions, BundleSharedKey>;
 }
 
 export interface PiFsTools {
   readonly read: PiReadTool;
   readonly edit: PiMutationTool;
   readonly write: PiMutationTool;
-  readonly applyPatch: PiMutationTool;
+  /** null unless options.applyPatch is true or an object. */
+  readonly applyPatch: PiMutationTool | null;
   readonly state: ReadStateStore | null;
   /** options.digest, or nodeDigest(). */
   readonly digest: Digest;
@@ -71,14 +74,26 @@ export interface PiFsTools {
   invalidate(path: string, call?: ToolCallContext<ExtensionContext>): Promise<InvalidateOutcome>;
 }
 
+/** The createPiFsTools result when `applyPatch` is true or an object: it is never null. */
+export interface PiFsToolsWithApplyPatch extends PiFsTools {
+  readonly applyPatch: PiMutationTool;
+}
+
 /**
- * Creates Pi read, edit, write, and apply_patch tools rooted at each call's
- * ctx.cwd. They share one read state store, digest, lock manager, and clock.
+ * Creates Pi read, edit, and write tools rooted at each call's ctx.cwd, and
+ * an apply_patch tool when `applyPatch` is true or an object. They share one
+ * digest, lock manager, and clock, and the read store when `state` is given.
  * Throws TypeError on fs, cwd, or allowedRoots anywhere in the options, on an
  * unknown key, and on a shared option (state, digest, locks, clock, or a root
  * option) inside one tool's options. There is no bash: register
  * createPiBashTool() and call invalidate from its afterRun hook.
  */
+export function createPiFsTools(
+  options: CreatePiFsToolsOptions & {
+    readonly applyPatch: true | Omit<CreatePiApplyPatchToolOptions, BundleSharedKey>;
+  },
+): PiFsToolsWithApplyPatch;
+export function createPiFsTools(options?: CreatePiFsToolsOptions): PiFsTools;
 export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools {
   checkPiOptions(options, "fs");
   for (const key of Object.keys(options)) {
@@ -94,9 +109,15 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
     read: options.read ?? {},
     edit: options.edit ?? {},
     write: options.write ?? {},
-    applyPatch: options.applyPatch ?? {},
+    applyPatch:
+      options.applyPatch === true
+        ? {}
+        : options.applyPatch === false || options.applyPatch === undefined
+          ? null
+          : options.applyPatch,
   };
   for (const [key, value] of Object.entries(given)) {
+    if (value === null) continue;
     checkPiOptions(value, key);
     for (const shared of BUNDLE_SHARED_KEYS) {
       if (Object.hasOwn(value, shared)) {
@@ -127,18 +148,27 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
     promptGuidelines: _writeLines,
     ...write
   } = given.write;
-  const {
-    signature: _patchSignature,
-    promptSnippet: _patchSnippet,
-    promptGuidelines: _patchLines,
-    ...applyPatch
-  } = given.applyPatch;
   const parts = {
     read: piReadParts(given.read),
     edit: piEditParts(given.edit),
     write: piWriteParts(given.write),
-    applyPatch: piApplyPatchParts(given.applyPatch),
   };
+  let patch: {
+    readonly deps: Omit<
+      CreatePiApplyPatchToolOptions,
+      BundleSharedKey | keyof PiMutationOptions<unknown>
+    >;
+    readonly parts: ReturnType<typeof piApplyPatchParts>;
+  } | null = null;
+  if (given.applyPatch !== null) {
+    const {
+      signature: _patchSignature,
+      promptSnippet: _patchSnippet,
+      promptGuidelines: _patchLines,
+      ...deps
+    } = given.applyPatch;
+    patch = { deps, parts: piApplyPatchParts(given.applyPatch) };
+  }
 
   const core = createFsTools<ExtensionContext>({
     fs,
@@ -149,13 +179,16 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
     read: { ...read, ...piReadDeps(parts.read) },
     edit: { ...edit, messages: parts.edit.messages },
     write: { ...write, messages: parts.write.messages },
-    applyPatch: { ...applyPatch, messages: parts.applyPatch.messages },
+    ...(patch === null ? {} : { applyPatch: { ...patch.deps, messages: patch.parts.messages } }),
   });
   return Object.freeze<PiFsTools>({
     read: adaptPiReadTool(parts.read, core.read, core.digest),
     edit: adaptPiMutationTool(parts.edit, core.edit),
     write: adaptPiMutationTool(parts.write, core.write),
-    applyPatch: adaptPiMutationTool(parts.applyPatch, core.applyPatch),
+    applyPatch:
+      patch === null || core.applyPatch === null
+        ? null
+        : adaptPiMutationTool(patch.parts, core.applyPatch),
     state: core.state,
     digest: core.digest,
     locks: core.locks,

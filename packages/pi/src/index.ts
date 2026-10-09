@@ -8,7 +8,7 @@ export type {
 export { toPiReadDetails } from "./details.ts";
 export type { PiReadDetails, PiTruncationResult } from "./details.ts";
 export { createPiFsTools } from "./fs-tools.ts";
-export type { CreatePiFsToolsOptions, PiFsTools } from "./fs-tools.ts";
+export type { CreatePiFsToolsOptions, PiFsTools, PiFsToolsWithApplyPatch } from "./fs-tools.ts";
 export { toPiMutationDetails } from "./mutation-details.ts";
 export type { PiMutationDetails } from "./mutation-details.ts";
 export { createPiApplyPatchTool, createPiEditTool, createPiWriteTool } from "./mutation-tools.ts";

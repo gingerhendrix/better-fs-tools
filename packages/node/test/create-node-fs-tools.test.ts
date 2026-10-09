@@ -109,7 +109,7 @@ describe("createNodeFsTools on disk", () => {
 
   test("apply_patch uses the same store: an updated file needs a read first", async () => {
     const cwd = await workspace({ "app.ts": "a\nb\n" });
-    const tools = createNodeFsTools({ cwd, state: memoryStore() });
+    const tools = createNodeFsTools({ cwd, state: memoryStore(), applyPatch: true });
     const patch = ["*** Begin Patch", "*** Update File: app.ts", "@@", "-b", "+B", "*** End Patch"];
 
     expect(errorOf(await tools.applyPatch({ patch: patch.join("\n") }))?.code).toBe("NOT_READ");
@@ -151,6 +151,8 @@ describe("createNodeFsTools sharing", () => {
     expect(tools.locks).toBe(locks);
     expect(tools.state).toBe(state);
     expect(createNodeFsTools({ cwd }).state).toBeNull();
+    expect(createNodeFsTools({ cwd }).applyPatch).toBeNull();
+    expect(createNodeFsTools({ cwd, applyPatch: true }).applyPatch).not.toBeNull();
     expect(tools.fs.id).toBe("node");
     expect(Object.isFrozen(tools)).toBe(true);
   });
@@ -172,6 +174,7 @@ describe("createNodeFsTools sharing", () => {
     const tools = createNodeFsTools({
       cwd,
       state: null,
+      applyPatch: true,
       locks: {
         id: "spy",
         acquire(keys, options) {

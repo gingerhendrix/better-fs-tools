@@ -27,6 +27,12 @@ export type FsToolsSharedKey = "fs" | "state" | "digest" | "locks" | "clock";
 /** The bash tool's options, without the digest and clock that the bundle shares. */
 export type FsToolsBashOptions<THost = undefined> = Omit<ShellToolDeps<THost>, "digest" | "clock">;
 
+/** The apply_patch tool's options, without the options that the bundle shares. */
+export type FsToolsApplyPatchOptions<THost = undefined> = Omit<
+  Partial<ApplyPatchToolDeps<THost>>,
+  FsToolsSharedKey
+>;
+
 export interface CreateFsToolsOptions<THost = undefined> {
   /** Required. A backend, or a factory called once for each call. */
   readonly fs: WritableFileSystem | ((call: ToolCallContext<THost>) => WritableFileSystem);
@@ -44,7 +50,11 @@ export interface CreateFsToolsOptions<THost = undefined> {
   readonly read?: Omit<Partial<ReadToolDeps<THost>>, FsToolsSharedKey>;
   readonly edit?: Omit<Partial<EditToolDeps<THost>>, FsToolsSharedKey>;
   readonly write?: Omit<Partial<WriteToolDeps<THost>>, FsToolsSharedKey>;
-  readonly applyPatch?: Omit<Partial<ApplyPatchToolDeps<THost>>, FsToolsSharedKey>;
+  /**
+   * Off by default. `true` or an options object adds an apply_patch tool.
+   * `false` is the same as leaving it out.
+   */
+  readonly applyPatch?: boolean | FsToolsApplyPatchOptions<THost>;
   /**
    * Off by default. The bash tool's options, with `runner` and `env` required.
    * `false` is the same as leaving it out.
@@ -56,7 +66,8 @@ export interface FsTools<THost = undefined> {
   readonly read: ReadTool<THost>;
   readonly edit: EditTool<THost>;
   readonly write: WriteTool<THost>;
-  readonly applyPatch: ApplyPatchTool<THost>;
+  /** null unless options.applyPatch is true or an object. */
+  readonly applyPatch: ApplyPatchTool<THost> | null;
   /** null unless options.bash is set. It does not share the read state: see invalidate. */
   readonly bash: BashTool<THost> | null;
   readonly fs: CreateFsToolsOptions<THost>["fs"];
@@ -75,6 +86,11 @@ export interface FsTools<THost = undefined> {
 /** The result when options.bash is an object: bash is there. */
 export interface FsToolsWithBash<THost = undefined> extends FsTools<THost> {
   readonly bash: BashTool<THost>;
+}
+
+/** The result when options.applyPatch is true or an object: applyPatch is there. */
+export interface FsToolsWithApplyPatch<THost = undefined> extends FsTools<THost> {
+  readonly applyPatch: ApplyPatchTool<THost>;
 }
 
 const KNOWN_OPTION_KEYS: ReadonlySet<string> = new Set([
@@ -105,9 +121,10 @@ const EMPTY_STATE_STORE: ReadStateStore = Object.freeze({
 });
 
 /**
- * Creates read, edit, write, and apply_patch tools over one backend, sharing
- * one read store, digest, lock manager, and clock. With `bash`, also a bash
- * tool with the same digest and clock. Needs no Node APIs.
+ * Creates read, edit, and write tools over one backend, sharing one digest,
+ * lock manager, and clock, and the read store when `state` is given. With
+ * `applyPatch`, also an apply_patch tool. With `bash`, also a bash tool with
+ * the same digest and clock. Needs no Node APIs.
  *
  * A bash command is not limited by the backend's roots and does not update the
  * read state. To make the next edit after a command need a read, call
@@ -117,8 +134,19 @@ const EMPTY_STATE_STORE: ReadStateStore = Object.freeze({
  * options, or anything a tool factory refuses.
  */
 export function createFsTools<THost = undefined>(
+  options: CreateFsToolsOptions<THost> & {
+    readonly bash: FsToolsBashOptions<THost>;
+    readonly applyPatch: true | FsToolsApplyPatchOptions<THost>;
+  },
+): FsToolsWithBash<THost> & FsToolsWithApplyPatch<THost>;
+export function createFsTools<THost = undefined>(
   options: CreateFsToolsOptions<THost> & { readonly bash: FsToolsBashOptions<THost> },
 ): FsToolsWithBash<THost>;
+export function createFsTools<THost = undefined>(
+  options: CreateFsToolsOptions<THost> & {
+    readonly applyPatch: true | FsToolsApplyPatchOptions<THost>;
+  },
+): FsToolsWithApplyPatch<THost>;
 export function createFsTools<THost = undefined>(
   options: CreateFsToolsOptions<THost>,
 ): FsTools<THost>;
@@ -132,6 +160,7 @@ export function createFsTools<THost = undefined>(
   const digest = options.digest ?? sha256Digest();
   const locks = options.locks ?? memoryLocks();
   const shared = { fs, state, digest, clock };
+  const applyPatch = options.applyPatch === true ? {} : (options.applyPatch ?? false);
   const bash = options.bash === undefined || options.bash === false ? null : options.bash;
   if ((bash as unknown) === true) {
     throw new TypeError(
@@ -143,7 +172,10 @@ export function createFsTools<THost = undefined>(
     read: createReadTool<THost>({ ...options.read, ...shared }),
     edit: createEditTool<THost>({ ...options.edit, ...shared, locks }),
     write: createWriteTool<THost>({ ...options.write, ...shared, locks }),
-    applyPatch: createApplyPatchTool<THost>({ ...options.applyPatch, ...shared, locks }),
+    applyPatch:
+      applyPatch === false
+        ? null
+        : createApplyPatchTool<THost>({ ...applyPatch, ...shared, locks }),
     bash: bash === null ? null : createBashTool<THost>({ ...bash, digest, clock }),
     fs,
     state,
@@ -174,7 +206,8 @@ function checkFsToolsOptions(
   }
   for (const [tool, keys] of Object.entries(sharedKeys)) {
     const part: unknown = (options as Record<string, unknown>)[tool];
-    if (part === undefined || (tool === "bash" && typeof part === "boolean")) continue;
+    if (part === undefined) continue;
+    if ((tool === "bash" || tool === "applyPatch") && typeof part === "boolean") continue;
     if (part === null || typeof part !== "object" || Array.isArray(part)) {
       throw new TypeError(`${label} ${tool} options must be an object`);
     }

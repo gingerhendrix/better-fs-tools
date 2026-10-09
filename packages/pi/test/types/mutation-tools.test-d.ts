@@ -25,7 +25,7 @@ declare const tool: PiMutationTool;
 export const definition: ToolDefinition<TSchema, PiMutationDetails | undefined> = tool;
 declare const api: ExtensionAPI;
 api.registerTool(tool);
-const tools = createPiFsTools();
+const tools = createPiFsTools({ applyPatch: true });
 api.registerTool(tools.read);
 api.registerTool(tools.edit);
 api.registerTool(tools.write);

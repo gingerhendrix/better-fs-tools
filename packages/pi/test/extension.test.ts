@@ -17,20 +17,19 @@ const PACKAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), ".."
 const EXTENSION_SOURCE = path.join(PACKAGE_DIR, "src", "extension.ts");
 
 describe("pi extension", () => {
-  test("registers read, edit, write, and apply_patch, with no renderers", () => {
+  test("registers read, edit, and write, with no renderers", () => {
     const registered: (PiReadTool | PiMutationTool)[] = [];
     fsToolsExtension({
       registerTool: (tool: PiReadTool | PiMutationTool) => registered.push(tool),
     });
 
-    expect(registered.map((tool) => tool.name)).toEqual(["read", "edit", "write", "apply_patch"]);
+    expect(registered.map((tool) => tool.name)).toEqual(["read", "edit", "write"]);
     for (const tool of registered) {
       expect(Object.hasOwn(tool, "renderCall")).toBe(false);
       expect(Object.hasOwn(tool, "renderResult")).toBe(false);
     }
     const edit = registered[1]?.parameters as { properties?: object } | undefined;
     expect(Object.keys(edit?.properties ?? {})).toEqual(["path", "edits"]);
-    expect((registered[3] as PiMutationTool).constrainedSampling?.type).toBe("grammar");
   });
 
   test("the registered tools keep no store: edit needs no read", async () => {
@@ -94,7 +93,7 @@ describe("pi extension", () => {
         expect(loaded.extensions).toHaveLength(1);
 
         const tools = loaded.extensions[0]?.tools;
-        expect([...(tools?.keys() ?? [])]).toEqual(["read", "edit", "write", "apply_patch"]);
+        expect([...(tools?.keys() ?? [])]).toEqual(["read", "edit", "write"]);
         const definition = tools?.get("read")?.definition;
         if (definition === undefined) throw new Error("the read tool was not registered");
 

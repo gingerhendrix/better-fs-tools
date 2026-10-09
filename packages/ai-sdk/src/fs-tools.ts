@@ -97,7 +97,8 @@ export interface CreateAiSdkFsToolsOptions<C = unknown> {
   readonly read?: AiSdkFsToolsReadOptions<C>;
   readonly edit?: AiSdkFsToolsEditOptions<C>;
   readonly write?: AiSdkFsToolsWriteOptions<C>;
-  readonly applyPatch?: AiSdkFsToolsApplyPatchOptions<C>;
+  /** Off by default. `true` or an options object adds an apply_patch tool. */
+  readonly applyPatch?: boolean | AiSdkFsToolsApplyPatchOptions<C>;
   /** Off by default. This package starts no process: give a runner and an env to turn bash on. */
   readonly bash?: false | AiSdkFsToolsBashOptions<C>;
 }
@@ -106,7 +107,8 @@ export interface AiSdkFsTools<C = unknown> {
   readonly read: AiSdkReadTool<C>;
   readonly edit: AiSdkMutationTool<C>;
   readonly write: AiSdkMutationTool<C>;
-  readonly applyPatch: AiSdkMutationTool<C>;
+  /** null unless options.applyPatch is true or an object. */
+  readonly applyPatch: AiSdkMutationTool<C> | null;
   /** null unless options.bash is set. */
   readonly bash: AiSdkBashTool<C> | null;
   /** Every tool of the bundle keyed by its name, ready for generateText({ tools }). */
@@ -124,6 +126,11 @@ export interface AiSdkFsTools<C = unknown> {
 /** The createAiSdkFsTools result when `bash` is set: `bash` is never null. */
 export interface AiSdkFsToolsWithBash<C = unknown> extends AiSdkFsTools<C> {
   readonly bash: AiSdkBashTool<C>;
+}
+
+/** The createAiSdkFsTools result when `applyPatch` is true or an object: it is never null. */
+export interface AiSdkFsToolsWithApplyPatch<C = unknown> extends AiSdkFsTools<C> {
+  readonly applyPatch: AiSdkMutationTool<C>;
 }
 
 const KNOWN: ReadonlySet<string> = new Set([
@@ -148,17 +155,29 @@ const SHARED_KEYS = {
 } as const;
 
 /**
- * Creates AI SDK read, edit, write, and apply_patch tools over one backend,
- * sharing one read state store, digest, lock manager, and clock. Needs no
- * Node module, so it runs in a Worker. With `bash`, also creates a bash tool
- * with the same digest and clock.
+ * Creates AI SDK read, edit, and write tools over one backend, sharing one
+ * digest, lock manager, and clock, and the read store when `state` is given.
+ * Needs no Node module, so it runs in a Worker. With `applyPatch`, also
+ * creates an apply_patch tool. With `bash`, also creates a bash tool with the
+ * same digest and clock.
  *
  * Throws TypeError on an unknown option key, and on a shared key (fs, state,
  * digest, locks, clock) inside a tool's options.
  */
 export function createAiSdkFsTools<C = unknown>(
+  options: CreateAiSdkFsToolsOptions<C> & {
+    readonly bash: AiSdkFsToolsBashOptions<C>;
+    readonly applyPatch: true | AiSdkFsToolsApplyPatchOptions<C>;
+  },
+): AiSdkFsToolsWithBash<C> & AiSdkFsToolsWithApplyPatch<C>;
+export function createAiSdkFsTools<C = unknown>(
   options: CreateAiSdkFsToolsOptions<C> & { readonly bash: AiSdkFsToolsBashOptions<C> },
 ): AiSdkFsToolsWithBash<C>;
+export function createAiSdkFsTools<C = unknown>(
+  options: CreateAiSdkFsToolsOptions<C> & {
+    readonly applyPatch: true | AiSdkFsToolsApplyPatchOptions<C>;
+  },
+): AiSdkFsToolsWithApplyPatch<C>;
 export function createAiSdkFsTools<C = unknown>(
   options: CreateAiSdkFsToolsOptions<C>,
 ): AiSdkFsTools<C>;
@@ -170,8 +189,16 @@ export function createAiSdkFsTools<C = unknown>(
   const { signature: editGiven, ...edit } = options.edit ?? {};
   const editSignature = editGiven ?? defaultEditSignature(matchersOf(edit.matchers));
   const { signature: writeSignature = defaultWriteSignature(), ...write } = options.write ?? {};
-  const { signature: patchSignature = defaultPatchSignature(), ...applyPatch } =
-    options.applyPatch ?? {};
+  const patchOptions =
+    options.applyPatch === true ? {} : options.applyPatch === false ? null : options.applyPatch;
+  let patch: {
+    readonly deps: Omit<AiSdkFsToolsApplyPatchOptions<C>, "signature">;
+    readonly signature: PatchSignature;
+  } | null = null;
+  if (patchOptions !== null && patchOptions !== undefined) {
+    const { signature = defaultPatchSignature(), ...deps } = patchOptions;
+    patch = { deps, signature };
+  }
   const bashOptions = options.bash === undefined || options.bash === false ? null : options.bash;
   let bash: {
     readonly deps: FsToolsBashOptions<Host<C>>;
@@ -194,10 +221,14 @@ export function createAiSdkFsTools<C = unknown>(
       ...write,
       messages: { ...writeSignatureMessages(writeSignature), ...write.messages },
     },
-    applyPatch: {
-      ...applyPatch,
-      messages: { ...writeSignatureMessages(patchSignature), ...applyPatch.messages },
-    },
+    ...(patch === null
+      ? {}
+      : {
+          applyPatch: {
+            ...patch.deps,
+            messages: { ...writeSignatureMessages(patch.signature), ...patch.deps.messages },
+          },
+        }),
     ...(bash === null
       ? {}
       : {
@@ -212,12 +243,15 @@ export function createAiSdkFsTools<C = unknown>(
     read: adaptReadTool<C>(readSignature, core.read, read.limits),
     edit: adaptMutationTool(editSignature, core.edit, parseEditInput, edit.limits),
     write: adaptMutationTool(writeSignature, core.write, parseWriteInput, write.limits),
-    applyPatch: adaptMutationTool(
-      patchSignature,
-      core.applyPatch,
-      parseApplyPatchInput,
-      applyPatch.limits,
-    ),
+    applyPatch:
+      patch === null || core.applyPatch === null
+        ? null
+        : adaptMutationTool(
+            patch.signature,
+            core.applyPatch,
+            parseApplyPatchInput,
+            patch.deps.limits,
+          ),
     bash:
       bash === null || core.bash === null
         ? null
@@ -258,6 +292,7 @@ function checkOptions(options: unknown): void {
   for (const [tool, keys] of Object.entries(SHARED_KEYS)) {
     const part: unknown = (options as Record<string, unknown>)[tool];
     if (part === undefined || (tool === "bash" && part === false)) continue;
+    if (tool === "applyPatch" && typeof part === "boolean") continue;
     if (tool === "bash" && part === true) {
       throw new TypeError(
         "createAiSdkFsTools bash must be an object with a runner and an env: the portable bundle has no default runner",

@@ -6,6 +6,7 @@ export type {
   CreateNodeFsToolsOptions,
   NodeFsTools,
   NodeFsToolsBashOptions,
+  NodeFsToolsWithApplyPatch,
   NodeFsToolsWithBash,
 } from "./create-node-fs-tools.ts";
 export { createNodeReadTool } from "./create-node-read-tool.ts";

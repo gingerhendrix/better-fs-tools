@@ -20,15 +20,17 @@ const EDIT = (oldText: string, newText: string) => ({
 });
 
 describe("createPiFsTools", () => {
-  test("gives read, edit, write, and apply_patch", () => {
+  test("gives read, edit, and write; apply_patch only on request", () => {
     const tools = createPiFsTools();
-    expect([tools.read, tools.edit, tools.write, tools.applyPatch].map((t) => t.name)).toEqual([
+    expect([tools.read, tools.edit, tools.write].map((t) => t.name)).toEqual([
       "read",
       "edit",
       "write",
-      "apply_patch",
     ]);
+    expect(tools.applyPatch).toBeNull();
     expect(Object.isFrozen(tools)).toBe(true);
+    expect(createPiFsTools({ applyPatch: true }).applyPatch.name).toBe("apply_patch");
+    expect(createPiFsTools({ applyPatch: false }).applyPatch).toBeNull();
   });
 
   test("with a store, edit needs a read, then edits twice without another", async () => {
@@ -90,7 +92,7 @@ describe("createPiFsTools", () => {
 
   test("apply_patch shares the store with read", async () => {
     const cwd = await fixture({ "a.txt": "a\n" });
-    const tools = createPiFsTools({ state: memoryStore() });
+    const tools = createPiFsTools({ state: memoryStore(), applyPatch: true });
     const patch = "*** Begin Patch\n*** Update File: a.txt\n@@\n-a\n+A\n*** End Patch";
     expect(textOf(await run(tools.applyPatch, { patch }, cwd))).toMatch(
       /^\[apply_patch:not-read\]/u,

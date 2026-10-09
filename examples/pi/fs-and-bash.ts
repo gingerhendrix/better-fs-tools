@@ -1,10 +1,12 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createPiBashTool, createPiFsTools } from "@better-fs-tools/pi";
+import { memoryStore } from "@better-fs-tools/read";
 
-// The four file tools and Pi-shaped bash. After each command, the next edit of
-// package.json needs a read, since the command may have changed it.
+// The file tools with a read store, and Pi-shaped bash. After each command,
+// the next edit of package.json needs a read, since the command may have
+// changed it.
 export default function fsAndBashExtension(pi: ExtensionAPI): void {
-  const tools = createPiFsTools();
+  const tools = createPiFsTools({ state: memoryStore() });
   const bash = createPiBashTool({
     afterRun: [
       {
@@ -20,6 +22,5 @@ export default function fsAndBashExtension(pi: ExtensionAPI): void {
   pi.registerTool(tools.read);
   pi.registerTool(tools.edit);
   pi.registerTool(tools.write);
-  pi.registerTool(tools.applyPatch);
   pi.registerTool(bash);
 }

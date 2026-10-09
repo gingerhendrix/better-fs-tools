@@ -89,7 +89,8 @@ export interface CreateNodeFsToolsOptions<THost = undefined> {
   readonly read?: Omit<Partial<ReadToolDeps<THost>>, FsToolsSharedKey>;
   readonly edit?: Omit<Partial<EditToolDeps<THost>>, FsToolsSharedKey>;
   readonly write?: Omit<Partial<WriteToolDeps<THost>>, FsToolsSharedKey>;
-  readonly applyPatch?: Omit<Partial<ApplyPatchToolDeps<THost>>, FsToolsSharedKey>;
+  /** `true` or an options object adds an apply_patch tool. Off by default. */
+  readonly applyPatch?: boolean | Omit<Partial<ApplyPatchToolDeps<THost>>, FsToolsSharedKey>;
   /**
    * `true` or an options object adds a bash tool. Off by default. The runner
    * defaults to nodeCommandRunner({ cwd }), and env to
@@ -103,7 +104,8 @@ export interface NodeFsTools<THost = undefined> {
   readonly read: ReadTool<THost>;
   readonly edit: EditTool<THost>;
   readonly write: WriteTool<THost>;
-  readonly applyPatch: ApplyPatchTool<THost>;
+  /** null unless options.applyPatch is true or an object. */
+  readonly applyPatch: ApplyPatchTool<THost> | null;
   /** null unless options.bash is set. Runs in cwd. It does not share the read state: see invalidate. */
   readonly bash: BashTool<THost> | null;
   readonly fs: NodeFileSystem;
@@ -123,18 +125,35 @@ export interface NodeFsToolsWithBash<THost = undefined> extends NodeFsTools<THos
   readonly bash: BashTool<THost>;
 }
 
+/** The result when options.applyPatch is true or an object: applyPatch is there. */
+export interface NodeFsToolsWithApplyPatch<THost = undefined> extends NodeFsTools<THost> {
+  readonly applyPatch: ApplyPatchTool<THost>;
+}
+
 /**
- * Creates read, edit, write, and apply_patch tools over one local filesystem.
- * They share one read state store, digest, lock manager, and clock. With
- * `bash`, adds a bash tool in the same cwd. The allowed roots do not limit
+ * Creates read, edit, and write tools over one local filesystem. They share
+ * one digest, lock manager, and clock, and the read store when `state` is
+ * given. With `applyPatch`, adds an apply_patch tool. With `bash`, adds a bash
+ * tool in the same cwd. The allowed roots do not limit
  * what a bash command touches. To make the next edit after a command need a
  * read, call invalidate(path) from a bash afterRun hook.
  */
 export function createNodeFsTools<THost = undefined>(
   options: CreateNodeFsToolsOptions<THost> & {
     readonly bash: true | NodeFsToolsBashOptions<THost>;
+    readonly applyPatch: true | Omit<Partial<ApplyPatchToolDeps<THost>>, FsToolsSharedKey>;
+  },
+): NodeFsToolsWithBash<THost> & NodeFsToolsWithApplyPatch<THost>;
+export function createNodeFsTools<THost = undefined>(
+  options: CreateNodeFsToolsOptions<THost> & {
+    readonly bash: true | NodeFsToolsBashOptions<THost>;
   },
 ): NodeFsToolsWithBash<THost>;
+export function createNodeFsTools<THost = undefined>(
+  options: CreateNodeFsToolsOptions<THost> & {
+    readonly applyPatch: true | Omit<Partial<ApplyPatchToolDeps<THost>>, FsToolsSharedKey>;
+  },
+): NodeFsToolsWithApplyPatch<THost>;
 export function createNodeFsTools<THost = undefined>(
   options?: CreateNodeFsToolsOptions<THost>,
 ): NodeFsTools<THost>;
@@ -191,7 +210,8 @@ function checkOptions(options: unknown): void {
   }
   for (const [tool, keys] of Object.entries(BUNDLE_SHARED_KEYS_BY_TOOL)) {
     const part: unknown = (options as Record<string, unknown>)[tool];
-    if (part === undefined || (tool === "bash" && typeof part === "boolean")) continue;
+    if (part === undefined) continue;
+    if ((tool === "bash" || tool === "applyPatch") && typeof part === "boolean") continue;
     if (part === null || typeof part !== "object" || Array.isArray(part)) {
       throw new TypeError(`createNodeFsTools ${tool} options must be an object`);
     }

@@ -97,8 +97,10 @@ export { createFsTools } from "./bundle/create-fs-tools.ts";
 export type {
   CreateFsToolsOptions,
   FsTools,
+  FsToolsApplyPatchOptions,
   FsToolsBashOptions,
   FsToolsSharedKey,
+  FsToolsWithApplyPatch,
   FsToolsWithBash,
 } from "./bundle/create-fs-tools.ts";
 export { createInvalidator } from "./state/index.ts";
