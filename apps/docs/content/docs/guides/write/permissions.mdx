@@ -94,6 +94,8 @@ const noDeletes: WriteAuthorizer<unknown> = {
 [apply_patch:denied] src/old.ts was refused by policy (deletes are off).
 ```
 
+Only `apply_patch` deletes files. The bundles create it only when you set `applyPatch: true`. See [Apply patches](/guides/write/patches).
+
 | `target` field  | Holds                                                                        |
 | --------------- | ---------------------------------------------------------------------------- |
 | `action`        | `"create"`, `"update"`, `"delete"`, or `"move"`                              |

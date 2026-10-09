@@ -23,6 +23,17 @@ A src/names.ts
 D src/old.ts
 ```
 
+`createApplyPatchTool()` always creates the tool. The bundles, such as `createFsTools()`, `createNodeFsTools()`, `createAiSdkFsTools()`, and `createPiFsTools()`, create only `read`, `edit`, and `write` by default. Set `applyPatch: true`, or an object with the options of the tool, to also create `apply_patch`:
+
+```ts
+import { createNodeFsTools } from "@better-fs-tools/node";
+
+const tools = createNodeFsTools({ applyPatch: true });
+await tools.applyPatch({ patch });
+```
+
+The Pi extension entry registers only `read`, `edit`, and `write`. To give Pi `apply_patch`, register the tools from your own extension. See [Pi](/hosts/pi).
+
 ## The patch format
 
 A patch starts with `*** Begin Patch` and ends with `*** End Patch`. Between them are operations:

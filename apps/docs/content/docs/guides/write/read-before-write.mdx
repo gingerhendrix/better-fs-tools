@@ -3,7 +3,7 @@ title: Read before write
 description: Refuse changes to files the model has not read or that changed after the read, with the state of the read tool.
 ---
 
-The read tool stores a record of each read in its `state`. The write tools look up that record before they change a file that exists. The default `state` is `null`, so a write tool on its own does not check. It changes a file that the model has not read, and adds no note.
+The read tool stores a record of each read in its `state`. The write tools look up that record before they change a file that exists. The default `state` is `null`, on the single factories and on the bundles. Then the tools do not check. They change a file that the model has not read, and add no note. The tool descriptions still tell the model to read a file before it changes it.
 
 ## Share the store with the read tool
 
@@ -35,12 +35,12 @@ Give the write tools one `locks` too. The lock stops two calls from changing one
 
 ## What counts as a read
 
-| Case                            | `edit` and `apply_patch`                                             | `write`        |
-| ------------------------------- | -------------------------------------------------------------------- | -------------- |
-| The file is new                 | No read needed                                                       | No read needed |
-| No record                       | `NOT_READ`                                                           | `NOT_READ`     |
-| The model read part of the file | Goes on                                                              | `NOT_READ`     |
-| The file changed after the read | Goes on when every old text still matches exactly once. Else `STALE` | `STALE`        |
+| Case                            | `edit` and `apply_patch` | `write`        |
+| ------------------------------- | ------------------------ | -------------- |
+| The file is new                 | No read needed           | No read needed |
+| No record                       | `NOT_READ`               | `NOT_READ`     |
+| The model read part of the file | Goes on                  | `NOT_READ`     |
+| The file changed after the read | `STALE`                  | `STALE`        |
 
 `write` replaces the whole file, so it needs a read of the whole file:
 
@@ -48,13 +48,13 @@ Give the write tools one `locks` too. The lock stops two calls from changing one
 [write:not-read] Read all of src/greet.ts before replacing it. A partial read is not enough for write.
 ```
 
-When the file changed after the read, `edit` and `apply_patch` check the old text against the new file. If it still matches, the change goes on with a note:
+When the file changed after the read, the call fails with `STALE`:
 
 ```text
-[edit:stale-rematched] src/greet.ts changed since it was last read, but every old text still matched exactly once, so the edit was applied.
+[edit:stale] src/greet.ts changed since it was last read. Read it again, then retry.
 ```
 
-After a change, the tool stores a new record, so the model can change the file again with no new read. When the model has not seen the new text, the next `write` needs a read. This is the case when the user changed the content in [`askBeforeWrite()`](/guides/write/permissions#ask-the-user), when a hook rewrote the file, or after a stale edit. A `no-change` result stores nothing.
+After a change, the tool stores a new record, so the model can change the file again with no new read. When the model has not seen the new text, the next `write` needs a read. This is the case when the user changed the content in [`askBeforeWrite()`](/guides/write/permissions#ask-the-user), when a hook rewrote the file, or after a stale edit with `onStale: "rematch"`. A `no-change` result stores nothing.
 
 `memoryStore()` keeps 1,000 records for 30 minutes. After that, the model must read the file again. A failed store call counts as no record.
 
@@ -63,22 +63,24 @@ After a change, the tool stores a new record, so the model can change the file a
 Set `preconditions` with the rules you want to change. The other rules keep their defaults:
 
 ```ts
-const edit = createEditTool({ ...shared, preconditions: { onStale: "reject" } });
+const edit = createEditTool({ ...shared, locks, preconditions: { onStale: "rematch" } });
 ```
 
+With `onStale: "rematch"`, `edit` and `apply_patch` check the old text against the changed file. When every old text still matches exactly once, the change goes on with a note:
+
 ```text
-[edit:stale] src/greet.ts changed since it was last read. Read it again, then retry.
+[edit:stale-rematched] src/greet.ts changed since it was last read, but every old text still matched exactly once, so the edit was applied.
 ```
 
 | Rule          | Default       | Values                                                                                                                                      |
 | ------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `requireRead` | `"existing"`  | `"existing"` needs a record for a file that exists. `"off"` turns the check off                                                             |
 | `partialRead` | `"edit-only"` | Which tools accept a read of part of the file: `"edit-only"` for `edit` and `apply_patch`, `"always"`, or `"never"`                         |
-| `onStale`     | `"rematch"`   | `"rematch"` lets `edit` and `apply_patch` go on when the old text still matches. `"reject"` returns `STALE`. `write` always returns `STALE` |
+| `onStale`     | `"reject"`    | `"reject"` returns `STALE`. `"rematch"` lets `edit` and `apply_patch` go on when the old text still matches. `write` always returns `STALE` |
 
 ## Forget a read
 
-Other tools can change a file and leave the record in place. For example, a `bash` command can run `sed -i`. The write tools still find that the file changed and use the stale rules above. To make the next change need a new read, delete the record with `createInvalidator()`:
+Other tools can change a file and leave the record in place. For example, a `bash` command can run `sed -i`. The write tools still find that the file changed, and return `STALE`. To make the next change need a new read, delete the record with `createInvalidator()`:
 
 ```ts
 import { createInvalidator } from "@better-fs-tools/write";
@@ -93,12 +95,16 @@ On success, `outcome.recorded` tells you if there was a record. `invalidate` nev
 
 ## Use one bundle
 
-`createFsTools()` creates `read`, `edit`, `write`, and `applyPatch` with one `state`, one `digest`, one `locks`, and one `clock`. The default `state` is a `memoryStore()`, and the default `digest` is `sha256Digest()`:
+`createFsTools()` creates `read`, `edit`, and `write` with one `state`, one `digest`, one `locks`, and one `clock`. The default `state` is `null`, and the default `digest` is `sha256Digest()`. Set `state: memoryStore()` to turn on read before write. Set `applyPatch: true` to also create `apply_patch`:
 
 ```ts
 import { createFsTools } from "@better-fs-tools/write";
 
-const { read, edit, write, applyPatch, invalidate } = createFsTools({ fs });
+const { read, edit, write, applyPatch, invalidate } = createFsTools({
+  fs,
+  state: memoryStore(),
+  applyPatch: true,
+});
 ```
 
 A bundle takes one store, not a function of the call. To use one store for each session, use the single factories with `state` set to a function, as on the [read tool](/guides/read/hooks-and-state#use-one-store-for-each-session). See [One bundle for all tools](/guides/one-bundle).

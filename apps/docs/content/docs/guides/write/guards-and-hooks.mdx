@@ -7,9 +7,9 @@ description: Refuse damaged changes before a write with guards, and run your own
 
 A guard checks each planned change before the tool writes it. The first guard that refuses stops the call with `GUARD_REFUSED`, and no file changes. The note tells the model how to fix the change.
 
-### The default guards
+### The recommended guards
 
-The default `guards` is `defaultGuards()`:
+The default `guards` is `[]`, so no guard runs. `defaultGuards()` returns the same empty list. `recommendedGuards()` returns five guards:
 
 | Guard                     | Refuses                                                            |
 | ------------------------- | ------------------------------------------------------------------ |
@@ -19,23 +19,52 @@ The default `guards` is `defaultGuards()`:
 | `syntaxGuard()`           | A change that makes a valid `.json` file invalid                   |
 | `nonTextGuard()`          | New content that the classifiers do not find to be text            |
 
+Set `guards` to turn them on:
+
+```ts
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createEditTool, recommendedGuards } from "@better-fs-tools/write";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const edit = createEditTool({ fs, guards: recommendedGuards() });
+```
+
 Each guard lets through text that is already in the file, and a file that was already broken:
 
 ```text
 [edit:guard-refused] The change would make package.json invalid JSON, and it was valid before. Fix the newText and retry. The parser said: JSON Parse error: Property name must be a string literal
 ```
 
-### Change the guards
+### Refuse notebooks
 
-Setting `guards` replaces the whole list. Keep `...defaultGuards()` in the list, and add guards after it. Set `guards: []` to turn the guards off:
+The default classifiers read a Jupyter notebook as JSON text, so `nonTextGuard()` lets a `.ipynb` file through. To refuse notebooks, put `notebookClassifier()` before the default classifiers:
 
 ```ts
-import { nodeFileSystem } from "@better-fs-tools/node";
-import { createWriteTool, defaultGuards, generatedFileGuard } from "@better-fs-tools/write";
+import { defaultClassifiers, notebookClassifier } from "@better-fs-tools/read";
 
-const cwd = process.cwd();
-const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
-const write = createWriteTool({ fs, guards: [...defaultGuards(), generatedFileGuard()] });
+const edit = createEditTool({
+  fs,
+  guards: recommendedGuards(),
+  classifiers: [notebookClassifier(), ...defaultClassifiers()],
+});
+```
+
+An existing notebook then returns `NOT_TEXT`. A `write` tool with the same options refuses a new notebook in `nonTextGuard()`:
+
+```text
+[edit:not-text] demo.ipynb is not a text file (NOTEBOOK), so it cannot be changed with this tool.
+[write:guard-refused] The new content for new.ipynb is not plain text (NOTEBOOK), so this tool will not write it. Send text content, or use a tool made for this kind of file.
+```
+
+### Change the guards
+
+Setting `guards` replaces the whole list. To keep the recommended guards, put `...recommendedGuards()` in the list, and add guards after it:
+
+```ts
+import { createWriteTool, generatedFileGuard } from "@better-fs-tools/write";
+
+const write = createWriteTool({ fs, guards: [...recommendedGuards(), generatedFileGuard()] });
 ```
 
 ```text
@@ -44,7 +73,7 @@ const write = createWriteTool({ fs, guards: [...defaultGuards(), generatedFileGu
 
 `generatedFileGuard()` refuses changes to files with names such as `*.min.*` and `*.generated.*`, or with `@generated` or `DO NOT EDIT` near the top. It allows a new file.
 
-To check more file types, give `syntaxGuard()` a parser for each extension. A parser throws on bad text. Replace the default `syntaxGuard()`, so the list has one syntax guard:
+To check more file types, give `syntaxGuard()` a parser for each extension. A parser throws on bad text. Replace the recommended `syntaxGuard()`, so the list has one syntax guard:
 
 ```ts
 import { syntaxGuard } from "@better-fs-tools/write";
@@ -52,7 +81,7 @@ import { syntaxGuard } from "@better-fs-tools/write";
 declare function parseYaml(text: string): unknown;
 
 const guards = [
-  ...defaultGuards().filter((guard) => guard.id !== "syntax"),
+  ...recommendedGuards().filter((guard) => guard.id !== "syntax"),
   syntaxGuard({ parsers: { yaml: parseYaml, yml: parseYaml } }),
 ];
 ```

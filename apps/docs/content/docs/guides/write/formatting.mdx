@@ -9,20 +9,21 @@ A formatter turns the result of a call into `result.content`, the parts that go 
 
 The default prints one line that tells what changed, then a blank line and the notes. A failed call prints only the notes:
 
-| Tool          | First line                                                                | Then                                                                     |
-| ------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `edit`        | `Edited src/greet.ts: 1 replacement at line 2.`                           | The new lines around each change, with the `2\|` gutter of the read tool |
-| `write`       | `Created src/names.ts (1 line).` or `Updated src/greet.ts (+2 -5 lines).` | Nothing                                                                  |
-| `apply_patch` | `Success. Updated the following files:`                                   | One line for each file: `A`, `M`, or `D`, and the path                   |
+| Tool          | First line                                                                | Then                                                           |
+| ------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `edit`        | `Edited src/greet.ts: 1 replacement at line 2.`                           | Nothing. `snippet: true` adds the new lines around each change |
+| `write`       | `Created src/names.ts (1 line).` or `Updated src/greet.ts (+2 -5 lines).` | Nothing                                                        |
+| `apply_patch` | `Success. Updated the following files:`                                   | One line for each file: `A`, `M`, or `D`, and the path         |
 
 A `no-change` result prints `No change to src/greet.ts.`
 
 ## Change the layout
 
-`defaultWriteFormatter()` takes four options:
+`defaultWriteFormatter()` takes five options:
 
 | Option     | Default               | Sets                                                        |
 | ---------- | --------------------- | ----------------------------------------------------------- |
+| `snippet`  | `false`               | `true` adds the new lines around each change of an `edit`   |
 | `diff`     | `false`               | `true` adds the unified diff of each file in a fenced block |
 | `gutter`   | `` (n) => `${n}\|` `` | The text before each line of an `edit` snippet              |
 | `notes`    | show all              | A filter for notes. Return `null` to hide a note            |
@@ -40,11 +41,6 @@ const edit = createEditTool({ fs, formatter: defaultWriteFormatter({ diff: true 
 {/* prettier-ignore */}
 ````text
 Edited src/greet.ts: 1 replacement at line 2.
-1|export function greet(name: string): string {
-2|  return `Hi, ${name}!`;
-3|}
-4|
-5|export function farewell(name: string): string {
 ```diff
 --- a/src/greet.ts
 +++ b/src/greet.ts
@@ -58,7 +54,26 @@ Edited src/greet.ts: 1 replacement at line 2.
 ```
 ````
 
-`edit` shows 3 lines of context around each change, and at most 40 lines for each file. Set `limits.snippetLines` and `limits.maxSnippetLines` to change this. The full diff is always in `result.changes[].diff`, cut at `limits.maxDiffLines`.
+The full diff is always in `result.changes[].diff`, cut at `limits.maxDiffLines`.
+
+## Show the changed lines
+
+Set `snippet: true` to show the new lines of an `edit`, with the `2|` gutter of the read tool:
+
+```ts
+const edit = createEditTool({ fs, formatter: defaultWriteFormatter({ snippet: true }) });
+```
+
+```text
+Edited src/greet.ts: 1 replacement at line 2.
+1|export function greet(name: string): string {
+2|  return `Hi, ${name}!`;
+3|}
+4|
+5|export function farewell(name: string): string {
+```
+
+The snippet shows 3 lines of context around each change, and at most 40 lines for each file. Set `limits.snippetLines` and `limits.maxSnippetLines` to change this.
 
 ## Hide or rewrite notes
 
