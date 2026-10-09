@@ -62,8 +62,8 @@ import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
 import { nodeFileSystem } from "@better-fs-tools/node";
 
 const cwd = process.cwd();
-// read, edit, write, and apply_patch over one filesystem, with one store,
-// one digest, and one lock manager. No bash: this bundle starts no process.
+// read, edit, and write over one filesystem, with one digest and one lock
+// manager. A read store, apply_patch, and bash are opt-in.
 const { tools } = createAiSdkFsTools({ fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }) });
 
 export async function change(model: LanguageModel, prompt: string): Promise<string> {
@@ -72,7 +72,7 @@ export async function change(model: LanguageModel, prompt: string): Promise<stri
 }
 ```
 
-- `createAiSdkFsTools(options)` wraps `createFsTools()`. `fs` is required. `state` (default `memoryStore({ clock })`, `null` turns read-before-write off), `digest`, `locks`, and `clock` are set once. Each tool's other options, and its `signature`, go under `read`, `edit`, `write`, and `applyPatch`. `bash: { runner, env, ... }` adds a bash tool with the same digest and clock. The result has `read`, `edit`, `write`, `applyPatch`, `bash` (`null` when off), `tools`, `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`. An unknown option key, a shared key inside a tool's options, or two tools with one name throws `TypeError`.
+- `createAiSdkFsTools(options)` wraps `createFsTools()`. `fs` is required. `state` (default `null`, so read-before-write is off; `memoryStore()` turns it on), `digest`, `locks`, and `clock` are set once. Each tool's other options, and its `signature`, go under `read`, `edit`, `write`, and `applyPatch`. `applyPatch: true`, or an options object, adds `apply_patch`. `bash: { runner, env, ... }` adds a bash tool with the same digest and clock. The result has `read`, `edit`, `write`, `applyPatch` and `bash` (`null` when off), `tools` (only the tools that are on), `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`. An unknown option key, a shared key inside a tool's options, or two tools with one name throws `TypeError`.
 - The single factories, `createAiSdkEditTool()`, `createAiSdkWriteTool()`, and `createAiSdkApplyPatchTool()`, take every option of their core factory, plus `signature`. `fs` is required. `state` and `digest` default to `null`, so without them read-before-write is off. A `state` needs a `digest`: the options type refuses one without the other, and the factory throws `TypeError`.
 - The default signatures are `defaultEditSignature()` (`edit` with `path`, `old_string`, `new_string`, and `replace_all`), `defaultWriteSignature()` (`write` with `path` and `content`), and `defaultPatchSignature()` (`apply_patch` with `patch`). Error texts use the signature's names.
 - The tools are `strict: true`. The schema's `validate` hook runs `signature.toInput` and the core input check.

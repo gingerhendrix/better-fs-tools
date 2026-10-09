@@ -26,15 +26,15 @@ export function workspaceReadTool(workspace: Workspace) {
 }
 ```
 
-With the write tools. `createAiSdkFsTools()` gives the read tool and the write tools one store, one digest, and one lock manager. Its default digest, `sha256Digest()` from `@better-fs-tools/read`, is SHA-256 in plain JavaScript, so it runs in a Worker:
+With the write tools. `createAiSdkFsTools()` gives the read tool and the write tools one digest and one lock manager, and one read store when you pass `state`. Its default digest, `sha256Digest()` from `@better-fs-tools/read`, is SHA-256 in plain JavaScript, so it runs in a Worker:
 
 ```ts
 import type { Workspace } from "@cloudflare/shell";
 import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
 import { cloudflareShellFileSystem } from "@better-fs-tools/cloudflare-shell";
 
-// read, edit, write, and apply_patch with one store, one sha256Digest(), and
-// one lock manager. Nothing here needs Node, so it runs in a Worker.
+// read, edit, and write with one sha256Digest() and one lock manager. Nothing
+// here needs Node, so it runs in a Worker.
 export function workspaceTools(workspace: Workspace) {
   const fs = cloudflareShellFileSystem(workspace, { allowedRoots: ["/workspace"] });
   return createAiSdkFsTools({ fs }).tools;

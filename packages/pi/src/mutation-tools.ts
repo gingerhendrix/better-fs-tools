@@ -153,7 +153,7 @@ function parts(
 /**
  * Creates a Pi edit tool rooted at each call's ctx.cwd. Throws TypeError when
  * options set fs, cwd, or allowedRoots. Read-before-write is off unless you
- * pass a `state`; use createPiFsTools() for a store shared with read.
+ * pass a `state`; use createPiFsTools({ state }) for a store shared with read.
  */
 export function createPiEditTool(options: CreatePiEditToolOptions = {}): PiMutationTool {
   checkPiOptions(options, "edit");

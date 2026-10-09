@@ -18,5 +18,4 @@ const edit = createEditTool({ ...shared, locks: memoryLocks() });
 await read({ path: "src/index.ts" });
 console.log(textOf(await edit({ path: "src/index.ts", edits: [{ oldText: "1", newText: "2" }] })));
 // Edited src/index.ts: 1 replacement at line 1.
-// 1|const a = 2;
 console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;

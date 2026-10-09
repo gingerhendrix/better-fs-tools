@@ -1,10 +1,12 @@
 import { createNodeFsTools } from "@better-fs-tools/node";
-import { textOf } from "@better-fs-tools/read";
+import { memoryStore, textOf } from "@better-fs-tools/read";
 import { protectPaths } from "@better-fs-tools/write";
 
 // read, edit, write, and apply_patch over one nodeFileSystem rooted at
 // process.cwd(), with one read store, one SHA-256 digest, and one lock manager.
+// The read store and apply_patch are opt-in.
 const tools = createNodeFsTools({
+  state: memoryStore(),
   edit: { authorize: protectPaths() },
   write: { authorize: protectPaths() },
   applyPatch: { authorize: protectPaths() },

@@ -115,8 +115,10 @@ The precondition stage reads the record at the real path. A record of another sc
 | No record                           | `NOT_READ`                              | `NOT_READ` | `NOT_READ`                                                      |
 | Partial record, partial not allowed | `NOT_READ` (`wholeFile: true`)          | same       | same                                                            |
 | Fresh                               | Go on                                   | Go on      | Go on                                                           |
-| Not fresh, `onStale: "rematch"`     | Exact rematch of every pair, or `STALE` | `STALE`    | Exact rematch of every hunk, or `STALE`. A Delete gives `STALE` |
 | Not fresh, `onStale: "reject"`      | `STALE`                                 | `STALE`    | `STALE`                                                         |
+| Not fresh, `onStale: "rematch"`     | Exact rematch of every pair, or `STALE` | `STALE`    | Exact rematch of every hunk, or `STALE`. A Delete gives `STALE` |
+
+`onStale` defaults to `"reject"`. `"rematch"` is opt-in.
 
 The commit carries a precondition: `absent` for a create, and the loaded `version` for a replace or a remove. A backend that reports `compareAndSwap: true` checks it next to the publish. For a backend that does not, the core stats the target again just before the write and gives `STALE` or `EXISTS` itself. The window between that stat and the write stays.
 
@@ -131,7 +133,7 @@ The core owns the rules on every hit:
 - Ranges of different pairs must not overlap. Splices apply from the end.
 - A result equal to the original gives `NO_CHANGE`, unless every pair is already applied.
 
-A miss gets help: an `already-applied` note when the new text is in the file and the old text is not, a trailing-newline hint, the closest region with line numbers, and after three misses in a row on one file a `repeated-miss` note. The miss count lives in the tool instance, not in the store.
+A miss is `NO_MATCH`, with a trailing-newline hint when that is the only difference. With `recovery: true`, a miss gets more help: an `already-applied` note when the new text is in the file and the old text is not, the closest region with line numbers, and after three misses in a row on one file a `repeated-miss` note. The miss count lives in the tool instance, not in the store.
 
 ## apply_patch
 

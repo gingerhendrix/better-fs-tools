@@ -2,9 +2,9 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 import { textOf } from "@better-fs-tools/read";
 import {
   createWriteTool,
-  defaultGuards,
   executableShebang,
   generatedFileGuard,
+  recommendedGuards,
   syntaxGuard,
   verifyWrite,
 } from "@better-fs-tools/write";
@@ -40,9 +40,10 @@ const logChanges: WriteHook<unknown> = {
 
 const write = createWriteTool({
   fs: memoryFileSystem({ directories: ["/repo"] }),
-  // defaultGuards() is the default. Passing guards replaces the whole list.
+  // No guards run by default. recommendedGuards() gives the five this
+  // package recommends. Passing guards replaces the whole list.
   guards: [
-    ...defaultGuards().filter((guard) => guard.id !== "syntax"),
+    ...recommendedGuards().filter((guard) => guard.id !== "syntax"),
     syntaxGuard({ parsers: { yaml: (text) => void text } }),
     generatedFileGuard(),
     noTabsInYaml,

@@ -98,7 +98,7 @@ interface Snippet {
 }
 ```
 
-`matches` is empty for `write`. An already applied pair has no entry. `snippets` is empty for `write` and for a delete. The model text shows the snippets. The full diff is only in `diff`, unless the formatter has `diff: true`.
+`matches` is empty for `write`. An already applied pair has no entry. `snippets` is empty for `write` and for a delete. The model text shows the snippets only when the formatter has `snippet: true`. The full diff is only in `diff`, unless the formatter has `diff: true`.
 
 ## `CommitReport`
 
@@ -162,16 +162,16 @@ Every error result has exactly one warning note whose `code` is the error code i
 
 Notes on a successful call:
 
-| `code`                             | Severity | From                             | `data`                                                              |
-| ---------------------------------- | -------- | -------------------------------- | ------------------------------------------------------------------- |
-| `fuzzy-match`                      | info     | a loose match                    | edit: `{ index, matcher, lines }`. patch: `{ path, hunk, matcher }` |
-| `already-applied`                  | info     | `edit`                           | `{ index }`                                                         |
-| `stale-rematched`                  | info     | `edit`, `apply_patch`            | none                                                                |
-| `repeated-miss`                    | info     | `edit`, with a `NO_MATCH`        | `{ misses }`                                                        |
-| `user-modified`                    | warning  | an authorizer returned `content` | none                                                                |
-| `hook-rewrote`                     | warning  | a hook returned `rewrote: true`  | `{ hook }`                                                          |
-| `executable`                       | info     | `executableShebang()`            | `{ mode }`                                                          |
-| `verify-mismatch`, `verify-failed` | warning  | `verifyWrite()`                  | none                                                                |
+| `code`                             | Severity | From                                            | `data`                                                              |
+| ---------------------------------- | -------- | ----------------------------------------------- | ------------------------------------------------------------------- |
+| `fuzzy-match`                      | info     | a loose match                                   | edit: `{ index, matcher, lines }`. patch: `{ path, hunk, matcher }` |
+| `already-applied`                  | info     | `edit` with `recovery: true`                    | `{ index }`                                                         |
+| `stale-rematched`                  | info     | `edit`, `apply_patch` with `onStale: "rematch"` | none                                                                |
+| `repeated-miss`                    | info     | `edit` with `recovery: true`, with a `NO_MATCH` | `{ misses }`                                                        |
+| `user-modified`                    | warning  | an authorizer returned `content`                | none                                                                |
+| `hook-rewrote`                     | warning  | a hook returned `rewrote: true`                 | `{ hook }`                                                          |
+| `executable`                       | info     | `executableShebang()`                           | `{ mode }`                                                          |
+| `verify-mismatch`, `verify-failed` | warning  | `verifyWrite()`                                 | none                                                                |
 
 Guards and authorizers may add allow notes of their own.
 
@@ -179,14 +179,14 @@ Guards and authorizers may add allow notes of their own.
 
 The formatter makes `content` once, with `mode: "model"`. A formatter that returns a string gives one text part. `defaultWriteFormatter()` prints a header, a body, then a blank line and the note lines. An error prints the note lines only.
 
-| Tool          | Header                                                                        | Body                                                            |
-| ------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `edit`        | `Edited <path>: 1 replacement at line 4.` or `2 replacements at lines 3, 15.` | The snippets, with the read tool's `12\|` gutter, `...` between |
-| `write`       | `Created <path> (3 lines).` or `Updated <path> (+2 -1 lines).`                | none                                                            |
-| `apply_patch` | `Success. Updated the following files:`                                       | One line for each file: `A`, `M`, or `D` and the path           |
-| any           | `No change to <path>.` for `no-change`. `write` adds the reason               | none                                                            |
+| Tool          | Header                                                                        | Body                                                                                        |
+| ------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `edit`        | `Edited <path>: 1 replacement at line 4.` or `2 replacements at lines 3, 15.` | none. With `snippet: true`, the snippets, with the read tool's `12\|` gutter, `...` between |
+| `write`       | `Created <path> (3 lines).` or `Updated <path> (+2 -1 lines).`                | none                                                                                        |
+| `apply_patch` | `Success. Updated the following files:`                                       | One line for each file: `A`, `M`, or `D` and the path                                       |
+| any           | `No change to <path>.` for `no-change`. `write` adds the reason               | none                                                                                        |
 
-`defaultWriteFormatter({ diff: true })` adds each file's diff in a fenced block. `gutter` and `noteLine` change the snippet gutter and the note line. `notes(note, tool)` rewrites a note, or returns `null` to hide it from the model text. The read and bash formatters take the same `notes` option. The report keeps every note.
+`defaultWriteFormatter({ snippet: true })` adds the edit snippets. `defaultWriteFormatter({ diff: true })` adds each file's diff in a fenced block. `gutter` and `noteLine` change the snippet gutter and the note line. `notes(note, tool)` rewrites a note, or returns `null` to hide it from the model text. The read and bash formatters take the same `notes` option. The report keeps every note.
 
 ## The stored record
 

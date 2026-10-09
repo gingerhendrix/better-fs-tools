@@ -26,15 +26,15 @@ export function computerReadTool(workspace: Workspace) {
 }
 ```
 
-With the write tools. `createFsTools()` from `@better-fs-tools/write` gives them and the read tool one store, one digest, and one lock manager. Its default digest, `sha256Digest()`, is plain JavaScript, so it runs in a Worker:
+With the write tools. `createFsTools()` from `@better-fs-tools/write` gives them and the read tool one digest and one lock manager, and one read store when you pass `state`. Its default digest, `sha256Digest()`, is plain JavaScript, so it runs in a Worker:
 
 ```ts
 import type { Workspace } from "@cloudflare/computer";
 import { cloudflareComputerFileSystem } from "@better-fs-tools/cloudflare-computer";
 import { createFsTools } from "@better-fs-tools/write";
 
-// One store, one sha256Digest(), and one lock manager. createFsTools needs no
-// Node module, so it runs in a Worker.
+// One sha256Digest() and one lock manager. createFsTools needs no Node module,
+// so it runs in a Worker.
 export function computerTools(workspace: Workspace) {
   const fs = cloudflareComputerFileSystem(workspace.fs, { allowedRoots: ["/workspace"] });
   const { read, edit, write } = createFsTools({ fs });

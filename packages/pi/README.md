@@ -1,6 +1,6 @@
 # @better-fs-tools/pi
 
-Better FS Tools for the [Pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent). It replaces Pi's built-in `read`, `edit`, and `write` tools, and adds `apply_patch`. Every call is confined to the working directory of that call, and `edit` and `write` need a read first.
+Better FS Tools for the [Pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent). It replaces Pi's built-in `read`, `edit`, and `write` tools, and can add `apply_patch`. Every call is confined to the working directory of that call. A read store, so that `edit` and `write` need a read first, is opt-in.
 
 ## Install
 
@@ -10,7 +10,7 @@ npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @ea
 
 `@earendil-works/pi-coding-agent` (`^0.84.2`) and `typebox` (`^1.3.16`) are required peers. The package needs Node 24 or later.
 
-The package has a `pi.extensions` entry. When Pi loads the package, the entry registers `read`, `edit`, `write`, and `apply_patch` from `createPiFsTools()`. The four tools share one in-memory read store, so `edit` and `write` need a read first. Writes stay inside `ctx.cwd`. The entry writes no settings or session file.
+The package has a `pi.extensions` entry. When Pi loads the package, the entry registers `read`, `edit`, and `write` from `createPiFsTools()`, as Pi's own tools are. There is no read store, so `edit` and `write` do not check for a read first. Writes stay inside `ctx.cwd`. The entry writes no settings or session file.
 
 ## Example
 
@@ -76,7 +76,7 @@ export default function readExtension(pi: ExtensionAPI): void {
 
 ## What the write tools do
 
-- `createPiFsTools(options?)` wraps `createFsTools()` from `@better-fs-tools/write`. It builds `read`, `edit`, `write`, and `apply_patch` with one `memoryStore({ clock })`, one `nodeDigest()`, one lock manager, one clock, and one cache of filesystems over `ctx.cwd`. `state: null` turns read-before-write off. `digest` (default `nodeDigest()`), `locks`, `clock`, and the root options (`denyRoots`, `symlinks`, `hardLinks`, `newFileMode`, `newDirectoryMode`) are set once for all four. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`. The result also has `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, which returns an `InvalidateOutcome`. Pass the call, so the path resolves under its `ctx.cwd`: in a bash `afterRun` hook it is `ctx.call`. Without it the outcome is `{ ok: false }` with reason `unsupported`. An unknown top-level key, or `state`, `digest`, `locks`, `clock`, or a root option inside a tool's options, throws `TypeError`.
+- `createPiFsTools(options?)` wraps `createFsTools()` from `@better-fs-tools/write`. It builds `read`, `edit`, and `write` with one `nodeDigest()`, one lock manager, one clock, and one cache of filesystems over `ctx.cwd`. `applyPatch: true`, or an options object, adds `apply_patch`. `state` defaults to `null`, so read-before-write is off; `state: memoryStore()` turns it on. `digest` (default `nodeDigest()`), `locks`, `clock`, and the root options (`denyRoots`, `symlinks`, `hardLinks`, `newFileMode`, `newDirectoryMode`) are set once for all the tools. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`. The result also has `applyPatch` (`null` when off), `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, which returns an `InvalidateOutcome`. Pass the call, so the path resolves under its `ctx.cwd`: in a bash `afterRun` hook it is `ctx.call`. Without it the outcome is `{ ok: false }` with reason `unsupported`. An unknown top-level key, or `state`, `digest`, `locks`, `clock`, or a root option inside a tool's options, throws `TypeError`.
 - `createPiEditTool()`, `createPiWriteTool()`, and `createPiApplyPatchTool()` build one tool each. They default to `state: null`, so read-before-write is off. Pass the same `state` as your read tool, or use `createPiFsTools()`.
 - `fs`, `cwd`, and `allowedRoots` throw `TypeError`, as for the read tool. Writes go through `nodeFileSystem` with `ctx.cwd` as the only allowed root, and `hardLinks: "refuse"` by default. `newFileMode` and `newDirectoryMode` set the modes of new files and directories exactly. Without them, a new file is `0o666` and a new directory `0o777`, less the process umask.
 - The default signatures follow Pi's own tools: `edit` takes `path` and `edits: [{ oldText, newText }]` (`multiEditSignature({ name: "edit" })`), and `write` takes `path` and `content`. Their prompt snippets and guidelines are Pi's own, so the system prompt stays the same. `apply_patch` uses `freeformPatchSignature()`: models with grammar-tool support get the Codex patch grammar, and other models get the JSON schema.

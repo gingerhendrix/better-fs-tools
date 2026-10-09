@@ -6,7 +6,7 @@ Edit, write, and apply_patch tools for TypeScript agents. They share one mutatio
 - `write` creates a file, or replaces a whole file.
 - `apply_patch` applies a patch in the Codex format to several files, and undoes the files it already changed when a later step fails.
 
-All three refuse to change a file the model has not read, refuse a file that changed since the read, keep a file's BOM and line endings, refuse obvious damage such as pasted line numbers, and say in the result what the backend could not promise.
+All three keep a file's BOM and line endings and say in the result what the backend could not promise. Each extra check is opt-in: with a read store they refuse to change a file the model has not read, or a file that changed since the read, and with `recommendedGuards()` they refuse obvious damage such as pasted line numbers.
 
 ## Install
 
@@ -18,41 +18,43 @@ The package has no peers and imports no `node:` module. It depends on `@better-f
 
 ## Quick start
 
-`createFsTools({ fs })` builds all four tools over any `WritableFileSystem`. On Node, `createNodeFsTools()` from [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node) does the same with a Node filesystem and `nodeDigest()`:
+`createFsTools({ fs })` builds `read`, `edit`, and `write` over any `WritableFileSystem`. On Node, `createNodeFsTools()` from [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node) does the same with a Node filesystem and `nodeDigest()`:
 
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
-import { textOf } from "@better-fs-tools/read";
+import { memoryStore, textOf } from "@better-fs-tools/read";
 import { createFsTools } from "@better-fs-tools/write";
 
 const fs = memoryFileSystem({ files: { "/src/app.ts": "export const a = 1;\n" } });
 
-// read, edit, write, and apply_patch with one store, one sha256Digest(), and
-// one lock manager, so edit and write know what the model has read.
-const { read, edit, write } = createFsTools({ fs });
+// read, edit, and write with one sha256Digest() and one lock manager.
+const { edit, write } = createFsTools({ fs });
 
-console.log(textOf(await edit({ path: "/src/app.ts", edits: [{ oldText: "1", newText: "2" }] })));
-// [edit:not-read] Read /src/app.ts with the read tool before changing it.
-
-await read({ path: "/src/app.ts" });
 const edited = await edit({ path: "/src/app.ts", edits: [{ oldText: "1", newText: "2" }] });
-console.log(textOf(edited));
-// Edited /src/app.ts: 1 replacement at line 1.
-// 1|export const a = 2;
+console.log(textOf(edited)); // Edited /src/app.ts: 1 replacement at line 1.
 
 const created = await write({ path: "/src/b.ts", content: "export const b = 1;\n" });
 console.log(textOf(created)); // Created /src/b.ts (1 line).
+
+// With a read store, edit and write need a read of an existing file first.
+const checked = createFsTools({ fs, state: memoryStore() });
+const bump = { path: "/src/app.ts", edits: [{ oldText: "2", newText: "3" }] };
+console.log(textOf(await checked.edit(bump)));
+// [edit:not-read] Read /src/app.ts with the read tool before changing it.
+
+await checked.read({ path: "/src/app.ts" });
+console.log(textOf(await checked.edit(bump))); // Edited /src/app.ts: 1 replacement at line 1.
 ```
 
 A tool call is `tool(input, ctx?)`. `ctx` is the read tool's call context: `{ signal?, callId?, host }`. The core passes the same object to every host function as `ctx.call`.
 
 ## One bundle for every tool
 
-`createFsTools(options)` takes a `WritableFileSystem`, or a factory that returns one for each call, and builds `read`, `edit`, `write`, and `apply_patch`. They share one `state` (one store, not a per-call factory; default `memoryStore({ clock })`, `null` turns read-before-write off), one `digest` (default `sha256Digest()`), one `locks` (default `memoryLocks()`), and one `clock`. It imports no `node:` module, so a Worker needs no host digest. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`.
+`createFsTools(options)` takes a `WritableFileSystem`, or a factory that returns one for each call, and builds `read`, `edit`, and `write`. `applyPatch: true`, or an options object, adds `apply_patch`. The tools share one `state` (one store, not a per-call factory; default `null`, so there is no read-before-write; `memoryStore({ clock })` turns it on), one `digest` (default `sha256Digest()`), one `locks` (default `memoryLocks()`), and one `clock`. It imports no `node:` module, so a Worker needs no host digest. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`.
 
 Bash is off unless you ask. `bash: { runner, env, ... }` adds a bash tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell) that gets the same `digest` and `clock`. The allowed roots of the filesystem do not limit a command.
 
-The result also has `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, which deletes the record for a path so the next edit needs a read. It returns an `InvalidateOutcome`. When `fs` is a factory, pass the call context, for example `ctx.call` in a bash `afterRun` hook.
+The result also has `applyPatch` (`null` unless asked for), `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, which deletes the record for a path so the next edit needs a read. It returns an `InvalidateOutcome`. When `fs` is a factory, pass the call context, for example `ctx.call` in a bash `afterRun` hook.
 
 An unknown option key, a shared key (`fs`, `state`, `digest`, `locks`, or `clock`) inside a tool's options, or `bash: true` throws `TypeError`. `createNodeFsTools()`, `createPiFsTools()`, and `createAiSdkFsTools()` wrap it.
 
@@ -66,7 +68,7 @@ An unknown option key, a shared key (`fs`, `state`, `digest`, `locks`, or `clock
 | Pi coding agent                       | [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)                                | `createPiFsTools()`, one factory for each tool, and a `pi.extensions` entry                                    |
 | Cloudflare Shell, Computer, just-bash | `@better-fs-tools/cloudflare-shell`, `@better-fs-tools/cloudflare-computer`, `@better-fs-tools/just-bash` | Writable filesystems for `createFsTools()`, `createAiSdkFsTools()`, or the single factories                    |
 
-The standalone factories (`createNodeEditTool()`, `createAiSdkEditTool()`, `createPiEditTool()`, and the others) default to `state: null`. The tools then change files that the model has not read, and nothing tells the model. Use a bundle (`createFsTools()`, `createNodeFsTools()`, `createPiFsTools()`, or `createAiSdkFsTools()`), or pass the same `state`, `digest`, and `locks` to the read tool and the write tools.
+The bundles and the standalone factories (`createNodeEditTool()`, `createAiSdkEditTool()`, `createPiEditTool()`, and the others) all default to `state: null`. The tools then change files that the model has not read, and nothing tells the model. The tool descriptions still ask the model to read first. For the check, pass `state: memoryStore()` to a bundle (`createFsTools()`, `createNodeFsTools()`, `createPiFsTools()`, or `createAiSdkFsTools()`), or pass the same `state`, `digest`, and `locks` to the read tool and the write tools.
 
 [docs/hosts.md](docs/hosts.md) lists the defaults of every bundle and single factory, the default signature of each tool in each host, and what each backend can do.
 
@@ -74,9 +76,11 @@ The standalone factories (`createNodeEditTool()`, `createAiSdkEditTool()`, `crea
 
 `createEditTool({ fs })`. The input is a path and one or more `{ oldText, newText, replaceAll? }` pairs, all matched against one snapshot of the file. Each old text must match once, unless `replaceAll` is set. Pairs must not overlap. The replacement is a literal splice: `$&` and `$1` in the new text stay as written.
 
-Matching tries `exactMatcher()` first, then `normalizedMatcher()` (trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces), then `escapeMatcher()` (escape sequences written out). A loose match gives a `fuzzy-match` note that names the lines. `lineTrimmedMatcher()`, `indentationMatcher()`, and `blockAnchorMatcher()` are opt-in through the `matchers` dependency.
+Matching tries `exactMatcher()` first, then `normalizedMatcher()` (trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces). A loose match gives a `fuzzy-match` note that names the lines. `escapeMatcher()` (escape sequences written out), `lineTrimmedMatcher()`, `indentationMatcher()`, and `blockAnchorMatcher()` are opt-in through the `matchers` dependency, for example `matchers: [...defaultEditMatchers(), escapeMatcher()]`.
 
-When a pair does not match, the error shows the closest region of the file with line numbers. When the new text is already in the file and the old text is not, the pair is `already-applied` and the status is `no-change`. After three misses in a row on one file, the tool adds a `repeated-miss` note that asks the model to read the file again. The model text is a short header and the new lines around each change. The full diff is in `changes[].diff`.
+When a pair does not match, the error is `NO_MATCH`, even when the new text is already in the file. `recovery: true` turns on three extras. The error shows the closest region of the file with line numbers. When the new text is already in the file and the old text is not, the pair is `already-applied` and the status is `no-change`. After three misses in a row on one file, the tool adds a `repeated-miss` note that asks the model to read the file again.
+
+The model text is one line, for example `Edited src/app.ts: 1 replacement at line 12.` `defaultWriteFormatter({ snippet: true })` adds the numbered lines around each change. The full diff is in `changes[].diff`, and `defaultWriteFormatter({ diff: true })` adds it to the model text.
 
 ## write
 
@@ -131,7 +135,7 @@ The commit stages every new file when the backend has `stage()`, then publishes 
 With the read tool's `state` store and a `digest`, the write tools check what the model has seen:
 
 - An existing file needs a record from a read. `edit` and `apply_patch` accept a partial read. `write` needs a read of the whole file.
-- A file that changed since the read gives `STALE`, with one exception: `edit` and `apply_patch` go ahead when every old text still matches exactly once, with a `stale-rematched` note. `write` always refuses.
+- A file that changed since the read gives `STALE`. With `preconditions: { onStale: "rematch" }`, `edit` and `apply_patch` go ahead when every old text still matches exactly once, with a `stale-rematched` note. `write` always refuses.
 - On a backend with stable identity, the check compares the backend `version`. On every other backend it compares the content hash.
 - After a commit, the tool stores a record with `origin: "write"`. A second edit needs no new read. When an authorizer replaced the content, a hook rewrote the file, or an edit went ahead on a stale file, the record says the model has not seen the whole file, so a following `write` needs a read.
 - `createInvalidator({ fs, state })` returns `invalidate(path)`. Call it when something else, for example a shell tool, may have changed a file. The next edit then needs a read. It never throws. It resolves to an `InvalidateOutcome`: `{ ok: true, resolvedPath, recorded }`, where `recorded` says whether a record was there, or `{ ok: false, phase }` when the stat (`phase: "stat"`, with the backend `error`) or the store (`phase: "state"`, with a `detail`) failed. After `ok: false` the record may still be there.
@@ -143,40 +147,41 @@ With the read tool's `state` store and a `digest`, the write tools check what th
 
 Every dependency except `fs` has a default. Pass them to `createEditTool()`, `createWriteTool()`, or `createApplyPatchTool()`, or to a host factory.
 
-| Dependency      | Default                                                                     | Meaning                                                                                                   |
-| --------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `fs`            | required                                                                    | A `WritableFileSystem`, or a factory of the call context that runs once for each call                     |
-| `state`         | `null`                                                                      | The read tool's store, or a factory. Needs `digest`                                                       |
-| `digest`        | `null`                                                                      | Content hashes for records and `changes[].after.contentId`                                                |
-| `locks`         | `memoryLocks()`                                                             | Orders writers to one path inside the process. Share one across the three tools. `timeoutMs` default 30 s |
-| `resolve`       | `null`                                                                      | A read `PathResolver`, for example `unicodeRepair()`                                                      |
-| `authorize`     | `null`                                                                      | A `WriteAuthorizer`, or a read `ToolAuthorizer` such as `denyPaths()`                                     |
-| `guards`        | `defaultGuards()`                                                           | Checks on each planned change. `[]` turns them off                                                        |
-| `hooks`         | `[]`                                                                        | Run after each committed file                                                                             |
-| `matchers`      | edit: `defaultEditMatchers()`; patch: `defaultPatchMatchers()`              | The match chain, in order                                                                                 |
-| `preconditions` | `{ requireRead: "existing", partialRead: "edit-only", onStale: "rematch" }` | Read-before-write rules                                                                                   |
-| `limits`        | `defaultWriteLimits`                                                        | See below                                                                                                 |
-| `messages`      | `defaultWriteMessages`                                                      | Every model-facing text. Merged key by key                                                                |
-| `formatter`     | `defaultWriteFormatter()`                                                   | Turns the report into content parts. `{ diff: true }` adds the full diff to the model text                |
-| `classifiers`   | the read tool's default classifiers                                         | Refuse a target that is not text before it is decoded                                                     |
-| `codecs`        | `[utf8Codec()]`                                                             | Decode and encode. `utf8Codec` keeps a BOM, CRLF, and mixed line endings                                  |
-| `clock`         | `() => new Date()`                                                          | Record times                                                                                              |
-| `patchParser`   | `codexPatchParser()`                                                        | `apply_patch` only                                                                                        |
+| Dependency      | Default                                                                    | Meaning                                                                                                   |
+| --------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `fs`            | required                                                                   | A `WritableFileSystem`, or a factory of the call context that runs once for each call                     |
+| `state`         | `null`                                                                     | The read tool's store, or a factory. Needs `digest`                                                       |
+| `digest`        | `null`                                                                     | Content hashes for records and `changes[].after.contentId`                                                |
+| `locks`         | `memoryLocks()`                                                            | Orders writers to one path inside the process. Share one across the three tools. `timeoutMs` default 30 s |
+| `resolve`       | `null`                                                                     | A read `PathResolver`, for example `unicodeRepair()`                                                      |
+| `authorize`     | `null`                                                                     | A `WriteAuthorizer`, or a read `ToolAuthorizer` such as `denyPaths()`                                     |
+| `guards`        | `[]`                                                                       | Checks on each planned change. `recommendedGuards()` gives the five this package recommends               |
+| `hooks`         | `[]`                                                                       | Run after each committed file                                                                             |
+| `matchers`      | edit: `defaultEditMatchers()`; patch: `defaultPatchMatchers()`             | The match chain, in order                                                                                 |
+| `recovery`      | `false`                                                                    | `edit` only. `true` adds the closest-region hint, `already-applied`, and the `repeated-miss` note         |
+| `preconditions` | `{ requireRead: "existing", partialRead: "edit-only", onStale: "reject" }` | Read-before-write rules                                                                                   |
+| `limits`        | `defaultWriteLimits`                                                       | See below                                                                                                 |
+| `messages`      | `defaultWriteMessages`                                                     | Every model-facing text. Merged key by key                                                                |
+| `formatter`     | `defaultWriteFormatter()`                                                  | Turns the report into content parts. `{ snippet: true }` adds edit snippets, `{ diff: true }` the diff    |
+| `classifiers`   | the read tool's default classifiers                                        | Refuse a target that is not text before it is decoded                                                     |
+| `codecs`        | `[utf8Codec()]`                                                            | Decode and encode. `utf8Codec` keeps a BOM, CRLF, and mixed line endings                                  |
+| `clock`         | `() => new Date()`                                                         | Record times                                                                                              |
+| `patchParser`   | `codexPatchParser()`                                                       | `apply_patch` only                                                                                        |
 
-| Limit              | Default | Meaning                                        |
-| ------------------ | ------- | ---------------------------------------------- |
-| `maxFileBytes`     | 8 MiB   | Bytes of an existing file that any tool loads  |
-| `maxWriteBytes`    | 8 MiB   | Encoded bytes of new content for one file      |
-| `maxPatchBytes`    | 4 MiB   | UTF-8 bytes of patch text                      |
-| `maxPatchFiles`    | 100     | Operations in one patch                        |
-| `maxEdits`         | 100     | Pairs in one edit call                         |
-| `sampleBytes`      | 8 192   | Bytes given to the classifiers and codecs      |
-| `snippetLines`     | 3       | Context lines around each change in a snippet  |
-| `maxSnippetLines`  | 40      | Snippet lines for one file in the model text   |
-| `maxDiffLines`     | 2 000   | Lines of unified diff kept in `changes[].diff` |
-| `maxHintLines`     | 12      | Lines in a closest-region hint                 |
-| `maxListedMatches` | 10      | Line numbers listed for an ambiguous match     |
-| `maxPatchProblems` | 20      | Problems listed for a failed patch verify      |
+| Limit              | Default | Meaning                                                                                                       |
+| ------------------ | ------- | ------------------------------------------------------------------------------------------------------------- |
+| `maxFileBytes`     | 8 MiB   | Bytes of an existing file that any tool loads                                                                 |
+| `maxWriteBytes`    | 8 MiB   | Encoded bytes of new content for one file                                                                     |
+| `maxPatchBytes`    | 4 MiB   | UTF-8 bytes of patch text                                                                                     |
+| `maxPatchFiles`    | 100     | Operations in one patch                                                                                       |
+| `maxEdits`         | 100     | Pairs in one edit call                                                                                        |
+| `sampleBytes`      | 8 192   | Bytes given to the classifiers and codecs                                                                     |
+| `snippetLines`     | 3       | Context lines around each change in a snippet. The default formatter shows snippets only with `snippet: true` |
+| `maxSnippetLines`  | 40      | Snippet lines for one file in the model text                                                                  |
+| `maxDiffLines`     | 2 000   | Lines of unified diff kept in `changes[].diff`                                                                |
+| `maxHintLines`     | 12      | Lines in a closest-region hint (`recovery: true`)                                                             |
+| `maxListedMatches` | 10      | Line numbers listed for an ambiguous match                                                                    |
+| `maxPatchProblems` | 20      | Problems listed for a failed patch verify                                                                     |
 
 A `sampleBytes` that you set above `maxFileBytes` throws `TypeError`. When you set only `maxFileBytes` below 8 192, the default `sampleBytes` is lowered to it. The same limits rule holds in read, write, and bash. A per-call value over its ceiling is clamped, with a `clamped` info note. Two limits that you set and that conflict throw `TypeError` when the tool is built. A default that is over a ceiling you set is lowered to that ceiling.
 
@@ -224,7 +229,7 @@ An authorizer may allow with `content` for `edit` and `write`. The tool then wri
 
 ## Guards and hooks
 
-Guards check each planned change before anything is written. `defaultGuards()` is on unless the `guards` dependency replaces it. It refuses new text that carries the read tool's line-number gutter (`readPrefixGuard`), a read note line or clamp marker (`truncationNoticeGuard`), or a placeholder such as `// ... rest of code` in place of real lines (`omissionGuard`). It refuses an update that makes a valid `.json` file invalid (`syntaxGuard`), and new content that the classifiers do not call text (`nonTextGuard`). Each guard lets the near miss through: lines already in the file, a file that was already broken, or a create. `generatedFileGuard()` is opt-in. It refuses updates to files that look generated. A host guard returns `{ allow: true, notes? }` or `{ allow: false, note? }`, as an authorizer does. A refusal without a note gets the `guardRefused` message from the catalog.
+Guards check each planned change before anything is written. No guard runs by default. `recommendedGuards()` gives the five this package recommends, and the `guards` dependency turns them on. They refuse new text that carries the read tool's line-number gutter (`readPrefixGuard`), a read note line or clamp marker (`truncationNoticeGuard`), or a placeholder such as `// ... rest of code` in place of real lines (`omissionGuard`). It refuses an update that makes a valid `.json` file invalid (`syntaxGuard`), and new content that the classifiers do not call text (`nonTextGuard`). Each guard lets the near miss through: lines already in the file, a file that was already broken, or a create. `generatedFileGuard()` is opt-in. It refuses updates to files that look generated. A host guard returns `{ allow: true, notes? }` or `{ allow: false, note? }`, as an authorizer does. A refusal without a note gets the `guardRefused` message from the catalog.
 
 Hooks run after each committed file. `executableShebang()` gives a new file that starts with `#!` mode `0o755`, through the hook's `newFileMode()`. `verifyWrite()` reads each committed file back and adds a warning when it does not match what was written. A hook failure is a warning note: the file is already committed, so the status stays `ok`.
 
@@ -233,9 +238,9 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 import { textOf } from "@better-fs-tools/read";
 import {
   createWriteTool,
-  defaultGuards,
   executableShebang,
   generatedFileGuard,
+  recommendedGuards,
   syntaxGuard,
   verifyWrite,
 } from "@better-fs-tools/write";
@@ -271,9 +276,10 @@ const logChanges: WriteHook<unknown> = {
 
 const write = createWriteTool({
   fs: memoryFileSystem({ directories: ["/repo"] }),
-  // defaultGuards() is the default. Passing guards replaces the whole list.
+  // No guards run by default. recommendedGuards() gives the five this
+  // package recommends. Passing guards replaces the whole list.
   guards: [
-    ...defaultGuards().filter((guard) => guard.id !== "syntax"),
+    ...recommendedGuards().filter((guard) => guard.id !== "syntax"),
     syntaxGuard({ parsers: { yaml: (text) => void text } }),
     generatedFileGuard(),
     noTabsInYaml,
@@ -366,7 +372,7 @@ if (result.status === "error") {
 } else {
   for (const change of result.changes) {
     console.log(change.kind, change.path, `+${change.linesAdded} -${change.linesRemoved}`);
-    console.log(change.diff); // The full unified diff. The model text has only a snippet.
+    console.log(change.diff); // The full unified diff. The model text has only a summary line.
     console.log(change.after?.version); // The backend version after the commit
   }
 }
@@ -393,18 +399,18 @@ Without compare-and-swap, the core checks the version with a fresh `stat` just b
 
 - `apply_patch` rollback lives in process memory. A crash or a killed process during the commit leaves some files changed and no report.
 - Undoing a create removes the file but leaves the parent folders the create made.
-- The repeated-miss count lives in each tool instance. A host that builds a new tool for each call never sees the `repeated-miss` note.
+- With `recovery: true`, the repeated-miss count lives in each tool instance. A host that builds a new tool for each call never sees the `repeated-miss` note.
 - After-commit hooks are not raced against the abort signal. A hook that never settles holds the call open. From the first commit step on, the signal is ignored, so a started commit finishes.
 - `memoryStore()` forgets a read after 30 minutes, and keeps at most 1 000 records. A file read longer ago needs a new read before `edit`, and the result says so (`NOT_READ`).
 - A match with a loose matcher writes the model's new text as given. When the normalized matcher matched ASCII quotes against curly quotes, the model's ASCII quotes are written.
 
 ## Entries
 
-| Entry                              | Contents                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@better-fs-tools/write`           | `textOf` (the same function as in read and shell, re-exported for convenience), `createFsTools`, `createWriteTool`, `createEditTool`, `createApplyPatchTool`, the matchers, the guards and `defaultGuards`, the mutation core's types, `utf8Codec`, `memoryLocks`, `askBeforeWrite`, `writeAuthorizers`, `protectPaths`, `executableShebang`, `verifyWrite`, `defaultWriteFormatter`, `createInvalidator` |
-| `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, `CODEX_PATCH_GRAMMAR`, and the patch types. The only home of these                                                                                                                                                                                                                                                                                                      |
-| `@better-fs-tools/write/signature` | `defaultEditSignature`, `multiEditSignature`, `camelCaseEditSignature`, `defaultWriteSignature`, `snakeCaseWriteSignature`, `defaultPatchSignature`, `freeformPatchSignature`, and `writeSignatureMessages`                                                                                                                                                                                               |
+| Entry                              | Contents                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@better-fs-tools/write`           | `textOf` (the same function as in read and shell, re-exported for convenience), `createFsTools`, `createWriteTool`, `createEditTool`, `createApplyPatchTool`, the matchers, the guards, `defaultGuards` (empty) and `recommendedGuards`, the mutation core's types, `utf8Codec`, `memoryLocks`, `askBeforeWrite`, `writeAuthorizers`, `protectPaths`, `executableShebang`, `verifyWrite`, `defaultWriteFormatter`, `createInvalidator` |
+| `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, `CODEX_PATCH_GRAMMAR`, and the patch types. The only home of these                                                                                                                                                                                                                                                                                                                                   |
+| `@better-fs-tools/write/signature` | `defaultEditSignature`, `multiEditSignature`, `camelCaseEditSignature`, `defaultWriteSignature`, `snakeCaseWriteSignature`, `defaultPatchSignature`, `freeformPatchSignature`, and `writeSignatureMessages`                                                                                                                                                                                                                            |
 
 The package builds on the tool-neutral base types in `@better-fs-tools/read`, such as `ToolCallContext`, `PathResolver`, and `ToolAuthorizer`. An authorizer or resolver typed on them works for the read tool and for the write tools:
 

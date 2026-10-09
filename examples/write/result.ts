@@ -18,7 +18,7 @@ if (result.status === "error") {
 } else {
   for (const change of result.changes) {
     console.log(change.kind, change.path, `+${change.linesAdded} -${change.linesRemoved}`);
-    console.log(change.diff); // The full unified diff. The model text has only a snippet.
+    console.log(change.diff); // The full unified diff. The model text has only a summary line.
     console.log(change.after?.version); // The backend version after the commit
   }
 }
