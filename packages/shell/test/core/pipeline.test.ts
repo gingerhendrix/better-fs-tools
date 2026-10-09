@@ -624,7 +624,7 @@ describe("hooks", () => {
     }
   });
 
-  test("a formatter that fails keeps the status and adds an extension-failed warning", async () => {
+  test("a formatter that fails keeps the status and adds no note", async () => {
     const runner = scriptedRunner({ steps: [out("kept\n")] });
     const cases = [
       () => {
@@ -638,18 +638,10 @@ describe("hooks", () => {
       });
       expect(result.status).toBe("ok");
       expect("error" in result).toBe(false);
-      expect(result.notes).toEqual([
-        {
-          code: "extension-failed",
-          severity: "warning",
-          message:
-            "The fmt extension failed during the format phase. This is a host problem, not a problem with the command.",
-          data: { extension: "formatter", id: "fmt" },
-        },
-      ]);
+      expect(result.notes).toEqual([]);
       expect(text(result)).toStartWith("Exit code 0");
       expect(text(result)).toContain("kept");
-      expect(text(result)).toContain("[bash:extension-failed]");
+      expect(text(result)).not.toContain("[bash:");
     }
   });
 
@@ -689,7 +681,7 @@ describe("hooks", () => {
     expect(text(result)).toContain("not shown] Full output: /tmp/out.log");
   });
 
-  test("a failing spill write adds a warning and does not change the run", async () => {
+  test("a failing spill write adds no note and does not change the run", async () => {
     const runner = scriptedRunner({ steps: [out("a\n")] });
     const bash = bashTool({
       runner,
@@ -706,7 +698,9 @@ describe("hooks", () => {
     const result = await bash({ command: "x" });
     expect(result.status).toBe("ok");
     expect(result.output?.spill).toBeNull();
-    expect(result.notes.map((note) => note.code)).toEqual(["spill-failed"]);
+    expect(result.notes).toEqual([]);
+    expect(text(result)).toStartWith("Exit code 0");
+    expect(text(result)).not.toContain("[bash:");
   });
 });
 

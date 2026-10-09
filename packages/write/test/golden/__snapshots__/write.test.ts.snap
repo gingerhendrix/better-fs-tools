@@ -5,11 +5,7 @@ exports[`golden write output create, update, and no-change 1`] = `
   {
     "error": null,
     "status": "ok",
-    "text": 
-"Created /docs/guide/notes.md (3 lines).
-
-[write:directories-created] Created the directories /docs, /docs/guide."
-,
+    "text": "Created /docs/guide/notes.md (3 lines).",
   },
   {
     "error": null,
@@ -149,11 +145,7 @@ exports[`golden write output host policy 1`] = `
   {
     "error": null,
     "status": "ok",
-    "text": 
-"Created /a.ts (1 line).
-
-[write:hook-failed] The lint hook failed after /a.ts was written. The file is changed."
-,
+    "text": "Created /a.ts (1 line).",
   },
 ]
 `;

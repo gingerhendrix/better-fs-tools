@@ -31,8 +31,7 @@ export async function execute<THost>(
   planned: PlannedRun,
   env: Readonly<Record<string, string>>,
 ): Promise<Executed> {
-  const { deps } = scope;
-  const { limits, messages } = deps;
+  const { limits, messages } = scope.deps;
   const spill = await openSpill(scope, planned);
 
   const controller = new AbortController();
@@ -120,11 +119,6 @@ export async function execute<THost>(
     throw startError(scope, exit.error.reason, exit.error.detail ?? null, planned.cwd);
   }
   const spillRef = await (spill?.close() ?? Promise.resolve(null));
-  if (spill?.failed === true) {
-    scope.notes.push(
-      warning("spill-failed", messages.spillFailed({ sink: deps.spill?.id ?? "unknown" })),
-    );
-  }
   const reason = stoppedBy as StopReason | null;
   if (exit === null) scope.notes.push(warning("unconfirmed-stop", messages.unconfirmedStop()));
   // After a stop, a runner may end its stream early or with an error.
@@ -266,7 +260,6 @@ function startError<THost>(
 interface OpenSpill {
   write(bytes: Uint8Array): void;
   close(): Promise<string | null>;
-  readonly failed: boolean;
 }
 
 async function openSpill<THost>(
@@ -291,9 +284,6 @@ async function openSpill<THost>(
   let chain = Promise.resolve();
   let failed = false;
   return {
-    get failed() {
-      return failed;
-    },
     write(bytes) {
       if (failed) return;
       const copy = bytes.slice();

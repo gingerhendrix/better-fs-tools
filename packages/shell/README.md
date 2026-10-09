@@ -85,7 +85,7 @@ if (result.status === "error") {
 }
 ```
 
-[docs/result-schema.md](docs/result-schema.md) lists every field, every error code with its phase, and every note. Note codes are kebab case, as in read and write: `clamped`, `output-incomplete`, `spill-failed`, `unconfirmed-stop`, `extension-failed`, and the error note of an error result, whose code is the error code in kebab case (`denied`, `aborted`, `output-cap`, and so on).
+[docs/result-schema.md](docs/result-schema.md) lists every field, every error code with its phase, and every note. Note codes are kebab case, as in read and write: `clamped`, `output-incomplete`, `unconfirmed-stop`, and the error note of an error result, whose code is the error code in kebab case (`denied`, `aborted`, `output-cap`, and so on).
 
 The model text starts with the status line:
 
@@ -232,7 +232,7 @@ export const bash = createNodeBashTool({ spill: fileSpill });
 
 A hook that throws, or returns a malformed value, gives `EXTENSION_FAILED` with its phase. After the run, the result keeps the run and the output.
 
-A formatter that throws, or returns neither a string nor an array, does not change the status. The core adds an `extension-failed` warning and formats with `defaultShellFormatter()`, as the read and write tools do. The format context has `digest`, `limits`, `messages`, `mode`, and `call`.
+A formatter that throws, or returns neither a string nor an array, does not change the status. The core formats with `defaultShellFormatter()` and adds no note, as the read and write tools do. The format context has `digest`, `limits`, `messages`, `mode`, and `call`.
 
 ## Runners
 

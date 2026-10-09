@@ -55,8 +55,6 @@ const catalog: ReadMessageCatalog = {
     `No classifier had an opinion about ${request.path}${detail === null ? "" : ` (${detail})`}; this is a configuration problem rather than a property of the file.`,
   viewModified: ({ hook }) =>
     `The ${hook} hook changed this view, so it is not the exact file text.`,
-  formatterFailed: ({ formatter }) =>
-    `The ${formatter} formatter failed, so the default formatter formatted this result.`,
 };
 
 /** The default wording of every read message. */

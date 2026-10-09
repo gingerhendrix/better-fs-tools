@@ -39,7 +39,6 @@ export async function commitOne<THost>(
   if (!isRecord(outcome) || outcome.ok !== true || !isMutatedFile(outcome.file)) {
     throw ioFailure(scope, target.requestedPath, "malformed write outcome");
   }
-  addDirectoryNotes(scope, outcome.file);
   return outcome.file;
 }
 
@@ -63,17 +62,6 @@ export async function checkBeforeCommit<THost>(
   if (precondition.kind === "version" && (!stat.exists || stat.version !== precondition.version)) {
     throw scope.stop("STALE", messages.stale({ tool: scope.tool, path }));
   }
-}
-
-export function addDirectoryNotes<THost>(scope: MutationScope<THost>, file: MutatedFile): void {
-  if (file.createdDirectories.length === 0) return;
-  const paths = file.createdDirectories;
-  scope.notes.push({
-    code: "directories-created",
-    severity: "info",
-    message: scope.deps.messages.directoriesCreated({ paths }),
-    data: { paths: [...paths] },
-  });
 }
 
 export function fileChange<THost>(

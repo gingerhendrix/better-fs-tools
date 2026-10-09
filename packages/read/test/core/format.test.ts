@@ -44,7 +44,7 @@ describe("formatter call", () => {
     expect(seen[0]?.limits.maxLines).toBe(7);
   });
 
-  test("a formatter that throws falls back to the default formatter with a warning", async () => {
+  test("a formatter that throws falls back to the default formatter with no note", async () => {
     const broken: ReadFormatter<unknown> = {
       id: "broken",
       format: () => {
@@ -54,14 +54,8 @@ describe("formatter call", () => {
     const { read } = harness({ files: { "/a.txt": "one\n" }, deps: { formatter: broken } });
     const result = await read({ path: "/a.txt" });
     expect(result.status).toBe("ok");
-    expect(result.notes.at(-1)).toEqual({
-      code: "extension-failed",
-      severity: "warning",
-      message: "The broken formatter failed, so the default formatter formatted this result.",
-      data: { extension: "formatter", id: "broken" },
-    });
-    expect(textOf(result)).toContain("1|one");
-    expect(textOf(result)).toContain("[read:extension-failed]");
+    expect(result.notes).toEqual([]);
+    expect(textOf(result)).toBe("1|one");
   });
 
   test("a formatter that returns neither a string nor an array falls back too", async () => {
@@ -69,7 +63,7 @@ describe("formatter call", () => {
     const { read } = harness({ files: { "/a.txt": "one\n" }, deps: { formatter: wrong } });
     const result = await read({ path: "/missing.txt" });
     expect(result.status).toBe("error");
-    expect(result.notes.map((note) => note.code)).toContain("extension-failed");
+    expect(result.notes.map((note) => note.code)).toEqual(["not-found"]);
     expect(textOf(result)).not.toBe("");
   });
 });

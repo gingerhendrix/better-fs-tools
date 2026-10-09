@@ -63,7 +63,7 @@ A failing output stream, chunks that are not output, or a stream that has not en
 
 ## Host code
 
-A throw or a malformed return from host code gives `EXTENSION_FAILED` with the phase of the stage. An `afterRun` failure keeps the run and the output. A formatter failure is the exception: the status stays, the core adds an `extension-failed` warning, and `defaultShellFormatter()` makes the content, as in the read and write tools.
+A throw or a malformed return from host code gives `EXTENSION_FAILED` with the phase of the stage. An `afterRun` failure keeps the run and the output. A formatter failure is the exception: the status stays, the core adds no note, and `defaultShellFormatter()` makes the content, as in the read and write tools.
 
 Every host function gets `ctx`: the tool name, the request, the limits, the messages, `digest`, `clock`, and the call context. The bash tool hashes nothing itself. `digest` and `clock` come from the dependencies, so a bundle can give bash the same digest and clock as its file tools.
 

@@ -419,7 +419,7 @@ describe("Delete, Move, and records", () => {
     ]);
     expect(result.changes[1]?.diff).toStartWith("--- a/from.ts\n+++ b/dir/to.ts\n");
     expect(textOf(result)).toBe(
-      "Success. Updated the following files:\nD /del.ts\nM /dir/to.ts (moved from /from.ts)\n\n[apply_patch:directories-created] Created the directory /dir.",
+      "Success. Updated the following files:\nD /del.ts\nM /dir/to.ts (moved from /from.ts)",
     );
   });
 

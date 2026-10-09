@@ -91,7 +91,7 @@ The validated canonical input. `timeoutMs` is concrete: the input value clamped 
   omittedLines: number;
   stdoutBytes: number;
   stderrBytes: number;
-  spill: string | null; // the spill sink's reference, or null without a sink
+  spill: string | null; // the spill sink's reference, or null without a sink or when the sink failed
 }
 ```
 
@@ -111,7 +111,7 @@ stdout and stderr are merged in arrival order. The view is `head`, a gap line, t
 | `OUTPUT_CAP`          | `run`                                                                  | The command wrote more than `maxCaptureBytes`, so the core stopped it                                                                     | set                                                       |
 | `EXTENSION_FAILED`    | `resolve`, `beforeRun`, `authorize`, `env`, `spill`, `run`, `afterRun` | Host code threw or returned a malformed value. `run` is a runner factory, `resolve` a cwd factory or resolver                             | set for `afterRun`                                        |
 
-`ShellPhase` also has `format`. A formatter failure is not an error: it gives an `extension-failed` warning, and the status stays.
+`ShellPhase` also has `format`. A formatter failure is not an error: the default formatter runs, no note is added, and the status stays.
 
 An `afterRun` hook that fails turns the result into `EXTENSION_FAILED`, and keeps `run`, `output`, and the notes so far. An abort during the run, and `OUTPUT_CAP`, keep them too. The formatter then shows the exit as the status line, and the reason in the error note.
 
@@ -131,14 +131,12 @@ Notes from the core:
 | ----------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | `clamped`                                                                                                                                 | info     | The input timeout was over `maxTimeoutMs`                                                                                                                                                         | `{ param: "timeoutMs", requested, max }` |
 | `output-incomplete`                                                                                                                       | warning  | The output stream failed, the runner gave chunks that were not output, or the stream had not ended `drainMs` after the exit. Not added after a stop the tool started (timeout, abort, output cap) | `{ skippedChunks, detail?, drainMs? }`   |
-| `spill-failed`                                                                                                                            | warning  | The spill sink failed. The command was not affected                                                                                                                                               | none                                     |
 | `unconfirmed-stop`                                                                                                                        | warning  | The runner did not settle its exit in the grace time after a stop                                                                                                                                 | none                                     |
-| `extension-failed`                                                                                                                        | warning  | The formatter failed, and the default formatter ran. The status stays                                                                                                                             | `{ extension: "formatter", id }`         |
 | `invalid-input`, `cwd-not-found`, `cwd-not-a-directory`, `refused`, `denied`, `aborted`, `spawn-failed`, `output-cap`, `extension-failed` | warning  | The error note of each error code                                                                                                                                                                 | none                                     |
 
 A resolver can add its own note, for example `path-repaired` from `unicodeRepair()`. An allow decision from the authorizer and a `beforeRun` hook can add notes. They keep their codes.
 
-Order: the error note comes first, then `clamped`, then the resolver note, then the `beforeRun` and authorizer notes, then the run notes (`spill-failed`, `unconfirmed-stop`, `output-incomplete`). An `afterRun` hook can replace the notes. A formatter failure adds its `extension-failed` note at the very end.
+Order: the error note comes first, then `clamped`, then the resolver note, then the `beforeRun` and authorizer notes, then the run notes (`unconfirmed-stop`, `output-incomplete`). An `afterRun` hook can replace the notes.
 
 ## Content
 

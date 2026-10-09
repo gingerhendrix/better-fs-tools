@@ -125,11 +125,11 @@ describe("defaultShellFormatter golden text", () => {
   test("a notes filter hides a note and rewrites another", () => {
     const filtered = defaultShellFormatter({
       notes: (note) =>
-        note.code === "spill-failed" ? null : { ...note, message: note.message.toUpperCase() },
+        note.code === "unconfirmed-stop" ? null : { ...note, message: note.message.toUpperCase() },
     });
     const noted = report({
       notes: [
-        { code: "spill-failed", severity: "warning", message: "No spill." },
+        { code: "unconfirmed-stop", severity: "warning", message: "Not stopped." },
         { code: "clamped", severity: "info", message: "Shorter." },
       ],
     });

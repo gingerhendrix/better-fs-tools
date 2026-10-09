@@ -64,15 +64,7 @@ export async function runWriteHooks<THost>(
     const rewrote: string[] = [];
     for (const hook of hooks) {
       const result = await runHook(hook, file.change, ctx);
-      if (result === null) {
-        scope.notes.push({
-          code: "hook-failed",
-          severity: "warning",
-          message: messages.hookFailed({ hook: hook.id, path }),
-          data: { hook: hook.id },
-        });
-        continue;
-      }
+      if (result === null) continue;
       scope.notes.push(...result.notes);
       if (result.rewrote) rewrote.push(hook.id);
     }

@@ -118,7 +118,6 @@ exports[`golden guard output the opt-in guard, protectPaths, and the hooks 1`] =
     "text": 
 "Created /bin/run (2 lines).
 
-[write:directories-created] Created the directory /bin.
 [write:executable] Made /bin/run executable (mode 755) because it starts with "#!"."
 ,
   },

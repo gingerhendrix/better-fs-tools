@@ -53,6 +53,4 @@ export interface ReadMessageCatalog extends ToolMessages {
   ioError(c: { request: ReadRequest | null }): string;
   unsupportedBackend(c: { request: ReadRequest; detail: string | null }): string;
   viewModified(c: { hook: string }): string;
-  /** The formatter threw or returned neither a string nor an array. */
-  formatterFailed(c: { formatter: string }): string;
 }

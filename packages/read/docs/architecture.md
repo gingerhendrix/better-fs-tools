@@ -215,7 +215,7 @@ The core makes the other failures itself:
 - `IO_ERROR` when a filesystem method or the byte stream throws.
 - `EXTENSION_FAILED` when host code throws or breaks a rule. `data.extension` names the dependency (`fs`, `state`, `resolve`, `suggest`, `authorize`, `converters`, `budget`, or `hooks`), `data.phase` names the stage, and `data.id` names the extension object when it has one.
 
-A formatter that throws, or returns neither a string nor an array, does not reject the call. The core adds an `extension-failed` warning with `data: { extension: "formatter", id? }` and formats the result with `lineNumberFormatter()`. The status stays as it was.
+A formatter that throws, or returns neither a string nor an array, does not reject the call. The core formats the result with `lineNumberFormatter()` and adds no note. The status stays as it was.
 
 ## Adapters
 

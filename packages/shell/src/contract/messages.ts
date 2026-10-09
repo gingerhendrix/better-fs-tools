@@ -29,7 +29,6 @@ export interface ShellMessageCatalog extends ToolMessages {
   outputCap(c: { limit: number }): string;
   unconfirmedStop(): string;
   abortedBeforeStart(): string;
-  spillFailed(c: { sink: string }): string;
   /**
    * The output stream failed (`detail`), gave chunks that were not output
    * (`skippedChunks`), or had not ended `drainMs` after the exit.

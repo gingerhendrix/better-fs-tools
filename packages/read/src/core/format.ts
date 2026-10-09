@@ -3,7 +3,6 @@ import type { ReadDependencies } from "../contract/deps.ts";
 import type { ReadFormatContext } from "../contract/format.ts";
 import type { ContentPart, ReadReport, ReadResult } from "../contract/result.ts";
 import { lineNumberFormatter } from "../formatters/index.ts";
-import { extensionId } from "./extension-error.ts";
 
 export function formatResult<THost>(
   deps: ReadDependencies<THost>,
@@ -21,20 +20,7 @@ export function formatResult<THost>(
     content = toContent(deps.formatter.format(outcome, ctx));
   } catch {}
   if (content !== null) return { ...outcome, content };
-  const id = extensionId(deps.formatter);
-  const failed: ReadReport = {
-    ...outcome,
-    notes: [
-      ...outcome.notes,
-      {
-        code: "extension-failed",
-        severity: "warning",
-        message: deps.messages.formatterFailed({ formatter: id ?? "formatter" }),
-        data: id === null ? { extension: "formatter" } : { extension: "formatter", id },
-      },
-    ],
-  };
-  return { ...failed, content: toContent(lineNumberFormatter().format(failed, ctx)) ?? [] };
+  return { ...outcome, content: toContent(lineNumberFormatter().format(outcome, ctx)) ?? [] };
 }
 
 function toContent(output: unknown): readonly ContentPart[] | null {

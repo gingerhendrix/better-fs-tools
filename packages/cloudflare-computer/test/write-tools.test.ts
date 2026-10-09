@@ -56,7 +56,7 @@ describe("cloudflare computer through the write tools", () => {
     const created = await tools.write({ path: "docs/guide/intro.md", content: "# Intro\n" });
     expect(created.status).toBe("ok");
     expect(tools.text("/workspace/docs/guide/intro.md")).toBe("# Intro\n");
-    expect(codes(created)).toEqual(["directories-created"]);
+    expect(codes(created)).toEqual([]);
 
     expect(errorOf(await tools.write({ path: "README.md", content: "new\n" }))?.code).toBe(
       "NOT_READ",

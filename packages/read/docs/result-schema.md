@@ -170,7 +170,7 @@ Notes from the core:
 | `changed-during-read`                                                                                       | warning  | the same range                               | none                                                                                                        |
 | `aborted`                                                                                                   | warning  | none                                         | `{ phase }`                                                                                                 |
 | `invalid-input`                                                                                             | warning  | none                                         | `{ path }` when the input had a string path                                                                 |
-| `extension-failed`                                                                                          | warning  | none                                         | `{ extension, phase, id? }`. A formatter failure gives `{ extension: "formatter", id? }`.                   |
+| `extension-failed`                                                                                          | warning  | none                                         | `{ extension, phase, id? }`                                                                                 |
 | `view-modified`                                                                                             | info     | none                                         | `{ hook }`                                                                                                  |
 
 Notes from the built-in helpers:

@@ -482,6 +482,6 @@ describe("call scope", () => {
     });
     const result = await write({ path: "/a.txt", content: "x" });
     expect(result.status).toBe("ok");
-    expect(result.notes.map((note) => note.code)).toContain("extension-failed");
+    expect(result.notes).toEqual([]);
   });
 });

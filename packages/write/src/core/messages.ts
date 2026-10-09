@@ -122,16 +122,10 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
             ...files.map((file) => `${file.state} ${file.path}`),
           ].join("\n"),
 
-    directoriesCreated: ({ paths }) =>
-      `Created ${paths.length === 1 ? "the directory" : "the directories"} ${paths.join(", ")}.`,
     userModified: ({ path }) =>
       `The user changed the content before it was written to ${path}. The file holds their version. Read it before changing it again.`,
     hookRewrote: ({ hook, path }) =>
       `The ${hook} hook rewrote ${path} after the write. Read it again before relying on its text.`,
-    hookFailed: ({ hook, path }) =>
-      `The ${hook} hook failed after ${path} was written. The file is changed.`,
-    formatterFailed: ({ formatter }) =>
-      `The ${formatter} formatter failed, so the default formatter formatted this result.`,
   };
 }
 

@@ -26,14 +26,9 @@ describe("formatter failure", () => {
       ["create", "/new.txt"],
     ]);
     expect(new TextDecoder().decode(fs.peek("/new.txt")?.bytes)).toBe("already committed\n");
-    expect(result.notes.at(-1)).toEqual({
-      code: "extension-failed",
-      severity: "warning",
-      message: "The broken formatter failed, so the default formatter formatted this result.",
-      data: { extension: "formatter", id: "broken" },
-    });
+    expect(result.notes).toEqual([]);
     expect(textOf(result)).toContain("/new.txt");
-    expect(textOf(result)).toContain("[write:extension-failed]");
+    expect(textOf(result)).not.toContain("[write:");
   });
 
   test("a formatter that returns neither a string nor an array falls back too", async () => {
@@ -47,7 +42,7 @@ describe("formatter failure", () => {
 
     expect(result.status).toBe("ok");
     expect(result.changes.map((change) => change.kind)).toEqual(["delete"]);
-    expect(result.notes.map((note) => note.code)).toContain("extension-failed");
+    expect(result.notes).toEqual([]);
     expect(textOf(result)).not.toBe("");
   });
 });

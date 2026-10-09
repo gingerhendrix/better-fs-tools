@@ -162,19 +162,16 @@ Every error result has exactly one warning note whose `code` is the error code i
 
 Notes on a successful call:
 
-| `code`                             | Severity | From                                            | `data`                                                              |
-| ---------------------------------- | -------- | ----------------------------------------------- | ------------------------------------------------------------------- |
-| `fuzzy-match`                      | info     | a loose match                                   | edit: `{ index, matcher, lines }`. patch: `{ path, hunk, matcher }` |
-| `already-applied`                  | info     | `edit`                                          | `{ index }`                                                         |
-| `stale-rematched`                  | info     | `edit`, `apply_patch`                           | none                                                                |
-| `repeated-miss`                    | info     | `edit`, with a `NO_MATCH`                       | `{ misses }`                                                        |
-| `user-modified`                    | warning  | an authorizer returned `content`                | none                                                                |
-| `directories-created`              | info     | the commit                                      | `{ paths }`                                                         |
-| `hook-failed`                      | warning  | a hook threw after the commit                   | `{ hook }`                                                          |
-| `extension-failed`                 | warning  | the formatter failed; the default formatter ran | `{ extension: "formatter", id? }`                                   |
-| `hook-rewrote`                     | warning  | a hook returned `rewrote: true`                 | `{ hook }`                                                          |
-| `executable`                       | info     | `executableShebang()`                           | `{ mode }`                                                          |
-| `verify-mismatch`, `verify-failed` | warning  | `verifyWrite()`                                 | none                                                                |
+| `code`                             | Severity | From                             | `data`                                                              |
+| ---------------------------------- | -------- | -------------------------------- | ------------------------------------------------------------------- |
+| `fuzzy-match`                      | info     | a loose match                    | edit: `{ index, matcher, lines }`. patch: `{ path, hunk, matcher }` |
+| `already-applied`                  | info     | `edit`                           | `{ index }`                                                         |
+| `stale-rematched`                  | info     | `edit`, `apply_patch`            | none                                                                |
+| `repeated-miss`                    | info     | `edit`, with a `NO_MATCH`        | `{ misses }`                                                        |
+| `user-modified`                    | warning  | an authorizer returned `content` | none                                                                |
+| `hook-rewrote`                     | warning  | a hook returned `rewrote: true`  | `{ hook }`                                                          |
+| `executable`                       | info     | `executableShebang()`            | `{ mode }`                                                          |
+| `verify-mismatch`, `verify-failed` | warning  | `verifyWrite()`                  | none                                                                |
 
 Guards and authorizers may add allow notes of their own.
 
@@ -261,4 +258,4 @@ Each cell is the `error.phase` values of that code, or "no" when the tool never 
 | `SPAWN_FAILED`                                            | no                                                                       | no                                                   | `run`                                                      |
 | `OUTPUT_CAP`                                              | no                                                                       | no                                                   | `run`                                                      |
 
-A formatter failure is never an error in any tool. The status stays, and an `extension-failed` warning is added.
+A formatter failure is never an error in any tool. The status stays, and no note is added.

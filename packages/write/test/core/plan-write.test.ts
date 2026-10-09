@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { errorOf, codes, errorCode, harness, note, text } from "../helpers.ts";
+import { errorOf, errorCode, harness, note, text } from "../helpers.ts";
 
 const BOM = [0xef, 0xbb, 0xbf];
 const encode = (value: string) => new TextEncoder().encode(value);
@@ -28,14 +28,14 @@ describe("write planning", () => {
     });
     expect(change?.after?.bytes).toBe(9);
     expect(change?.diff.startsWith("--- /dev/null\n+++ b/docs/notes.md\n")).toBe(true);
-    expect(note(result, "directories-created")?.data).toEqual({ paths: ["/docs"] });
+    expect(result.notes).toEqual([]);
   });
 
   test("create with an existing parent reports no directories", async () => {
     const { write } = harness({ fsOptions: { directories: ["/src"] } });
     const result = await write({ path: "/src/a.ts", content: "x" });
     expect(result.changes[0]?.createdDirectories).toEqual([]);
-    expect(codes(result)).not.toContain("directories-created");
+    expect(result.notes).toEqual([]);
   });
 
   test("replace needs a read and reports before and after", async () => {

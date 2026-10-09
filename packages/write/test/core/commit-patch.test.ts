@@ -303,7 +303,7 @@ describe("a backend without compare-and-swap", () => {
     for (const path of Object.keys(FILES)) await tools.read({ path });
     const result = await tools.applyPatch({ patch: PATCH });
     expect(result.status).toBe("ok");
-    expect(codes(result)).toEqual(["directories-created"]);
+    expect(codes(result)).toEqual([]);
   });
 });
 

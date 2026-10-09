@@ -4,7 +4,6 @@ import type { WriteDependencies } from "../contract/deps.ts";
 import type { WriteFormatContext } from "../contract/format.ts";
 import type { MutationReport, MutationResult } from "../contract/result.ts";
 import { defaultWriteFormatter } from "../formatters/default.ts";
-import { extensionId } from "./extension-error.ts";
 
 export function formatResult<THost>(
   deps: WriteDependencies<THost>,
@@ -22,20 +21,7 @@ export function formatResult<THost>(
     content = toContent(deps.formatter.format(report, ctx));
   } catch {}
   if (content !== null) return { ...report, content };
-  const id = extensionId(deps.formatter);
-  const failed: MutationReport = {
-    ...report,
-    notes: [
-      ...report.notes,
-      {
-        code: "extension-failed",
-        severity: "warning",
-        message: deps.messages.formatterFailed({ formatter: id ?? "formatter" }),
-        data: id === null ? { extension: "formatter" } : { extension: "formatter", id },
-      },
-    ],
-  };
-  return { ...failed, content: toContent(defaultWriteFormatter().format(failed, ctx)) ?? [] };
+  return { ...report, content: toContent(defaultWriteFormatter().format(report, ctx)) ?? [] };
 }
 
 function toContent(output: unknown): readonly ContentPart[] | null {

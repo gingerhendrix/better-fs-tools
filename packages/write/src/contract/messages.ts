@@ -108,10 +108,6 @@ export interface WriteMessageCatalog extends ToolMessages {
     files: readonly { readonly path: string; readonly state: string }[];
   }): string;
 
-  directoriesCreated(c: { paths: readonly string[] }): string;
   userModified(c: { path: string }): string;
   hookRewrote(c: { hook: string; path: string }): string;
-  hookFailed(c: { hook: string; path: string }): string;
-  /** The formatter threw or returned neither a string nor an array. */
-  formatterFailed(c: { formatter: string }): string;
 }

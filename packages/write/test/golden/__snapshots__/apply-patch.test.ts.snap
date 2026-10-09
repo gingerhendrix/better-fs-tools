@@ -12,8 +12,7 @@ M /src/app.ts
 M /src/new-name.ts (moved from /src/old-name.ts, hunk 1 matched by normalized)
 D /old/unused.ts
 
-[apply_patch:fuzzy-match] Hunk 1 matched /src/old-name.ts at lines 1-1 only with the normalized matcher, not exactly. Check the result.
-[apply_patch:directories-created] Created the directory /docs."
+[apply_patch:fuzzy-match] Hunk 1 matched /src/old-name.ts at lines 1-1 only with the normalized matcher, not exactly. Check the result."
 ,
 }
 `;

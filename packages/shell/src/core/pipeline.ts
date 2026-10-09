@@ -27,7 +27,7 @@ import {
   runnerFor,
 } from "./stages.ts";
 import type { CallScope } from "./stages.ts";
-import { StageStop, errorNote, extensionId, info, isNoteList, messageOf, warning } from "./stop.ts";
+import { StageStop, errorNote, info, isNoteList, messageOf } from "./stop.ts";
 
 export async function runBash<THost>(
   deps: ShellDependencies<THost>,
@@ -234,19 +234,9 @@ function finish<THost>(
     content = toContent(deps.formatter.format(done, context));
   } catch {}
   if (content !== null) return Object.freeze({ ...done, content });
-  const id = extensionId(deps.formatter);
-  const note = warning(
-    "extension-failed",
-    deps.messages.extensionFailed({ extension: id, phase: "format" }),
-    { extension: "formatter", id },
-  );
-  const kept: ShellReport = Object.freeze({
-    ...done,
-    notes: Object.freeze([...done.notes, note]),
-  });
   return Object.freeze({
-    ...kept,
-    content: toContent(defaultShellFormatter().format(kept, context)) ?? [],
+    ...done,
+    content: toContent(defaultShellFormatter().format(done, context)) ?? [],
   });
 }
 

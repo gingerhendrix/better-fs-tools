@@ -20,7 +20,7 @@ describe("after-write hooks", () => {
     expect(codes(result)).toEqual(["one", "two"]);
   });
 
-  test("a failing hook is a warning and the status stays ok", async () => {
+  test("a failing hook adds no note and the status stays ok", async () => {
     const { fs, write } = harness({
       deps: {
         hooks: [
@@ -36,13 +36,10 @@ describe("after-write hooks", () => {
     });
     const result = await write({ path: "/a.txt", content: "x" });
     expect(result.status).toBe("ok");
-    expect(result.notes.map((entry) => [entry.code, entry.severity, entry.data])).toEqual([
-      ["hook-failed", "warning", { hook: "lint" }],
-      ["hook-failed", "warning", { hook: "garbage" }],
+    expect(result.notes).toEqual([]);
+    expect(result.changes.map((change) => [change.kind, change.path])).toEqual([
+      ["create", "/a.txt"],
     ]);
-    expect(note(result, "hook-failed")?.message).toBe(
-      "The lint hook failed after /a.txt was written. The file is changed.",
-    );
     expect(text(fs, "/a.txt")).toBe("x");
   });
 

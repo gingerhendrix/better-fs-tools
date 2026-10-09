@@ -125,12 +125,12 @@ describe("defaultWriteFormatter", () => {
   test("a notes filter hides a note and rewrites another", () => {
     const filtered = defaultWriteFormatter({
       notes: (note, tool) =>
-        note.code === "hook-failed" ? null : { ...note, message: `${tool}: ${note.message}` },
+        note.code === "executable" ? null : { ...note, message: `${tool}: ${note.message}` },
     });
     const noted = report({
       changes: [change({})],
       notes: [
-        { code: "hook-failed", severity: "warning", message: "The hook failed." },
+        { code: "executable", severity: "info", message: "Made it executable." },
         { code: "fuzzy-match", severity: "info", message: "Check the result." },
       ],
     });

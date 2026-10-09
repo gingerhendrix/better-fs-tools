@@ -349,7 +349,7 @@ describe("pi custom formatter", () => {
     expect(result.details.truncation?.truncatedBy).toBe("lines");
   });
 
-  test("a formatter that throws still returns the file, with a warning", async () => {
+  test("a formatter that throws still returns the file, with no formatter note", async () => {
     const root = await fixture({ "a.txt": "one\ntwo\nthree\n" });
     const formatter: ReadFormatter<unknown> = {
       id: "broken",
@@ -364,7 +364,7 @@ describe("pi custom formatter", () => {
     );
 
     expect(textOf(result)).toContain("1|one");
-    expect(textOf(result)).toContain("[read:extension-failed]");
+    expect(textOf(result)).not.toContain("[read:extension-failed]");
   });
 
   test("a formatter that returns parts gives {} details", async () => {

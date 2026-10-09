@@ -58,8 +58,6 @@ function catalogFor(param: Param, duration: Duration): ShellMessageCatalog {
     unconfirmedStop: () =>
       "The runner did not confirm that the process tree stopped. Processes may still be running.",
     abortedBeforeStart: () => "The call was aborted before the command started.",
-    spillFailed: ({ sink }) =>
-      `The ${sink} spill sink failed, so the full output was not saved. The command was not affected.`,
     outputIncomplete: ({ detail, skippedChunks, drainMs }) => {
       const causes = [
         ...(detail === null ? [] : [`the output stream failed (${detail})`]),
