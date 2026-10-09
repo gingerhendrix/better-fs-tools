@@ -185,7 +185,7 @@ function classify<THost>(
   }
   throw scope.stop(
     "UNSUPPORTED_BACKEND",
-    messages.unsupportedBackend({ path: requested, detail: "no classifier had an opinion" }),
+    messages.unsupportedBackend({ path: requested, detail: "its file type is not supported" }),
   );
 }
 

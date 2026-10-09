@@ -956,7 +956,7 @@ exports[`golden corpus, default formatter small maxScanBytes 1`] = `
 "1|one
 
 [read:continue] Output stopped at the scan limit. Continue with {"path":"/corpus/plain.txt","offset":2,"limit":2000}.
-[read:scan-limit] Scanning stopped at 6 bytes; total lines and raw content identity are unknown."
+[read:scan-limit] Scanning stopped at 6 bytes, so the total line count is unknown."
 ,
   "totals": {
     "bytes": 14,
@@ -985,7 +985,7 @@ exports[`golden corpus, default formatter offset unreached by scan 1`] = `
   "status": "ok",
   "text": 
 "[read:offset-unreached] Scanning stopped before line 50 was reached. Retry from line 2 with {"path":"/corpus/plain.txt","offset":2,"limit":2000}.
-[read:scan-limit] Scanning stopped at 6 bytes; total lines and raw content identity are unknown."
+[read:scan-limit] Scanning stopped at 6 bytes, so the total line count is unknown."
 ,
   "totals": {
     "bytes": 14,
@@ -1044,6 +1044,6 @@ exports[`golden corpus, default formatter directory 1`] = `
     "not-a-file",
   ],
   "status": "error",
-  "text": "[read:not-a-file] /corpus/folder is a directory; directories, FIFOs, sockets, and devices are refused before any content read.",
+  "text": "[read:not-a-file] /corpus/folder is a directory.",
 }
 `;

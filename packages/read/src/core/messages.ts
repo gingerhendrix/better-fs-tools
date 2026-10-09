@@ -18,7 +18,7 @@ const catalog: ReadMessageCatalog = {
   limitClamped: ({ requested, max }) =>
     `The requested line count of ${requested} is over the maximum, so at most ${max} lines are shown.`,
   scanLimit: ({ maxScanBytes }) =>
-    `Scanning stopped at ${maxScanBytes} bytes; total lines and raw content identity are unknown.`,
+    `Scanning stopped at ${maxScanBytes} bytes, so the total line count is unknown.`,
   empty: ({ path }) => `${path} is empty (0 bytes); no retry is needed.`,
   notFound: ({ request, suggestions }) =>
     suggestions.length === 0
@@ -26,10 +26,9 @@ const catalog: ReadMessageCatalog = {
       : `${request.path} was not found. Nearby names: ${quoted(suggestions)}.`,
   pathRepaired: ({ from, to }) =>
     `The requested filename ${JSON.stringify(from)} was repaired to the unique Unicode-equivalent path ${JSON.stringify(to)}.`,
-  notAFile: ({ request, kind }) =>
-    `${request.path} is a ${kindLabel(kind)}; directories, FIFOs, sockets, and devices are refused before any content read.`,
+  notAFile: ({ request, kind }) => `${request.path} is a ${kindLabel(kind)}.`,
   dangerousPath: ({ request, detail }) =>
-    `${request.path} belongs to a refused policy class${detail === null ? "" : ` (${detail})`}.`,
+    `${request.path} is refused by policy${detail === null ? "" : ` (${detail})`}. Choose another path.`,
   outsideAllowedRoots: ({ request }) => `${request.path} is outside every configured allowed root.`,
   permissionDenied: ({ request }) => `Permission was denied for ${request.path}.`,
   denied: ({ path, detail }) =>
@@ -44,15 +43,14 @@ const catalog: ReadMessageCatalog = {
   },
   changedDuringRead: ({ request, retry }) =>
     `${request.path} changed while it was being read. Read it again with ${retry} before relying on this result.`,
-  aborted: ({ phase }) =>
-    `The read was aborted during the ${phase} phase; no observation was recorded.`,
+  aborted: ({ phase }) => `The read was aborted during the ${phase} phase, so nothing was read.`,
   invalidInput: ({ detail }) => `The read input was rejected: ${detail}`,
   extensionFailed: ({ request, extension, phase }) =>
     `The ${extension} extension failed during the ${phase} phase while reading ${request.path}; this is a host problem rather than a property of the file.`,
   ioError: ({ request }) =>
     `The backend failed while reading ${request === null ? "the requested path" : request.path}.`,
   unsupportedBackend: ({ request, detail }) =>
-    `No classifier had an opinion about ${request.path}${detail === null ? "" : ` (${detail})`}; this is a configuration problem rather than a property of the file.`,
+    `This host cannot read ${request.path}${detail === null ? "" : ` (${detail})`}. Do not retry.`,
   viewModified: ({ hook }) =>
     `The ${hook} hook changed this view, so it is not the exact file text.`,
 };

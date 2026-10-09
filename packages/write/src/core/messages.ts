@@ -21,7 +21,7 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
     notAFile: ({ path, kind }) =>
       `${path} is a ${kindLabel(kind)}. Only regular files can be changed.`,
     dangerousPath: ({ path, detail }) =>
-      `${path} belongs to a refused policy class${detail === null ? "" : ` (${detail})`}. Choose another path.`,
+      `${path} is refused by policy${detail === null ? "" : ` (${detail})`}. Choose another path.`,
     outsideAllowedRoots: ({ path }) =>
       `${path} is outside every configured allowed root. Choose a path inside the workspace.`,
     permissionDenied: ({ path }) => `Permission was denied for ${path}.`,

@@ -31,9 +31,7 @@ describe("filesystem refusals", () => {
     const { read } = harness({ files: { "/dir/a.txt": "x" } });
     const result = expectFailure(await read({ path: "/dir" }), "NOT_A_FILE");
     expect(result.notes[0]?.data).toEqual({ kind: "directory" });
-    expect(textOf(result)).toBe(
-      "[read:not-a-file] /dir is a directory; directories, FIFOs, sockets, and devices are refused before any content read.",
-    );
+    expect(textOf(result)).toBe("[read:not-a-file] /dir is a directory.");
   });
 
   test("a deny root is DANGEROUS_PATH with the detail", async () => {
