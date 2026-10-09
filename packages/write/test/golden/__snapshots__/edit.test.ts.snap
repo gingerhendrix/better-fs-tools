@@ -5,67 +5,23 @@ exports[`golden edit output one change, several changes, replace all, and a fuzz
   {
     "error": null,
     "status": "ok",
-    "text": 
-"Edited /src/app.ts: 1 replacement at lines 4-5.
-1|import { x } from "./x";
-2|
-3|// sum
-4|export const y = x + 1;
-5|export const z = y * 2;
-6|
-7|export default z;
-8|"
-,
+    "text": "Edited /src/app.ts: 1 replacement at lines 4-5.",
   },
   {
     "error": null,
     "status": "ok",
-    "text": 
-"Edited /src/app.ts: 2 replacements at lines 3, 15.
-1|import { x } from "./x";
-2|
-3|// sum of x
-4|export const y = x + 1;
-5|export const z = y * 2;
-6|
-...
-12|}
-13|
-14|function two() {
-15|  return 1 + 1;
-16|}"
-,
+    "text": "Edited /src/app.ts: 2 replacements at lines 3, 15.",
   },
   {
     "error": null,
     "status": "ok",
-    "text": 
-"Edited /src/app.ts: 2 replacements (replace all) at lines 10, 14.
-7|export default z;
-8|
-9|// helpers
-10|export function one() {
-11|  return 1;
-12|}
-13|
-14|export function two() {
-15|  return 1 + 1;
-16|}"
-,
+    "text": "Edited /src/app.ts: 2 replacements (replace all) at lines 10, 14.",
   },
   {
     "error": null,
     "status": "ok",
     "text": 
 "Edited /src/app.ts: 1 replacement at lines 9-10.
-6|
-7|export default z;
-8|
-9|// helper functions
-10|export function one() {
-11|  return 1;
-12|}
-13|
 
 [edit:fuzzy-match] Edit 1 matched /src/app.ts at lines 9-10 only with the normalized matcher, not exactly. Check the result."
 ,
@@ -289,11 +245,6 @@ exports[`golden edit output refusals and preconditions 1`] = `
     "status": "ok",
     "text": 
 "Edited /src/app.ts: 1 replacement at line 16.
-13|}
-14|
-15|function two() {
-16|  return 22;
-17|}
 
 [edit:stale-rematched] /src/app.ts changed since it was last read, but every old text still matched exactly once, so the edit was applied."
 ,
@@ -325,15 +276,47 @@ exports[`golden edit output refusals and preconditions 1`] = `
 ]
 `;
 
-exports[`golden edit output with diff: true 1`] = `
-"Edited /src/app.ts: 1 replacement at line 11.
-8|
-9|// helpers
-10|function one() {
-11|  return 10;
+exports[`golden edit output with snippet: true 1`] = `
+[
+  {
+    "error": null,
+    "status": "ok",
+    "text": 
+"Edited /src/app.ts: 1 replacement at lines 4-5.
+1|import { x } from "./x";
+2|
+3|// sum
+4|export const y = x + 1;
+5|export const z = y * 2;
+6|
+7|export default z;
+8|"
+,
+  },
+  {
+    "error": null,
+    "status": "ok",
+    "text": 
+"Edited /src/app.ts: 2 replacements at lines 3, 15.
+1|import { x } from "./x";
+2|
+3|// sum of x
+4|export const y = x + 1;
+5|export const z = y * 2;
+6|
+...
 12|}
 13|
 14|function two() {
+15|  return 1 + 1;
+16|}"
+,
+  },
+]
+`;
+
+exports[`golden edit output with diff: true 1`] = `
+"Edited /src/app.ts: 1 replacement at line 11.
 \`\`\`diff
 --- a/src/app.ts
 +++ b/src/app.ts

@@ -154,7 +154,7 @@ describe("defaultWriteFormatter", () => {
     );
   });
 
-  test("edit: one replacement with its snippet", () => {
+  test("edit: the first line only by default", () => {
     const edited = report({
       tool: "edit",
       changes: [
@@ -166,11 +166,29 @@ describe("defaultWriteFormatter", () => {
       ],
     });
     expect(formatter.format(edited, ctx())).toBe(
+      "Edited src/app.ts: 1 replacement at lines 12-14.",
+    );
+  });
+
+  test("edit: snippet: true adds the replacement's snippet", () => {
+    const withSnippet = defaultWriteFormatter({ snippet: true });
+    const edited = report({
+      tool: "edit",
+      changes: [
+        change({
+          path: "src/app.ts",
+          matches: [match({ replaced: [[12, 14]] })],
+          snippets: [{ startLine: 11, lines: ["a", "b", "c", "d", "e"] }],
+        }),
+      ],
+    });
+    expect(withSnippet.format(edited, ctx())).toBe(
       "Edited src/app.ts: 1 replacement at lines 12-14.\n11|a\n12|b\n13|c\n14|d\n15|e",
     );
   });
 
   test("edit: a single line, several pairs sorted, and snippets split by ...", () => {
+    const withSnippet = defaultWriteFormatter({ snippet: true });
     const single = report({
       tool: "edit",
       changes: [change({ matches: [match({ replaced: [[4, 4]] })] })],
@@ -192,7 +210,7 @@ describe("defaultWriteFormatter", () => {
         }),
       ],
     });
-    expect(formatter.format(several, ctx())).toBe(
+    expect(withSnippet.format(several, ctx())).toBe(
       "Edited src/app.ts: 3 replacements at lines 4, 12-14, 40.\n4|x\n...\n40|y",
     );
   });
@@ -216,8 +234,11 @@ describe("defaultWriteFormatter", () => {
       tool: "edit",
       changes: [change({ userModified: true, snippets: [{ startLine: 2, lines: ["u"] }] })],
     });
-    expect(defaultWriteFormatter({ gutter: (line) => `${line}\t` }).format(user, ctx())).toBe(
-      "Edited src/app.ts with the user's changes (+12 -3 lines).\n2\tu",
+    expect(
+      defaultWriteFormatter({ snippet: true, gutter: (line) => `${line}\t` }).format(user, ctx()),
+    ).toBe("Edited src/app.ts with the user's changes (+12 -3 lines).\n2\tu");
+    expect(formatter.format(user, ctx())).toBe(
+      "Edited src/app.ts with the user's changes (+12 -3 lines).",
     );
     expect(
       formatter.format(
@@ -229,6 +250,7 @@ describe("defaultWriteFormatter", () => {
 
   test("rejects bad options", () => {
     expect(() => defaultWriteFormatter({ diff: "yes" } as never)).toThrow(TypeError);
+    expect(() => defaultWriteFormatter({ snippet: "yes" } as never)).toThrow(TypeError);
     expect(() => defaultWriteFormatter({ gutter: 1 } as never)).toThrow(TypeError);
   });
 });

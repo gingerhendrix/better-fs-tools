@@ -1,6 +1,6 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`golden guard output each default guard's refusal 1`] = `
+exports[`golden guard output each recommended guard's refusal 1`] = `
 [
   {
     "error": {
@@ -120,89 +120,6 @@ exports[`golden guard output the opt-in guard, protectPaths, and the hooks 1`] =
 
 [write:executable] Made /bin/run executable (mode 755) because it starts with "#!"."
 ,
-  },
-]
-`;
-
-exports[`golden guard output each recommended guard's refusal 1`] = `
-[
-  {
-    "error": {
-      "code": "GUARD_REFUSED",
-      "data": {
-        "guard": "read-prefix",
-        "gutter": "2|",
-        "lines": 2,
-        "path": "/src/app.ts",
-        "source": "read-prefix",
-      },
-      "message": "The newText for /src/app.ts starts 2 of its 2 new lines with read tool line numbers, such as "2|". Send only the file text, without the line-number prefixes.",
-      "phase": "guards",
-    },
-    "status": "error",
-    "text": "[edit:guard-refused] The newText for /src/app.ts starts 2 of its 2 new lines with read tool line numbers, such as "2|". Send only the file text, without the line-number prefixes.",
-  },
-  {
-    "error": {
-      "code": "GUARD_REFUSED",
-      "data": {
-        "guard": "truncation-notice",
-        "line": "[read:continue] Continue with offset 3.",
-        "path": "/notes.txt",
-        "source": "truncation-notice",
-      },
-      "message": "The content for /notes.txt holds read tool output, not file text: "[read:continue] Continue with offset 3.". Remove that line. If the file was cut off, read the missing lines first, then send the full text.",
-      "phase": "guards",
-    },
-    "status": "error",
-    "text": "[write:guard-refused] The content for /notes.txt holds read tool output, not file text: "[read:continue] Continue with offset 3.". Remove that line. If the file was cut off, read the missing lines first, then send the full text.",
-  },
-  {
-    "error": {
-      "code": "GUARD_REFUSED",
-      "data": {
-        "guard": "omission",
-        "line": "// ... rest of code",
-        "path": "/src/app.ts",
-        "source": "omission",
-      },
-      "message": "The content for /src/app.ts has a placeholder instead of code: "// ... rest of code". It would delete the lines it stands for. Send the complete file content, or use the edit tool to change only part of the file.",
-      "phase": "guards",
-    },
-    "status": "error",
-    "text": "[write:guard-refused] The content for /src/app.ts has a placeholder instead of code: "// ... rest of code". It would delete the lines it stands for. Send the complete file content, or use the edit tool to change only part of the file.",
-  },
-  {
-    "error": {
-      "code": "GUARD_REFUSED",
-      "data": {
-        "detail": "tabs are not allowed",
-        "guard": "syntax",
-        "language": "YAML",
-        "path": "/config.yaml",
-        "source": "syntax",
-      },
-      "message": "The change would make /config.yaml invalid YAML, and it was valid before. Fix the newText and retry. The parser said: tabs are not allowed",
-      "phase": "guards",
-    },
-    "status": "error",
-    "text": "[edit:guard-refused] The change would make /config.yaml invalid YAML, and it was valid before. Fix the newText and retry. The parser said: tabs are not allowed",
-  },
-  {
-    "error": {
-      "code": "GUARD_REFUSED",
-      "data": {
-        "classifier": "notebook",
-        "code": "NOTEBOOK",
-        "guard": "non-text",
-        "path": "/n.ipynb",
-        "source": "non-text",
-      },
-      "message": "The new content for /n.ipynb is not plain text (NOTEBOOK), so this tool will not write it. Send text content, or use a tool made for this kind of file.",
-      "phase": "guards",
-    },
-    "status": "error",
-    "text": "[write:guard-refused] The new content for /n.ipynb is not plain text (NOTEBOOK), so this tool will not write it. Send text content, or use a tool made for this kind of file.",
   },
 ]
 `;

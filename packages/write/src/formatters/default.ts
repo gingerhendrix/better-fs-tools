@@ -5,6 +5,8 @@ import type { WriteFormatter } from "../contract/format.ts";
 import type { FileChange, MutationReport, Snippet } from "../contract/result.ts";
 
 export interface WriteFormatterOptions {
+  /** Add the numbered lines around each edit to the model text. Default false. */
+  readonly snippet?: boolean;
   /** Line-number prefix for edit snippets. Default: `${line}|`, as the read tool shows. */
   readonly gutter?: (line: number) => string;
   /** Add each change's diff to the model text. Default false. */
@@ -17,7 +19,8 @@ export interface WriteFormatterOptions {
 
 /**
  * Formats a result as a line for each file, then the notes. An error shows the
- * notes only. "view" mode leaves the notes out. The `notes` option hides or
+ * notes only. "view" mode leaves the notes out. `snippet` adds the lines
+ * around each edit, and `diff` adds each diff. The `notes` option hides or
  * rewrites a note, as the read tool's formatters do.
  */
 export function defaultWriteFormatter(
@@ -27,6 +30,7 @@ export function defaultWriteFormatter(
     throw new TypeError("defaultWriteFormatter options must be an object");
   }
   const {
+    snippet = false,
     gutter = defaultGutter,
     diff = false,
     notes: filter = showNote,
@@ -35,6 +39,7 @@ export function defaultWriteFormatter(
   if (typeof gutter !== "function") {
     throw new TypeError("gutter must be a function");
   }
+  if (typeof snippet !== "boolean") throw new TypeError("snippet must be a boolean");
   if (typeof diff !== "boolean") throw new TypeError("diff must be a boolean");
   if (typeof filter !== "function") throw new TypeError("notes must be a function");
   if (typeof noteLine !== "function") throw new TypeError("noteLine must be a function");
@@ -42,7 +47,7 @@ export function defaultWriteFormatter(
     id: "default",
     format(report, ctx) {
       const main = [
-        ...body(report, gutter, ctx.limits.maxListedMatches),
+        ...body(report, snippet ? gutter : null, ctx.limits.maxListedMatches),
         ...(diff ? diffBlocks(report.changes) : []),
       ];
       if (ctx.mode === "view") return main.join("\n");
@@ -80,7 +85,11 @@ function defaultGutter(line: number): string {
   return `${line}|`;
 }
 
-function body(report: MutationReport, gutter: (line: number) => string, listed: number): string[] {
+function body(
+  report: MutationReport,
+  gutter: ((line: number) => string) | null,
+  listed: number,
+): string[] {
   if (report.status === "error") return [];
   if (report.status === "no-change") {
     const reason = report.tool === "write" ? ": the content is the same" : "";
@@ -89,7 +98,7 @@ function body(report: MutationReport, gutter: (line: number) => string, listed: 
   if (report.tool === "edit") {
     return report.changes.flatMap((change) => [
       editLine(change, listed),
-      ...snippetLines(change.snippets, gutter),
+      ...(gutter === null ? [] : snippetLines(change.snippets, gutter)),
     ]);
   }
   if (report.tool === "apply_patch") {

@@ -3,13 +3,7 @@
 exports[`golden output for each signature preset defaultEditSignature 1`] = `
 [
   "[edit:ambiguous-match] Edit 1: the old_string matches 2 places in /a.txt (lines 1, 3). Add surrounding lines to make it unique, or set replace_all.",
-  
-"Edited /a.txt: 2 replacements (replace all) at lines 1, 3.
-1|ALPHA
-2|beta
-3|ALPHA
-4|gamma"
-,
+  "Edited /a.txt: 2 replacements (replace all) at lines 1, 3.",
   "[edit:no-match] Edit 1: the old_string was not found in /a.txt.",
 ]
 `;
@@ -17,24 +11,13 @@ exports[`golden output for each signature preset defaultEditSignature 1`] = `
 exports[`golden output for each signature preset multiEditSignature 1`] = `
 [
   "[edit:ambiguous-match] Edit 1: the oldText matches 2 places in /a.txt (lines 1, 3). Add surrounding lines to make it unique.",
-  
-"Edited /a.txt: 2 replacements at lines 2, 4.
-1|alpha
-2|BETA
-3|alpha
-4|GAMMA"
-,
+  "Edited /a.txt: 2 replacements at lines 2, 4.",
 ]
 `;
 
 exports[`golden output for each signature preset camelCaseEditSignature 1`] = `
 [
-  
-"Edited /a.txt: 1 replacement at line 2.
-1|alpha
-2|alpha
-3|gamma"
-,
+  "Edited /a.txt: 1 replacement at line 2.",
   "[edit:no-match] Edit 1: the oldString was not found in /a.txt.",
 ]
 `;

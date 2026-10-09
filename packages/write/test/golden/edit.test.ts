@@ -131,6 +131,26 @@ describe("golden edit output", () => {
     expect([boundary, fuzzyAll, notFound, rematched, stale, invalid].map(shown)).toMatchSnapshot();
   });
 
+  test("with snippet: true", async () => {
+    const { edit } = await setup({
+      deps: { formatter: defaultWriteFormatter({ snippet: true }) },
+    });
+    const one = await edit({
+      path: "/src/app.ts",
+      edits: [
+        { oldText: "x + 0;\nexport const z = y * 1;", newText: "x + 1;\nexport const z = y * 2;" },
+      ],
+    });
+    const several = await edit({
+      path: "/src/app.ts",
+      edits: [
+        { oldText: "// sum", newText: "// sum of x" },
+        { oldText: "  return 2;", newText: "  return 1 + 1;" },
+      ],
+    });
+    expect([one, several].map(shown)).toMatchSnapshot();
+  });
+
   test("with diff: true", async () => {
     const { edit } = await setup({ deps: { formatter: defaultWriteFormatter({ diff: true }) } });
     expect(
