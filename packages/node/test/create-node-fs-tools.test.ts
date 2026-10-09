@@ -127,15 +127,15 @@ describe("createNodeFsTools on disk", () => {
     expect(errorOf(result)?.code).toBe("OUTSIDE_ALLOWED_ROOTS");
   });
 
-  test("hardLinks: a hard-linked file is refused by default and written with in-place", async () => {
+  test("hardLinks: a hard-linked file is written in place by default and refused with refuse", async () => {
     const cwd = await workspace({ "app.ts": "x\n" });
     await link(join(cwd, "app.ts"), join(cwd, "twin.ts"));
 
-    const refusing = createNodeFsTools({ cwd });
+    const refusing = createNodeFsTools({ cwd, hardLinks: "refuse" });
     await refusing.read({ path: "app.ts" });
     expect(errorOf(await refusing.edit(edit("x", "y")))?.code).toBe("DENIED");
 
-    const inPlace = createNodeFsTools({ cwd, hardLinks: "in-place" });
+    const inPlace = createNodeFsTools({ cwd });
     await inPlace.read({ path: "app.ts" });
     expect((await inPlace.edit(edit("x", "y"))).status).toBe("ok");
     expect(await readFile(join(cwd, "twin.ts"), "utf8")).toBe("y\n");

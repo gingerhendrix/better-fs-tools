@@ -15,7 +15,7 @@ export interface PiRootOptions {
   /** Added to /dev, /proc, /sys. */
   readonly denyRoots?: readonly string[];
   readonly symlinks?: NodeFileSystemOptions["symlinks"];
-  /** How to replace a file with more than one hard link. Default "refuse". */
+  /** How to replace a file with more than one hard link. Default "in-place". "refuse" fails with DENIED. */
   readonly hardLinks?: "refuse" | "in-place";
   /** Mode of a new file, exactly. Default 0o666 less the process umask. */
   readonly newFileMode?: number;

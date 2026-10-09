@@ -467,11 +467,11 @@ describe("node write: symbolic links", () => {
 });
 
 describe("node write: hard links", () => {
-  test("a hard-linked file is refused by default", async () => {
+  test('"refuse" refuses a hard-linked file', async () => {
     const root = await freshRoot();
     await writeFile(join(root, "a.txt"), "old\n");
     await link(join(root, "a.txt"), join(root, "b.txt"));
-    const fs = fsAt(root);
+    const fs = fsAt(root, { hardLinks: "refuse" });
     expect((await existing(fs, "a.txt")).hardLinks).toBe(2);
     const error = expectReason(await fs.write("a.txt", encode("new\n"), options()), "denied");
     expect(error.detail).toBe("the file has more than one hard link");
@@ -499,6 +499,26 @@ describe("node write: hard links", () => {
     expect((await stat(join(root, "a.txt"))).ino).toBe((await stat(join(root, "b.txt"))).ino);
     expect(await modeOf(join(root, "a.txt"))).toBe(0o640);
     expect(await tempFiles(root)).toEqual([]);
+  });
+
+  test("a hard-linked file is written in place by default", async () => {
+    const root = await freshRoot();
+    await writeFile(join(root, "a.txt"), "old\n");
+    await link(join(root, "a.txt"), join(root, "b.txt"));
+    const fs = fsAt(root);
+    expectOk(await fs.write("a.txt", encode("new\n"), options()));
+    expect(await readFile(join(root, "b.txt"), "utf8")).toBe("new\n");
+    expect((await stat(join(root, "a.txt"))).ino).toBe((await stat(join(root, "b.txt"))).ino);
+    expect(await tempFiles(root)).toEqual([]);
+  });
+
+  test("a file with one link is still replaced by temp file and rename by default", async () => {
+    const root = await freshRoot();
+    await writeFile(join(root, "a.txt"), "old\n");
+    const before = (await stat(join(root, "a.txt"))).ino;
+    expectOk(await fsAt(root).write("a.txt", encode("new\n"), options()));
+    expect(await readFile(join(root, "a.txt"), "utf8")).toBe("new\n");
+    expect((await stat(join(root, "a.txt"))).ino).not.toBe(before);
   });
 
   test('"in-place" checks the version under the lock', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { readFile, symlink, writeFile } from "node:fs/promises";
+import { link, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { defaultEditSignature } from "@better-fs-tools/write/signature";
@@ -31,6 +31,19 @@ describe("createPiFsTools", () => {
     expect(Object.isFrozen(tools)).toBe(true);
     expect(createPiFsTools({ applyPatch: true }).applyPatch.name).toBe("apply_patch");
     expect(createPiFsTools({ applyPatch: false }).applyPatch).toBeNull();
+  });
+
+  test("hardLinks: a hard-linked file is written in place by default and refused with refuse", async () => {
+    const cwd = await fixture({ "a.txt": "one\n" });
+    await link(path.join(cwd, "a.txt"), path.join(cwd, "twin.txt"));
+
+    const refusing = createPiFsTools({ hardLinks: "refuse" });
+    expect(textOf(await run(refusing.edit, EDIT("one", "1"), cwd))).toContain("hard link");
+    expect(await readFile(path.join(cwd, "twin.txt"), "utf8")).toBe("one\n");
+
+    const tools = createPiFsTools();
+    expect((await run(tools.edit, EDIT("one", "1"), cwd)).details?.firstChangedLine).toBe(1);
+    expect(await readFile(path.join(cwd, "twin.txt"), "utf8")).toBe("1\n");
   });
 
   test("with a store, edit needs a read, then edits twice without another", async () => {

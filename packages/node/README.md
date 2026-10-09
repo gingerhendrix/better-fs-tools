@@ -76,17 +76,17 @@ export async function afterShell(path: string): Promise<boolean> {
 
 `nodeFileSystem` options. The first six are the shared `FileSystemRootOptions` from `@better-fs-tools/fs`. The filesystem also exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, and `identity`:
 
-| Option             | Default                 | Meaning                                                                                                |
-| ------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------ |
-| `allowedRoots`     | required                | At least one root. A path outside every root gives `OUTSIDE_ALLOWED_ROOTS`.                            |
-| `cwd`              | `process.cwd()`         | Base for relative paths. A relative `cwd` resolves against `process.cwd()`                             |
-| `denyRoots`        | none                    | Refused as `DANGEROUS_PATH`, in addition to `/dev`, `/proc`, and `/sys`                                |
-| `symlinks`         | `"follow-within-roots"` | `"reject"` refuses every symlink                                                                       |
-| `identity`         | `"required"`            | The only value: Node always reports device and inode                                                   |
-| `id`               | `"node"`                | Appears in `result.file.backend`                                                                       |
-| `hardLinks`        | `"refuse"`              | A replace of a file with more than one hard link. `"in-place"` writes through the link, not atomically |
-| `newFileMode`      | `0o666` less the umask  | Mode of a new file. A mode you set is exact: the umask does not apply to it                            |
-| `newDirectoryMode` | `0o777` less the umask  | Mode of a directory that `createParents` makes. A mode you set is exact                                |
+| Option             | Default                 | Meaning                                                                                                                                                                                                        |
+| ------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allowedRoots`     | required                | At least one root. A path outside every root gives `OUTSIDE_ALLOWED_ROOTS`.                                                                                                                                    |
+| `cwd`              | `process.cwd()`         | Base for relative paths. A relative `cwd` resolves against `process.cwd()`                                                                                                                                     |
+| `denyRoots`        | none                    | Refused as `DANGEROUS_PATH`, in addition to `/dev`, `/proc`, and `/sys`                                                                                                                                        |
+| `symlinks`         | `"follow-within-roots"` | `"reject"` refuses every symlink                                                                                                                                                                               |
+| `identity`         | `"required"`            | The only value: Node always reports device and inode                                                                                                                                                           |
+| `id`               | `"node"`                | Appears in `result.file.backend`                                                                                                                                                                               |
+| `hardLinks`        | `"in-place"`            | A replace of a file with more than one hard link. `"in-place"` writes through the link, not atomically. `"refuse"` fails with reason `denied`. A file with one link is always replaced by temp file and rename |
+| `newFileMode`      | `0o666` less the umask  | Mode of a new file. A mode you set is exact: the umask does not apply to it                                                                                                                                    |
+| `newDirectoryMode` | `0o777` less the umask  | Mode of a directory that `createParents` makes. A mode you set is exact                                                                                                                                        |
 
 ## How it opens a file
 

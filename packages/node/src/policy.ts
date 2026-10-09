@@ -19,7 +19,11 @@ const DEFAULT_DENY_ROOTS = Object.freeze(["/dev", "/proc", "/sys"]);
  * defaults to "node".
  */
 export interface NodeFileSystemOptions extends FileSystemRootOptions<SymlinkPolicy, "required"> {
-  /** How to replace a file with more than one hard link. Default "refuse". "in-place" truncates and writes, which is not atomic. */
+  /**
+   * How to replace a file with more than one hard link. Default "in-place":
+   * truncate and write through the link, which is not atomic. "refuse" fails
+   * with denied. A file with one link is always replaced by temp file and rename.
+   */
   readonly hardLinks?: "refuse" | "in-place";
   /**
    * Mode of a new file, exactly: the umask does not apply to a mode you set.
@@ -137,7 +141,7 @@ function resolveOptions(options: NodeFileSystemOptions): NodeConfig {
   if (symlinks !== "follow-within-roots" && symlinks !== "reject") {
     throw new TypeError('symlinks must be "follow-within-roots" or "reject"');
   }
-  const hardLinks = options.hardLinks ?? "refuse";
+  const hardLinks = options.hardLinks ?? "in-place";
   if (hardLinks !== "refuse" && hardLinks !== "in-place") {
     throw new TypeError('hardLinks must be "refuse" or "in-place"');
   }

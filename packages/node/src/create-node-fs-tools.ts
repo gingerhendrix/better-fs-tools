@@ -73,6 +73,7 @@ export interface CreateNodeFsToolsOptions<THost = undefined> {
   readonly allowedRoots?: readonly string[];
   readonly denyRoots?: readonly string[];
   readonly symlinks?: SymlinkPolicy;
+  /** Default "in-place". "refuse" fails a replace of a file with more than one hard link. */
   readonly hardLinks?: "refuse" | "in-place";
   /** Mode of a new file, exactly. Default 0o666 less the process umask. */
   readonly newFileMode?: number;
