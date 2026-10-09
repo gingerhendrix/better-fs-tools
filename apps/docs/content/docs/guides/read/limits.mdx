@@ -24,7 +24,7 @@ const read = createReadTool({
 | Limit | Default | Sets |
 | --- | --- | --- |
 | `maxLines` | 2,000 | The most lines in one read. This is also the default `limit` and the largest `limit` |
-| `maxViewBytes` | 128 KiB | The most bytes of text in one read |
+| `maxViewBytes` | 50 KiB | The most bytes of text in one read |
 | `maxCharsPerLine` | 2,000 | The characters of a line before the tool cuts it |
 | `maxScanBytes` | 64 MiB | The bytes the tool scans to count the lines and hash the file |
 | `sampleBytes` | 8 KiB | The bytes that [classifiers](/guides/read/file-types#decide-the-file-type) get. Not more than `maxScanBytes` |

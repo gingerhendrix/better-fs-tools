@@ -9,7 +9,7 @@ The tool reads the first bytes of a file, and the `classifiers` decide its type 
 - With no converter, the tool reads a text file as lines.
 - With no converter, any other type returns status `unsupported`, with a note that names the type.
 
-The default `converters` is `[]`, so by default the tool reads only UTF-8 text:
+The default `converters` is `[]`, so by default the tool reads only UTF-8 text. A Jupyter notebook is JSON text, so the tool reads it as lines. Other types return `unsupported`:
 
 ```text
 [read:unsupported-pdf] This content is not supported as UTF-8 text. Use a PDF extraction tool.
@@ -17,18 +17,28 @@ The default `converters` is `[]`, so by default the tool reads only UTF-8 text:
 
 A folder is refused with status `error` and code `NOT_A_FILE`, unless a converter lists it.
 
+The AI SDK and Pi integrations set `converters` to `[imageConverter()]` when you set no `converters`, so they read images. A list you set replaces it. Set `converters: []` to turn images off.
+
 ## Add converters
 
 Set `converters` to a list. The first converter that accepts a file reads it:
 
 ```ts
 import { nodeFileSystem } from "@better-fs-tools/node";
-import { createReadTool, directoryListing, imageConverter, notebookConverter } from "@better-fs-tools/read";
+import {
+  createReadTool,
+  defaultClassifiers,
+  directoryListing,
+  imageConverter,
+  notebookClassifier,
+  notebookConverter,
+} from "@better-fs-tools/read";
 
 const cwd = process.cwd();
 const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
 const read = createReadTool({
   fs,
+  classifiers: [notebookClassifier(), ...defaultClassifiers()],
   converters: [imageConverter(), notebookConverter(), directoryListing()],
 });
 ```
@@ -36,7 +46,7 @@ const read = createReadTool({
 | Converter | Reads | Options |
 | --- | --- | --- |
 | `imageConverter()` | Images, as a media part | `transform` changes the bytes before they go to the model |
-| `notebookConverter()` | Jupyter notebooks, as text | `outputs: false` leaves out cell outputs |
+| `notebookConverter()` | Jupyter notebooks, as text. Needs `notebookClassifier()` | `outputs: false` leaves out cell outputs |
 | `directoryListing()` | Folders, one entry for each line | `trailingSlash`, `sort: "name" \| "type-then-name"` |
 | `textConverter()` | Any type, with your own function | See [Read PDFs and other formats](#read-pdfs-and-other-formats) |
 
@@ -65,7 +75,18 @@ imageConverter({ transform: (bytes, mediaType) => resize(bytes, mediaType, 1024)
 
 ## Read notebooks
 
-`notebookConverter()` gives each cell a header line, then its source, then its text outputs:
+By default a notebook is JSON text. A read with `limit: 4` returns the first lines of the JSON:
+
+```text
+1|{
+2| "cells": [
+3|  {
+4|   "cell_type": "markdown",
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"notebooks/explore.ipynb","offset":5,"limit":4}.
+```
+
+To read a notebook cell by cell, put `notebookClassifier()` before the default classifiers, and add `notebookConverter()`, as in the example above. `notebookConverter()` accepts only the `NOTEBOOK` type of `notebookClassifier()`, so without the classifier it does nothing. The converter gives each cell a header line, then its source, then its text outputs:
 
 ```text
 1|[cell 1: markdown]
@@ -97,7 +118,7 @@ const pdf = textConverter({
 
 The converter runs again for each continuation, so cache the output if it is slow. A converter that starts a process needs Node or Bun, and does not work in a Cloudflare Worker.
 
-`match.classification.code` is one of `BINARY`, `IMAGE`, `PDF`, `NOTEBOOK`, `OFFICE_DOCUMENT`, or `UNKNOWN_ENCODING`, or a code from your own classifier.
+With the default classifiers, `match.classification.code` is one of `BINARY`, `IMAGE`, `PDF`, `OFFICE_DOCUMENT`, or `UNKNOWN_ENCODING`. `notebookClassifier()` adds `NOTEBOOK`. Your own classifier can add other codes.
 
 ## List folders
 
@@ -122,7 +143,7 @@ A listing stops at 200 entries. Set `limits.maxDirectoryEntries` to change this.
 
 ## Decide the file type
 
-The default `classifiers` is `defaultClassifiers()`. It finds images, PDFs, Office documents, notebooks, and binary files, and it treats the rest as UTF-8 text. The first classifier that decides a type wins.
+The default `classifiers` is `defaultClassifiers()`. It finds images, PDFs, Office documents, and binary files, and it treats the rest as UTF-8 text. A notebook is text to it. `notebookClassifier()` finds notebooks. Put it before the defaults. The first classifier that decides a type wins.
 
 To decide by extension, put `extensionClassifier()` before the defaults:
 

@@ -110,7 +110,7 @@ const read = createReadTool({
 
 ```text
 [read:continue] Output stopped at the line limit. Continue with {"path":"src/greet.ts","offset":3,"limit":2}.
-[read:repeat-read] src/greet.ts has not changed since it was read with the same range at 2026-09-30T10:53:02.131Z. That output is still current, so it is not repeated.
+[read:repeat-read] src/greet.ts has not changed since it was read with the same range at 2026-10-09T22:22:36.495Z. That output is still current, so it is not repeated.
 [read:view-modified] The repeat-read-guard hook changed this view, so it is not the exact file text.
 ```
 
@@ -118,7 +118,7 @@ A read of another range, or of a changed file, returns the lines as usual. Set `
 
 ### Share the store with the write tools
 
-The `edit`, `write`, and `apply_patch` tools use the records to check that the model read a file before it changes it. Give all the tools the same store and digest. `createFsTools()` does this for you. See [One bundle for all tools](/guides/one-bundle).
+The `edit`, `write`, and `apply_patch` tools use the records to check that the model read a file before it changes it. Give all the tools the same store and digest. `createFsTools({ fs, state: memoryStore() })` does this for you. The default `state` of the bundle is `null`, so the bundle does not check reads unless you set it. See [One bundle for all tools](/guides/one-bundle).
 
 A read that a hook changed, for example with `redact()`, does not count as a read of the whole file.
 

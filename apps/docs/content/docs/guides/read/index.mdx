@@ -4,7 +4,7 @@ description: Create the read function with createReadTool, and configure it with
 ---
 
 <Callout type="info">
-To give a read tool to an agent, use a provider integration such as [AI SDK](/hosts/ai-sdk) or [Pi](/hosts/pi). The integration gives you the tool definition: the name, the description, and the parameter schema. It takes the options on this page, plus a [`signature`](/hosts/tool-definition) for the tool definition.
+To give a read tool to an agent, use a provider integration such as [AI SDK](/hosts/ai-sdk) or [Pi](/hosts/pi). The integration gives you the tool definition: the name, the description, and the parameter schema. It takes the options on this page, plus a [`signature`](/hosts/tool-definition) for the tool definition. The AI SDK and Pi integrations add `imageConverter()` when you set no `converters`.
 </Callout>
 
 `createReadTool` is the lower-level API. It creates the function that implements the tool. Use it when you write your own integration, or when your code reads files for the agent.
@@ -150,7 +150,7 @@ A refused read returns status `error` with code `DENIED`:
 
 ## File types
 
-By default the tool reads text. It returns `unsupported` for images, PDFs, notebooks, Office documents, and binary files, and `error` for a folder. Set `converters` to read them:
+By default the tool reads text. It returns `unsupported` for images, PDFs, Office documents, and binary files, and `error` for a folder. A Jupyter notebook is JSON text, so the tool reads it as lines. Set `converters` to read the other types:
 
 ```ts
 import { directoryListing, imageConverter } from "@better-fs-tools/read";
@@ -158,11 +158,11 @@ import { directoryListing, imageConverter } from "@better-fs-tools/read";
 const read = createReadTool({ fs, converters: [imageConverter(), directoryListing()] });
 ```
 
-An image then returns status `media`, with the image in `result.content`. A folder returns one entry for each line. Set `classifiers` to change how the tool decides the file type. See [File types](/guides/read/file-types).
+An image then returns status `media`, with the image in `result.content`. A folder returns one entry for each line. The AI SDK and Pi integrations read images by default. Set `converters: []` to turn this off. Set `classifiers` to change how the tool decides the file type. See [File types](/guides/read/file-types).
 
 ## Limits
 
-A read stops at 2,000 lines or 128 KiB, and a line stops at 2,000 characters. The result then has a continuation for the next part. Set `limits` to change these values, and `budget` to stop at a token count:
+A read stops at 2,000 lines or 50 KiB, and a line stops at 2,000 characters. The result then has a continuation for the next part. Set `limits` to change these values, and `budget` to stop at a token count:
 
 ```ts
 import { charsPerToken } from "@better-fs-tools/read";
