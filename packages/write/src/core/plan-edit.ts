@@ -28,6 +28,8 @@ interface Found {
 export interface EditPlanInput {
   readonly request: EditRequest;
   readonly matchers: readonly Matcher[];
+  /** Turns on already-applied, the closest-region hint, and the repeated-miss note. */
+  readonly recovery: boolean;
   readonly misses: MissCounter;
 }
 
@@ -174,7 +176,7 @@ function matchPair<THost>(
     maxMatches,
   });
   if (chain === null) {
-    if (isAlreadyApplied(text, pair.newText)) return "applied";
+    if (input.recovery && isAlreadyApplied(text, pair.newText)) return "applied";
     throw noMatchFailure(scope, input, target, text, pair, index);
   }
   const { matcher, ranges } = chain;
@@ -262,8 +264,8 @@ function noMatchFailure<THost>(
   const { messages, limits } = scope.deps;
   const path = target.requestedPath;
   const newline = trailingNewline(text, pair.oldText);
-  const closest = closestRegion(text, pair.oldText, limits.maxHintLines);
-  const misses = input.misses.miss(target.resolvedPath);
+  const closest = input.recovery ? closestRegion(text, pair.oldText, limits.maxHintLines) : null;
+  const misses = input.recovery ? input.misses.miss(target.resolvedPath) : 0;
   if (misses >= 3) {
     scope.notes.push({
       code: "repeated-miss",

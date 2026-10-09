@@ -66,8 +66,8 @@ describe("golden edit output", () => {
     expect([one, several, all, fuzzy].map(shown)).toMatchSnapshot();
   });
 
-  test("no change and failure help", async () => {
-    const { edit } = await setup();
+  test("no change and failure help with recovery: true", async () => {
+    const { edit } = await setup({ editDeps: { recovery: true } });
     const applied = await edit({
       path: "/src/app.ts",
       edits: [{ oldText: "export const q = 1;", newText: "export default z;" }],
@@ -89,7 +89,10 @@ describe("golden edit output", () => {
         { oldText: "return 1;\n}", newText: "b" },
       ],
     });
-    const tools = await setup({ files: { "/src/tail.ts": "last line" } });
+    const tools = await setup({
+      files: { "/src/tail.ts": "last line" },
+      editDeps: { recovery: true },
+    });
     await tools.read({ path: "/src/tail.ts" });
     const newline = await tools.edit({
       path: "/src/tail.ts",

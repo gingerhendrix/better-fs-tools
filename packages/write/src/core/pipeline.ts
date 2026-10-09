@@ -58,11 +58,11 @@ export async function runEdit<THost>(
   } catch (error) {
     return formatResult(deps, call, invalidInput(deps, "edit", input, error));
   }
-  const { matchers } = deps;
+  const { matchers, recovery } = deps;
   const report = await runSingleFile(deps, request, call, {
     whenMissing: "not-found",
     plan: (scope, target, loaded, pre) =>
-      planEdit(scope, { request, matchers, misses }, target, loaded, pre),
+      planEdit(scope, { request, matchers, recovery, misses }, target, loaded, pre),
     whenSameBytes: "error",
   });
   return formatResult(deps, call, report);

@@ -128,13 +128,15 @@ export function resolveWriteDependencies<THost>(
 
 export function resolveEditDependencies<THost>(deps: EditToolDeps<THost>): EditDependencies<THost> {
   if (!isRecord(deps)) throw new TypeError("edit tool dependencies must be an object");
-  const { matchers = defaultEditMatchers(), ...shared } = deps;
+  const { matchers = defaultEditMatchers(), recovery = false, ...shared } = deps;
   if (!Array.isArray(matchers) || matchers.length === 0 || !matchers.every(isMatcher)) {
     throw new TypeError("matchers must be a non-empty array of matchers");
   }
+  if (typeof recovery !== "boolean") throw new TypeError("recovery must be a boolean");
   return Object.freeze({
     ...resolveWriteDependencies(shared, "edit"),
     matchers: Object.freeze([...matchers]),
+    recovery,
   });
 }
 

@@ -329,8 +329,10 @@ describe("opt-in matchers through the tool", () => {
 });
 
 describe("failure help", () => {
+  const recovery = { editDeps: { recovery: true } };
+
   test("already applied: a no-change result with a note, nothing written", async () => {
-    const { edit, fs, state } = await readFile("const a = 2;\n");
+    const { edit, fs, state } = await readFile("const a = 2;\n", recovery);
     const record = await state.get("/f.ts");
     const version = fs.peek("/f.ts")?.version;
     const result = await edit({
@@ -351,7 +353,7 @@ describe("failure help", () => {
   });
 
   test("one pair already applied, the other applied now", async () => {
-    const { edit, fs } = await readFile("a = 2;\nb = 1;\n");
+    const { edit, fs } = await readFile("a = 2;\nb = 1;\n", recovery);
     const result = await edit({
       path: "/f.ts",
       edits: [
@@ -366,7 +368,7 @@ describe("failure help", () => {
   });
 
   test("not already applied when the new text is empty or found twice", async () => {
-    const { edit } = await readFile("x\nx\n");
+    const { edit } = await readFile("x\nx\n", recovery);
     expect(errorCode(await edit({ path: "/f.ts", edits: [{ oldText: "y", newText: "x" }] }))).toBe(
       "NO_MATCH",
     );
@@ -391,6 +393,7 @@ describe("failure help", () => {
   test("NO_MATCH shows the closest region", async () => {
     const { edit } = await readFile(
       "function a() {\n  return 1;\n}\n\nfunction b() {\n  return 2;\n}\n",
+      recovery,
     );
     const result = await edit({
       path: "/f.ts",
@@ -415,7 +418,7 @@ describe("failure help", () => {
   });
 
   test("the third miss in a row on a path adds a repeated-miss note", async () => {
-    const { edit } = await readFile("a\nb\n", { files: { "/g.ts": "g\n" } });
+    const { edit } = await readFile("a\nb\n", { files: { "/g.ts": "g\n" }, ...recovery });
     const miss = { path: "/f.ts", edits: [{ oldText: "zzz", newText: "y" }] };
     expect(codes(await edit(miss))).toEqual(["no-match"]);
     expect(codes(await edit(miss))).toEqual(["no-match"]);
@@ -430,16 +433,60 @@ describe("failure help", () => {
   });
 
   test("misses count for each path and each tool instance", async () => {
-    const first = await readFile("a\n", { files: { "/g.ts": "g\n" } });
+    const first = await readFile("a\n", { files: { "/g.ts": "g\n" }, ...recovery });
     await first.read({ path: "/g.ts" });
     const miss = (path: string) => ({ path, edits: [{ oldText: "zzz", newText: "y" }] });
     await first.edit(miss("/f.ts"));
     await first.edit(miss("/f.ts"));
     expect(codes(await first.edit(miss("/g.ts")))).toEqual(["no-match"]);
-    const second = await readFile("a\n");
+    const second = await readFile("a\n", recovery);
     await second.edit(miss("/f.ts"));
     expect(codes(await second.edit(miss("/f.ts")))).toEqual(["no-match"]);
     expect(codes(await first.edit(miss("/f.ts")))).toEqual(["no-match", "repeated-miss"]);
+  });
+});
+
+describe("failure help without recovery (the default)", () => {
+  test("a new text already in the file is a plain NO_MATCH", async () => {
+    const { edit, fs } = await readFile("const a = 2;\n");
+    const result = await edit({
+      path: "/f.ts",
+      edits: [{ oldText: "const a = 1;", newText: "const a = 2;" }],
+    });
+    expect(errorOf(result)).toEqual({
+      message: expect.any(String),
+      code: "NO_MATCH",
+      phase: "plan",
+      data: { index: 0 },
+    });
+    expect(codes(result)).toEqual(["no-match"]);
+    expect(text(fs, "/f.ts")).toBe("const a = 2;\n");
+  });
+
+  test("NO_MATCH shows no closest region", async () => {
+    const { edit } = await readFile(
+      "function a() {\n  return 1;\n}\n\nfunction b() {\n  return 2;\n}\n",
+    );
+    const result = await edit({
+      path: "/f.ts",
+      edits: [{ oldText: "function b() {\n  return 3;\n}", newText: "x" }],
+    });
+    expect(errorOf(result)?.data).toEqual({ index: 0 });
+    expect(note(result, "no-match")?.message).toBe("Edit 1: the oldText was not found in /f.ts.");
+  });
+
+  test("repeated misses add no note", async () => {
+    const { edit } = await readFile("a\nb\n");
+    const miss = { path: "/f.ts", edits: [{ oldText: "zzz", newText: "y" }] };
+    for (let count = 0; count < 4; count += 1) {
+      expect(codes(await edit(miss))).toEqual(["no-match"]);
+    }
+  });
+
+  test("recovery must be a boolean", () => {
+    expect(() => harness({ editDeps: { recovery: "yes" as never } })).toThrow(
+      "recovery must be a boolean",
+    );
   });
 });
 

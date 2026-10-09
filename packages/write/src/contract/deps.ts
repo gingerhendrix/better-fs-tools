@@ -47,6 +47,14 @@ export interface WriteDependencies<THost = undefined> {
 export interface EditDependencies<THost = undefined> extends WriteDependencies<THost> {
   /** Ordered. Non-empty. */
   readonly matchers: readonly Matcher[];
+  /**
+   * Help after a miss. true turns on three extras: a pair whose new text is
+   * already in the file and whose old text is not is `already-applied`; a
+   * NO_MATCH error shows the closest region of the file; and the third miss
+   * in a row on one file adds a `repeated-miss` note. Default false: a miss
+   * is a plain NO_MATCH.
+   */
+  readonly recovery: boolean;
 }
 
 export interface ApplyPatchDependencies<THost = undefined> extends WriteDependencies<THost> {

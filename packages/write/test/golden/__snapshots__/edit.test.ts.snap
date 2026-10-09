@@ -29,7 +29,7 @@ exports[`golden edit output one change, several changes, replace all, and a fuzz
 ]
 `;
 
-exports[`golden edit output no change and failure help 1`] = `
+exports[`golden edit output no change and failure help with recovery: true 1`] = `
 [
   {
     "error": null,
