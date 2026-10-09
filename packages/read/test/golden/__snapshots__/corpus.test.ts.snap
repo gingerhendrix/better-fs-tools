@@ -647,12 +647,22 @@ exports[`golden corpus, default formatter file bundle.zip 1`] = `
 
 exports[`golden corpus, default formatter file analysis.ipynb 1`] = `
 {
-  "code": "NOTEBOOK",
-  "notes": [
-    "unsupported-notebook",
-  ],
-  "status": "unsupported",
-  "text": "[read:unsupported-notebook] This content is not supported as UTF-8 text. Use a notebook handler.",
+  "next": null,
+  "notes": [],
+  "status": "ok",
+  "text": "1|{"cells": [], "nbformat": 4, "metadata": {}}",
+  "totals": {
+    "bytes": 45,
+    "exact": true,
+    "lines": 1,
+  },
+  "truncation": [],
+  "view": {
+    "bytes": 44,
+    "endLine": 1,
+    "startLine": 1,
+  },
+  "wholeFileVisible": true,
 }
 `;
 

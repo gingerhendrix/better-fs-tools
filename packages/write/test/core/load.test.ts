@@ -1,5 +1,7 @@
 import { describe, expect, spyOn, test } from "bun:test";
 
+import { defaultClassifiers, notebookClassifier } from "@better-fs-tools/read";
+
 import type { Codec } from "../../src/index.ts";
 import { utf8Codec } from "../../src/index.ts";
 import { errorOf, errorCode, harness, note } from "../helpers.ts";
@@ -28,6 +30,28 @@ describe("load", () => {
     expect(errorCode(result)).toBe("NOT_TEXT");
     expect(errorOf(result)?.data?.code).toBe("BINARY");
     expect(fs.peek("/x.bin")?.bytes).toEqual(Uint8Array.of(0, 1, 2, 0, 3));
+  });
+
+  test("an existing notebook is JSON text with the default classifiers", async () => {
+    const notebook = '{"cells": [], "nbformat": 4, "metadata": {}}\n';
+    const { fs, edit } = harness({ files: { "/n.ipynb": notebook }, deps: off });
+    const result = await edit({
+      path: "/n.ipynb",
+      edits: [{ oldText: '"nbformat": 4', newText: '"nbformat": 5' }],
+    });
+    expect(result.status).toBe("ok");
+    expect(new TextDecoder().decode(fs.peek("/n.ipynb")?.bytes)).toContain('"nbformat": 5');
+  });
+
+  test("notebookClassifier() in the chain makes an existing notebook NOT_TEXT", async () => {
+    const notebook = '{"cells": [], "nbformat": 4, "metadata": {}}\n';
+    const { write } = harness({
+      files: { "/n.ipynb": notebook },
+      deps: { ...off, classifiers: [notebookClassifier(), ...defaultClassifiers()] },
+    });
+    const result = await write({ path: "/n.ipynb", content: "{}" });
+    expect(errorCode(result)).toBe("NOT_TEXT");
+    expect(errorOf(result)?.data?.code).toBe("NOTEBOOK");
   });
 
   test("a codec whose encode does not give the bytes back is NOT_TEXT ROUND_TRIP", async () => {

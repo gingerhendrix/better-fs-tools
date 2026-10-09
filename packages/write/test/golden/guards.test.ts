@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
+import { defaultClassifiers, notebookClassifier } from "@better-fs-tools/read";
+
 import {
   recommendedGuards,
   executableShebang,
@@ -27,7 +29,11 @@ describe("golden guard output", () => {
         "/src/app.ts": "const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\n",
         "/config.yaml": "a: 1\n",
       },
-      deps: { guards: [...recommendedGuards(), syntaxGuard({ parsers: { yaml } })] },
+      deps: {
+        guards: [...recommendedGuards(), syntaxGuard({ parsers: { yaml } })],
+        // The default chain reads a notebook as JSON text.
+        classifiers: [notebookClassifier(), ...defaultClassifiers()],
+      },
     });
     await read({ path: "/src/app.ts" });
     await read({ path: "/config.yaml" });

@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { defaultClassifiers, utf8Classifier } from "../../src/index.ts";
+import { defaultClassifiers, notebookClassifier, utf8Classifier } from "../../src/index.ts";
 import type { ClassificationSample } from "../../src/index.ts";
 import { sample } from "./sample.ts";
 
-function classify(input: ClassificationSample) {
-  for (const classifier of defaultClassifiers()) {
+function classify(input: ClassificationSample, classifiers = defaultClassifiers()) {
+  for (const classifier of classifiers) {
     const result = classifier.classify(input);
     if (result !== null) return { id: classifier.id, result };
   }
@@ -13,12 +13,11 @@ function classify(input: ClassificationSample) {
 }
 
 describe("default chain", () => {
-  test("runs image, pdf, office, notebook, binary, utf8 in that order", () => {
+  test("runs image, pdf, office, binary, utf8 in that order", () => {
     expect(defaultClassifiers().map((classifier) => classifier.id)).toEqual([
       "image",
       "pdf",
       "office",
-      "notebook",
       "binary",
       "utf8",
     ]);
@@ -80,11 +79,22 @@ describe("default chain", () => {
     expect(decided.result.reasons).toContain("nul-byte");
   });
 
-  test("a notebook refuses with a handler hint", () => {
+  test("a notebook is JSON text by default", () => {
     const notebook = '{"cells": [], "nbformat": 4, "metadata": {}}';
     const decided = classify(sample(notebook, { path: "analysis.ipynb" }));
+    expect(decided?.id).toBe("utf8");
+    expect(decided?.result.kind).toBe("text");
+  });
+
+  test("notebookClassifier() before the chain refuses a notebook with a handler hint", () => {
+    const notebook = '{"cells": [], "nbformat": 4, "metadata": {}}';
+    const decided = classify(sample(notebook, { path: "analysis.ipynb" }), [
+      notebookClassifier(),
+      ...defaultClassifiers(),
+    ]);
     if (decided?.result.kind !== "unsupported") throw new Error("expected unsupported");
     expect(decided.result.code).toBe("NOTEBOOK");
+    expect(decided.result.note.message).toContain("a notebook handler");
   });
 
   test("SVG stays text with an SVG mime type", () => {

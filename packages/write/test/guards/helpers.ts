@@ -1,4 +1,5 @@
 import { defaultClassifiers } from "@better-fs-tools/read";
+import type { Classifier } from "@better-fs-tools/read";
 
 import type {
   ChangeFragment,
@@ -42,7 +43,10 @@ export function change(options: ChangeOptions): PlannedChange {
   };
 }
 
-export function guardContext(tool: WriteToolName = "write"): GuardContext<unknown> {
+export function guardContext(
+  tool: WriteToolName = "write",
+  classifiers: readonly Classifier[] = defaultClassifiers(),
+): GuardContext<unknown> {
   return {
     tool,
     request: { tool: "write", path: "/a.txt", content: "" },
@@ -51,7 +55,7 @@ export function guardContext(tool: WriteToolName = "write"): GuardContext<unknow
     digest: null,
     clock: () => new Date(0),
     call: { host: undefined },
-    classifiers: defaultClassifiers(),
+    classifiers,
   };
 }
 

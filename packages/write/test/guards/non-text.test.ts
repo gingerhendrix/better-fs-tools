@@ -1,21 +1,28 @@
 import { describe, expect, test } from "bun:test";
 
+import { defaultClassifiers, notebookClassifier } from "@better-fs-tools/read";
+
 import { nonTextGuard, recommendedGuards } from "../../src/index.ts";
 import { errorOf, errorCode, harness, text } from "../helpers.ts";
 import { change, guardContext, verdict } from "./helpers.ts";
 
 const NOTEBOOK = JSON.stringify({ cells: [], metadata: {}, nbformat: 4, nbformat_minor: 5 });
 
+// The default chain reads a notebook as JSON text. These classifiers refuse it.
+const withNotebooks = [notebookClassifier(), ...defaultClassifiers()];
+
 function check(path: string, after: string, before: string | null = null) {
-  return verdict(nonTextGuard().check(change({ path, before, after }), guardContext()));
+  return verdict(
+    nonTextGuard().check(change({ path, before, after }), guardContext("write", withNotebooks)),
+  );
 }
 
 describe("nonTextGuard", () => {
-  test("refuses a new notebook", () => {
+  test("refuses a new notebook when notebookClassifier() is in the chain", () => {
     expect(check("/n.ipynb", NOTEBOOK)).toBe("non-text");
     const decision = nonTextGuard().check(
       change({ path: "/n.ipynb", after: NOTEBOOK }),
-      guardContext(),
+      guardContext("write", withNotebooks),
     );
     expect(decision).toEqual({
       allow: false,
@@ -27,6 +34,14 @@ describe("nonTextGuard", () => {
         data: { code: "NOTEBOOK", classifier: "notebook" },
       },
     });
+  });
+
+  test("allows a notebook with the default classifiers", () => {
+    const decision = nonTextGuard().check(
+      change({ path: "/n.ipynb", after: NOTEBOOK }),
+      guardContext(),
+    );
+    expect(verdict(decision)).toBe("allow");
   });
 
   test("refuses content with NUL bytes, and an update that adds them", () => {
@@ -48,10 +63,19 @@ describe("nonTextGuard", () => {
   });
 
   test("in recommendedGuards(): write refuses a new .ipynb and writes nothing", async () => {
-    const { fs, write } = harness({ deps: { guards: recommendedGuards() } });
+    const { fs, write } = harness({
+      deps: { guards: recommendedGuards(), classifiers: withNotebooks },
+    });
     const result = await write({ path: "/n.ipynb", content: NOTEBOOK });
     expect(errorCode(result)).toBe("GUARD_REFUSED");
     expect(errorOf(result)?.data).toMatchObject({ guard: "non-text", code: "NOTEBOOK" });
     expect(text(fs, "/n.ipynb")).toBeNull();
+  });
+
+  test("in recommendedGuards() with the default classifiers: write creates a .ipynb", async () => {
+    const { fs, write } = harness({ deps: { guards: recommendedGuards() } });
+    const result = await write({ path: "/n.ipynb", content: NOTEBOOK });
+    expect(result.status).toBe("ok");
+    expect(text(fs, "/n.ipynb")).toBe(NOTEBOOK);
   });
 });

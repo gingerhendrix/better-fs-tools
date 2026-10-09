@@ -6,7 +6,11 @@ import { ALLOW, refuse } from "./shared.ts";
 const ENCODER = new TextEncoder();
 const BOM = Uint8Array.of(0xef, 0xbb, 0xbf);
 
-/** Refuses new content that the classifiers find is not text, such as a notebook, NUL bytes, or an image. */
+/**
+ * Refuses new content that the classifiers find is not text, such as NUL
+ * bytes or an image. The default classifiers read a notebook as JSON text.
+ * Add notebookClassifier() to the classifiers to refuse notebooks too.
+ */
 export function nonTextGuard(): Guard<unknown> {
   return Object.freeze<Guard<unknown>>({
     id: "non-text",

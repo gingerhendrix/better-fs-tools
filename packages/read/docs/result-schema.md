@@ -97,12 +97,13 @@ Field notes:
 
 `code` comes from the classifier, a converter refusal, or the core:
 
-| Code                                                                        | Source                                                                                                                                              |
-| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `IMAGE`, `PDF`, `OFFICE_DOCUMENT`, `NOTEBOOK`, `BINARY`, `UNKNOWN_ENCODING` | The default classifiers                                                                                                                             |
-| `INVALID_NOTEBOOK`                                                          | `notebookConverter()` on broken notebook JSON                                                                                                       |
-| `TOO_LARGE`                                                                 | The core: converter input over `maxConvertBytes`, or media over `maxMediaBytes`. A backend ceiling gives `status: "error"` with `TOO_LARGE` instead |
-| any other string                                                            | Your own classifier or converter                                                                                                                    |
+| Code                                                            | Source                                                                                                                                              |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IMAGE`, `PDF`, `OFFICE_DOCUMENT`, `BINARY`, `UNKNOWN_ENCODING` | The default classifiers                                                                                                                             |
+| `NOTEBOOK`                                                      | `notebookClassifier()`, which is not in the default chain                                                                                           |
+| `INVALID_NOTEBOOK`                                              | `notebookConverter()` on broken notebook JSON                                                                                                       |
+| `TOO_LARGE`                                                     | The core: converter input over `maxConvertBytes`, or media over `maxMediaBytes`. A backend ceiling gives `status: "error"` with `TOO_LARGE` instead |
+| any other string                                                | Your own classifier or converter                                                                                                                    |
 
 ## `error`
 
@@ -175,15 +176,16 @@ Notes from the core:
 
 Notes from the built-in helpers:
 
-| `code`                                                                                                                                              | Severity | From                    | `data`                          |
-| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------- | ------------------------------- |
-| `utf8-bom`                                                                                                                                          | info     | `utf8Classifier`        | none                            |
-| `unsupported-image`, `unsupported-pdf`, `unsupported-office-document`, `unsupported-notebook`, `unsupported-binary`, `unsupported-unknown-encoding` | warning  | the default classifiers | as set by a `NoteOverride`      |
-| `path-repaired`                                                                                                                                     | warning  | `unicodeRepair()`       | `{ from, to }`                  |
-| `invalid-notebook`                                                                                                                                  | warning  | `notebookConverter()`   | none                            |
-| `directory-truncated`                                                                                                                               | warning  | `directoryListing()`    | `{ maxDirectoryEntries }`       |
-| `empty-directory`                                                                                                                                   | info     | `directoryListing()`    | none                            |
-| `repeat-read`                                                                                                                                       | info     | `repeatReadGuard()`     | `{ observationId, observedAt }` |
+| `code`                                                                                                                      | Severity | From                    | `data`                          |
+| --------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------- | ------------------------------- |
+| `utf8-bom`                                                                                                                  | info     | `utf8Classifier`        | none                            |
+| `unsupported-image`, `unsupported-pdf`, `unsupported-office-document`, `unsupported-binary`, `unsupported-unknown-encoding` | warning  | the default classifiers | as set by a `NoteOverride`      |
+| `unsupported-notebook`                                                                                                      | warning  | `notebookClassifier()`  | as set by a `NoteOverride`      |
+| `path-repaired`                                                                                                             | warning  | `unicodeRepair()`       | `{ from, to }`                  |
+| `invalid-notebook`                                                                                                          | warning  | `notebookConverter()`   | none                            |
+| `directory-truncated`                                                                                                       | warning  | `directoryListing()`    | `{ maxDirectoryEntries }`       |
+| `empty-directory`                                                                                                           | info     | `directoryListing()`    | none                            |
+| `repeat-read`                                                                                                               | info     | `repeatReadGuard()`     | `{ observationId, observedAt }` |
 
 `directoryListing()` also has a `list-failed` refusal for a listing that failed. The core reports the listing's own error first, so a read with the built-in converter gives that error, for example `DENIED` or `IO_ERROR`.
 

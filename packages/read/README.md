@@ -107,7 +107,7 @@ read({ path, offset, limit }, ctx)
   │     ├─ on a miss: suggest  one bounded listing, names only
   │     └─ on a directory .... a directory converter lists it, else NOT_A_FILE
   │  authorize ............... host policy on the open file, before the core reads content
-  │  sample + classifiers .... text, image, PDF, notebook, binary, ...
+  │  sample + classifiers .... text, image, PDF, Office, binary, ...
   │  converters .............. other formats to text or media parts
   │  scan .................... lines, clamping, view bytes, token budget, scan limit
   │  verify .................. size check and change detection
@@ -343,7 +343,9 @@ While a prompt waits, the file stays open. If the file changes during the wait, 
 
 `classifiers` is an ordered list. Each classifier sees a bounded sample of the file (`limits.sampleBytes`). The first classifier with an opinion wins.
 
-The default chain detects images, PDFs, Office documents, notebooks, binary content, and text encodings. It returns these `unsupported` codes: `IMAGE`, `PDF`, `OFFICE_DOCUMENT`, `NOTEBOOK`, `BINARY`, and `UNKNOWN_ENCODING`. Each refusal has a note with code `unsupported-<code>`, for example `unsupported-pdf`.
+The default chain detects images, PDFs, Office documents, binary content, and text encodings. It returns these `unsupported` codes: `IMAGE`, `PDF`, `OFFICE_DOCUMENT`, `BINARY`, and `UNKNOWN_ENCODING`. Each refusal has a note with code `unsupported-<code>`, for example `unsupported-pdf`.
+
+A Jupyter notebook is JSON, so the default chain reads it as text. `notebookClassifier()` is exported but not in the chain. Put it first, as `classifiers: [notebookClassifier(), ...defaultClassifiers()]`, to refuse notebooks with code `NOTEBOOK`, or to convert them with `notebookConverter()`. The write tools use the same classifiers, so the same list makes them refuse a notebook too.
 
 To detect by extension, or to change a refusal message:
 
@@ -375,8 +377,10 @@ A classifier only decides what a file is. A converter changes the content.
 ```ts
 import { createNodeReadTool } from "@better-fs-tools/node";
 import {
+  defaultClassifiers,
   directoryListing,
   imageConverter,
+  notebookClassifier,
   notebookConverter,
   textConverter,
 } from "@better-fs-tools/read";
@@ -385,6 +389,9 @@ import {
 declare function pdfToText(source: AsyncIterable<Uint8Array>): AsyncIterable<string>;
 
 export const read = createNodeReadTool({
+  // The default chain reads a notebook as JSON text. notebookClassifier()
+  // marks it NOTEBOOK, so notebookConverter() can take it.
+  classifiers: [notebookClassifier(), ...defaultClassifiers()],
   converters: [
     imageConverter(),
     notebookConverter({ outputs: false }),
@@ -400,12 +407,12 @@ export const read = createNodeReadTool({
 });
 ```
 
-| Converter                                       | Result                                                                                                                                 |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `imageConverter({ transform })`                 | Accepts code `IMAGE`. Gives a `media` result with the image as one content part. `transform` can resize it.                            |
-| `notebookConverter({ outputs })`                | Accepts code `NOTEBOOK`. Gives the cells as text. `outputs` defaults to `true`. Broken notebook JSON is refused as `INVALID_NOTEBOOK`. |
-| `textConverter({ id, accepts, mimeType, run })` | Builds a text converter from a stream function, for example `pdftotext`, `pandoc`, or `markitdown` in your host.                       |
-| `directoryListing({ trailingSlash, sort })`     | A directory becomes text, one entry for each line. `sort` is `"name"` (the default) or `"type-then-name"`.                             |
+| Converter                                       | Result                                                                                                                                                                     |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `imageConverter({ transform })`                 | Accepts code `IMAGE`. Gives a `media` result with the image as one content part. `transform` can resize it.                                                                |
+| `notebookConverter({ outputs })`                | Accepts code `NOTEBOOK`, so it needs `notebookClassifier()`. Gives the cells as text. `outputs` defaults to `true`. Broken notebook JSON is refused as `INVALID_NOTEBOOK`. |
+| `textConverter({ id, accepts, mimeType, run })` | Builds a text converter from a stream function, for example `pdftotext`, `pandoc`, or `markitdown` in your host.                                                           |
+| `directoryListing({ trailingSlash, sort })`     | A directory becomes text, one entry for each line. `sort` is `"name"` (the default) or `"type-then-name"`.                                                                 |
 
 A converter returns one of these outcomes:
 

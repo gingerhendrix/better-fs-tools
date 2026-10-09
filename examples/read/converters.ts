@@ -1,7 +1,9 @@
 import { createNodeReadTool } from "@better-fs-tools/node";
 import {
+  defaultClassifiers,
   directoryListing,
   imageConverter,
+  notebookClassifier,
   notebookConverter,
   textConverter,
 } from "@better-fs-tools/read";
@@ -10,6 +12,9 @@ import {
 declare function pdfToText(source: AsyncIterable<Uint8Array>): AsyncIterable<string>;
 
 export const read = createNodeReadTool({
+  // The default chain reads a notebook as JSON text. notebookClassifier()
+  // marks it NOTEBOOK, so notebookConverter() can take it.
+  classifiers: [notebookClassifier(), ...defaultClassifiers()],
   converters: [
     imageConverter(),
     notebookConverter({ outputs: false }),
