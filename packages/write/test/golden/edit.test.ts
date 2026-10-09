@@ -101,6 +101,7 @@ describe("golden edit output", () => {
   test("refusals and preconditions", async () => {
     const { edit, fs, read } = await setup({
       files: { "/src/lig.ts": "de\ufb01ne(x);\n", "/src/dash.ts": "a \u2014 b\na \u2013 b\n" },
+      deps: { preconditions: { onStale: "rematch" } },
     });
     await read({ path: "/src/lig.ts" });
     await read({ path: "/src/dash.ts" });

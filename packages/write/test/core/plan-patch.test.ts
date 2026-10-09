@@ -459,6 +459,8 @@ describe("Delete, Move, and records", () => {
 });
 
 describe("preconditions", () => {
+  const rematch = { patchDeps: { preconditions: { onStale: "rematch" as const } } };
+
   test("an unread Update or Delete gives NOT_READ naming every path; an Add needs no read", async () => {
     const setup = harness({ files: { "/a.ts": "a\n", "/b.ts": "b\n" } });
     const result = await setup.applyPatch({
@@ -499,7 +501,7 @@ describe("preconditions", () => {
   });
 
   test("a stale file is patched when every hunk matches exactly", async () => {
-    const setup = await readAll({ "/a.ts": "a\nb\n" });
+    const setup = await readAll({ "/a.ts": "a\nb\n" }, rematch);
     setup.fs.setFile("/a.ts", "a\nb\nextra\n");
     const result = await setup.applyPatch({
       patch: patchText("*** Update File: /a.ts", "@@", "-a", "+A"),
@@ -511,7 +513,7 @@ describe("preconditions", () => {
   });
 
   test("on a stale file only the exact matcher runs; a miss gives STALE", async () => {
-    const setup = await readAll({ "/a.ts": "a\nb\n" });
+    const setup = await readAll({ "/a.ts": "a\nb\n" }, rematch);
     setup.fs.setFile("/a.ts", "a  \nb\n");
     const result = await setup.applyPatch({
       patch: patchText("*** Update File: /a.ts", "@@", "-a", "+A"),
@@ -533,13 +535,8 @@ describe("preconditions", () => {
     expect(text(setup.fs, "/a.ts")).toBe("changed\n");
   });
 
-  test('onStale "reject" gives STALE before any hunk runs', async () => {
-    const setup = await readAll(
-      { "/a.ts": "a\n" },
-      {
-        patchDeps: { preconditions: { onStale: "reject" } },
-      },
-    );
+  test("by default a stale file gives STALE before any hunk runs", async () => {
+    const setup = await readAll({ "/a.ts": "a\n" });
     setup.fs.setFile("/a.ts", "a\nb\n");
     const result = await setup.applyPatch({
       patch: patchText("*** Update File: /a.ts", "@@", "-a", "+A"),

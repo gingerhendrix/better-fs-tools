@@ -488,8 +488,10 @@ describe("edit targets and records", () => {
 });
 
 describe("edit on a stale record", () => {
+  const rematch = { deps: { preconditions: { onStale: "rematch" as const } } };
+
   test("every old text still matches exactly once: applied with a note", async () => {
-    const { edit, fs } = await readFile("one\ntwo\nthree\n");
+    const { edit, fs } = await readFile("one\ntwo\nthree\n", rematch);
     fs.setFile("/f.ts", "zero\none\ntwo\nthree\n");
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "two", newText: "2" }] });
     expect(result.status).toBe("ok");
@@ -503,7 +505,7 @@ describe("edit on a stale record", () => {
   });
 
   test("the rematch is exact only: a fuzzy hit gives STALE", async () => {
-    const { edit, fs } = await readFile("a \u2014 b\n");
+    const { edit, fs } = await readFile("a \u2014 b\n", rematch);
     fs.setFile("/f.ts", "x\na \u2014 b\n");
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "a - b", newText: "c" }] });
     expect(errorOf(result)).toMatchObject({
@@ -515,7 +517,7 @@ describe("edit on a stale record", () => {
   });
 
   test("an old text that now matches twice gives STALE", async () => {
-    const { edit, fs } = await readFile("key = 1\n");
+    const { edit, fs } = await readFile("key = 1\n", rematch);
     fs.setFile("/f.ts", "key = 1\nkey = 1\n");
     const result = await edit({
       path: "/f.ts",
@@ -525,7 +527,7 @@ describe("edit on a stale record", () => {
   });
 
   test("replaceAll needs at least one exact hit", async () => {
-    const { edit, fs } = await readFile("k\n");
+    const { edit, fs } = await readFile("k\n", rematch);
     fs.setFile("/f.ts", "k\nk\n");
     const all = await edit({
       path: "/f.ts",
@@ -536,16 +538,14 @@ describe("edit on a stale record", () => {
   });
 
   test("an already applied pair on a stale record gives STALE, not no-change", async () => {
-    const { edit, fs } = await readFile("a = 1\n");
+    const { edit, fs } = await readFile("a = 1\n", rematch);
     fs.setFile("/f.ts", "a = 2\n");
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "a = 1", newText: "a = 2" }] });
     expect(errorCode(result)).toBe("STALE");
   });
 
-  test("onStale: reject gives STALE without a rematch", async () => {
-    const { edit, fs } = await readFile("one\n", {
-      deps: { preconditions: { onStale: "reject" } },
-    });
+  test("by default a stale record gives STALE without a rematch", async () => {
+    const { edit, fs } = await readFile("one\n");
     fs.setFile("/f.ts", "one\ntwo\n");
     const result = await edit({ path: "/f.ts", edits: [{ oldText: "one", newText: "1" }] });
     expect(errorOf(result)).toMatchObject({ code: "STALE", phase: "precondition" });
@@ -553,7 +553,7 @@ describe("edit on a stale record", () => {
   });
 
   test("after a rematch the record is not whole: write needs a read, edit does not", async () => {
-    const { edit, write, fs, state } = await readFile("one\n");
+    const { edit, write, fs, state } = await readFile("one\n", rematch);
     fs.setFile("/f.ts", "one\nsomeone else's line\n");
     await edit({ path: "/f.ts", edits: [{ oldText: "one\n", newText: "1\n" }] });
     expect((await state.get("/f.ts"))?.wholeFileVisible).toBe(false);

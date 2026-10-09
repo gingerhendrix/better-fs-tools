@@ -33,7 +33,7 @@ describe("write tool dependencies", () => {
     expect(deps.preconditions).toEqual({
       requireRead: "existing",
       partialRead: "edit-only",
-      onStale: "rematch",
+      onStale: "reject",
     });
     expect([deps.resolve, deps.authorize, deps.state, deps.digest]).toEqual([
       null,
@@ -68,14 +68,14 @@ describe("write tool dependencies", () => {
         fs,
         limits: { maxEdits: 2 },
         messages: { stale: () => "s" },
-        preconditions: { onStale: "reject" },
+        preconditions: { onStale: "rematch" },
       },
       "write",
     );
     expect(deps.limits.maxEdits).toBe(2);
     expect(deps.limits.maxFileBytes).toBe(defaultWriteLimits.maxFileBytes);
     expect(deps.messages.stale({ tool: "write", path: "a" })).toBe("s");
-    expect(deps.preconditions).toEqual({ ...defaultPreconditions, onStale: "reject" });
+    expect(deps.preconditions).toEqual({ ...defaultPreconditions, onStale: "rematch" });
   });
 
   test.each([
