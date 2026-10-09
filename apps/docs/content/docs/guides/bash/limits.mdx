@@ -121,4 +121,4 @@ const fileSpill: SpillSink = {
 
 Put the files inside the `allowedRoots` of the read tool, so the model can read the part it did not see. `result.output.spill` holds the reference. The [Pi integration](/hosts/pi) gives it to Pi as `fullOutputPath`.
 
-If `write` or `close` fails, the command is not affected, and the tool adds a `spill-failed` note. If `open` throws, the command does not run, and the call returns `EXTENSION_FAILED`.
+If `write` or `close` fails, the command is not affected, the tool adds no note, and `result.output.spill` is `null`. If `open` throws, the command does not run, and the call returns `EXTENSION_FAILED`.

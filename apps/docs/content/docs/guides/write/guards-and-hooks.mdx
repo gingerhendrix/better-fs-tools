@@ -23,7 +23,6 @@ Each guard lets through text that is already in the file, and a file that was al
 
 ```text
 [edit:guard-refused] The change would make package.json invalid JSON, and it was valid before. Fix the newText and retry. The parser said: JSON Parse error: Property name must be a string literal
-[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
 ```
 
 ### Change the guards
@@ -41,7 +40,6 @@ const write = createWriteTool({ fs, guards: [...defaultGuards(), generatedFileGu
 
 ```text
 [write:guard-refused] src/api.generated.ts looks generated: its name, api.generated.ts, is a generated-file name. Change its source or generator instead, then regenerate it.
-[write:read-before-write-off] Read-before-write is off: this tool has no state store.
 ```
 
 `generatedFileGuard()` refuses changes to files with names such as `*.min.*` and `*.generated.*`, or with `@generated` or `DO NOT EDIT` near the top. It allows a new file.
@@ -124,10 +122,10 @@ const logChanges: WriteHook<unknown> = {
 
 A hook returns `{ notes }` to add notes for the model. When the hook changed the file, for example with a code formatter, it returns `{ rewrote: true }`. The tool then reads the file again, updates `result.changes`, and adds a `hook-rewrote` note. The model must read the file before its next `write`.
 
-The file is already written when a hook runs. If a hook throws, the tool adds a warning, and the status stays `ok`:
+The file is already written when a hook runs. If a hook throws, the tool goes on with the next hook. It adds no note, and the status stays `ok`:
 
 ```text
-[write:hook-failed] The format hook failed after src/names.ts was written. The file is changed.
+Created src/names.ts (1 line).
 ```
 
 The abort signal does not stop a hook. A hook that never returns holds the call open.

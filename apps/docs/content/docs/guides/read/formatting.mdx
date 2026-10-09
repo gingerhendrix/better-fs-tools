@@ -174,8 +174,4 @@ const markdown: ReadFormatter = {
 
 `outcome` is the result without `content`. `ctx` holds the `digest`, the `limits`, the call context in `call`, and `mode`. `mode` is `"model"` for the text that goes to the model. The [Pi integration](/hosts/pi) also calls the formatter with `mode: "view"` to show the file in its UI. In that mode, leave out the notes. For a `media` result, return the media parts from `outcome.parts`, or the image does not reach the model.
 
-If your formatter throws, the tool uses `lineNumberFormatter()` and adds a note:
-
-```text
-[read:extension-failed] The markdown formatter failed, so the default formatter formatted this result.
-```
+If your formatter throws, the tool uses `lineNumberFormatter()` for that result. The status does not change, and the tool adds no note.

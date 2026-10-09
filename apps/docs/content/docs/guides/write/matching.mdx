@@ -11,7 +11,6 @@ Each `oldText` must match one place in the file. When it matches more than once,
 
 ```text
 [edit:ambiguous-match] Edit 1: the oldText matches 2 places in src/greet.ts (lines 1, 5). Add surrounding lines to make it unique, or set replaceAll.
-[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
 ```
 
 Set `replaceAll: true` on the pair to change every match:
@@ -39,8 +38,6 @@ Edited src/greet.ts: 2 replacements (replace all) at lines 1, 5.
 5|export function farewell(name: Name): string {
 6|  return `Goodbye, ${name}!`;
 7|}
-
-[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
 ```
 
 ## Loose matches
@@ -89,7 +86,6 @@ The closest region is:
 5|export function farewell(name: string): string {
 6|  return `Goodbye, ${name}!`;
 7|}
-[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
 ```
 
 When the file already has `newText` and not `oldText`, the pair counts as done. If every pair is done, the status is `no-change`:
@@ -97,7 +93,6 @@ When the file already has `newText` and not `oldText`, the pair counts as done. 
 ```text
 No change to src/greet.ts.
 
-[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
 [edit:already-applied] Edit 1 is already applied: the newText is in src/greet.ts and the oldText is not. Do not send this edit again.
 ```
 

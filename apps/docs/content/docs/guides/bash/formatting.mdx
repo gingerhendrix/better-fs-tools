@@ -1,6 +1,6 @@
 ---
 title: Customise formatting
-description: Change the layout of the bash output, the wording of notes, or write your own formatter.
+description: Change the layout of the bash output, hide or restyle notes, change their wording, or write your own formatter.
 ---
 
 A formatter turns the result of a call into `result.content`, the parts that go to the model. The default is `defaultShellFormatter()`. The formatter changes only `content`. `status`, `run`, `output`, `notes`, and the other fields stay the same.
@@ -15,7 +15,14 @@ A formatter turns the result of a call into `result.content`, the parts that go 
 
 A call that did not start a command prints only the notes.
 
-## Restyle notes
+## Hide or restyle notes
+
+`defaultShellFormatter()` takes two options:
+
+| Option     | Default               | Sets                                             |
+| ---------- | --------------------- | ------------------------------------------------ |
+| `notes`    | show all              | A filter for notes. Return `null` to hide a note |
+| `noteLine` | `[bash:code] message` | How each note is printed                         |
 
 Set `noteLine` to change how each note is printed:
 
@@ -39,7 +46,26 @@ hi
 <note code="clamped">The requested timeout of 15 min is over the maximum, so 10 min was used.</note>
 ```
 
-`noteLine` is the only option. To hide a note, remove it in an [`afterRun` hook](/guides/bash/policy#change-the-output). The [bash reference](/reference/bash#notes) lists every note code.
+Set `notes` to hide a note from the text, or to change it. The function gets the note. It returns the note to show, a changed note, or `null`. A note filter changes only the text. The note stays in `result.notes`:
+
+```ts
+const bash = createBashTool({
+  runner: nodeCommandRunner(),
+  env: shellEnv(() => process.env),
+  formatter: defaultShellFormatter({
+    notes: (note) => (note.code === "clamped" ? null : note),
+  }),
+});
+```
+
+For the same call, the text now ends after the output:
+
+```text
+Exit code 0 · 0 s
+hi
+```
+
+The [bash reference](/reference/bash#notes) lists every note code.
 
 ## Change the wording
 
@@ -109,8 +135,4 @@ const json: ShellFormatter = {
 
 `report` is the result without `content`. When the output is cut, `report.output.head` holds the first part and `report.output.tail` the last part. `ctx` holds the `limits`, the `messages`, the `digest`, and the call context in `call`.
 
-If your formatter throws, the tool uses `defaultShellFormatter()` and adds a note. The status does not change:
-
-```text
-[bash:extension-failed] The json extension failed during the format phase. This is a host problem, not a problem with the command.
-```
+If your formatter throws, the tool uses `defaultShellFormatter()` for that result. The status does not change, and the tool adds no note.

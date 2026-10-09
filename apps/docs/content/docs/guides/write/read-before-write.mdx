@@ -3,11 +3,7 @@ title: Read before write
 description: Refuse changes to files the model has not read or that changed after the read, with the state of the read tool.
 ---
 
-The read tool stores a record of each read in its `state`. The write tools look up that record before they change a file that exists. The default `state` is `null`, so a write tool on its own does not check. Each change to a file that exists then gets a note:
-
-```text
-[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
-```
+The read tool stores a record of each read in its `state`. The write tools look up that record before they change a file that exists. The default `state` is `null`, so a write tool on its own does not check. It changes a file that the model has not read, and adds no note.
 
 ## Share the store with the read tool
 
@@ -76,7 +72,7 @@ const edit = createEditTool({ ...shared, preconditions: { onStale: "reject" } })
 
 | Rule          | Default       | Values                                                                                                                                      |
 | ------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `requireRead` | `"existing"`  | `"existing"` needs a record for a file that exists. `"off"` turns the check off, with no note                                               |
+| `requireRead` | `"existing"`  | `"existing"` needs a record for a file that exists. `"off"` turns the check off                                                             |
 | `partialRead` | `"edit-only"` | Which tools accept a read of part of the file: `"edit-only"` for `edit` and `apply_patch`, `"always"`, or `"never"`                         |
 | `onStale`     | `"rematch"`   | `"rematch"` lets `edit` and `apply_patch` go on when the old text still matches. `"reject"` returns `STALE`. `write` always returns `STALE` |
 

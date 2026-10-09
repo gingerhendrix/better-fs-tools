@@ -100,8 +100,6 @@ Edited src/greet.ts: 1 replacement at line 2.
 3|}
 4|
 5|export function farewell(name: string): string {
-
-[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
 ```
 
 A failed call returns only notes:
@@ -146,7 +144,7 @@ const write = createWriteTool({ ...shared, locks });
 [write:not-read] Read src/greet.ts with the read tool before changing it.
 ```
 
-`edit` and `apply_patch` accept a read of part of the file. `write` needs a read of the whole file. A new file needs no read. Without `state`, each change to a file that exists gets a `read-before-write-off` note. See [Read before write](/guides/write/read-before-write).
+`edit` and `apply_patch` accept a read of part of the file. `write` needs a read of the whole file. A new file needs no read. Without `state`, the tools do not check reads. See [Read before write](/guides/write/read-before-write).
 
 ## Permissions
 
@@ -174,7 +172,6 @@ Each `oldText` of an `edit` must match one place in the file. Set `replaceAll: t
 
 ```text
 [edit:ambiguous-match] Edit 1: the oldText matches 2 places in src/greet.ts (lines 1, 5). Add surrounding lines to make it unique, or set replaceAll.
-[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
 ```
 
 When the exact text is not found, the tool tries looser matchers, for example with no trailing spaces. A loose match adds a `fuzzy-match` note. Set `matchers` to change the list. See [Match old text](/guides/write/matching).
@@ -203,7 +200,6 @@ Guards check each change before the tool writes it. `defaultGuards()` refuses pa
 
 ```text
 [edit:guard-refused] The newText for src/greet.ts has a placeholder instead of code: "// ... rest of code". It would delete the lines it stands for. Write those lines out in full, or make the oldText smaller so they stay unchanged.
-[edit:read-before-write-off] Read-before-write is off: this tool has no state store.
 ```
 
 Hooks run after each changed file. `executableShebang()` makes a new file that starts with `#!` executable, and `verifyWrite()` reads each file back:
@@ -214,7 +210,7 @@ import { executableShebang, verifyWrite } from "@better-fs-tools/write";
 const write = createWriteTool({ fs, hooks: [executableShebang(), verifyWrite()] });
 ```
 
-A hook that throws adds a warning note. The file is already changed, so the status stays `ok`. See [Guards and hooks](/guides/write/guards-and-hooks).
+A hook that throws adds no note. The file is already changed, so the status stays `ok`. See [Guards and hooks](/guides/write/guards-and-hooks).
 
 ## Limits and file types
 

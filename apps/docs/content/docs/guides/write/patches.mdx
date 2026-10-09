@@ -21,8 +21,6 @@ Success. Updated the following files:
 M src/greet.ts
 A src/names.ts
 D src/old.ts
-
-[apply_patch:read-before-write-off] Read-before-write is off: this tool has no state store.
 ```
 
 ## The patch format
@@ -67,7 +65,6 @@ The tool checks the whole patch before it changes a file. When any operation can
       return `Hi, ${name}!`;
 - package.json already exists. Use *** Update File, or the write tool to replace it.
 - src/missing.ts does not exist, so it cannot be deleted.
-[apply_patch:read-before-write-off] Read-before-write is off: this tool has no state store.
 ```
 
 Hunk lines match with `defaultPatchMatchers()`: exact, then normalized, then with no spaces at the start and end of each line. A loose match shows in the result line, for example `M src/greet.ts (hunk 1 matched by line-trimmed)`. Lines that stay keep the bytes of the file. Set `matchers` to change the list, as for [edit](/guides/write/matching#loose-matches).
@@ -89,7 +86,6 @@ if (result.status === "error" && result.commit !== null) {
 
 ```text
 [apply_patch:no-space] Patch commit failed at src/names.ts (NO_SPACE). The patch was rolled back. No files are changed.
-[apply_patch:read-before-write-off] Read-before-write is off: this tool has no state store.
 ```
 
 When an undo also fails, the code is `PARTIAL_COMMIT`. The note and `result.commit.files` list the state of each file, so the model and your code know which files changed. `result.changes` then lists the files that stay changed.
