@@ -435,7 +435,7 @@ Conversion runs again on each continuation read. Cache inside your converter if 
 | Limit                 | Default | Meaning                                               |
 | --------------------- | ------- | ----------------------------------------------------- |
 | `maxLines`            | 2,000   | Lines in the view. Also the ceiling for `limit`.      |
-| `maxViewBytes`        | 128 KiB | UTF-8 bytes of source text in the view                |
+| `maxViewBytes`        | 50 KiB  | UTF-8 bytes of source text in the view                |
 | `maxCharsPerLine`     | 2,000   | Characters in one line before it is clamped           |
 | `maxScanBytes`        | 64 MiB  | Bytes scanned before totals and content identity stop |
 | `sampleBytes`         | 8 KiB   | Bytes given to classifiers. At most `maxScanBytes`.   |

@@ -106,6 +106,30 @@ describe("bounds and disclosure", () => {
     expect(result.continuation.next).toEqual({ path: "/a.txt", offset: 2, limit: 2_000 });
   });
 
+  test("the default view-byte ceiling is 50 KiB", async () => {
+    // 1 000 lines of 99 bytes: 512 lines with their newlines fit in 51 200 bytes.
+    const line = "w".repeat(99);
+    const { read } = harness({
+      files: { "/a.txt": `${Array.from({ length: 1_000 }, () => line).join("\n")}\n` },
+    });
+    const result = expectOk(await read({ path: "/a.txt" }));
+    expect(result.view.endLine).toBe(512);
+    expect(result.view.bytes).toBeLessThanOrEqual(50 * 1_024);
+    expect(result.truncation.primary).toBe("bytes");
+    expect(result.continuation.next).toEqual({ path: "/a.txt", offset: 513, limit: 2_000 });
+  });
+
+  test("maxViewBytes: 128 * 1_024 gives the old, larger view", async () => {
+    const line = "w".repeat(99);
+    const { read } = harness({
+      files: { "/a.txt": `${Array.from({ length: 1_000 }, () => line).join("\n")}\n` },
+      limits: { maxViewBytes: 128 * 1_024 },
+    });
+    const result = expectOk(await read({ path: "/a.txt" }));
+    expect(result.view.endLine).toBe(1_000);
+    expect(result.truncation.truncated).toBe(false);
+  });
+
   test("a first line that cannot fit offers a skip", async () => {
     const { read } = harness({
       files: { "/a.txt": "aaaaaaaaaaaa\nb\n" },

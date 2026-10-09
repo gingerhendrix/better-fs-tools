@@ -1,7 +1,7 @@
 export interface ReadLimits {
   /** Lines in the view. Default 2_000. */
   readonly maxLines: number;
-  /** UTF-8 bytes of source text in the view. Default 128 KiB. */
+  /** UTF-8 bytes of source text in the view. Default 50 KiB (51 200). */
   readonly maxViewBytes: number;
   /** Characters per line before clamping. Default 2_000. */
   readonly maxCharsPerLine: number;

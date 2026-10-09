@@ -3,7 +3,7 @@ import type { ReadLimits } from "../contract/limits.ts";
 /** The default read limits. They are not ceilings: a host may raise any of them. */
 export const defaultReadLimits: Readonly<ReadLimits> = Object.freeze({
   maxLines: 2_000,
-  maxViewBytes: 128 * 1_024,
+  maxViewBytes: 50 * 1_024,
   maxCharsPerLine: 2_000,
   maxScanBytes: 64 * 1_024 * 1_024,
   sampleBytes: 8_192,

@@ -58,7 +58,7 @@ describe("pi details mapping", () => {
         lastLinePartial: false,
         firstLineExceedsLimit: false,
         maxLines: 2,
-        maxBytes: 128 * 1_024,
+        maxBytes: 50 * 1_024,
       },
     });
   });

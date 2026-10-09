@@ -13,7 +13,7 @@ describe("resolveReadLimits", () => {
   test("has the plan keys and defaults", () => {
     expect(defaultReadLimits).toEqual({
       maxLines: 2_000,
-      maxViewBytes: 128 * 1_024,
+      maxViewBytes: 50 * 1_024,
       maxCharsPerLine: 2_000,
       maxScanBytes: 64 * 1_024 * 1_024,
       sampleBytes: 8_192,
