@@ -2,7 +2,7 @@
 
 exports[`signature presets defaultEditSignature: schema and description snapshot 1`] = `
 {
-  "description": "Edit a text file by replacing text. \`old_string\` must match exactly one place in the file: add surrounding lines to make it unique, or set \`replace_all\` to change every place. \`old_string\` should match the file exactly. When it does not, a close match is used, and the result says so. A close match may differ in: trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces; escape sequences such as \\n, \\t, and \\" written out in the old text. Copy old text from the file without the line-number prefix the read tool adds. Read the file with the read tool before you edit it. After an edit, the same file can be edited again without another read. To create a file or replace all of its content, use the write tool.",
+  "description": "Edit a text file by replacing text. \`old_string\` must match exactly one place in the file: add surrounding lines to make it unique, or set \`replace_all\` to change every place. \`old_string\` should match the file exactly. When it does not, a close match is used, and the result says so. A close match may differ in: trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces. Copy old text from the file without the line-number prefix the read tool adds. Read the file with the read tool before you edit it. After an edit, the same file can be edited again without another read. To create a file or replace all of its content, use the write tool.",
   "grammar": false,
   "name": "edit",
   "schema": {
@@ -40,7 +40,7 @@ exports[`signature presets defaultEditSignature: schema and description snapshot
 
 exports[`signature presets multiEditSignature: schema and description snapshot 1`] = `
 {
-  "description": "Edit a text file with one or more replacements in one call. Each \`edits[].oldText\` must match exactly one place in the original file. Edits must not overlap or nest: merge nearby changes into one edit. \`edits[].oldText\` should match the file exactly. When it does not, a close match is used, and the result says so. A close match may differ in: trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces; escape sequences such as \\n, \\t, and \\" written out in the old text. Copy old text from the file without the line-number prefix the read tool adds. Read the file with the read tool before you edit it. After an edit, the same file can be edited again without another read. To create a file or replace all of its content, use the write tool.",
+  "description": "Edit a text file with one or more replacements in one call. Each \`edits[].oldText\` must match exactly one place in the original file. Edits must not overlap or nest: merge nearby changes into one edit. \`edits[].oldText\` should match the file exactly. When it does not, a close match is used, and the result says so. A close match may differ in: trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces. Copy old text from the file without the line-number prefix the read tool adds. Read the file with the read tool before you edit it. After an edit, the same file can be edited again without another read. To create a file or replace all of its content, use the write tool.",
   "grammar": false,
   "name": "edit",
   "schema": {
@@ -88,7 +88,7 @@ exports[`signature presets multiEditSignature: schema and description snapshot 1
 
 exports[`signature presets camelCaseEditSignature: schema and description snapshot 1`] = `
 {
-  "description": "Edit a text file by replacing text. \`oldString\` must match exactly one place in the file: add surrounding lines to make it unique, or set \`replaceAll\` to change every place. \`oldString\` should match the file exactly. When it does not, a close match is used, and the result says so. A close match may differ in: trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces; escape sequences such as \\n, \\t, and \\" written out in the old text. Copy old text from the file without the line-number prefix the read tool adds. Read the file with the read tool before you edit it. After an edit, the same file can be edited again without another read. To create a file or replace all of its content, use the write tool.",
+  "description": "Edit a text file by replacing text. \`oldString\` must match exactly one place in the file: add surrounding lines to make it unique, or set \`replaceAll\` to change every place. \`oldString\` should match the file exactly. When it does not, a close match is used, and the result says so. A close match may differ in: trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces. Copy old text from the file without the line-number prefix the read tool adds. Read the file with the read tool before you edit it. After an edit, the same file can be edited again without another read. To create a file or replace all of its content, use the write tool.",
   "grammar": false,
   "name": "edit",
   "schema": {

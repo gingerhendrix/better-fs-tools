@@ -106,11 +106,10 @@ describe("write tool dependencies", () => {
     expect(resolveEditDependencies({ fs }).matchers.map((matcher) => matcher.id)).toEqual([
       "exact",
       "normalized",
-      "escape",
     ]);
     expect(
       resolveEditDependencies({ fs, matchers: undefined }).matchers.map((matcher) => matcher.id),
-    ).toEqual(["exact", "normalized", "escape"]);
+    ).toEqual(["exact", "normalized"]);
     const exact = exactMatcher();
     expect(resolveEditDependencies({ fs, matchers: [exact] }).matchers).toEqual([exact]);
   });

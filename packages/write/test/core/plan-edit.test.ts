@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   blockAnchorMatcher,
   defaultEditMatchers,
+  escapeMatcher,
   indentationMatcher,
   lineTrimmedMatcher,
 } from "../../src/index.ts";
@@ -249,8 +250,20 @@ describe("edit planning", () => {
     expect(allowed.status).toBe("ok");
   });
 
-  test("the escape matcher unescapes a double-escaped pair", async () => {
+  test("the escape matcher is off by default", async () => {
     const { edit, fs } = await readFile('if (a) {\n\tsay("x");\n}\n');
+    const result = await edit({
+      path: "/f.ts",
+      edits: [{ oldText: 'if (a) {\\n\\tsay(\\"x\\");', newText: 'if (a) {\\n\\tsay(\\"y\\");' }],
+    });
+    expect(errorCode(result)).toBe("NO_MATCH");
+    expect(text(fs, "/f.ts")).toBe('if (a) {\n\tsay("x");\n}\n');
+  });
+
+  test("the escape matcher unescapes a double-escaped pair", async () => {
+    const { edit, fs } = await readFile('if (a) {\n\tsay("x");\n}\n', {
+      editDeps: { matchers: [...defaultEditMatchers(), escapeMatcher()] },
+    });
     const result = await edit({
       path: "/f.ts",
       edits: [{ oldText: 'if (a) {\\n\\tsay(\\"x\\");', newText: 'if (a) {\\n\\tsay(\\"y\\");' }],

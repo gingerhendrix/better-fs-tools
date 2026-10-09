@@ -3,7 +3,12 @@ import { describe, expect, test } from "bun:test";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
-import { exactMatcher, lineTrimmedMatcher } from "../../src/index.ts";
+import {
+  escapeMatcher,
+  exactMatcher,
+  lineTrimmedMatcher,
+  normalizedMatcher,
+} from "../../src/index.ts";
 import { CODEX_PATCH_GRAMMAR } from "../../src/patch/index.ts";
 import {
   camelCaseEditSignature,
@@ -367,7 +372,12 @@ describe("signature options", () => {
 
     const byDefault = defaultEditSignature().description;
     expect(byDefault).toContain("curly quotes");
-    expect(byDefault).toContain("escape sequences");
+    expect(byDefault).not.toContain("escape sequences");
+
+    const escaped = defaultEditSignature({
+      matchers: [exactMatcher(), normalizedMatcher(), escapeMatcher()],
+    }).description;
+    expect(escaped).toContain("escape sequences");
   });
 });
 

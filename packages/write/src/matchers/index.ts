@@ -1,5 +1,4 @@
 import type { Matcher } from "../contract/matcher.ts";
-import { escapeMatcher } from "./escape.ts";
 import { exactMatcher } from "./exact.ts";
 import { lineTrimmedMatcher } from "./line-trimmed.ts";
 import { normalizedMatcher } from "./normalized.ts";
@@ -11,9 +10,12 @@ export { indentationMatcher } from "./indentation.ts";
 export { lineTrimmedMatcher } from "./line-trimmed.ts";
 export { normalizedMatcher } from "./normalized.ts";
 
-/** The matchers the edit tool tries by default, in order: exact, normalized, escape. */
+/**
+ * The matchers the edit tool tries by default, in order: exact, normalized.
+ * escapeMatcher() and the other matchers are opt-in through `matchers`.
+ */
 export function defaultEditMatchers(): readonly Matcher[] {
-  return Object.freeze([exactMatcher(), normalizedMatcher(), escapeMatcher()]);
+  return Object.freeze([exactMatcher(), normalizedMatcher()]);
 }
 
 /** The matchers the patch tool tries by default, in order: exact, normalized, line-trimmed. */
