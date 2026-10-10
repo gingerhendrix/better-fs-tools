@@ -1,68 +1,96 @@
 core:changelogs:
-  - content: "---\npackages:\n  group:better-fs-tools:\n    type: minor\n---\n\n## First npm release\n\nThe first public release of the Better FS Tools packages. Each package ships compiled ES modules and TypeScript declarations from `dist/`.\n"
-    filename: first-npm-release.md
+  - content: "---\npackages:\n  \"@better-fs-tools/fs\":\n    type: minor\n  \"@better-fs-tools/write\":\n    type: minor\n  \"@better-fs-tools/node\":\n    type: minor\n  \"@better-fs-tools/just-bash\":\n    type: minor\n  \"@better-fs-tools/cloudflare-shell\":\n    type: minor\n  \"@better-fs-tools/cloudflare-computer\":\n    type: minor\n---\n\n## Remove capability flags that only made notes\n\nA capability flag now exists only when a tool reads it to decide what to do.\n\n- `FileSystemCapabilities.streaming` is gone. The read core reads `bytes()` the same way for one chunk or many. `capabilities` is now `{ identity }`. The memory backend keeps its `streaming` option, because it sets how `bytes()` splits the file.\n- `WriteCapabilities.atomic` and `WriteCapabilities.preserveMode` are gone. `writeCapabilities` is now `{ compareAndSwap }`. When `compareAndSwap` is false, the write tools still stat the target just before the write.\n- `MutatedFile.atomic` is gone. Only the `not-atomic` note read it.\n- The write tools no longer add the `not-atomic`, `no-compare-and-swap`, and `mode-not-kept` notes. The `notAtomic`, `noCompareAndSwap`, and `modeNotKept` entries are gone from the write message catalog.\n- `runWritableFileSystemConformance` always runs \"a replace keeps the mode\". A backend whose `stat()` reports `mode: null` passes it.\n- The `writeCapabilities` option of `memoryFileSystem` takes only `compareAndSwap`. The memory backend always keeps the mode of an existing file.\n"
+    filename: remove-capability-flags.md
+    v: 0.0.0
+  - content: "---\npackages:\n  \"@better-fs-tools/pi\":\n    type: minor\n  \"@better-fs-tools/ai-sdk\":\n    type: minor\n---\n\n## The Pi and AI SDK read tools return images\n\n`createPiReadTool()`, `createPiFsTools()`, the Pi extension entry, `createAiSdkReadTool()`, and `createAiSdkFsTools()` now add `imageConverter()` when you pass no `converters`. An image read gives a Pi `image` part, or an AI SDK `file` part. Before, the read refused the image as `unsupported`. Pi's own `read` returns images, so the Pi extension no longer takes that away.\n\nThe read core still has no converters by default. A `converters` list you pass replaces the default, so `converters: []` turns images off. In the bundles the option goes under `read`, for example `read: { converters: [] }`. A list without `imageConverter()` also refuses images.\n"
+    filename: host-images.md
+    v: 0.0.0
+  - content: "---\npackages:\n  \"@better-fs-tools/write\":\n    type: minor\n  \"@better-fs-tools/node\":\n    type: minor\n  \"@better-fs-tools/ai-sdk\":\n    type: minor\n  \"@better-fs-tools/pi\":\n    type: minor\n---\n\n## Minimal defaults for the write tools and the bundles\n\nThe defaults now follow the most common behaviour of other agent harnesses. Each removed behaviour is still one option away.\n\n| Old default                                                                                        | New default                                            | Opt-in that brings the old behaviour back                                      |\n| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------ |\n| The bundles create `read`, `edit`, `write`, and `apply_patch`. The Pi extension registers all four | `read`, `edit`, and `write`. `applyPatch` is `null`    | `applyPatch: true`, or an options object as before                             |\n| The bundles share a `memoryStore({ clock })`, so `edit` and `write` need a read first              | `state: null`: no read-before-write                    | `state: memoryStore({ clock })`                                                |\n| A stale `edit` or `apply_patch` re-matches against the new content (`onStale: \"rematch\"`)          | `onStale: \"reject\"`: a plain `STALE`                   | `preconditions: { onStale: \"rematch\" }`                                        |\n| Five guards run on every write                                                                     | `guards: []`. `defaultGuards()` returns an empty list  | `guards: recommendedGuards()`                                                  |\n| `edit` matchers: `exact`, `normalized`, `escape`                                                   | `exact`, `normalized`                                  | `matchers: [...defaultEditMatchers(), escapeMatcher()]`                        |\n| The `edit` model text shows the numbered lines around each change                                  | The first line only                                    | `formatter: defaultWriteFormatter({ snippet: true })`                          |\n| A miss shows the closest region, a found new text is `already-applied`, the third miss adds a note | A plain `NO_MATCH`, even when the new text is in place | `recovery: true` in the `edit` options, for example `edit: { recovery: true }` |\n\nIn the bundles, these options go in the tool's own options, for example `edit: { recovery: true, guards: recommendedGuards() }`. The tool descriptions still ask the model to read a file before it edits it.\n\n`createFsTools()`, `createNodeFsTools()`, `createAiSdkFsTools()`, and `createPiFsTools()` return `applyPatch: null` unless asked. The AI SDK `tools` record has no `apply_patch` key unless asked. New types `FsToolsWithApplyPatch`, `NodeFsToolsWithApplyPatch`, `AiSdkFsToolsWithApplyPatch`, and `PiFsToolsWithApplyPatch` give a non-null `applyPatch` when the option is set.\n"
+    filename: minimal-defaults.md
+    v: 0.0.0
+  - content: "---\npackages:\n  \"@better-fs-tools/read\":\n    type: minor\n  \"@better-fs-tools/write\":\n    type: minor\n  \"@better-fs-tools/node\":\n    type: minor\n  \"@better-fs-tools/pi\":\n    type: minor\n---\n\n## Minimal defaults for notebooks, hard links, and the read view\n\nThree more defaults now follow the most common behaviour of other agent harnesses. Each old behaviour is one option away.\n\n| Old default                                                                                                                    | New default                                                                                                                                   | Option that brings the old behaviour back                      |\n| ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |\n| `defaultClassifiers()` has `notebookClassifier()`, so read refuses a `.ipynb` file, and edit and write refuse it as `NOT_TEXT` | A notebook is JSON text. `defaultClassifiers()` is image, pdf, office, binary, utf8                                                           | `classifiers: [notebookClassifier(), ...defaultClassifiers()]` |\n| `nodeFileSystem`, `createNodeFsTools()`, and the Pi tools refuse to replace a file with more than one hard link                | `hardLinks: \"in-place\"`: the file is written through the link, not atomically. A file with one link is still replaced by temp file and rename | `hardLinks: \"refuse\"`                                          |\n| `maxViewBytes` is 128 KiB                                                                                                      | 50 KiB. `maxLines` and `maxCharsPerLine` stay at 2 000                                                                                        | `limits: { maxViewBytes: 128 * 1_024 }`                        |\n\n`notebookClassifier()` and `notebookConverter()` are still exported. The converter accepts code `NOTEBOOK`, so it needs `notebookClassifier()` in the chain. The write tools use the same classifiers, so with the default list `nonTextGuard()` in `recommendedGuards()` no longer refuses a notebook. The same `classifiers` option turns that refusal back on.\n"
+    filename: minimal-defaults-read-node.md
+    v: 0.0.0
+  - content: "---\npackages:\n  \"@better-fs-tools/write\":\n    type: minor\n  \"@better-fs-tools/shell\":\n    type: minor\n---\n\n## Hide or rewrite notes in the write and bash formatters\n\n`defaultWriteFormatter()` and `defaultShellFormatter()` take a `notes` option, as the read tool's formatters do. The function gets a note and returns the note to show, a changed note, or `null` to hide it from the model text. The write version also gets the tool name. The report keeps every note, so a host can still log a note that it hides from the model.\n\n```ts\ndefaultShellFormatter({ notes: (note) => (note.code === \"clamped\" ? null : note) });\n```\n"
+    filename: formatter-notes-filter.md
+    v: 0.0.0
+  - content: "---\npackages:\n  \"@better-fs-tools/read\":\n    type: minor\n  \"@better-fs-tools/write\":\n    type: minor\n  \"@better-fs-tools/shell\":\n    type: minor\n---\n\n## Remove notes that only the host can act on\n\nThe tools no longer add notes that the model cannot act on:\n\n- `extension-failed` from a failed formatter, in read, `edit`, `write`, `apply_patch`, and bash. The default formatter still formats the result, and the status stays. The `extension-failed` error note of an `EXTENSION_FAILED` error stays.\n- `directories-created` in the write tools. `FileChange.createdDirectories` still lists the new folders.\n- `hook-failed` in the write tools. A hook that throws after the commit still does not fail the call.\n- `spill-failed` in bash. The command is still not affected, and `output.spill` is `null`.\n\nThe `formatterFailed` entry is gone from `ReadMessageCatalog` and `WriteMessageCatalog`. The `directoriesCreated` and `hookFailed` entries are gone from `WriteMessageCatalog`, and `spillFailed` is gone from `ShellMessageCatalog`.\n"
+    filename: remove-host-only-notes.md
+    v: 0.0.0
+  - content: "---\npackages:\n  \"@better-fs-tools/read\":\n    type: minor\n---\n\n## Remove the capability notes from read results\n\n`read` no longer adds the `weak-identity` and `buffered-backend` info notes. The model cannot act on either note, so they used tokens and gave no value. The `identity` capability stays. `identity: false` still sets `file.identity` to `null`, and the write tools still judge freshness by the content hash. The `weakIdentity` and `bufferedBackend` entries are gone from `ReadMessageCatalog`.\n"
+    filename: remove-capability-notes.md
+    v: 0.0.0
+  - content: "---\npackages:\n  \"@better-fs-tools/read\":\n    type: patch\n  \"@better-fs-tools/write\":\n    type: patch\n---\n\n## Remove internal words from note and error text\n\nSix default messages used words that only make sense inside the package. They now say what happened in plain words:\n\n- read `scan-limit`: \"Scanning stopped at N bytes, so the total line count is unknown.\"\n- read `not-a-file`: \"PATH is a directory.\" The list of refused types and \"before any content read\" are gone.\n- read and write `dangerous-path`: \"PATH is refused by policy (DETAIL). Choose another path.\" The phrase \"refused policy class\" is gone.\n- read `unsupported-backend`: \"This host cannot read PATH (DETAIL). Do not retry.\"\n- read `aborted`: \"The read was aborted during the PHASE phase, so nothing was read.\"\n\nThe write `unsupported-backend` detail for a file that no classifier accepts is now \"its file type is not supported\". Codes, data, and catalog keys do not change. A host that matches the old text must update its match.\n"
+    filename: reword-tool-notes.md
+    v: 0.0.0
+  - content: "---\npackages:\n  \"@better-fs-tools/write\":\n    type: minor\n---\n\n## Remove the read-before-write-off note\n\nWith no state store, `edit`, `write`, and `apply_patch` no longer add the `read-before-write-off` warning note. The host chooses whether to give a store, and the model cannot change that choice, so the note used tokens and gave no value. The tools behave as before: with no store, they change a file without a read check. The `readBeforeWriteOff` entry is gone from `WriteMessageCatalog`.\n"
+    filename: remove-read-before-write-note.md
     v: 0.0.0
 core:packages:
   - changelogIds:
-      - first-npm-release.md
-    id: npm:@better-fs-tools/ai-sdk
-    updated: true
-  - changelogIds:
-      - first-npm-release.md
+      - remove-capability-flags.md
     id: npm:@better-fs-tools/cloudflare-computer
     updated: true
   - changelogIds:
-      - first-npm-release.md
-    id: npm:@better-fs-tools/fs
+      - host-images.md
+      - minimal-defaults.md
+    id: npm:@better-fs-tools/ai-sdk
     updated: true
   - changelogIds:
-      - first-npm-release.md
+      - remove-capability-flags.md
     id: npm:@better-fs-tools/cloudflare-shell
     updated: true
   - changelogIds:
-      - first-npm-release.md
+      - remove-capability-flags.md
+    id: npm:@better-fs-tools/fs
+    updated: true
+  - changelogIds:
+      - remove-capability-flags.md
     id: npm:@better-fs-tools/just-bash
     updated: true
   - changelogIds:
-      - first-npm-release.md
+      - minimal-defaults-read-node.md
+      - minimal-defaults.md
+      - remove-capability-flags.md
+    id: npm:@better-fs-tools/node
+    updated: true
+  - changelogIds:
+      - host-images.md
+      - minimal-defaults-read-node.md
+      - minimal-defaults.md
     id: npm:@better-fs-tools/pi
     updated: true
   - changelogIds:
-      - first-npm-release.md
-    id: npm:@better-fs-tools/read
-    updated: true
-  - changelogIds:
-      - first-npm-release.md
+      - formatter-notes-filter.md
+      - remove-host-only-notes.md
     id: npm:@better-fs-tools/shell
     updated: true
   - changelogIds:
-      - first-npm-release.md
-    id: npm:@better-fs-tools/write
+      - minimal-defaults-read-node.md
+      - remove-capability-notes.md
+      - remove-host-only-notes.md
+      - reword-tool-notes.md
+    id: npm:@better-fs-tools/read
     updated: true
   - changelogIds:
-      - first-npm-release.md
-    id: npm:@better-fs-tools/node
+      - formatter-notes-filter.md
+      - minimal-defaults-read-node.md
+      - minimal-defaults.md
+      - remove-capability-flags.md
+      - remove-host-only-notes.md
+      - remove-read-before-write-note.md
+      - reword-tool-notes.md
+    id: npm:@better-fs-tools/write
     updated: true
-npm:mark-latest:
-  - id: npm:@better-fs-tools/ai-sdk
-  - id: npm:@better-fs-tools/cloudflare-computer
-  - id: npm:@better-fs-tools/fs
-  - id: npm:@better-fs-tools/cloudflare-shell
-  - id: npm:@better-fs-tools/just-bash
-  - id: npm:@better-fs-tools/pi
-  - id: npm:@better-fs-tools/read
-  - id: npm:@better-fs-tools/shell
-  - id: npm:@better-fs-tools/write
-  - id: npm:@better-fs-tools/node
 npm:packages:
-  - id: npm:@better-fs-tools/ai-sdk
   - id: npm:@better-fs-tools/cloudflare-computer
-  - id: npm:@better-fs-tools/fs
+  - id: npm:@better-fs-tools/ai-sdk
   - id: npm:@better-fs-tools/cloudflare-shell
+  - id: npm:@better-fs-tools/fs
   - id: npm:@better-fs-tools/just-bash
-  - id: npm:@better-fs-tools/pi
-  - id: npm:@better-fs-tools/read
-  - id: npm:@better-fs-tools/shell
-  - id: npm:@better-fs-tools/write
   - id: npm:@better-fs-tools/node
+  - id: npm:@better-fs-tools/pi
+  - id: npm:@better-fs-tools/shell
+  - id: npm:@better-fs-tools/read
+  - id: npm:@better-fs-tools/write
   - id: npm:@better-fs-tools/examples
