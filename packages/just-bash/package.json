@@ -1,6 +1,6 @@
 {
   "name": "@better-fs-tools/just-bash",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A readable and writable filesystem and a bash command runner over just-bash.",
   "license": "MIT",
   "repository": {
