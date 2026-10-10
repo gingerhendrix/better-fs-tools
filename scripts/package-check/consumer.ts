@@ -45,7 +45,7 @@ for (const specifier of ${JSON.stringify(imports)}) {
   }
 }
 const { memoryFileSystem, readOnlyFileSystem } = await import("${SCOPE}/fs");
-const { createReadTool, textOf } = await import("${SCOPE}/read");
+const { createReadTool, memoryStore, textOf } = await import("${SCOPE}/read");
 const { createNodeReadTool } = await import("${SCOPE}/node");
 const { createAiSdkReadTool } = await import("${SCOPE}/ai-sdk");
 const { createNodeFsTools } = await import("${SCOPE}/node");
@@ -70,7 +70,9 @@ await portable.read({ path: "/p.txt" });
 expect("portable edit", (await portable.edit({ path: "/p.txt", edits: [{ oldText: "p", newText: "q" }] })).status, "ok");
 const { createAiSdkFsTools } = await import("${SCOPE}/ai-sdk");
 const aiSdkTools = createAiSdkFsTools({ fs: memoryFileSystem() });
-expect("ai-sdk bundle", Object.keys(aiSdkTools.tools).join(), "read,edit,write,apply_patch");
+expect("ai-sdk bundle", Object.keys(aiSdkTools.tools).join(), "read,edit,write");
+const aiSdkPatch = createAiSdkFsTools({ fs: memoryFileSystem(), applyPatch: true });
+expect("ai-sdk bundle apply_patch", Object.keys(aiSdkPatch.tools).join(), "read,edit,write,apply_patch");
 const bash = readOnlyFileSystem(justBashFileSystem(new InMemoryFs({ "/w/a.txt": "x\\n" }), {
   cwd: "/w", allowedRoots: ["/w"],
 }));
@@ -78,15 +80,20 @@ expect("just-bash", textOf(await createReadTool({ fs: bash })({ path: "a.txt" })
 
 const fsTools = createNodeFsTools({ bash: true });
 expect("node bash off by default", createNodeFsTools().bash, null);
+expect("node apply_patch off by default", fsTools.applyPatch, null);
 expect("node create", (await fsTools.write({ path: "made/new.txt", content: "one\\n" })).status, "ok");
 const editNew = { path: "made/new.txt", edits: [{ oldText: "one", newText: "two" }] };
 expect("node edit after create", (await fsTools.edit(editNew)).status, "ok");
 expect("node created bytes", await readFile("made/new.txt", "utf8"), "two\\n");
 const editFixture = { path: "fixture.txt", edits: [{ oldText: "beta", newText: "gamma" }] };
-expect("node edit before read", (await fsTools.edit(editFixture)).error?.code, "NOT_READ");
-await fsTools.read({ path: "fixture.txt" });
-expect("node edit", (await fsTools.edit(editFixture)).status, "ok");
+expect("node edit before read", (await fsTools.edit(editFixture)).status, "ok");
 expect("node edited bytes", await readFile("fixture.txt", "utf8"), "alpha\\ngamma\\n");
+const guarded = createNodeFsTools({ state: memoryStore() });
+const editGuarded = { path: "fixture.txt", edits: [{ oldText: "gamma", newText: "delta" }] };
+expect("node store edit before read", (await guarded.edit(editGuarded)).error?.code, "NOT_READ");
+await guarded.read({ path: "fixture.txt" });
+expect("node store edit", (await guarded.edit(editGuarded)).status, "ok");
+expect("node store edited bytes", await readFile("fixture.txt", "utf8"), "alpha\\ndelta\\n");
 const bashBackend = new InMemoryFs({ "/w/b.txt": "y\\n" });
 const writableBash = justBashFileSystem(bashBackend, { cwd: "/w", allowedRoots: ["/w"] });
 const bashEdit = createEditTool({ fs: writableBash, preconditions: { requireRead: "off" } });
@@ -98,7 +105,7 @@ const { justBashCommandRunner } = await import("${SCOPE}/just-bash");
 const { Bash } = await import("just-bash");
 const ran = await fsTools.bash({ command: "cat fixture.txt; exit 3" });
 expect("node bash status", ran.status, "failed");
-expect("node bash output", ran.output.head, "alpha\\ngamma");
+expect("node bash output", ran.output.head, "alpha\\ndelta");
 const emulated = new Bash({ files: { "/w/c.txt": "c\\n" }, cwd: "/w" });
 const virtualBash = createBashTool({ runner: justBashCommandRunner(emulated), env: shellEnv() });
 expect("just-bash bash", (await virtualBash({ command: "cat c.txt" })).output.head, "c");
@@ -107,7 +114,10 @@ const { pathToFileURL } = await import("node:url");
 const entry = new URL(${JSON.stringify(piExtension)}, pathToFileURL(process.cwd() + "/node_modules/${SCOPE}/pi/"));
 const tools = [];
 (await import(entry.href)).default({ registerTool: (tool) => tools.push(tool) });
-expect("pi extension", tools.map((tool) => tool.name).join(), "read,edit,write,apply_patch");
+expect("pi extension", tools.map((tool) => tool.name).join(), "read,edit,write");
+const { createPiFsTools } = await import("${SCOPE}/pi");
+expect("pi apply_patch off by default", createPiFsTools().applyPatch, null);
+expect("pi bundle apply_patch", createPiFsTools({ applyPatch: true }).applyPatch?.name, "apply_patch");
 `;
   const run = spawnSync("node", ["--input-type=module", "-e", source], {
     cwd: consumer,
