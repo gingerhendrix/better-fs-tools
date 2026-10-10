@@ -41,7 +41,7 @@ bun run check:packages
 bun run tegami
 ```
 
-`bun run check` verifies formatting, lint rules, TypeScript, and tests. `bun run build` builds the documentation site.
+`bun run check` verifies formatting, lint rules, TypeScript, and tests, then runs `bun run check:packages`. It is the same set of checks that CI runs, so run it before a commit. `bun run build` builds the documentation site.
 
 `bun run build:packages` builds every package to `dist/` (JavaScript and declarations) with `tsc -b tsconfig.build.json`. `bun run check:packages` builds, packs each package with `bun pm pack`, and checks each tarball: its exports, files, dependency ranges, peers, the Pi extension entry, and every relative Markdown link. It then installs the tarballs into a throwaway project, runs them under Node, creates and edits a file and runs a command there with `createNodeFsTools()`, and type-checks their declarations. Pass `--out <dir>` to keep the tarballs.
 
