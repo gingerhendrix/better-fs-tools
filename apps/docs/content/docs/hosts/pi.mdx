@@ -1,0 +1,385 @@
+---
+title: Pi
+description: Replace the read, edit, and write tools of the Pi coding agent, and add apply_patch and bash, with @better-fs-tools/pi.
+---
+
+`@better-fs-tools/pi` gives the [Pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) the Better FS Tools `read`, `edit`, and `write`. They replace Pi's built-in tools of the same names. The package can also add `apply_patch`, and a `bash` tool in Pi's own shape. Each call can only touch files under the working directory of that call.
+
+## Install
+
+```sh
+npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-coding-agent typebox
+```
+
+`@earendil-works/pi-coding-agent` (`^0.84.2`) and `typebox` (`^1.3.16`) are required peers. The package needs Node 24 or later.
+
+## What the package registers
+
+The package has a `pi.extensions` entry. When Pi loads the package, the entry calls `createPiFsTools()` with no options and registers three tools:
+
+| Tool          | Registered | Notes                                                              |
+| ------------- | ---------- | ------------------------------------------------------------------ |
+| `read`        | Yes        | Returns images, as Pi's own `read` does                            |
+| `edit`        | Yes        | Pi's input shape, and Pi draws the diff                            |
+| `write`       | Yes        | Pi's input shape                                                   |
+| `apply_patch` | No         | Register it from your own extension                                |
+| `bash`        | No         | Pi's own `bash` stays. Register `createPiBashTool()` to replace it |
+
+The entry has no read store, so `edit` and `write` do not check for a read first. Writes stay inside `ctx.cwd`. The entry writes no settings file and no session file.
+
+The same entry is also available as the default export of `@better-fs-tools/pi/extension`.
+
+## Write your own extension
+
+To set options, add `apply_patch`, or turn on [read before write](/guides/write/read-before-write), register the tools from your own extension with `createPiFsTools()`:
+
+```ts
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createPiFsTools } from "@better-fs-tools/pi";
+import { denyPaths, memoryStore, unicodeRepair } from "@better-fs-tools/read";
+import { hashlineFormat } from "@better-fs-tools/read/formats";
+import { protectPaths } from "@better-fs-tools/write";
+
+export default function fsToolsExtension(pi: ExtensionAPI): void {
+  // Four tools with one read store, so edit and write need a read first. The
+  // store and apply_patch are opt-in.
+  const tools = createPiFsTools({
+    state: memoryStore(),
+    read: {
+      resolve: unicodeRepair({ note: false }),
+      authorize: denyPaths(["**/.env", "**/.env.*"]),
+      formatter: hashlineFormat(),
+    },
+    edit: { authorize: protectPaths() },
+    write: { authorize: protectPaths() },
+    applyPatch: { authorize: protectPaths() },
+  });
+  pi.registerTool(tools.read);
+  pi.registerTool(tools.edit);
+  pi.registerTool(tools.write);
+  pi.registerTool(tools.applyPatch);
+}
+```
+
+The tools share one digest, one lock manager, one clock, and one cache of filesystems. With `state`, they also share one read store. Set the shared options once, at the top level:
+
+| Option                  | Default                           | Meaning                                                                                 |
+| ----------------------- | --------------------------------- | --------------------------------------------------------------------------------------- |
+| `state`                 | `null`                            | The read store. `null` turns read before write off. `memoryStore()` turns it on         |
+| `digest`                | `nodeDigest()`                    | The digest for read records                                                             |
+| `locks`                 | `memoryLocks()`                   | The lock manager of the write tools                                                     |
+| `clock`                 | `() => new Date()`                | The clock of the tools and the store                                                    |
+| `applyPatch`            | off                               | `true`, or an options object, adds `apply_patch`                                        |
+| Root options            | see [Root options](#root-options) | `denyRoots`, `symlinks`, `hardLinks`, `newFileMode`, `newDirectoryMode`                 |
+| `read`, `edit`, `write` | `{}`                              | The options of one tool. See the [read](/guides/read) and [write](/guides/write) guides |
+
+The result has `read`, `edit`, `write`, and `applyPatch` (`null` when it is off). It also has the shared `state`, `digest`, `locks`, and `clock`, and `invalidate(path, call?)`. See [Forget a read after a bash command](#forget-a-read-after-a-bash-command).
+
+The bundle takes `state` as one store or `null`. It does not take a store factory of the call. These options throw `TypeError`:
+
+- An unknown key at the top level, for example `bash`.
+- A shared option inside one tool's options: `state`, `digest`, `locks`, `clock`, or a root option.
+- `fs`, `cwd`, or `allowedRoots`, at any level. See [Each call uses ctx.cwd](#each-call-uses-ctxcwd).
+
+```text
+TypeError: Unknown createPiFsTools option: bash
+TypeError: createPiFsTools read options cannot set state: set it once at the top level
+```
+
+## Register one tool
+
+Each tool also has its own factory: `createPiReadTool()`, `createPiEditTool()`, `createPiWriteTool()`, and `createPiApplyPatchTool()`. This extension registers only the read tool, with the path parameter renamed to `file_path`:
+
+```ts
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createPiReadTool } from "@better-fs-tools/pi";
+import { denyPaths, unicodeRepair } from "@better-fs-tools/read";
+import { hashlineFormat } from "@better-fs-tools/read/formats";
+import { defaultReadSignature } from "@better-fs-tools/read/signature";
+
+export default function readExtension(pi: ExtensionAPI): void {
+  pi.registerTool(
+    createPiReadTool({
+      signature: defaultReadSignature({ name: "read", names: { path: "file_path" } }),
+      resolve: unicodeRepair({ note: false }),
+      authorize: denyPaths(["**/.env", "**/.env.*"]),
+      formatter: hashlineFormat(),
+    }),
+  );
+}
+```
+
+`createPiReadTool()` takes every `createReadTool()` option except `fs`. It also takes `signature`, `promptSnippet`, `promptGuidelines`, `denyRoots`, and `symlinks`. The write factories take every option of `createEditTool()`, `createWriteTool()`, or `createApplyPatchTool()` except `fs`, plus the same Pi options and all five root options. Each single factory defaults `digest` to `nodeDigest()`.
+
+A single factory shares nothing with another one. Each write tool makes its own lock manager, and no tool has a read store unless you pass one. To use single factories with read before write, pass one store and one lock manager to all of them:
+
+```ts
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createPiEditTool, createPiReadTool, createPiWriteTool } from "@better-fs-tools/pi";
+import { memoryStore } from "@better-fs-tools/read";
+import { memoryLocks } from "@better-fs-tools/write";
+
+export default function singleToolsExtension(pi: ExtensionAPI): void {
+  const state = memoryStore();
+  const locks = memoryLocks();
+  pi.registerTool(createPiReadTool({ state }));
+  pi.registerTool(createPiEditTool({ state, locks }));
+  pi.registerTool(createPiWriteTool({ state, locks }));
+}
+```
+
+`createPiFsTools()` does the same with less code. Use a single factory when you register one tool only.
+
+## Each call uses ctx.cwd
+
+Pi gives each tool call an `ExtensionContext`. The tools use its `cwd` as the only allowed root of that call. The tool reads and writes through `nodeFileSystem` with `cwd: ctx.cwd` and `allowedRoots: [ctx.cwd]`. When the working directory changes between calls, the root changes too.
+
+You cannot widen the root. `fs`, `cwd`, and `allowedRoots` throw `TypeError` in every Pi factory:
+
+```text
+TypeError: Pi read tool options cannot set cwd: the root is bound to ctx.cwd on every call
+```
+
+A call without a `ctx.cwd` string throws `TypeError` too.
+
+The tools keep the filesystems of the last 8 working directories. A ninth directory removes the oldest one from the cache.
+
+The `ExtensionContext` is the host of the call. Your host functions get it as `ctx.call.host`. For example, an `askUser()` function can call `ctx.call.host.ui.confirm(...)`, and a `state` factory on `createPiReadTool()` can call `ctx.call.host.sessionManager.getSessionId()`. See [Hooks and state](/guides/read/hooks-and-state).
+
+## Root options
+
+These options set the filesystem of each call. In `createPiFsTools()`, set them once at the top level. `createPiReadTool()` takes only `denyRoots` and `symlinks`.
+
+| Option             | Default                        | Meaning                                                                                                                                               |
+| ------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `denyRoots`        | none                           | Paths that are refused as `DANGEROUS_PATH`, in addition to `/dev`, `/proc`, and `/sys`                                                                |
+| `symlinks`         | `"follow-within-roots"`        | `"reject"` refuses every symlink. `"follow-within-roots"` follows a link when its real path stays inside `ctx.cwd`                                    |
+| `hardLinks`        | `"in-place"`                   | How to write a file with more than one hard link. `"in-place"` writes through the link, which is not atomic. `"refuse"` fails the write with `DENIED` |
+| `newFileMode`      | `0o666` less the process umask | The exact mode of a new file                                                                                                                          |
+| `newDirectoryMode` | `0o777` less the process umask | The exact mode of a new directory                                                                                                                     |
+
+```ts
+import { createPiFsTools } from "@better-fs-tools/pi";
+
+const tools = createPiFsTools({
+  symlinks: "reject",
+  hardLinks: "refuse",
+  newFileMode: 0o644,
+  newDirectoryMode: 0o755,
+});
+```
+
+A file with one hard link is always replaced with a temporary file and a rename.
+
+## Tool shapes
+
+The default signatures follow Pi's own tools, so the model sees the input it knows, and Pi's renderers fit the results:
+
+| Tool          | Default signature                        | Model input                                                     |
+| ------------- | ---------------------------------------- | --------------------------------------------------------------- |
+| `read`        | `defaultReadSignature({ name: "read" })` | `{ path, offset?, limit? }`, with integer `offset` and `limit`  |
+| `edit`        | `multiEditSignature()`                   | `{ path, edits: [{ oldText, newText }] }`                       |
+| `write`       | `defaultWriteSignature()`                | `{ path, content }`                                             |
+| `apply_patch` | `freeformPatchSignature()`               | `{ patch }`, plus the Codex patch grammar                       |
+| `bash`        | set by `createPiBashTool()`              | `{ command, timeout? }`, with `timeout` in seconds and no `cwd` |
+
+The read schema has integer `offset` and `limit`. A model that sends `2.5` gets Pi's validation error.
+
+`edit` takes one or more pairs in `edits`. Each `oldText` is matched against the original file, as Pi's own `edit` does. When you pass `matchers` to the edit tool, the default signature describes the same matchers to the model.
+
+`apply_patch` sets Pi's `constrainedSampling` with the Codex patch grammar. A model that supports grammar tools gets the grammar. Other models get the JSON schema.
+
+Set `signature` on a tool to change its name, its parameter names, or its descriptions. See [Customise the tool definition](/hosts/tool-definition).
+
+## Prompt snippets and guidelines
+
+Pi puts a short snippet and a list of guidelines for each tool in its system prompt. The defaults are the text of Pi's own tools, so the system prompt stays the same when you replace them:
+
+| Tool          | `promptSnippet`                                                                                      | `promptGuidelines`                                                                                                |
+| ------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `read`        | `Read file contents`                                                                                 | `Use read to examine files instead of cat or sed.`                                                                |
+| `edit`        | `Make precise file edits with exact text replacement, including multiple disjoint edits in one call` | Four lines from Pi's own `edit`. The first is `Use edit for precise changes (edits[].oldText must match exactly)` |
+| `write`       | `Create or overwrite files`                                                                          | `Use write only for new files or complete rewrites.`                                                              |
+| `apply_patch` | `Add, update, move, or delete files with one patch`                                                  | `Use apply_patch for related changes across several files, or to add, move, or delete files.`                     |
+| `bash`        | `Execute bash commands (ls, grep, find, etc.)`                                                       | none                                                                                                              |
+
+Set `promptSnippet` or `promptGuidelines` on a tool to replace the default. A list you pass replaces the whole list:
+
+```ts
+import { createPiFsTools } from "@better-fs-tools/pi";
+
+const tools = createPiFsTools({
+  edit: {
+    promptGuidelines: ["Use edit for precise changes. Copy each edits[].oldText from the file."],
+  },
+});
+```
+
+### The edit guideline says "exact match"
+
+Pi's own guideline says that `oldText` must match exactly. The tool also accepts close matches. When the exact text is not found, the [normalized matcher](/guides/write/matching#loose-matches) can find text that differs by trailing spaces, Unicode forms, curly quotes, dashes, or special spaces. The result then has a note:
+
+```text
+Edited word.ts: 1 replacement at line 1.
+
+[edit:fuzzy-match] Edit 1 matched word.ts at lines 1-1 only with the normalized matcher, not exactly. Check the result.
+```
+
+The default guideline stays the same as Pi's own. Set `promptGuidelines` if you want the prompt to say that close matches work.
+
+## Results in Pi
+
+Each tool returns Pi `content` parts and Pi `details`. A tool error becomes Pi content text. The tool does not throw for a tool error:
+
+```text
+[edit:not-read] Read greet.ts with the read tool before changing it.
+```
+
+An image part becomes a Pi `image` part. Other media becomes a text part that says what was left out, because Pi's tool content takes images only.
+
+| Tool                  | `details`                                                                                                       |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `read`                | `{ truncation }` when the read stopped exactly at a line or byte limit, else `{}`                               |
+| `edit`, `apply_patch` | `{ diff, patch, firstChangedLine }`, the shape of Pi's `EditToolDetails`. `undefined` for an error or no change |
+| `write`               | `undefined`, as for Pi's own `write`                                                                            |
+| `bash`                | `{ fullOutputPath }` when the output spilled to a file, else `undefined`                                        |
+
+### Read truncation
+
+`details.truncation` has the shape of Pi's `TruncationResult`. Pi uses it to print how many lines it shows. Its `content` is the output of the formatter in `"view"` mode, without the notes. The details are `{}` for any other result: a read that did not stop at a line or byte limit, a total that is not exact, or a formatter that returns parts. An approximate count is worse than none. See the [read formatting guide](/guides/read/formatting) for the `"view"` mode.
+
+### Edit diff
+
+`details.diff` is the display diff that Pi's edit renderer draws. Context and removed lines carry the old line number. Added lines carry the new one. `details.patch` is the unified diff of every change. With more than one file, as from `apply_patch`, each file's lines follow a line with its path.
+
+```text
+ 1 export function greet(name: string): string {
+-2   return `Hello, ${name}!`;
++2   return `Hi, ${name}!`;
+ 3 }
+```
+
+### Details for your own tool
+
+`toPiReadDetails()` and `toPiMutationDetails()` build the same details for a tool that you build yourself on the core:
+
+```ts
+import { toPiMutationDetails, toPiReadDetails } from "@better-fs-tools/pi";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool, lineNumberFormatter, resolveReadLimits } from "@better-fs-tools/read";
+import { createEditTool } from "@better-fs-tools/write";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+
+const edit = createEditTool({ fs });
+const changed = await edit({
+  path: "src/greet.ts",
+  edits: [{ oldText: "Hello", newText: "Hi" }],
+});
+const editDetails = toPiMutationDetails(changed);
+
+const limits = resolveReadLimits({ maxLines: 2 });
+const formatter = lineNumberFormatter();
+const read = createReadTool({ fs, limits, formatter });
+const call = { callId: "call-1", host: undefined };
+const result = await read({ path: "src/greet.ts" }, call);
+let view: string | null = null;
+if (result.status === "ok") {
+  const { content: _content, ...outcome } = result;
+  const text = formatter.format(outcome, { digest: null, limits, mode: "view", call });
+  view = typeof text === "string" ? text : null;
+}
+const readDetails = toPiReadDetails(result, view, limits.maxViewBytes);
+```
+
+`toPiReadDetails(result, view, maxViewBytes)` takes the read result, the formatted text in `"view"` mode or `null`, and the view byte limit. `toPiMutationDetails(result)` takes the result of `edit` or `apply_patch`.
+
+## Bash tool
+
+`createPiBashTool()` is a `bash` tool from `@better-fs-tools/shell` in Pi's own shape. It takes `{ command, timeout }`, with the timeout in seconds, and has Pi's prompt snippet. The extension entry does not register it. Pi's own `bash` stays unless you register this one:
+
+```ts
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createPiBashTool } from "@better-fs-tools/pi";
+
+// Replaces Pi's own bash: same name, { command, timeout } in seconds, run in ctx.cwd.
+export default function bashExtension(pi: ExtensionAPI): void {
+  pi.registerTool(createPiBashTool());
+}
+```
+
+The command runs in `ctx.cwd` on every call. This is also true with a `runner` that you pass: the runner gets `ctx.cwd` as the `cwd` of the request, not its own `cwd`. A relative `ctx.cwd` throws:
+
+```text
+TypeError: Pi bash execution requires an absolute ctx.cwd
+```
+
+The options take every `createBashTool()` option except `cwd`, plus `runner`, `signature`, `promptSnippet`, and `promptGuidelines`. `fs`, `cwd`, and `allowedRoots` throw `TypeError`, as in the file tools.
+
+| Option      | Default                                                        |
+| ----------- | -------------------------------------------------------------- |
+| `runner`    | A `nodeCommandRunner` at `ctx.cwd`, one for each directory     |
+| `env`       | `shellEnv(() => process.env)`                                  |
+| `signature` | Pi's `{ command, timeout }` input, with the timeout in seconds |
+
+The default description names the timeouts and output limits from `limits`, and the id of a `runner` object when you pass one. See the [bash guide](/guides/bash) for limits, policy, and runners.
+
+Pi's own `bash` also sets `PI_*` session variables. This tool does not. Add them with the `env` option when you need them.
+
+When the output is too long, the tool can save it to a file. `details.fullOutputPath` gives that file to Pi's bash renderer. See [Limits](/guides/bash/limits).
+
+## Forget a read after a bash command
+
+A bash command can change a file after the model read it. With a read store, call `invalidate()` from a bash `afterRun` hook. The next edit of that file then needs a read:
+
+```ts
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createPiBashTool, createPiFsTools } from "@better-fs-tools/pi";
+import { memoryStore } from "@better-fs-tools/read";
+
+// The file tools with a read store, and Pi-shaped bash. After each command,
+// the next edit of package.json needs a read, since the command may have
+// changed it.
+export default function fsAndBashExtension(pi: ExtensionAPI): void {
+  const tools = createPiFsTools({ state: memoryStore() });
+  const bash = createPiBashTool({
+    afterRun: [
+      {
+        id: "invalidate-package-json",
+        afterRun: async (_outcome, ctx) => {
+          // ctx.call carries Pi's ctx, so the path resolves under its cwd.
+          await tools.invalidate("package.json", ctx.call);
+          return {};
+        },
+      },
+    ],
+  });
+  pi.registerTool(tools.read);
+  pi.registerTool(tools.edit);
+  pi.registerTool(tools.write);
+  pi.registerTool(bash);
+}
+```
+
+Pass the call to `invalidate(path, call)`. In a bash `afterRun` hook, the call is `ctx.call`. The path resolves under the `ctx.cwd` of that call. In the other bundles the call is optional, but the Pi bundle has no root until a call gives one. Without the call, `invalidate()` does not throw. It returns `{ ok: false }` with reason `unsupported`:
+
+```json
+{
+  "ok": false,
+  "phase": "stat",
+  "error": {
+    "reason": "unsupported",
+    "detail": "fs is a factory: pass the call context to invalidate(path, call)"
+  }
+}
+```
+
+With the call, the outcome is `{ ok: true, resolvedPath, recorded }`. `recorded` is `true` when the store had a record for the path. With `state: null`, `recorded` is `false`.
+
+## See also
+
+- [Read guide](/guides/read) and [write guide](/guides/write): the options under `read`, `edit`, `write`, and `applyPatch`
+- [Bash guide](/guides/bash): the `createPiBashTool()` options
+- [One bundle](/guides/one-bundle): the defaults of every host bundle
+- [Node backend](/backends/node): the filesystem that each call uses
