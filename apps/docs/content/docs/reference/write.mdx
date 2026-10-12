@@ -1,0 +1,500 @@
+---
+title: Write reference
+description: Every field of the edit, write, and apply_patch result, every error and note code, every message, the limits, the patch types, and the lower-level helpers of @better-fs-tools/write.
+---
+
+This page lists the types and helpers of `@better-fs-tools/write`. For a walkthrough, see the [write guide](/guides/write).
+
+| Entry                              | Contents                                                                                                                                                                                                                                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@better-fs-tools/write`           | `createEditTool`, `createWriteTool`, `createApplyPatchTool`, `createFsTools`, the matchers, guards, authorizers, hooks, `defaultWriteFormatter`, `utf8Codec`, `memoryLocks`, `createInvalidator`, the helpers on this page, and the types. `textOf` is the same function as in `@better-fs-tools/read` |
+| `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, `CODEX_PATCH_GRAMMAR`, and the [patch types](#patchparser)                                                                                                                                                                                                           |
+| `@better-fs-tools/write/signature` | The edit, write, and patch signatures, and `writeSignatureMessages`. See [tool definition](/hosts/tool-definition)                                                                                                                                                                                     |
+
+## MutationResult
+
+Every `edit`, `write`, and `apply_patch` call returns a `MutationResult`. It is a `MutationReport` plus `content`, the parts that the formatter made for the model:
+
+```ts
+type MutationResult = MutationReport & { readonly content: readonly ContentPart[] };
+
+type MutationReport = MutationOk | MutationNoChange | MutationFailure;
+
+// Every variant has these fields.
+interface MutationFields {
+  tool: "edit" | "write" | "apply_patch";
+  changes: readonly FileChange[];
+  unchanged: readonly string[];
+  notes: readonly Note[];
+}
+
+interface MutationOk extends MutationFields {
+  status: "ok";
+  commit: null;
+}
+
+interface MutationNoChange extends MutationFields {
+  status: "no-change";
+  commit: null;
+}
+
+interface MutationFailure extends MutationFields {
+  status: "error";
+  error: WriteError; // { code, phase, message, data? }
+  commit: CommitReport | null;
+}
+```
+
+`MutationReport` is a union on `status`. Only the `error` variant has an `error` field, and it is never null there. A check on `status` narrows the type. `error.message` and `error.data` come from the error note.
+
+```ts
+import { memoryFileSystem } from "@better-fs-tools/fs";
+import { createEditTool, textOf } from "@better-fs-tools/write";
+
+const edit = createEditTool({
+  fs: memoryFileSystem({ files: { "/app.ts": "const a = 1;\nconst b = 2;\n" } }),
+});
+
+const result = await edit({
+  path: "/app.ts",
+  edits: [{ oldText: "const b = 2;", newText: "const b = 3;" }],
+});
+
+if (result.status === "error") {
+  console.log(result.error.code, result.error.phase, result.error.data);
+} else {
+  for (const change of result.changes) {
+    console.log(change.kind, change.path, change.linesAdded, change.linesRemoved); // update /app.ts 1 1
+    console.log(change.matches[0]?.matcher, change.matches[0]?.lines); // exact [2, 2]
+  }
+}
+console.log(textOf(result)); // "Edited /app.ts: 1 replacement at line 2."
+
+const miss = await edit({ path: "/app.ts", edits: [{ oldText: "const c", newText: "x" }] });
+if (miss.status === "error") {
+  console.log(miss.error.code, miss.error.phase, miss.error.data); // NO_MATCH plan { index: 0 }
+}
+```
+
+| Status      | When                                                                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ok`        | The tool committed every planned change. `changes` lists them                                                                                          |
+| `no-change` | Nothing needed a write: `write` with the same content, `edit` where every pair is already applied, or a patch that changes nothing. It is not an error |
+| `error`     | The call stopped. `error.code` tells why and `error.phase` tells where. No file changed, unless `commit` tells otherwise                               |
+
+`unchanged` lists the display paths that a `no-change` result left as they were. It is empty for the other statuses. `commit` is set only when an `apply_patch` commit failed after its first publish step. `changes` is empty on an error, except for `PARTIAL_COMMIT`. Then it lists the files that stay changed.
+
+### FileChange
+
+```ts
+interface FileChange {
+  kind: "create" | "update" | "delete" | "move";
+  path: string; // display path. For a move, the destination
+  requestedPath: string;
+  resolvedPath: string;
+  movedFrom: string | null; // display path of a move source
+  before: FileVersion | null; // null for a create
+  after: FileVersion | null; // null for a delete
+  linesAdded: number;
+  linesRemoved: number;
+  diff: string; // unified diff with a/ and b/ headers
+  diffTruncated: boolean; // cut at limits.maxDiffLines
+  matches: readonly MatchInfo[]; // edit pairs and patch hunks
+  snippets: readonly Snippet[]; // new lines around each change
+  userModified: boolean; // an authorizer replaced the content
+  createdDirectories: readonly string[]; // resolved paths, outermost first
+}
+
+interface FileVersion {
+  contentId: string | null; // null with no digest
+  version: string | null; // the backend version. null when the backend gave none
+  bytes: number;
+}
+
+interface MatchInfo {
+  index: number; // zero-based pair or hunk
+  matcher: string; // for example "exact" or "normalized"
+  fuzzy: boolean;
+  lines: readonly [number, number]; // one-based, in the file before the change
+  count: number; // more than 1 only with replaceAll
+  replaced: readonly (readonly [number, number])[]; // each replacement, in the file after
+}
+
+interface Snippet {
+  startLine: number; // one-based, in the file after the change
+  lines: readonly string[];
+}
+```
+
+`matches` is empty for `write`. A pair that is already applied has no entry. `replaced` lists at most `limits.maxListedMatches` entries. `snippets` is empty for `write` and for a delete. The model text shows the snippets only when the formatter has `snippet: true`, and the diff only when it has `diff: true`.
+
+### CommitReport
+
+```ts
+interface CommitReport {
+  rolledBack: boolean; // true when every published step was undone
+  files: readonly {
+    path: string;
+    state: "unchanged" | "committed" | "restored" | "rollback-failed";
+    code?: WriteErrorCode;
+  }[];
+}
+```
+
+`files` lists every file of the patch, in patch order. A move lists its source, then its destination. The tool tries every undo step, so a published file ends `restored` or `rollback-failed`.
+
+### Error codes
+
+`error.phase` is a `WritePhase`: `input`, `resolve`, `stat`, `lock`, `load`, `precondition`, `plan`, `guards`, `authorize`, `encode`, `commit`, `hooks`, or `record`.
+
+| `code`                  | Phase                                            | Meaning                                                                                                                                                                              | `data`                                                                                                     |
+| ----------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `INVALID_INPUT`         | `input`                                          | The input failed the checks                                                                                                                                                          | `{ path }` when the input had a string path                                                                |
+| `NOT_FOUND`             | `resolve`, `stat`, `plan`                        | `edit` on a missing file, or a path that the resolver or the backend did not find                                                                                                    | From the backend                                                                                           |
+| `NOT_A_FILE`            | `stat`, `load`                                   | A folder, FIFO, socket, or device                                                                                                                                                    | `{ kind }`                                                                                                 |
+| `DANGEROUS_PATH`        | Any backend call                                 | A refused namespace or a deny root                                                                                                                                                   | From the backend                                                                                           |
+| `OUTSIDE_ALLOWED_ROOTS` | Any backend call                                 | Outside every allowed root                                                                                                                                                           | From the backend                                                                                           |
+| `PERMISSION_DENIED`     | Any backend call                                 | The operating system refused access                                                                                                                                                  | From the backend                                                                                           |
+| `DENIED`                | `authorize`, or any backend call                 | An authorizer, or a backend rule such as a refused symlink                                                                                                                           | The data of the authorizer, with its own code in `source`                                                  |
+| `READ_ONLY`             | `commit`                                         | The backend is read-only                                                                                                                                                             | From the backend                                                                                           |
+| `NO_SPACE`              | `commit`                                         | The backend has no space                                                                                                                                                             | From the backend                                                                                           |
+| `UNSUPPORTED_BACKEND`   | `resolve`, `load`, `commit`                      | `load`: no classifier had an opinion. `resolve`: an `fs` function returned a backend with no write methods. `commit`: the backend does not have the write method that the call needs | `{ detail }` from the backend                                                                              |
+| `ABORTED`               | `input`, or the phase at the time                | The signal fired before the commit. A signal that fired before the call gives `input`                                                                                                | `{ phase }`                                                                                                |
+| `IO_ERROR`              | Any                                              | Any other backend failure, including a method that threw                                                                                                                             | `{ detail }`                                                                                               |
+| `EXTENSION_FAILED`      | The phase of the host code                       | Host code threw or returned a value with the wrong shape                                                                                                                             | `{ extension, phase, id? }`                                                                                |
+| `LOCK_TIMEOUT`          | `lock`                                           | Another call held a path for `timeoutMs`                                                                                                                                             | None                                                                                                       |
+| `NOT_READ`              | `precondition`                                   | No read record, or a partial record where the tool needs a whole read                                                                                                                | `{ wholeFile: true }` for the second case                                                                  |
+| `STALE`                 | `stat`, `load`, `precondition`, `plan`, `commit` | The file changed after the read, or between the checks and the commit                                                                                                                | `{ index }` for an edit rematch, `{ path, hunk? }` for a patch                                             |
+| `EXISTS`                | `commit`                                         | A create found a file                                                                                                                                                                | None                                                                                                       |
+| `TOO_LARGE`             | `load`, `encode`, `input`, `commit`              | A file over `maxFileBytes`, content over `maxWriteBytes`, a patch over `maxPatchFiles`, or a byte limit of the backend such as `maxBufferedBytes`                                    | `{ limit, bytes? }`, `{ limit, operations }`, or from a backend `{ limit, size, detail?, cause? }`         |
+| `NOT_TEXT`              | `load`                                           | The file is not text, the codec cannot decode it, or it does not encode back to the same bytes                                                                                       | `{ code, classifier? }`                                                                                    |
+| `NO_MATCH`              | `plan`                                           | The tool did not find an old text                                                                                                                                                    | `{ index, closest?, trailingNewline? }`                                                                    |
+| `AMBIGUOUS_MATCH`       | `plan`                                           | The tool found an old text more than one time, and the pair has no `replaceAll`                                                                                                      | `{ index, lines, total }`                                                                                  |
+| `MATCH_REFUSED`         | `plan`                                           | The core does not trust a match                                                                                                                                                      | `{ index, matcher, reason }`. `reason` is `span`, `boundary`, `escape`, `fuzzy-replace-all`, or `too-many` |
+| `OVERLAP`               | `plan`                                           | Two pairs match text that overlaps                                                                                                                                                   | `{ first, second }`                                                                                        |
+| `NO_CHANGE`             | `plan`, `encode`                                 | The edits do not change the file                                                                                                                                                     | None                                                                                                       |
+| `GUARD_REFUSED`         | `guards`                                         | A guard refused a planned change                                                                                                                                                     | The data of the guard, with its own code in `source`                                                       |
+| `PATCH_PARSE`           | `input`                                          | The patch text is not a valid patch                                                                                                                                                  | `{ line, detail }`                                                                                         |
+| `PATCH_VERIFY`          | `stat`, `plan`                                   | One or more operations cannot apply. No file changed. `stat`: two operations on one file, or a Delete or Move on a backend with no `remove()`. `plan`: the other cases               | `{ problems: [{ path, reason, hunk? }] }`                                                                  |
+| `PARTIAL_COMMIT`        | `commit`                                         | A patch step failed and an undo step failed too. `commit.files` has the state of each file                                                                                           | None                                                                                                       |
+
+An `apply_patch` precondition failure on more than one file gives one note. The note has the code of the first failure, and `data.failures` with one entry for each path.
+
+## Notes
+
+```text
+{ code, severity: "info" | "warning", message, data?: JsonObject }
+```
+
+`code` is stable and kebab case. The default formatter prints a note as `[<tool>:<code>] <message>`. Key your code on `code`, and not on the text. [`messages`](#messages) changes only the text.
+
+An error result has one warning note for the error, and it is always first in `notes`. Its code is the error code in kebab case, for example `not-read` for `NOT_READ`. When an authorizer or a guard refuses with its own `note`, the tool keeps the message and the data of that note. The code becomes the error code in kebab case, the severity becomes `warning`, and the code of the host moves to `data.source`. The read and bash tools use the same rule.
+
+Notes on a successful call:
+
+| `code`                             | Severity | From                                            | `data`                                                              |
+| ---------------------------------- | -------- | ----------------------------------------------- | ------------------------------------------------------------------- |
+| `fuzzy-match`                      | info     | A loose match                                   | edit: `{ index, matcher, lines }`. patch: `{ path, hunk, matcher }` |
+| `already-applied`                  | info     | `edit` with `recovery: true`                    | `{ index }`                                                         |
+| `stale-rematched`                  | info     | `edit`, `apply_patch` with `onStale: "rematch"` | None                                                                |
+| `repeated-miss`                    | info     | `edit` with `recovery: true`, with a `NO_MATCH` | `{ misses }`                                                        |
+| `user-modified`                    | warning  | An authorizer returned `content`                | None                                                                |
+| `hook-rewrote`                     | warning  | A hook returned `rewrote: true`                 | `{ hook }`                                                          |
+| `executable`                       | info     | `executableShebang()`                           | `{ mode }`                                                          |
+| `verify-mismatch`, `verify-failed` | warning  | `verifyWrite()`                                 | None                                                                |
+
+Guards and authorizers can add allow notes of their own.
+
+## Messages
+
+`messages` sets the text of each note. Each message is a function. The messages you leave out keep their default text. [Customise formatting](/guides/write/formatting#change-the-wording-of-notes) shows an example. `defaultWriteMessages` holds the default functions.
+
+`param(name)` gives the name that the model sees for a canonical parameter: `path`, `edits`, `oldText`, `newText`, `replaceAll`, `content`, or `patch`. The default texts use it. An empty string means that the tool has no such parameter, and the default texts then leave out the advice that names it. `writeSignatureMessages(signature)` sets `param` for a signature.
+
+| Message                | Arguments                                                                                                                                             |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `param`                | `name`, a canonical parameter name                                                                                                                    |
+| `invalidInput`         | `{ tool, detail }`                                                                                                                                    |
+| `notFound`             | `{ tool, path }`                                                                                                                                      |
+| `notAFile`             | `{ path, kind }`                                                                                                                                      |
+| `dangerousPath`        | `{ path, detail }`                                                                                                                                    |
+| `outsideAllowedRoots`  | `{ path }`                                                                                                                                            |
+| `permissionDenied`     | `{ path }`                                                                                                                                            |
+| `readOnly`             | `{ path }`                                                                                                                                            |
+| `noSpace`              | `{ path }`                                                                                                                                            |
+| `unsupportedBackend`   | `{ path, detail }`                                                                                                                                    |
+| `ioError`              | `{ path }`. `path` can be `null`                                                                                                                      |
+| `aborted`              | `{ phase }`                                                                                                                                           |
+| `extensionFailed`      | `{ path, extension, phase }`. `path` can be `null`                                                                                                    |
+| `lockTimeout`          | `{ paths }`                                                                                                                                           |
+| `guardRefused`         | `{ guard, path }`. Used when a guard gives no note                                                                                                    |
+| `notRead`              | `{ tool, path, wholeFile }`                                                                                                                           |
+| `stale`                | `{ tool, path }`                                                                                                                                      |
+| `staleRematched`       | `{ path }`                                                                                                                                            |
+| `tooLarge`             | `{ path, what, limit, existing }`. `what` is `"file"`, `"content"`, or `"patch"`. `existing` is `true` when `what` is `"content"` and the file exists |
+| `notText`              | `{ path, code }`                                                                                                                                      |
+| `exists`               | `{ tool, path }`                                                                                                                                      |
+| `noMatch`              | `{ path, index, closest, trailingNewline }`. `trailingNewline` is `"missing"`, `"extra"`, or `null`                                                   |
+| `ambiguousMatch`       | `{ path, index, lines, total }`                                                                                                                       |
+| `matchRefused`         | `{ path, index, matcher, reason }`                                                                                                                    |
+| `overlap`              | `{ path, first, second }`                                                                                                                             |
+| `noChange`             | `{ path }`                                                                                                                                            |
+| `alreadyApplied`       | `{ path, index }`                                                                                                                                     |
+| `fuzzyMatch`           | `{ path, index, matcher, lines }`                                                                                                                     |
+| `repeatedMiss`         | `{ path, misses }`                                                                                                                                    |
+| `patchParse`           | `{ line, detail }`                                                                                                                                    |
+| `patchVerifyHeader`    | None                                                                                                                                                  |
+| `patchDuplicateTarget` | `{ path }`                                                                                                                                            |
+| `patchNotFound`        | `{ path, operation }`. `operation` is `"update"` or `"delete"`                                                                                        |
+| `patchMoveExists`      | `{ path, from }`                                                                                                                                      |
+| `patchContextNotFound` | `{ path, hunk, context }`. `hunk` is one-based                                                                                                        |
+| `patchLinesNotFound`   | `{ path, hunk, lines }`. `hunk` is one-based                                                                                                          |
+| `patchFuzzyMatch`      | `{ path, hunk, matcher, lines }`. `hunk` is one-based                                                                                                 |
+| `patchCommitFailed`    | `{ path, code, rolledBack, files }`. `files` has the state of each file when the rollback failed                                                      |
+| `userModified`         | `{ path }`                                                                                                                                            |
+| `hookRewrote`          | `{ hook, path }`                                                                                                                                      |
+| `pathRepaired`         | `{ from, to }`                                                                                                                                        |
+| `denied`               | `{ path, detail }`                                                                                                                                    |
+
+`tool` is `"edit"`, `"write"`, or `"apply_patch"`. `detail` is a string or `null`.
+
+## Limits
+
+`limits` merges with `defaultWriteLimits` key by key. Each value must be a positive safe integer. These are defaults, and not ceilings.
+
+| Limit              | Default | Meaning                                                           |
+| ------------------ | ------- | ----------------------------------------------------------------- |
+| `maxFileBytes`     | 8 MiB   | Bytes of an existing file that a tool loads                       |
+| `maxWriteBytes`    | 8 MiB   | Encoded bytes of new content for one file                         |
+| `maxPatchBytes`    | 4 MiB   | UTF-8 bytes of patch text                                         |
+| `maxPatchFiles`    | 100     | Operations in one patch                                           |
+| `maxEdits`         | 100     | Pairs in one `edit` call                                          |
+| `sampleBytes`      | 8,192   | Bytes given to the classifiers and codecs. At most `maxFileBytes` |
+| `snippetLines`     | 3       | Context lines before and after each change in a snippet           |
+| `maxSnippetLines`  | 40      | Snippet lines for one file in the model text                      |
+| `maxDiffLines`     | 2,000   | Lines of unified diff kept in `changes[].diff`                    |
+| `maxHintLines`     | 12      | Lines in a closest-region hint (`recovery: true`)                 |
+| `maxListedMatches` | 10      | Line numbers listed for an ambiguous match                        |
+| `maxPatchProblems` | 20      | Problems listed for a failed patch verify                         |
+
+A `sampleBytes` that you set above `maxFileBytes` throws `TypeError`. When you set only `maxFileBytes` below 8,192, the default `sampleBytes` goes down to it.
+
+## Preconditions
+
+`preconditions` sets the read-before-write rules. It merges with `defaultPreconditions` key by key. The rules apply only when the tool has a `state` store. See [Read before write](/guides/write/read-before-write).
+
+| Key           | Default       | Values                                                                                                                                                     |
+| ------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `requireRead` | `"existing"`  | `"existing"`: an existing file needs a read record. `"off"`: no read before write                                                                          |
+| `partialRead` | `"edit-only"` | Which tools accept a record with `wholeFileVisible: false`. `"edit-only"` means `edit` and `apply_patch`. Also `"always"` and `"never"`                    |
+| `onStale`     | `"reject"`    | `edit` and `apply_patch` on a stale record. `"reject"` fails with `STALE`. `"rematch"` tries the old text again on the new content. `write` always rejects |
+
+## PatchParser
+
+`patchParser` reads the patch text of `apply_patch`. The default is `codexPatchParser()`. The patch types come from `@better-fs-tools/write/patch`.
+
+```ts
+interface PatchParser {
+  readonly id: string;
+  parse(text: string): PatchParseOutcome; // synchronous. Must not throw
+}
+
+type PatchParseOutcome =
+  { ok: true; plan: PatchPlan } | { ok: false; error: { line: number; detail: string } };
+
+interface PatchPlan {
+  operations: readonly PatchOperation[];
+}
+
+type PatchOperation =
+  | { kind: "add"; path: string; content: string; line: number }
+  | { kind: "delete"; path: string; line: number }
+  | {
+      kind: "update";
+      path: string;
+      moveTo: string | null;
+      hunks: readonly PatchHunk[];
+      line: number;
+    };
+
+interface PatchHunk {
+  context: string | null; // the text after "@@ ". null for a bare "@@", or a first hunk with no "@@"
+  lines: readonly PatchLine[]; // old lines are " " and "-". New lines are " " and "+"
+  endOfFile: boolean; // "*** End of File" closed the hunk
+  line: number; // one-based line of the hunk in the patch text
+}
+
+interface PatchLine {
+  kind: " " | "-" | "+";
+  text: string; // the line with no prefix and no line break
+}
+```
+
+`line` on an operation is the one-based line of its header in the patch text. A rename is an `update` with `moveTo` set. A failed parse gives `PATCH_PARSE` with the `line` and `detail` of the error.
+
+`parsePatch(text)` is the Codex parser as a function. It accepts CRLF line breaks, blank lines around the patch, one fenced block, and one heredoc wrapper such as `apply_patch <<'EOF'`. `codexPatchParser()` wraps it as a `PatchParser` with the id `codex`. `CODEX_PATCH_GRAMMAR` is the Lark grammar of the same format.
+
+```ts
+import { parsePatch } from "@better-fs-tools/write/patch";
+
+const outcome = parsePatch(
+  [
+    "*** Begin Patch",
+    "*** Update File: src/a.ts",
+    "@@ function greet",
+    "-  return 1;",
+    "+  return 2;",
+    "*** Delete File: old.txt",
+    "*** End Patch",
+  ].join("\n"),
+);
+
+if (outcome.ok) {
+  for (const operation of outcome.plan.operations) {
+    console.log(operation.kind, operation.path, operation.line);
+  }
+  // update src/a.ts 2
+  // delete old.txt 6
+} else {
+  console.log(outcome.error.line, outcome.error.detail);
+}
+```
+
+## Content
+
+The formatter makes `content` one time, with `mode: "model"`. A formatter that returns a string gives one text part. `defaultWriteFormatter()` prints a header, a body, then a blank line and the note lines. An error prints the note lines only.
+
+| Tool          | Header                                                                        | Body                                                                                                     |
+| ------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `edit`        | `Edited <path>: 1 replacement at line 4.` or `2 replacements at lines 3, 15.` | None. With `snippet: true`, the snippets with the `12\|` gutter of the read tool, and `...` between them |
+| `write`       | `Created <path> (3 lines).` or `Updated <path> (+2 -1 lines).`                | None                                                                                                     |
+| `apply_patch` | `Success. Updated the following files:`                                       | One line for each file: `A`, `M`, or `D`, and the path                                                   |
+| Any           | `No change to <path>.` for `no-change`. `write` adds the reason               | None                                                                                                     |
+
+[Customise formatting](/guides/write/formatting) lists the options of `defaultWriteFormatter()`. If a formatter throws, the tool uses `defaultWriteFormatter()` and adds no note.
+
+## The stored record
+
+With a `state` store and a `digest`, each committed file gets a [`ReadRecord`](/reference/read#readstatestore) under its resolved path:
+
+```text
+{
+  schema: 2,
+  origin: "write",
+  observationId, resolvedPath, identity, version, digest,
+  contentId, viewId, observedAt, wholeFileVisible,
+  totalsExact: true,
+  request: null
+}
+```
+
+- `version` and `identity` come from the backend. `contentId` is the digest of the written bytes, and `viewId` is the same.
+- `wholeFileVisible` is `true` after a `write` and a patch Add. An `edit` and a patch Update keep the earlier value. It is `false` when an authorizer replaced the content, a hook rewrote the file, or an edit went ahead on a stale record.
+- A move stores the destination and deletes the source key. A Delete deletes the key. `no-change` stores nothing.
+- A store failure never fails the call.
+
+## Lower-level helpers
+
+The tools use these helpers. Use them when you write your own tool around the core, or when you test a host.
+
+| Helper                                | Returns                                                                                                                                                                                                                                                                                             |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parseEditInput(input, limits)`       | An `EditRequest`, `{ tool: "edit", path, edits }`, with `replaceAll` set on each pair. Throws `TypeError` for a key other than `path` and `edits`, a bad path, 0 pairs or more than `maxEdits` pairs, an empty `oldText`, a `newText` that is not a string, or a `replaceAll` that is not a boolean |
+| `parseWriteInput(input, limits)`      | A `WriteRequest`, `{ tool: "write", path, content }`. Throws `TypeError` for a key other than `path` and `content`, a bad path, or a `content` that is not a string                                                                                                                                 |
+| `parseApplyPatchInput(input, limits)` | An `ApplyPatchRequest`, `{ tool: "apply_patch", patch }`. Throws `TypeError` unless the input holds only a `patch` that is not blank, with at most `maxPatchBytes` UTF-8 bytes                                                                                                                      |
+| `resolveWriteLimits(overrides?)`      | The frozen `WriteLimits`, with `overrides` over `defaultWriteLimits`. Throws `TypeError` as in [Limits](#limits)                                                                                                                                                                                    |
+| `resolveWriteMessages(overrides?)`    | The frozen `WriteMessageCatalog`, with `overrides` over `defaultWriteMessages`. A `param` override also changes the default texts. Throws `TypeError` for an unknown key or a value that is not a function                                                                                          |
+| `defaultPreconditions`                | The frozen default [preconditions](#preconditions)                                                                                                                                                                                                                                                  |
+
+A bad path is a value that is not a string, a blank string, or a string with NUL. The tool turns a `TypeError` from a parse helper into `INVALID_INPUT`.
+
+```ts
+import {
+  defaultPreconditions,
+  parseApplyPatchInput,
+  parseEditInput,
+  parseWriteInput,
+  resolveWriteLimits,
+  resolveWriteMessages,
+} from "@better-fs-tools/write";
+
+const limits = resolveWriteLimits({ maxEdits: 2 });
+
+console.log(parseEditInput({ path: "a.ts", edits: [{ oldText: "a", newText: "b" }] }, limits));
+// { tool: "edit", path: "a.ts", edits: [{ oldText: "a", newText: "b", replaceAll: false }] }
+
+try {
+  parseEditInput({ path: "a.ts", edits: [] }, limits);
+} catch (error) {
+  console.log((error as TypeError).message); // "edits must be a non-empty array"
+}
+
+console.log(parseWriteInput({ path: "a.ts", content: "x\n" }, limits));
+// { tool: "write", path: "a.ts", content: "x\n" }
+
+try {
+  parseApplyPatchInput({ patch: " " }, limits);
+} catch (error) {
+  console.log((error as TypeError).message); // "patch must be a non-empty string"
+}
+
+const messages = resolveWriteMessages({
+  param: (name) => (name === "oldText" ? "old_string" : name),
+});
+console.log(messages.param("oldText")); // "old_string"
+
+console.log(defaultPreconditions);
+// { requireRead: "existing", partialRead: "edit-only", onStale: "reject" }
+```
+
+## Statuses and error codes of every tool
+
+The read, write, and bash results use one envelope: `tool`, `status`, and on `status: "error"` only, `error: { code, phase, message, data? }`. Error codes are UPPER_SNAKE. Note codes are kebab case. The code of each error note is its error code in kebab case. The [read reference](/reference/read#readresult) and the [bash reference](/reference/bash#shellresult) have the details of the other tools.
+
+| Status        | `read`                                            | `edit`, `write`, `apply_patch` | `bash`                                            |
+| ------------- | ------------------------------------------------- | ------------------------------ | ------------------------------------------------- |
+| `ok`          | The tool read text                                | Every change is committed      | Exit code 0                                       |
+| `media`       | A converter returned media parts                  | No                             | No                                                |
+| `unsupported` | A classifier or converter refused. `code` is open | No                             | No                                                |
+| `no-change`   | No                                                | Nothing needed a write         | No                                                |
+| `failed`      | No                                                | No                             | Another exit code, or a signal                    |
+| `timeout`     | No                                                | No                             | The timeout stopped the command                   |
+| `error`       | The read failed                                   | The call stopped               | The call stopped, or the core stopped the command |
+
+Each cell below is the `error.phase` values of that code, or "No" when the tool never gives it. "Backend" means the phase of the backend call that failed.
+
+| `error.code`                                              | `read`                                                                  | `edit`, `write`, `apply_patch`                       | `bash`                                                     |
+| --------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------- |
+| `INVALID_INPUT`                                           | `input`                                                                 | `input`                                              | `input`                                                    |
+| `NOT_FOUND`                                               | `resolve`                                                               | `resolve`, `stat`, `plan`                            | No                                                         |
+| `NOT_A_FILE`                                              | `open`, `verification`                                                  | `stat`, `load`                                       | No                                                         |
+| `DANGEROUS_PATH`                                          | `open`, `verification`, `conversion`                                    | Backend                                              | No                                                         |
+| `OUTSIDE_ALLOWED_ROOTS`                                   | `open`, `verification`, `conversion`                                    | Backend                                              | No                                                         |
+| `PERMISSION_DENIED`                                       | `open`, `verification`, `conversion`                                    | Backend                                              | No                                                         |
+| `DENIED`                                                  | `authorize`, or backend                                                 | `authorize`, or backend                              | `authorize`                                                |
+| `REFUSED`                                                 | No                                                                      | No                                                   | `beforeRun`                                                |
+| `TOO_LARGE`                                               | `open` (a backend limit. Converter and media limits give `unsupported`) | `input`, `load`, `encode`, `commit`                  | No                                                         |
+| `CHANGED_DURING_READ`                                     | `verification`                                                          | No                                                   | No                                                         |
+| `READ_ONLY`                                               | No                                                                      | `commit`                                             | No                                                         |
+| `NO_SPACE`                                                | No                                                                      | `commit`                                             | No                                                         |
+| `UNSUPPORTED_BACKEND`                                     | `open`, `sampling`, `scan`                                              | `resolve`, `load`, `commit`                          | No                                                         |
+| `ABORTED`                                                 | `input`, or the phase at the time                                       | `input`, or the phase at the time, before the commit | `input`, `resolve`, `beforeRun`, `authorize`, `env`, `run` |
+| `IO_ERROR`                                                | Any                                                                     | Any                                                  | No                                                         |
+| `EXTENSION_FAILED`                                        | The phase of the host code                                              | The phase of the host code                           | The phase of the host code                                 |
+| `LOCK_TIMEOUT`                                            | No                                                                      | `lock`                                               | No                                                         |
+| `NOT_READ`                                                | No                                                                      | `precondition`                                       | No                                                         |
+| `STALE`                                                   | No                                                                      | `stat`, `load`, `precondition`, `plan`, `commit`     | No                                                         |
+| `EXISTS`                                                  | No                                                                      | `commit`                                             | No                                                         |
+| `NOT_TEXT`                                                | No                                                                      | `load`                                               | No                                                         |
+| `NO_MATCH`, `AMBIGUOUS_MATCH`, `MATCH_REFUSED`, `OVERLAP` | No                                                                      | `plan`, `edit` only                                  | No                                                         |
+| `NO_CHANGE`                                               | No                                                                      | `plan`, `encode`, `edit` only                        | No                                                         |
+| `GUARD_REFUSED`                                           | No                                                                      | `guards`                                             | No                                                         |
+| `PATCH_PARSE`                                             | No                                                                      | `input`, `apply_patch` only                          | No                                                         |
+| `PATCH_VERIFY`                                            | No                                                                      | `stat`, `plan`, `apply_patch` only                   | No                                                         |
+| `PARTIAL_COMMIT`                                          | No                                                                      | `commit`, `apply_patch` only                         | No                                                         |
+| `CWD_NOT_FOUND`                                           | No                                                                      | No                                                   | `resolve`, `run`                                           |
+| `CWD_NOT_A_DIRECTORY`                                     | No                                                                      | No                                                   | `run`                                                      |
+| `SPAWN_FAILED`                                            | No                                                                      | No                                                   | `run`                                                      |
+| `OUTPUT_CAP`                                              | No                                                                      | No                                                   | `run`                                                      |
+
+A formatter failure is never an error in any tool. The status stays, and the tool adds no note.
