@@ -63,7 +63,7 @@ result.status; // "media"
 result.content; // [{ type: "media", mediaType: "image/png", data: Uint8Array, name: "diagram.png" }]
 ```
 
-The [AI SDK](/hosts/ai-sdk) and [Pi](/hosts/pi) integrations send the image to the model as a file part. In your own integration, send the media parts in the form your model API takes.
+The [AI SDK](/hosts/ai-sdk) integration sends the image to the model as a `file` part. The [Pi](/hosts/pi) integration sends it as an `image` part. In your own integration, send the media parts in the form your model API takes.
 
 Set `transform` to make large images smaller. It gets the bytes and the media type, and returns new bytes of the same media type:
 

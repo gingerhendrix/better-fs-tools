@@ -26,6 +26,9 @@ For local tools on Node 24 or later, or on Bun:
 
 ```sh
 npm install @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write
+
+# With Bun
+bun add @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write
 ```
 
 For an agent host, add its package and its peers:
@@ -38,7 +41,7 @@ npm install @better-fs-tools/ai-sdk @better-fs-tools/read @better-fs-tools/write
 npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-coding-agent typebox
 ```
 
-The AI SDK package needs a filesystem package too, for example `@better-fs-tools/node` or `@better-fs-tools/cloudflare-shell`.
+With Bun, use `bun add` with the same package names. The AI SDK package needs a filesystem package too, for example `@better-fs-tools/node` or `@better-fs-tools/cloudflare-shell`.
 
 ## A first example
 

@@ -7,6 +7,16 @@ description: Replace the read, edit, and write tools of the Pi coding agent, and
 
 ## Install
 
+To use the tools in Pi as they are, install the package with Pi's own command:
+
+```sh
+pi install npm:@better-fs-tools/pi
+```
+
+Pi writes the package to your user settings. Add `-l` to write it to the project settings in `.pi/settings.json`. To try the tools for one run only, start Pi with `pi -e npm:@better-fs-tools/pi`.
+
+To write your own extension with `createPiFsTools()`, install the package and its peers in your extension's project:
+
 ```sh
 npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-coding-agent typebox
 ```
