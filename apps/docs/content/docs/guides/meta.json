@@ -1,4 +1,4 @@
 {
   "title": "Guides",
-  "pages": ["one-bundle", "read", "write", "bash"]
+  "pages": ["read", "write", "bash"]
 }

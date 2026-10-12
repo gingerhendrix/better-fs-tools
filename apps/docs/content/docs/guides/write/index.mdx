@@ -38,7 +38,7 @@ const applyPatch = createApplyPatchTool({ fs });
 
 On Node or Bun, `createNodeEditTool()`, `createNodeWriteTool()`, and `createNodeApplyPatchTool()` from `@better-fs-tools/node` do the same with a filesystem rooted at `process.cwd()`, and set `digest: nodeDigest()`. They take the same options.
 
-`createFsTools({ fs })` creates `read`, `edit`, and `write` together. Set `applyPatch: true` to also create `apply_patch`. The default `state` of the bundle is `null`, so read before write is off. Set `state: memoryStore()` to turn it on. See [One bundle for all tools](/guides/one-bundle).
+`createFsTools({ fs })` creates `read`, `edit`, and `write` together. Set `applyPatch: true` to also create `apply_patch`. The default `state` of the bundle is `null`, so read before write is off. Set `state: memoryStore()` to turn it on. See [Choose a host](/hosts).
 
 | Option          | Default                                                                   | Use it to                                                       |
 | --------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------- |

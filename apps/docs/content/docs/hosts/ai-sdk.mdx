@@ -34,7 +34,7 @@ export async function change(model: LanguageModel, prompt: string): Promise<stri
 }
 ```
 
-The tools share one digest, one lock manager, and one clock. With `state`, they also share one read store, so `edit` and `write` know what the model has read. [One bundle for all tools](/guides/one-bundle) compares this bundle with the bundles of the other hosts.
+The tools share one digest, one lock manager, and one clock. With `state`, they also share one read store, so `edit` and `write` know what the model has read. [Choose a host](/hosts) compares this bundle with the bundles of the other hosts.
 
 ## Bundle options
 
