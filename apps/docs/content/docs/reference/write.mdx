@@ -182,8 +182,13 @@ An `apply_patch` precondition failure on more than one file gives one note. The 
 
 ## Notes
 
-```text
-{ code, severity: "info" | "warning", message, data?: JsonObject }
+```ts
+interface Note {
+  code: string;
+  severity: "info" | "warning";
+  message: string;
+  data?: JsonObject;
+}
 ```
 
 `code` is stable and kebab case. The default formatter prints a note as `[<tool>:<code>] <message>`. Key your code on `code`, and not on the text. [`messages`](#messages) changes only the text.
@@ -377,14 +382,11 @@ The formatter makes `content` one time, with `mode: "model"`. A formatter that r
 
 With a `state` store and a `digest`, each committed file gets a [`ReadRecord`](/reference/read#readstatestore) under its resolved path:
 
-```text
-{
-  schema: 2,
-  origin: "write",
-  observationId, resolvedPath, identity, version, digest,
-  contentId, viewId, observedAt, wholeFileVisible,
-  totalsExact: true,
-  request: null
+```ts
+interface WriteRecord extends ReadRecord {
+  origin: "write";
+  totalsExact: true;
+  request: null; // a write record has no read range
 }
 ```
 

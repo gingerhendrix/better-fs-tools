@@ -91,8 +91,8 @@ ls -la
 
 ### BashRequest
 
-```text
-{
+```ts
+interface BashRequest {
   command: string;
   timeoutMs: number;
   cwd: string | null;
@@ -103,8 +103,8 @@ The checked canonical input. `timeoutMs` is the input value cut to `limits.maxTi
 
 ### ShellRun
 
-```text
-{
+```ts
+interface ShellRun {
   command: string; // as run, after every beforeRun rewrite
   cwd: string; // absolute
   timeoutMs: number;
@@ -118,8 +118,8 @@ The checked canonical input. `timeoutMs` is the input value cut to `limits.maxTi
 
 ### ShellOutput
 
-```text
-{
+```ts
+interface ShellOutput {
   head: string; // all of the output when omittedBytes is 0
   tail: string | null; // null when nothing was cut
   totalBytes: number;
@@ -156,8 +156,13 @@ When an `afterRun` hook fails, the result becomes `EXTENSION_FAILED`, and the to
 
 ## Notes
 
-```text
-{ code, severity: "info" | "warning", message, data?: JsonObject }
+```ts
+interface Note {
+  code: string;
+  severity: "info" | "warning";
+  message: string;
+  data?: JsonObject;
+}
 ```
 
 `code` is stable and kebab case. The default formatter prints a note as `[bash:<code>] <message>`. Key your code on `code`, and not on the text. [`messages`](#messages) changes only the text.

@@ -60,29 +60,70 @@ The result has no `text` field. `textOf(result)` joins the text parts of `conten
 
 ### ok
 
-```text
-{
-  tool: "read",
-  status: "ok",
-  request: { path, offset, limit, ranged },
-  file: {
-    requestedPath, resolvedPath, displayPath, backend,
-    size, mtimeMs, identity, mimeType, resolvedFrom, version
-  },
-  classification: { kind, classifier, code, mimeType, confidence, reasons },
-  conversion: { converter, mimeType } | null,
+```ts
+interface ReadOk {
+  tool: "read";
+  status: "ok";
+  request: { path: string; offset: number; limit: number; ranged: boolean };
+  file: FileInfo;
+  classification: {
+    kind: "text" | "unsupported" | "directory";
+    classifier: string;
+    code: string | null;
+    mimeType: string | null;
+    confidence: "high" | "medium" | "low";
+    reasons: readonly string[];
+  };
+  conversion: { converter: string; mimeType: string | null } | null;
   view: {
-    lines: [{ number, text, clamped, sourceChars }],
-    startLine, endLine, bytes, partial
-  },
-  truncation: { truncated, reasons, primary },
-  continuation: { available, next },
-  totals: { lines, exact, bytes },
-  observation: { id, statId, contentId, viewId, observedAt, wholeFileVisible } | null,
-  notes: [...],
-  content: [{ type: "text", text: "1|..." }]
+    lines: readonly {
+      number: number;
+      text: string;
+      clamped: boolean;
+      sourceChars: number | null;
+    }[];
+    startLine: number;
+    endLine: number;
+    bytes: number;
+    partial: boolean;
+  };
+  truncation: {
+    truncated: boolean;
+    reasons: readonly TruncationReason[];
+    primary: TruncationReason | null;
+  };
+  continuation: { available: boolean; next: ReadInput | null };
+  totals: { lines: number | null; exact: boolean; bytes: number };
+  observation: ReadObservation | null;
+  notes: readonly ReadNote[];
 }
+
+interface FileInfo {
+  requestedPath: string;
+  resolvedPath: string;
+  displayPath: string;
+  backend: string;
+  size: number | null;
+  mtimeMs: number | null;
+  identity: string | null;
+  mimeType: string | null;
+  resolvedFrom: string | null;
+  version: string | null;
+}
+
+interface ReadObservation {
+  id: string;
+  statId: string;
+  contentId: string | null;
+  viewId: string;
+  observedAt: string;
+  wholeFileVisible: boolean;
+}
+
+type TruncationReason = "lines" | "bytes" | "budget" | "line-length" | "scan-limit";
 ```
+
+As a `ReadResult`, the variant also has `content`, for example `[{ type: "text", text: "1|..." }]`.
 
 | Field            | Meaning                                                                                                                                                                                                                                                                                                                                                                  |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -98,16 +139,17 @@ The result has no `text` field. `textOf(result)` joins the text parts of `conten
 
 ### media
 
-```text
-{
-  tool: "read",
-  status: "media",
-  request, file, classification,
-  conversion: { converter, mimeType },
-  parts: [{ type: "media", mediaType, data, name? }],
-  observation: { ... wholeFileVisible: false } | null,
-  notes: [...],
-  content: [...]
+```ts
+interface ReadMedia {
+  tool: "read";
+  status: "media";
+  request: ReadRequest;
+  file: FileInfo;
+  classification: ClassificationInfo;
+  conversion: { converter: string; mimeType: string | null };
+  parts: readonly ContentPart[];
+  observation: ReadObservation | null; // wholeFileVisible is false
+  notes: readonly ReadNote[];
 }
 ```
 
@@ -115,8 +157,16 @@ The result has no `text` field. `textOf(result)` joins the text parts of `conten
 
 ### unsupported
 
-```text
-{ tool: "read", status: "unsupported", code, request, file, classification, notes, content }
+```ts
+interface ReadUnsupported {
+  tool: "read";
+  status: "unsupported";
+  code: string;
+  request: ReadRequest;
+  file: FileInfo;
+  classification: ClassificationInfo;
+  notes: readonly ReadNote[];
+}
 ```
 
 | `code`                                                          | Source                                                                                                                                      |
@@ -129,15 +179,14 @@ The result has no `text` field. `textOf(result)` joins the text parts of `conten
 
 ### error
 
-```text
-{
-  tool: "read",
-  status: "error",
-  error: { code, phase, message, data? },
-  request: ReadRequest | null,
-  file: FileInfo | null,
-  notes,
-  content
+```ts
+interface ReadFailure {
+  tool: "read";
+  status: "error";
+  error: { code: ReadErrorCode; phase: ReadPhase; message: string; data?: JsonObject };
+  request: ReadRequest | null;
+  file: FileInfo | null;
+  notes: readonly ReadNote[];
 }
 ```
 
@@ -167,8 +216,14 @@ The [write reference](/reference/write#statuses-and-error-codes-of-every-tool) h
 
 ## Notes
 
-```text
-{ code, severity: "info" | "warning", message, retry?: ReadInput, data?: JsonObject }
+```ts
+interface ReadNote {
+  code: string;
+  severity: "info" | "warning";
+  message: string;
+  retry?: ReadInput;
+  data?: JsonObject;
+}
 ```
 
 `code` is stable and kebab case. The default formatter prints a note as `[read:<code>] <message>`. Key your code on `code`, and not on the text. [`messages`](#messages) changes only the text. `retry` is always canonical. The message prints it with `messages.retry`, so the text can use the names of your signature.
