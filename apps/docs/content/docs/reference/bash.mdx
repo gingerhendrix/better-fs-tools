@@ -1,0 +1,322 @@
+---
+title: Bash reference
+description: Every field of the bash result, every error and note code, every message, the limits, the runner contract, and the lower-level helpers of @better-fs-tools/shell.
+---
+
+This page lists the types and helpers of `@better-fs-tools/shell`. For a walkthrough, see the [bash guide](/guides/bash).
+
+| Entry                              | Contents                                                                                                                                                                       |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@better-fs-tools/shell`           | `createBashTool`, `shellEnv`, `defaultShellEnv`, `defaultShellFormatter`, the helpers on this page, and the types. `textOf` is the same function as in `@better-fs-tools/read` |
+| `@better-fs-tools/shell/signature` | `defaultBashSignature`, `bashSignatureMessages`, and the signature types. See [tool definition](/hosts/tool-definition)                                                        |
+
+## ShellResult
+
+Every `bash` call returns a `ShellResult`. It is a `ShellReport` plus `content`, the parts that the formatter made for the model:
+
+```ts
+type ShellResult = ShellReport & { readonly content: readonly ContentPart[] };
+
+type ShellReport = ShellRunReport | ShellFailure;
+
+interface ShellRunReport {
+  tool: "bash";
+  status: "ok" | "failed" | "timeout";
+  request: BashRequest;
+  run: ShellRun;
+  output: ShellOutput;
+  notes: readonly Note[];
+}
+
+interface ShellFailure {
+  tool: "bash";
+  status: "error";
+  error: ShellError; // { code, phase, message, data? }
+  request: BashRequest | null; // null only for INVALID_INPUT
+  run: ShellRun | null; // set only when the command started
+  output: ShellOutput | null; // set only when the command started
+  notes: readonly Note[];
+}
+```
+
+`ShellReport` is a union on `status`. Only the `error` variant has an `error` field, and it is never null there. A check on `status` narrows the type. For `ok`, `failed`, and `timeout`, `run` and `output` are never null. `error.message` and `error.data` come from the error note.
+
+| Status    | When                                                                                                                                 |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `ok`      | The command exited with code 0                                                                                                       |
+| `failed`  | The command exited with another code, or a signal ended it. This is a normal result, and not a tool error                            |
+| `timeout` | The timeout stopped the command. The tool keeps the output up to that point                                                          |
+| `error`   | The call stopped before the command ran, or the core stopped the command for a reason other than its timeout. `error.code` tells why |
+
+There is no `aborted` or `refused` status. An abort is `error` with `ABORTED`. A refusal is `error` with `DENIED` or `REFUSED`.
+
+This example uses a runner that runs nothing, so you can see each field:
+
+```ts
+import { createBashTool, shellEnv, textOf } from "@better-fs-tools/shell";
+import type { CommandRunner, OutputChunk } from "@better-fs-tools/shell";
+
+// A runner that runs nothing. It prints the command and exits with code 0.
+const echoRunner: CommandRunner = {
+  id: "echo",
+  cwd: "/work",
+  run: (request) => {
+    async function* output(): AsyncIterable<OutputChunk> {
+      yield { stream: "stdout", bytes: new TextEncoder().encode(`${request.command}\n`) };
+    }
+    return { output: output(), exit: Promise.resolve({ code: 0, signal: null }) };
+  },
+};
+
+const bash = createBashTool({ runner: echoRunner, env: shellEnv() });
+const result = await bash({ command: "ls -la", timeoutMs: 900_000 });
+
+if (result.status === "error") {
+  console.log(result.error.code, result.error.phase);
+} else {
+  console.log(result.request); // { command: "ls -la", timeoutMs: 600000, cwd: null }
+  console.log(result.run.exitCode, result.run.cwd); // 0 /work
+  console.log(result.output.head); // "ls -la\n"
+}
+console.log(result.notes.map((note) => note.code)); // ["clamped"]
+console.log(textOf(result));
+```
+
+```text
+Exit code 0 · 0 s
+ls -la
+
+[bash:clamped] The requested timeout of 15 min is over the maximum, so 10 min was used.
+```
+
+### BashRequest
+
+```text
+{
+  command: string;
+  timeoutMs: number;
+  cwd: string | null;
+}
+```
+
+The checked canonical input. `timeoutMs` is the input value cut to `limits.maxTimeoutMs`, or `limits.defaultTimeoutMs` when the input has no timeout. `cwd` is the requested folder as the model sent it, or `null`. It uses the canonical names, also when the tool has a [signature](/hosts/tool-definition) with other names.
+
+### ShellRun
+
+```text
+{
+  command: string; // as run, after every beforeRun rewrite
+  cwd: string; // absolute
+  timeoutMs: number;
+  exitCode: number | null; // null when a signal ended it, or the exit was not confirmed
+  signal: string | null;
+  durationMs: number;
+  stoppedBy: "timeout" | "abort" | "output-cap" | null; // null when it ended by itself
+  unconfirmedStop: boolean; // the runner did not settle its exit in the grace time
+}
+```
+
+### ShellOutput
+
+```text
+{
+  head: string; // all of the output when omittedBytes is 0
+  tail: string | null; // null when nothing was cut
+  totalBytes: number;
+  totalLines: number;
+  omittedBytes: number;
+  omittedLines: number;
+  stdoutBytes: number;
+  stderrBytes: number;
+  spill: string | null; // the reference from the spill sink. null with no sink, or when the sink failed
+}
+```
+
+The tool merges stdout and stderr in the order they arrive. The view is `head`, a gap line, then `tail`. `headPercent` of `maxOutputBytes` and `maxOutputLines` goes to the head, and the rest goes to the tail. The core decodes UTF-8 with replacement characters and removes ANSI escape codes.
+
+### Error codes
+
+`error.phase` is a `ShellPhase`: `input`, `resolve`, `authorize`, `beforeRun`, `env`, `run`, `spill`, `afterRun`, or `format`.
+
+| `error.code`          | `error.phase`                                                          | Meaning                                                                                                                               | `run` and `output`         |
+| --------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `INVALID_INPUT`       | `input`                                                                | The input failed the checks. `request` is `null`                                                                                      | `null`                     |
+| `CWD_NOT_FOUND`       | `resolve`, `run`                                                       | The requested folder does not exist. `resolve` when a resolver said so, `run` when the runner did                                     | `null`                     |
+| `CWD_NOT_A_DIRECTORY` | `run`                                                                  | The requested folder is not a folder                                                                                                  | `null`                     |
+| `REFUSED`             | `beforeRun`                                                            | A `beforeRun` hook returned `{ allow: false }`. `error.data` is the data of the hook note, with its own code in `source`              | `null`                     |
+| `DENIED`              | `authorize`                                                            | The authorizer returned `{ allow: false }`. `error.data` is the data of the authorizer note, with its own code in `source`            | `null`                     |
+| `ABORTED`             | `input`, `resolve`, `beforeRun`, `authorize`, `env`, `run`             | The signal of the caller fired. A signal that fired before the call gives `input`. A later abort names the stage it stopped           | Set if the command started |
+| `SPAWN_FAILED`        | `run`                                                                  | The runner could not start the command                                                                                                | `null`                     |
+| `OUTPUT_CAP`          | `run`                                                                  | The command wrote more than `maxCaptureBytes`, so the core stopped it                                                                 | Set                        |
+| `EXTENSION_FAILED`    | `resolve`, `beforeRun`, `authorize`, `env`, `spill`, `run`, `afterRun` | Host code threw or returned a value with the wrong shape. `run` is a runner function, and `resolve` is a `cwd` function or a resolver | Set for `afterRun`         |
+
+A formatter failure is not an error. The tool uses the default formatter, adds no note, and keeps the status.
+
+When an `afterRun` hook fails, the result becomes `EXTENSION_FAILED`, and the tool keeps `run`, `output`, and the notes up to that point. An abort during the run and `OUTPUT_CAP` keep them too. The formatter then shows the exit as the status line, and the reason in the error note.
+
+## Notes
+
+```text
+{ code, severity: "info" | "warning", message, data?: JsonObject }
+```
+
+`code` is stable and kebab case. The default formatter prints a note as `[bash:<code>] <message>`. Key your code on `code`, and not on the text. [`messages`](#messages) changes only the text.
+
+An error result has one warning note for the error, and it is always first in `notes`. Its code is the error code in kebab case, for example `output-cap` for `OUTPUT_CAP`. When an authorizer or a `beforeRun` hook refuses with its own `note`, the tool keeps the message and the data of that note. The code becomes `denied` or `refused`, the severity becomes `warning`, and the code of the host moves to `data.source`. The read and write tools use the same rule.
+
+Notes from the core:
+
+| `code`                                                                                                                                    | Severity | When                                                                                                                                                                                                          | `data`                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `clamped`                                                                                                                                 | info     | The input timeout was over `maxTimeoutMs`                                                                                                                                                                     | `{ param: "timeoutMs", requested, max }` |
+| `output-incomplete`                                                                                                                       | warning  | The output stream failed, the runner gave chunks that were not output, or the stream did not end `drainMs` after the exit. The tool does not add it after a stop that it started (timeout, abort, output cap) | `{ skippedChunks, detail?, drainMs? }`   |
+| `unconfirmed-stop`                                                                                                                        | warning  | The runner did not settle its exit in the grace time after a stop                                                                                                                                             | None                                     |
+| `invalid-input`, `cwd-not-found`, `cwd-not-a-directory`, `refused`, `denied`, `aborted`, `spawn-failed`, `output-cap`, `extension-failed` | warning  | The error note of each error code                                                                                                                                                                             | None                                     |
+
+A resolver can add its own note, for example `path-repaired` from `unicodeRepair()`. An allow decision from the authorizer or a `beforeRun` hook can add notes. These notes keep their codes.
+
+The notes come in this order: the error note, `clamped`, the resolver note, the `beforeRun` and authorizer notes, then the run notes (`unconfirmed-stop`, `output-incomplete`). An `afterRun` hook can replace the notes.
+
+## Messages
+
+`messages` sets the text of each note and of the status line. Each message is a function. The messages you leave out keep their default text. [Customise formatting](/guides/bash/formatting) shows an example. `defaultShellMessages` holds the default functions.
+
+| Message              | Arguments                                                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `param`              | `name`: `command`, `timeoutMs`, or `cwd`. It returns the name that the model sees. An empty string means that the tool has no such parameter |
+| `duration`           | `ms`. It returns a timeout in the unit of the tool, for example `"120 s"`                                                                    |
+| `invalidInput`       | `{ detail }`                                                                                                                                 |
+| `cwdNotFound`        | `{ cwd }`                                                                                                                                    |
+| `cwdNotADirectory`   | `{ cwd }`                                                                                                                                    |
+| `refused`            | `{ hook }`                                                                                                                                   |
+| `spawnFailed`        | `{ detail }`. `detail` can be `null`                                                                                                         |
+| `extensionFailed`    | `{ extension, phase }`                                                                                                                       |
+| `timeoutClamped`     | `{ requestedMs, maxMs }`                                                                                                                     |
+| `exited`             | `{ code, signal, durationMs }`. The first line of a run that ended                                                                           |
+| `timedOut`           | `{ timeoutMs }`                                                                                                                              |
+| `aborted`            | `{ durationMs }`                                                                                                                             |
+| `outputCap`          | `{ limit }`                                                                                                                                  |
+| `unconfirmedStop`    | None                                                                                                                                         |
+| `abortedBeforeStart` | None                                                                                                                                         |
+| `outputIncomplete`   | `{ detail, skippedChunks, drainMs }`. `detail` and `drainMs` can be `null`                                                                   |
+| `noOutput`           | None                                                                                                                                         |
+| `omitted`            | `{ lines, bytes, spill }`. The gap line between the head and the tail. `spill` can be `null`                                                 |
+| `pathRepaired`       | `{ from, to }`                                                                                                                               |
+| `denied`             | `{ path, detail }`                                                                                                                           |
+
+`bashSignatureMessages(signature)` from `@better-fs-tools/shell/signature` sets `param` and `duration` for a signature.
+
+## Limits
+
+`limits` merges with `defaultShellLimits` key by key. Each value must be a positive safe integer. These are defaults, and not ceilings.
+
+| Limit              | Default    | Meaning                                                                                 |
+| ------------------ | ---------- | --------------------------------------------------------------------------------------- |
+| `defaultTimeoutMs` | 120,000    | The timeout when the input has none                                                     |
+| `maxTimeoutMs`     | 600,000    | A larger input timeout is cut to this, with a `clamped` note                            |
+| `killGraceMs`      | 2,000      | Time between SIGTERM and SIGKILL. The core waits this long plus one second for the exit |
+| `maxOutputBytes`   | 30,000     | Bytes of output in the model view                                                       |
+| `maxOutputLines`   | 2,000      | Lines of output in the model view                                                       |
+| `headPercent`      | 20         | Percent of the view for the head. The tail gets the rest                                |
+| `maxCaptureBytes`  | 10,485,760 | After this many output bytes, the core stops the command with `OUTPUT_CAP`              |
+
+A `defaultTimeoutMs` that you set above `maxTimeoutMs`, or a `headPercent` over 100, throws `TypeError`. When you set only `maxTimeoutMs` below 120,000, the default timeout goes down to it.
+
+## Content
+
+The formatter makes `content` one time, with `mode: "model"`. A formatter that returns a string gives one text part. `defaultShellFormatter()` prints:
+
+1. The status line, when the command started: `Exit code 1 · 0.4 s`, `Ended by SIGKILL · 3 s`, or `Timed out after 2 min. The process tree was stopped.`
+2. The output view: `head`, the gap line, then `tail`. The gap line is, for example, `[… 11945 lines (1.8 MB) not shown] Full output: /tmp/bash-1.log`. The view is `(no output)` when the command wrote nothing.
+3. A blank line, then the note lines.
+
+A call that did not start prints only the note lines. In `mode: "view"` the tool leaves out the notes. [Customise formatting](/guides/bash/formatting) lists the options of `defaultShellFormatter()`.
+
+## CommandRunner
+
+`runner` takes a `CommandRunner`, or a function of the call that returns one. A runner starts one command. The tool handles the timeout, the abort, and the output budget. [Runners](/guides/bash/runners) shows the built-in runners.
+
+```ts
+interface CommandRunner {
+  readonly id: string; // shown in the tool description, for example "node"
+  readonly cwd: string; // the default folder. The tool resolves the cwd input against it
+  run(request: RunRequest): RunHandle; // must not throw
+}
+
+interface RunRequest {
+  readonly command: string;
+  readonly cwd: string; // absolute and resolved. The runner checks that it is a folder
+  readonly env: Readonly<Record<string, string>>; // the whole environment. The runner adds nothing
+  readonly signal: AbortSignal; // aborted on a timeout, an abort of the caller, and the capture cap
+  readonly killGraceMs: number; // time after the stop signal before SIGKILL
+}
+
+interface RunHandle {
+  readonly output: AsyncIterable<OutputChunk>; // stdout and stderr chunks in arrival order
+  readonly exit: Promise<RunExit>; // settles when the process ends. Never rejects
+}
+
+interface OutputChunk {
+  readonly stream: "stdout" | "stderr";
+  readonly bytes: Uint8Array;
+}
+
+interface RunExit {
+  readonly code: number | null; // null when a signal ended the process, or the start failed
+  readonly signal: string | null; // for example "SIGKILL". null for a normal exit
+  readonly error?: RunStartError; // set when the command did not start
+}
+
+interface RunStartError {
+  readonly reason: "cwd-not-found" | "cwd-not-a-directory" | "spawn-failed";
+  readonly detail?: string; // a detail for the note. It must not hold secrets
+}
+```
+
+When `signal` aborts, the runner must stop the whole process tree. A start that fails is not a throw. It is an exit with `code: null` and an `error`. The tool turns the `reason` into `CWD_NOT_FOUND`, `CWD_NOT_A_DIRECTORY`, or `SPAWN_FAILED`. `output` must end soon after the process ends, also when a background child keeps the pipes open.
+
+## Lower-level helpers
+
+The tool uses these helpers. Use them when you write your own tool around the core, or when you test a host.
+
+| Helper                             | Returns                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parseBashInput(input, limits)`    | A frozen `BashRequest`. Throws `TypeError` for a key other than `command`, `timeoutMs`, and `cwd`, a blank `command` or one with NUL, a `timeoutMs` that is not a positive finite number, or a blank `cwd` or one with NUL. It rounds `timeoutMs` up to a whole millisecond and cuts it to `maxTimeoutMs` |
+| `resolveShellLimits(overrides?)`   | The frozen `ShellLimits`, with `overrides` over `defaultShellLimits`. Throws `TypeError` as in [Limits](#limits)                                                                                                                                                                                          |
+| `resolveShellMessages(overrides?)` | The frozen `ShellMessageCatalog`, with `overrides` over `defaultShellMessages`. Throws `TypeError` for an unknown key or a value that is not a function                                                                                                                                                   |
+| `formatDuration(ms)`               | The time text of the default messages, for example `"0.4 s"`, `"45 s"`, or `"2 min 30 s"`                                                                                                                                                                                                                 |
+| `formatBytes(bytes)`               | The size text of the default messages, for example `"512 B"`, `"1.8 KB"`, or `"1.8 MB"`                                                                                                                                                                                                                   |
+| `shellEnv(base?)`                  | An `env` option. `base` is a record or a function that returns one. It puts `defaultShellEnv` over `base` and drops `undefined` values. A function runs again on each call                                                                                                                                |
+| `defaultShellEnv`                  | `PAGER=cat`, `GIT_PAGER=cat`, `GIT_TERMINAL_PROMPT=0`, `NO_COLOR=1`, and `TERM=dumb`                                                                                                                                                                                                                      |
+
+The tool turns a `TypeError` from `parseBashInput` into `INVALID_INPUT`. A cut timeout is not an error: the helper returns the cut value, and the tool adds the `clamped` note.
+
+```ts
+import {
+  defaultShellEnv,
+  formatBytes,
+  formatDuration,
+  parseBashInput,
+  resolveShellLimits,
+  resolveShellMessages,
+} from "@better-fs-tools/shell";
+
+const limits = resolveShellLimits({ maxTimeoutMs: 60_000 });
+console.log(limits.defaultTimeoutMs); // 60000: the default is lowered to the new ceiling
+
+console.log(parseBashInput({ command: "ls", timeoutMs: 90_000.5 }, limits));
+// { command: "ls", timeoutMs: 60000, cwd: null }
+
+try {
+  parseBashInput({ command: "ls", timeout: 5 }, limits);
+} catch (error) {
+  console.log((error as TypeError).message); // "unknown key timeout. Expected command, timeoutMs, cwd"
+}
+
+const messages = resolveShellMessages({ noOutput: () => "(empty)" });
+console.log(messages.noOutput()); // "(empty)"
+
+console.log(formatDuration(400), formatDuration(150_000)); // "0.4 s" "2 min 30 s"
+console.log(formatBytes(1_800_000)); // "1.8 MB"
+console.log(defaultShellEnv);
+```
