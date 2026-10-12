@@ -657,7 +657,7 @@ if (result.status === "ok") {
 
 A content part is `{ type: "text", text }` or `{ type: "media", mediaType, data, name? }`. `data` is a `Uint8Array`.
 
-[docs/result-schema.md](docs/result-schema.md) lists every field, every error code with its phase, and every note code. `docs/result-schema.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has one table of the statuses and error codes of all five tools.
+[docs/result-schema.md](docs/result-schema.md) lists every field, every error code with its phase, and every note code. The [read reference](https://better-fs-tools.gandrew.com/reference/read) on the docs site has the same facts. `docs/result-schema.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has one table of the statuses and error codes of all five tools.
 
 ## Host context and state
 
