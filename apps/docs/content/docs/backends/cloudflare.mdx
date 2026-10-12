@@ -1,0 +1,206 @@
+---
+title: Cloudflare backends
+description: Read and write the files of a Cloudflare Shell Workspace or a Cloudflare Computer workspace from a Worker or a Cloudflare Agent.
+---
+
+Two packages give the tools a filesystem in a Cloudflare Worker:
+
+| Backend                          | Package                                | Over                                                                                                                  |
+| -------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `cloudflareShellFileSystem()`    | `@better-fs-tools/cloudflare-shell`    | A [Cloudflare Shell](https://www.npmjs.com/package/@cloudflare/shell) `Workspace`                                     |
+| `cloudflareComputerFileSystem()` | `@better-fs-tools/cloudflare-computer` | The filesystem of a [Cloudflare Computer](https://www.npmjs.com/package/@cloudflare/computer) workspace. Experimental |
+
+Neither package has peers or imports a `node:` module. Each one declares the methods it uses as a structural type, so the Cloudflare types fit with no import and no cast.
+
+Neither backend is a bundle. Pass the filesystem as `fs` to `createAiSdkFsTools()` from `@better-fs-tools/ai-sdk`, or to `createFsTools()` from `@better-fs-tools/write`. Both use `sha256Digest()` by default, which is plain JavaScript and runs in a Worker. Do not use `nodeDigest()` in a Worker.
+
+## Cloudflare Shell
+
+```sh
+npm install @better-fs-tools/cloudflare-shell @better-fs-tools/read @better-fs-tools/write
+```
+
+With the AI SDK (`npm install @better-fs-tools/ai-sdk ai`). This is the usual setup for a Cloudflare Agent:
+
+```ts
+import type { Workspace } from "@cloudflare/shell";
+import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
+import { cloudflareShellFileSystem } from "@better-fs-tools/cloudflare-shell";
+
+// read, edit, and write with one sha256Digest() and one lock manager. Nothing
+// here needs Node, so it runs in a Worker.
+export function workspaceTools(workspace: Workspace) {
+  const fs = cloudflareShellFileSystem(workspace, { allowedRoots: ["/workspace"] });
+  return createAiSdkFsTools({ fs }).tools;
+}
+```
+
+A read tool only:
+
+```ts
+import type { Workspace } from "@cloudflare/shell";
+import { createAiSdkReadTool } from "@better-fs-tools/ai-sdk";
+import { cloudflareShellFileSystem } from "@better-fs-tools/cloudflare-shell";
+
+export function workspaceReadTool(workspace: Workspace) {
+  return createAiSdkReadTool({
+    fs: cloudflareShellFileSystem(workspace, { allowedRoots: ["/workspace"] }),
+  });
+}
+```
+
+[AI SDK](/hosts/ai-sdk) explains the AI SDK tools.
+
+### Options
+
+| Option             | Default                | Meaning                                                                        |
+| ------------------ | ---------------------- | ------------------------------------------------------------------------------ |
+| `allowedRoots`     | Required               | At least one folder                                                            |
+| `cwd`              | The first allowed root | Must be an absolute path. Relative paths and relative roots resolve against it |
+| `denyRoots`        | None                   | Refused as `DANGEROUS_PATH`                                                    |
+| `symlinks`         | `"reject"`             | The only value                                                                 |
+| `identity`         | `"none"`               | The only value. A Workspace row has no stable identity                         |
+| `id`               | `"cloudflare-shell"`   | Appears in `result.file.backend` and in versions                               |
+| `maxBufferedBytes` | 16 MiB                 | A larger file gives `TOO_LARGE`, for reads and writes                          |
+
+```ts
+import type { Workspace } from "@cloudflare/shell";
+import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
+import { cloudflareShellFileSystem } from "@better-fs-tools/cloudflare-shell";
+
+export function workspaceTools(workspace: Workspace) {
+  const fs = cloudflareShellFileSystem(workspace, {
+    allowedRoots: ["/workspace"],
+    denyRoots: ["/workspace/.env", "/workspace/secrets"],
+    maxBufferedBytes: 4 * 1024 * 1024,
+  });
+  return createAiSdkFsTools({ fs }).tools;
+}
+```
+
+The backend refuses a path outside the allowed roots, or inside a deny root, before it calls the Workspace. It walks each path with `lstat` from `/`, so it refuses a link anywhere on the path before it reads a byte. That includes a link above the root and a linked root. Display paths are relative to `cwd`, and absolute outside it.
+
+The filesystem exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, `identity`, and `maxBufferedBytes`.
+
+### Reads are buffered
+
+The Workspace returns whole files, so `open()` reads the whole file into memory.
+
+<Callout type="warn">
+  The whole file leaves the Workspace inside `open()`, before the read tool runs `authorize`. A file
+  that `authorize` refuses has already left the Workspace. To keep a file inside, put it in
+  `denyRoots`, or leave it out of `allowedRoots`. See [Buffered reads and
+  authorize](/backends#buffered-reads-and-authorize).
+</Callout>
+
+When you use converters, set `maxBufferedBytes` at or above `maxConvertBytes` and `maxMediaBytes`. A file over `maxBufferedBytes` gives `TOO_LARGE` before a converter sees it.
+
+`verify()` compares the size and the modification time. It does not see an edit that keeps the size, inside the same millisecond.
+
+`list()` lists folders, so name suggestions and `directoryListing()` work.
+
+### Writes
+
+- `stat()`, `write()`, and `remove()` use `lstat`, `writeFileBytes`, `mkdir`, and `rm`. They check the roots and refuse every link on the path before a Workspace write. `writeFileBytes` creates missing parents and follows a link by itself, so the backend checks both first.
+- `writeFileBytes`, `mkdir`, and `rm` are optional. The backend checks them when a write runs. A read-only Workspace wrapper serves reads, and a write gives `UNSUPPORTED_BACKEND`.
+- `writeCapabilities` is `{ compareAndSwap: false }`. Shell has no version check, so the backend checks the precondition with a fresh `lstat` just before the write.
+- A write is not atomic. A large file goes to R2 in more than one step, so a reader can see a part of the file.
+- Shell has no file modes.
+- There is no `stage()`, because Shell's `mv` removes the destination first. `apply_patch` writes each file in turn, and undoes them when a later file fails.
+- The version is the size and `updatedAt`. Shell stores whole seconds, so two writes of the same size in one second keep the version. The write tools also compare the content hash of what the model read, so a change after the read still gives `STALE`.
+- A replace passes the MIME type of the file back, because Shell would reset it. A new file gets Shell's default, `application/octet-stream`.
+- `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` and `EDQUOT` give `no-space`. The backend reads the code from Shell's error and drops the message.
+
+## Cloudflare Computer
+
+<Callout type="warn">
+  This backend is experimental. Cloudflare Computer is preview software, and the backend follows the
+  `@cloudflare/computer` 0.2.1 declarations.
+</Callout>
+
+```sh
+npm install @better-fs-tools/cloudflare-computer @better-fs-tools/read @better-fs-tools/write
+```
+
+Pass `workspace.fs`, not the workspace:
+
+```ts
+import type { Workspace } from "@cloudflare/computer";
+import { cloudflareComputerFileSystem } from "@better-fs-tools/cloudflare-computer";
+import { createFsTools } from "@better-fs-tools/write";
+
+// One sha256Digest() and one lock manager. createFsTools needs no Node module,
+// so it runs in a Worker.
+export function computerTools(workspace: Workspace) {
+  const fs = cloudflareComputerFileSystem(workspace.fs, { allowedRoots: ["/workspace"] });
+  const { read, edit, write } = createFsTools({ fs });
+  return { read, edit, write };
+}
+```
+
+A read tool only:
+
+```ts
+import type { Workspace } from "@cloudflare/computer";
+import { cloudflareComputerFileSystem } from "@better-fs-tools/cloudflare-computer";
+import { createReadTool } from "@better-fs-tools/read";
+
+export function computerReadTool(workspace: Workspace) {
+  return createReadTool({
+    fs: cloudflareComputerFileSystem(workspace.fs, { allowedRoots: ["/workspace"] }),
+  });
+}
+```
+
+`Workspace["fs"]` and `WorkspaceFilesystemStub` from `@cloudflare/computer` 0.2.1 both fit.
+
+### Options
+
+| Option         | Default                 | Meaning                                                                        |
+| -------------- | ----------------------- | ------------------------------------------------------------------------------ |
+| `allowedRoots` | Required                | At least one folder                                                            |
+| `cwd`          | The first allowed root  | Must be an absolute path. Relative paths and relative roots resolve against it |
+| `denyRoots`    | None                    | Refused as `DANGEROUS_PATH`                                                    |
+| `symlinks`     | `"reject"`              | The only value                                                                 |
+| `identity`     | `"none"`                | The only value. A Computer inode is not a stable identity                      |
+| `id`           | `"cloudflare-computer"` | Appears in `result.file.backend` and in versions                               |
+
+There is no `maxBufferedBytes`, because reads stream.
+
+```ts
+import type { Workspace } from "@cloudflare/computer";
+import { cloudflareComputerFileSystem } from "@better-fs-tools/cloudflare-computer";
+import { createFsTools } from "@better-fs-tools/write";
+
+export function computerTools(workspace: Workspace) {
+  const fs = cloudflareComputerFileSystem(workspace.fs, {
+    cwd: "/workspace/app",
+    allowedRoots: ["/workspace"],
+    denyRoots: ["/workspace/.env"],
+  });
+  return createFsTools({ fs, applyPatch: true });
+}
+```
+
+The backend checks the roots and refuses links in the same way as the Shell backend. It walks each path with `lstat` from `/` before it reads a byte. It exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, and `identity`.
+
+### Reads stream
+
+`open()` starts the `readFile` stream. The request reaches the backend before the read tool runs `authorize`, but the tool reads no chunk until `authorize` allows the read. If the request itself must not reach the backend, put the path in `denyRoots`, or leave it out of `allowedRoots`.
+
+`verify()` compares the size and the modification time. `list()` lists folders, so name suggestions and `directoryListing()` work.
+
+### Writes
+
+- `stat()`, `write()`, and `remove()` use `lstat`, `writeFile`, `mkdir`, and `rm`. They check the roots and refuse every link on the path before a write.
+- `writeFile`, `mkdir`, and `rm` are optional. The backend checks them when a write runs. A read-only wrapper serves reads, and a write gives `UNSUPPORTED_BACKEND`.
+- `writeCapabilities` is `{ compareAndSwap: false }`. `writeFile` runs in one transaction, so a replace is atomic. It has no version check, so the backend checks the precondition with a fresh `lstat` just before the write.
+- A create passes `exclusive: true`, so only one of two writers that create the same file succeeds.
+- `writeFile` sets the mode to `0o644` when it gets no mode, also on a replace. The backend passes the mode from `lstat`, so a replace keeps the mode. A new file gets `0o644`.
+- There is no `stage()`, because Computer has no rename. `apply_patch` writes each file in turn, and undoes them when a later file fails.
+- The version is the size and the modification time in milliseconds. The write tools also compare the content hash of what the model read, so a change that keeps the size still gives `STALE`.
+- `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` and `EDQUOT` give `no-space`.
+
+## Bash
+
+Neither package has a command runner. A `bash` tool needs a runner of its own. See [Command runners](/guides/bash/runners).
