@@ -92,7 +92,7 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
     alreadyApplied: ({ path, index }) =>
       `Edit ${index + 1} is already applied: the ${param("newText")} is in ${path} and the ${param("oldText")} is not. Do not send this edit again.`,
     fuzzyMatch: ({ path, index, matcher, lines }) =>
-      `Edit ${index + 1} matched ${path} at lines ${lines[0]}-${lines[1]} only with the ${matcher} matcher, not exactly. Check the result.`,
+      `Edit ${index + 1} matched ${path} at ${lineSpan(lines)} only with the ${matcher} matcher, not exactly. Check the result.`,
     repeatedMiss: ({ path, misses }) =>
       `This is miss ${misses} in a row on ${path}. Read the file again, include more surrounding lines, or replace the file with the write tool.`,
 
@@ -113,7 +113,7 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
         ...lines.map((line) => `    ${line}`),
       ].join("\n"),
     patchFuzzyMatch: ({ path, hunk, matcher, lines }) =>
-      `Hunk ${hunk} matched ${path} at lines ${lines[0]}-${lines[1]} only with the ${matcher} matcher, not exactly. Check the result.`,
+      `Hunk ${hunk} matched ${path} at ${lineSpan(lines)} only with the ${matcher} matcher, not exactly. Check the result.`,
     patchCommitFailed: ({ path, code, rolledBack, files }) =>
       rolledBack
         ? `Patch commit failed at ${path} (${code}). The patch was rolled back. No files are changed.`
@@ -127,6 +127,11 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
     hookRewrote: ({ hook, path }) =>
       `The ${hook} hook rewrote ${path} after the write. Read it again before relying on its text.`,
   };
+}
+
+/** Names a span of 1-based lines: "line 4" for one line, "lines 4-6" for more. */
+function lineSpan(lines: readonly [number, number]): string {
+  return lines[0] === lines[1] ? `line ${lines[0]}` : `lines ${lines[0]}-${lines[1]}`;
 }
 
 function kindLabel(kind: NodeKind): string {

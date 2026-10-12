@@ -1,4 +1,8 @@
-/** Up to `maximum` names close to `requested`: same stem, a shared prefix, or a small edit distance. */
+/**
+ * Up to `maximum` names close to `requested`, closest first. The match ignores case.
+ * The rank is: the same name in another case, then the same stem, then a shared prefix,
+ * then an edit distance of 3 or less. Names with the same rank sort by name.
+ */
 export function suggestFileNames(
   requested: string,
   names: readonly string[],

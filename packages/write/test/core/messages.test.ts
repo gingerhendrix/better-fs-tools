@@ -77,6 +77,12 @@ describe("write messages", () => {
     expect(m.patchFuzzyMatch({ path: "a", hunk: 2, matcher: "normalized", lines: [3, 4] })).toBe(
       "Hunk 2 matched a at lines 3-4 only with the normalized matcher, not exactly. Check the result.",
     );
+    expect(m.patchFuzzyMatch({ path: "a", hunk: 1, matcher: "normalized", lines: [3, 3] })).toBe(
+      "Hunk 1 matched a at line 3 only with the normalized matcher, not exactly. Check the result.",
+    );
+    expect(m.fuzzyMatch({ path: "a", index: 0, matcher: "normalized", lines: [1, 1] })).toBe(
+      "Edit 1 matched a at line 1 only with the normalized matcher, not exactly. Check the result.",
+    );
     expect(m.patchCommitFailed({ path: "b", code: "STALE", rolledBack: true, files: [] })).toBe(
       "Patch commit failed at b (STALE). The patch was rolled back. No files are changed.",
     );
