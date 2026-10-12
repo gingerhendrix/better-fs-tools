@@ -1,6 +1,6 @@
 ---
 title: Customise the tool definition
-description: Change the tool name, the parameter names, and the descriptions of the read tool with a signature.
+description: Change the tool name, the parameter names, and the descriptions of the read, edit, write, apply_patch, and bash tools with a signature.
 ---
 
 The model sees a tool definition: a name, a description, and a JSON Schema for the parameters. A signature makes all three, and turns the model input into the input of `read`. Set `signature` on a provider integration:
@@ -107,3 +107,151 @@ const result = await read(signature.toInput({ path: "src/greet.ts", start: 1, en
 ```
 
 The tool reads one path in each call. For a tool that reads many files in one call, call `read` once for each file.
+
+## Signatures for edit, write, and apply_patch
+
+The edit, write, and apply_patch tools take a signature in the same way. The presets come from `@better-fs-tools/write/signature`. Each preset takes `name`, `description`, `describe`, and `names`, as `defaultReadSignature()` does. The keys of `describe` and `names` are the preset's own parameter names. For example, `defaultEditSignature()` takes `old_string`, and `camelCaseEditSignature()` takes `oldString`. A key that the preset does not have, or a parameter name that is used two times, throws a `TypeError`.
+
+| Preset                      | Tool          | Parameters                                          | Default for   |
+| --------------------------- | ------------- | --------------------------------------------------- | ------------- |
+| `defaultEditSignature()`    | `edit`        | `path`, `old_string`, `new_string`, `replace_all?`  | AI SDK        |
+| `camelCaseEditSignature()`  | `edit`        | `filePath`, `oldString`, `newString`, `replaceAll?` | None          |
+| `multiEditSignature()`      | `edit`        | `path`, `edits: [{ oldText, newText }]`             | Pi            |
+| `defaultWriteSignature()`   | `write`       | `path`, `content`                                   | AI SDK and Pi |
+| `snakeCaseWriteSignature()` | `write_file`  | `file_path`, `content`                              | None          |
+| `defaultPatchSignature()`   | `apply_patch` | `patch`                                             | AI SDK        |
+| `freeformPatchSignature()`  | `apply_patch` | `patch`, plus the Codex patch grammar               | Pi            |
+
+`camelCaseEditSignature()` uses the names of OpenCode and Kilo Code. `snakeCaseWriteSignature()` uses the names of Claude Code. In a bundle, set the signature in the options of each tool:
+
+```ts
+import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
+import { camelCaseEditSignature, snakeCaseWriteSignature } from "@better-fs-tools/write/signature";
+
+const { tools } = createAiSdkFsTools({
+  fs,
+  edit: { signature: camelCaseEditSignature() },
+  write: { signature: snakeCaseWriteSignature() },
+  applyPatch: true,
+});
+```
+
+`tools` is keyed by tool name, so it has `read`, `edit`, `write_file`, and `apply_patch`. The single factories, such as `createAiSdkEditTool()` and `createPiEditTool()`, take the same `signature` option.
+
+### Edit
+
+`defaultEditSignature()` and `camelCaseEditSignature()` take one replacement in each call. The old text must match one place in the file, or the model sets `replace_all` to change every place. `toInput()` gives `{ path, edits: [{ oldText, newText, replaceAll? }] }`:
+
+```ts
+import { camelCaseEditSignature } from "@better-fs-tools/write/signature";
+
+const signature = camelCaseEditSignature({ name: "edit_file" });
+signature.toInput({ filePath: "a.ts", oldString: "x", newString: "y" });
+// { path: "a.ts", edits: [ { oldText: "x", newText: "y" } ] }
+```
+
+`multiEditSignature()` takes a list of replacements in one call. Each `oldText` is matched against the original file, and the edits must not overlap. This preset has no `replaceAll` parameter, so no message tells the model to set one.
+
+The three edit presets also take `matchers`. This option does not change how the tool matches text. It changes one sentence in the description, so the model knows if a close match is used. The default is `defaultEditMatchers()`, the default of the edit tool. When you give the edit tool other matchers, give the same list to the signature:
+
+```ts
+import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
+import { exactMatcher } from "@better-fs-tools/write";
+import { defaultEditSignature } from "@better-fs-tools/write/signature";
+
+const matchers = [exactMatcher()];
+const { tools } = createAiSdkFsTools({
+  fs,
+  edit: { matchers, signature: defaultEditSignature({ name: "str_replace", matchers }) },
+});
+```
+
+With only `exactMatcher()`, the description says that `old_string` must match the file exactly, including whitespace and indentation. When you leave out `signature`, the AI SDK and Pi integrations give the default signature the edit tool's `matchers`.
+
+### Write
+
+`defaultWriteSignature()` gives `write` with `path` and `content`. `snakeCaseWriteSignature()` gives `write_file` with `file_path` and `content`. The two presets are the same in all other ways. Both parameters are required.
+
+### Apply patch
+
+`defaultPatchSignature()` gives `apply_patch` with one required parameter, `patch`. The model sends the whole patch as a JSON string. The description has a short example of the Codex patch format.
+
+`freeformPatchSignature()` is the same, and adds `signature.grammar.lark`. Its value is `CODEX_PATCH_GRAMMAR` from `@better-fs-tools/write/patch`: the Lark grammar of the Codex apply_patch format. A host with grammar tools can use it to constrain the patch text that the model writes:
+
+```ts
+import { CODEX_PATCH_GRAMMAR } from "@better-fs-tools/write/patch";
+import { freeformPatchSignature } from "@better-fs-tools/write/signature";
+
+const signature = freeformPatchSignature();
+signature.grammar?.lark === CODEX_PATCH_GRAMMAR; // true
+```
+
+The Pi integration sends the grammar to models that support grammar tools. Other Pi models get the JSON schema. AI SDK tools take JSON only, so the AI SDK integration accepts this signature but does not send the grammar.
+
+### Use a write signature in your own integration
+
+Pass `messages: writeSignatureMessages(signature)` to the core tool, so the notes use the names from the signature:
+
+```ts
+import { memoryFileSystem } from "@better-fs-tools/fs";
+import { createEditTool } from "@better-fs-tools/write";
+import { camelCaseEditSignature, writeSignatureMessages } from "@better-fs-tools/write/signature";
+
+const signature = camelCaseEditSignature({ name: "edit_file" });
+const edit = createEditTool({
+  fs: memoryFileSystem({ files: { "/a.ts": "x\n" } }),
+  messages: writeSignatureMessages(signature),
+});
+
+const result = await edit(signature.toInput({ filePath: "/a.ts", oldString: "x", newString: "y" }));
+```
+
+When the old text is not in the file, the note names `oldString`:
+
+```text
+[edit:no-match] Edit 1: the oldString was not found in /a.ts.
+```
+
+## Signature for bash
+
+`defaultBashSignature()` from `@better-fs-tools/shell/signature` gives `bash` with `command`, `timeout`, and `cwd`. Only `command` is required. It takes `name`, `description`, `describe`, and `names`, and these options:
+
+| Option        | Default              | Sets                                                                                            |
+| ------------- | -------------------- | ----------------------------------------------------------------------------------------------- |
+| `timeoutUnit` | `"ms"`               | The unit of `timeout`, `"ms"` or `"s"`. `toInput()` gives `timeoutMs` in milliseconds           |
+| `cwd`         | `true`               | With `false`, the schema has no `cwd` parameter, and `names.cwd` and `describe.cwd` are ignored |
+| `runner`      | None                 | A runner name for the description. The description then ends with `Commands run in: <runner>.`  |
+| `limits`      | `defaultShellLimits` | The limits that the description names: the default and maximum timeout, and the output limits   |
+
+`runner` and `limits` change only the text that the model sees. They do not choose a runner or set the limits of the tool. Give the tool and the signature the same limits.
+
+The AI SDK integration uses `defaultBashSignature()` with the `id` of the runner and the tool's `limits`. The Pi integration also sets `timeoutUnit: "s"` and `cwd: false`. When you give your own signature, the integration does not add the runner or the limits, so set them yourself:
+
+```ts
+import { createAiSdkBashTool } from "@better-fs-tools/ai-sdk";
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { shellEnv } from "@better-fs-tools/shell";
+import { defaultBashSignature } from "@better-fs-tools/shell/signature";
+
+const runner = nodeCommandRunner();
+const limits = { defaultTimeoutMs: 30_000, maxTimeoutMs: 60_000 };
+const bash = createAiSdkBashTool({
+  runner,
+  env: shellEnv(() => process.env),
+  limits,
+  signature: defaultBashSignature({
+    timeoutUnit: "s",
+    names: { timeout: "timeout_seconds" },
+    runner: runner.id,
+    limits,
+  }),
+});
+```
+
+The schema then describes `timeout_seconds` as `Timeout in seconds. Default 30 seconds, maximum 60 seconds.` A model call `{ "command": "ls", "timeout_seconds": 5 }` becomes `{ command: "ls", timeoutMs: 5000 }`. To use the same names and unit in your own integration, pass `messages: bashSignatureMessages(signature)` to `createBashTool()`, as the [bash formatting guide](/guides/bash/formatting) shows.
+
+## Custom schemas and AI SDK strict mode
+
+Every AI SDK tool is `strict: true`, so the integration changes the signature's schema to the JSON Schema subset that OpenAI strict mode accepts. An optional parameter becomes required and nullable, and the tool reads a `null` as a missing parameter. Keywords outside the subset, such as `minLength`, are removed from the schema that the provider gets. The tool still runs `signature.toInput()` on each call, so the checks in `toInput()` still apply.
+
+All the presets on this page work in strict mode. A custom signature with a schema that strict mode cannot express, for example one with `not`, `if`, or `patternProperties`, throws a `TypeError` when you create the tool. The [AI SDK page](/hosts/ai-sdk) gives all the rules.
