@@ -1,0 +1,525 @@
+---
+title: Read reference
+description: Every field of the read result, every error and note code, every message, the limits, the extension types, and the lower-level helpers of @better-fs-tools/read.
+---
+
+This page lists the types and helpers of `@better-fs-tools/read`. For a walkthrough, see the [read guide](/guides/read).
+
+| Entry                             | Contents                                                                                                                                      |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@better-fs-tools/read`           | `createReadTool`, `textOf`, the helpers on this page, the classifiers, resolvers, authorizers, converters, hooks, formatters, and the types   |
+| `@better-fs-tools/read/signature` | `defaultReadSignature`, `lineRangeSignature`, `readSignatureMessages`, and the signature types. See [tool definition](/hosts/tool-definition) |
+| `@better-fs-tools/read/formats`   | `opencodeFormat`, `deepAgentsFormat`, `hashlineFormat`, `hermesFormat`                                                                        |
+
+The package does not export the filesystem types. Import `FileSystem` and the other filesystem types from `@better-fs-tools/fs`.
+
+## ReadResult
+
+Every read returns a `ReadResult`. It is a `ReadReport` plus `content`, the parts that the formatter made for the model:
+
+```ts
+type ReadResult = ReadReport & { readonly content: readonly ContentPart[] };
+type ReadReport = ReadOk | ReadMedia | ReadUnsupported | ReadFailure;
+
+type ContentPart =
+  | { type: "text"; text: string }
+  | { type: "media"; mediaType: string; data: Uint8Array; name?: string };
+```
+
+`ReadReport` is a union on `status`. Every variant has `tool: "read"` and `notes`. Only the `error` variant has an `error` field, and it is never null there. A check on `status` narrows the type:
+
+```ts
+import { memoryFileSystem } from "@better-fs-tools/fs";
+import { createReadTool, textOf } from "@better-fs-tools/read";
+
+const read = createReadTool({
+  fs: memoryFileSystem({ files: { "/notes.txt": "one\ntwo\nthree\n" } }),
+});
+
+const result = await read({ path: "/notes.txt", limit: 2 });
+
+if (result.status === "ok") {
+  console.log(result.view.lines.map((line) => line.text)); // ["one", "two"]
+  console.log(result.truncation.primary); // "lines"
+  console.log(result.continuation.next); // { path: "/notes.txt", offset: 3, limit: 2 }
+} else if (result.status === "error") {
+  console.log(result.error.code, result.error.phase);
+}
+console.log(result.notes.map((note) => note.code)); // ["continue"]
+console.log(textOf(result));
+```
+
+The result has no `text` field. `textOf(result)` joins the text parts of `content` with `"\n"`. Only media parts hold bytes. Nothing in the result comes from `ctx.host`.
+
+| Status        | When                                                                                                            |
+| ------------- | --------------------------------------------------------------------------------------------------------------- |
+| `ok`          | The tool read the file, the converted text, or the folder listing as text. Empty files and empty views are `ok` |
+| `media`       | A converter returned content parts, for example an image                                                        |
+| `unsupported` | A classifier or a converter refused the content. `code` is open                                                 |
+| `error`       | The read failed. `error.code` is a `ReadErrorCode`                                                              |
+
+### ok
+
+```text
+{
+  tool: "read",
+  status: "ok",
+  request: { path, offset, limit, ranged },
+  file: {
+    requestedPath, resolvedPath, displayPath, backend,
+    size, mtimeMs, identity, mimeType, resolvedFrom, version
+  },
+  classification: { kind, classifier, code, mimeType, confidence, reasons },
+  conversion: { converter, mimeType } | null,
+  view: {
+    lines: [{ number, text, clamped, sourceChars }],
+    startLine, endLine, bytes, partial
+  },
+  truncation: { truncated, reasons, primary },
+  continuation: { available, next },
+  totals: { lines, exact, bytes },
+  observation: { id, statId, contentId, viewId, observedAt, wholeFileVisible } | null,
+  notes: [...],
+  content: [{ type: "text", text: "1|..." }]
+}
+```
+
+| Field            | Meaning                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `request`        | The checked canonical input. `offset` defaults to 1. `limit` defaults to `limits.maxLines`, and a larger `limit` is cut to it with a `clamped` note. `ranged` is `true` when the input set `offset` or `limit`                                                                                                                                                           |
+| `file`           | `requestedPath` is the path from the model. `resolvedFrom` is that path when a resolver changed it, else `null`. `backend` is the filesystem `id`. `identity` is `null` unless the filesystem has stable identity. `version` is the change token of the backend, or `null`                                                                                               |
+| `classification` | `kind` is `"text"`, `"unsupported"`, or `"directory"`. `classifier` is the classifier id, or `"fs"` for a folder. `code` is the unsupported code, and `null` for text and folders. A converted file keeps its classification                                                                                                                                             |
+| `conversion`     | The converter that made the text, or `null` for plain text                                                                                                                                                                                                                                                                                                               |
+| `view`           | `lines[].text` is the source text cut at `limits.maxCharsPerLine`, with no gutter. `sourceChars` is the length before the cut, else `null`. `endLine` is `startLine - 1` for an empty view. `bytes` counts UTF-8 source bytes plus one byte for each line break. `partial` is `true` when the view starts after line 1, stops before the end, or has a truncation reason |
+| `truncation`     | `reasons` can hold `lines`, `bytes`, `budget`, `scan-limit`, and `line-length`. `primary` is the first reason, or `null`                                                                                                                                                                                                                                                 |
+| `continuation`   | `next` is a complete canonical input, `{ path, offset, limit }`. It uses the canonical names, also when the tool has a [signature](/hosts/tool-definition) with other names                                                                                                                                                                                              |
+| `totals`         | `lines` is `null` and `exact` is `false` when the scan limit stopped the count. `bytes` is the scanned byte count when the scan reached the end, and the file size otherwise                                                                                                                                                                                             |
+| `observation`    | `null` with no `digest`, and for folders. `contentId` is `null` when the scan stopped before the end. `wholeFileVisible` is `true` only when `offset` is 1, nothing was cut, and no hook changed the view                                                                                                                                                                |
+
+### media
+
+```text
+{
+  tool: "read",
+  status: "media",
+  request, file, classification,
+  conversion: { converter, mimeType },
+  parts: [{ type: "media", mediaType, data, name? }],
+  observation: { ... wholeFileVisible: false } | null,
+  notes: [...],
+  content: [...]
+}
+```
+
+`parts` is what the converter returned. `conversion.mimeType` is the type of the first media part. The formatter puts the note text first in `content`, then the parts. `observation.viewId` hashes the parts, and `wholeFileVisible` is always `false`.
+
+### unsupported
+
+```text
+{ tool: "read", status: "unsupported", code, request, file, classification, notes, content }
+```
+
+| `code`                                                          | Source                                                                                                                                      |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `IMAGE`, `PDF`, `OFFICE_DOCUMENT`, `BINARY`, `UNKNOWN_ENCODING` | The default classifiers                                                                                                                     |
+| `NOTEBOOK`                                                      | `notebookClassifier()`. It is not in the default chain                                                                                      |
+| `INVALID_NOTEBOOK`                                              | `notebookConverter()` on broken notebook JSON                                                                                               |
+| `TOO_LARGE`                                                     | Converter input over `maxConvertBytes`, or media over `maxMediaBytes`. A byte limit of the backend gives `status: "error"` with `TOO_LARGE` |
+| Any other string                                                | Your own classifier or converter                                                                                                            |
+
+### error
+
+```text
+{
+  tool: "read",
+  status: "error",
+  error: { code, phase, message, data? },
+  request: ReadRequest | null,
+  file: FileInfo | null,
+  notes,
+  content
+}
+```
+
+`error` has the same shape in every tool. `code` is an UPPER_SNAKE `ReadErrorCode`. `phase` is the `ReadPhase` that failed: `input`, `resolve`, `open`, `authorize`, `sampling`, `conversion`, `scan`, `verification`, or `hooks`. `message` and `data` come from the error note.
+
+`request` is `null` only for `INVALID_INPUT`. `file` is set only for failures after the file was opened and allowed: `CHANGED_DURING_READ`, `UNSUPPORTED_BACKEND` from the classifiers, and a failed `verify()`. `DENIED` from an authorizer always has `file: null`, so the result does not show the real path behind a link.
+
+| `error.code`            | `error.phase`                                     | Meaning                                                                                                                    |
+| ----------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `INVALID_INPUT`         | `input`                                           | The input failed the checks                                                                                                |
+| `NOT_FOUND`             | `resolve`                                         | No such file. `data.suggestions` can hold names in the same folder. A miss in `open()` uses this phase too                 |
+| `NOT_A_FILE`            | `open`, `verification`                            | A folder with no folder converter, or a FIFO, socket, or device. `data.kind` names it                                      |
+| `DANGEROUS_PATH`        | `open`, `verification`, `conversion`              | A refused namespace such as `/dev`, or a deny root of the filesystem                                                       |
+| `OUTSIDE_ALLOWED_ROOTS` | `open`, `verification`, `conversion`              | Outside every allowed root                                                                                                 |
+| `PERMISSION_DENIED`     | `open`, `verification`, `conversion`              | The operating system refused access                                                                                        |
+| `DENIED`                | `authorize`, `open`, `verification`, `conversion` | An authorizer refused (`authorize`), or a filesystem rule refused, for example a symlink                                   |
+| `TOO_LARGE`             | `open`                                            | The file is over a byte limit of the backend, such as `maxBufferedBytes`                                                   |
+| `CHANGED_DURING_READ`   | `verification`                                    | The file changed during the read. The note has a `retry` of the same range                                                 |
+| `ABORTED`               | `input`, or the phase at the time                 | The signal fired. A signal that fired before the call gives `input`. `data.phase` names the stage. The tool stored nothing |
+| `UNSUPPORTED_BACKEND`   | `open`, `sampling`, `scan`                        | No classifier had an opinion, or the filesystem cannot do the read                                                         |
+| `EXTENSION_FAILED`      | The phase of the host code                        | Host code threw or broke a rule. `data` has `extension`, `phase`, and `id` when the extension has one                      |
+| `IO_ERROR`              | Any                                               | Any other backend failure, including a filesystem method that threw                                                        |
+
+A failed folder listing has the phase `conversion`. A failed `afterRead` hook has the phase `hooks`.
+
+The [write reference](/reference/write#statuses-and-error-codes-of-every-tool) has one table of the statuses and error codes of all five tools.
+
+## Notes
+
+```text
+{ code, severity: "info" | "warning", message, retry?: ReadInput, data?: JsonObject }
+```
+
+`code` is stable and kebab case. The default formatter prints a note as `[read:<code>] <message>`. Key your code on `code`, and not on the text. [`messages`](#messages) changes only the text. `retry` is always canonical. The message prints it with `messages.retry`, so the text can use the names of your signature.
+
+An error result has one warning note for the error, and it is always first in `notes`. Its code is the error code in kebab case, for example `not-found` for `NOT_FOUND`. When an authorizer refuses with its own `note`, the tool keeps the message, the data, and the `retry` of that note. The code becomes `denied`, the severity becomes `warning`, and the code of the host moves to `data.source`. The write and bash tools use the same rule.
+
+Notes from the core:
+
+| `code`                                                                                                      | Severity | `retry`                                      | `data`                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `continue`                                                                                                  | info     | The next view                                | `{ reason }`                                                                                                |
+| `clamped`                                                                                                   | info     | None                                         | `{ param: "limit", requested, max }`. The requested `limit` was over `maxLines`                             |
+| `offset-unreached`                                                                                          | warning  | A lower offset that the scan reached         | `{ reachedLine }`                                                                                           |
+| `first-line-exceeds-byte-limit`                                                                             | warning  | The view after that line                     | `{ line }`                                                                                                  |
+| `line-clamped`                                                                                              | warning  | None                                         | `{ lines, total, maxChars }`. `lines` lists at most 20 line numbers                                         |
+| `scan-limit`                                                                                                | warning  | None                                         | `{ maxScanBytes }`                                                                                          |
+| `offset-past-eof`                                                                                           | info     | The last line                                | `{ totalLines }`                                                                                            |
+| `empty`                                                                                                     | info     | None                                         | None                                                                                                        |
+| `not-found`                                                                                                 | warning  | None                                         | `{ suggestions?, entriesTruncated?, detail?, cause? }`                                                      |
+| `not-a-file`                                                                                                | warning  | None                                         | `{ kind, detail?, cause? }`                                                                                 |
+| `dangerous-path`, `outside-allowed-roots`, `permission-denied`, `denied`, `unsupported-backend`, `io-error` | warning  | None                                         | `{ detail?, cause? }` from the filesystem. A thrown error gives `io-error` with `{ detail }`                |
+| `denied` from an authorizer                                                                                 | warning  | Set by `sizeCeiling({ unrangedOnly: true })` | The data of the authorizer, for example `{ pattern }` or `{ size, maxBytes }`                               |
+| `too-large`                                                                                                 | warning  | None                                         | `{ stage, limit }`. `stage` is `"convert"` or `"media"`. From a backend: `{ limit, size, detail?, cause? }` |
+| `changed-during-read`                                                                                       | warning  | The same range                               | None                                                                                                        |
+| `aborted`                                                                                                   | warning  | None                                         | `{ phase }`                                                                                                 |
+| `invalid-input`                                                                                             | warning  | None                                         | `{ path }` when the input had a string path                                                                 |
+| `extension-failed`                                                                                          | warning  | None                                         | `{ extension, phase, id? }`                                                                                 |
+| `view-modified`                                                                                             | info     | None                                         | `{ hook }`                                                                                                  |
+
+Notes from the built-in helpers:
+
+| `code`                                                                                                                      | Severity | From                    | `data`                          |
+| --------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------- | ------------------------------- |
+| `utf8-bom`                                                                                                                  | info     | `utf8Classifier`        | None                            |
+| `unsupported-image`, `unsupported-pdf`, `unsupported-office-document`, `unsupported-binary`, `unsupported-unknown-encoding` | warning  | The default classifiers | As set by a `NoteOverride`      |
+| `unsupported-notebook`                                                                                                      | warning  | `notebookClassifier()`  | As set by a `NoteOverride`      |
+| `path-repaired`                                                                                                             | warning  | `unicodeRepair()`       | `{ from, to }`                  |
+| `invalid-notebook`                                                                                                          | warning  | `notebookConverter()`   | None                            |
+| `directory-truncated`                                                                                                       | warning  | `directoryListing()`    | `{ maxDirectoryEntries }`       |
+| `empty-directory`                                                                                                           | info     | `directoryListing()`    | None                            |
+| `repeat-read`                                                                                                               | info     | `repeatReadGuard()`     | `{ observationId, observedAt }` |
+
+`directoryListing()` also has a `list-failed` refusal. The core reports the error of the listing first, so a read with the built-in converter gives that error, for example `DENIED` or `IO_ERROR`.
+
+The notes come in this order: the view notes, the classifier or converter notes, `empty`, then the capability notes. Allow notes from the authorizer and the resolver note come next. Hooks add their notes last.
+
+## Messages
+
+`messages` sets the text of each note. Each message is a function that gets one object and returns a string. The messages you leave out keep their default text. [Customise formatting](/guides/read/formatting) shows an example. `defaultReadMessages` holds the default functions.
+
+| Message               | Arguments                                                                                            |
+| --------------------- | ---------------------------------------------------------------------------------------------------- |
+| `retry`               | `next`, a canonical `ReadInput`. It returns the text of a retry call. Default `JSON.stringify(next)` |
+| `continuation`        | `{ request, retry, reason }`                                                                         |
+| `firstLineTooLong`    | `{ line, maxViewBytes, retry }`                                                                      |
+| `offsetPastEof`       | `{ request, totalLines, retry }`                                                                     |
+| `offsetUnreached`     | `{ request, reachedLine, retry }`                                                                    |
+| `lineClamped`         | `{ lines, total, maxChars }`                                                                         |
+| `limitClamped`        | `{ requested, max }`                                                                                 |
+| `scanLimit`           | `{ maxScanBytes }`                                                                                   |
+| `empty`               | `{ path }`                                                                                           |
+| `notFound`            | `{ request, suggestions }`                                                                           |
+| `pathRepaired`        | `{ from, to }`                                                                                       |
+| `notAFile`            | `{ request, kind }`                                                                                  |
+| `dangerousPath`       | `{ request, detail }`                                                                                |
+| `outsideAllowedRoots` | `{ request, detail }`                                                                                |
+| `permissionDenied`    | `{ request, detail }`                                                                                |
+| `denied`              | `{ path, detail }`. Shared authorizers such as `denyPaths` use it in every tool                      |
+| `tooLarge`            | `{ request, stage, limit }`. `stage` is `"convert"`, `"media"`, or `"backend"`                       |
+| `changedDuringRead`   | `{ request, retry }`                                                                                 |
+| `aborted`             | `{ phase }`                                                                                          |
+| `invalidInput`        | `{ detail }`                                                                                         |
+| `extensionFailed`     | `{ request, extension, phase }`                                                                      |
+| `ioError`             | `{ request }`. `request` can be `null`                                                               |
+| `unsupportedBackend`  | `{ request, detail }`                                                                                |
+| `viewModified`        | `{ hook }`                                                                                           |
+
+`request` is the checked `ReadRequest`. `retry` is the text that `messages.retry` made. `detail` is a string or `null`. The classifiers set the text of their own refusals. Use `defaultClassifiers({ notes })` to change it.
+
+## Limits
+
+`limits` merges with `defaultReadLimits` key by key. Each value must be a positive safe integer. These are defaults, and not ceilings.
+
+| Limit                 | Default | Meaning                                                |
+| --------------------- | ------- | ------------------------------------------------------ |
+| `maxLines`            | 2,000   | Lines in the view. Also the ceiling for `limit`        |
+| `maxViewBytes`        | 50 KiB  | UTF-8 bytes of source text in the view                 |
+| `maxCharsPerLine`     | 2,000   | Characters in one line before the tool cuts it         |
+| `maxScanBytes`        | 64 MiB  | Bytes scanned before the totals and content hash stop  |
+| `sampleBytes`         | 8 KiB   | Bytes given to the classifiers. At most `maxScanBytes` |
+| `maxDirectoryEntries` | 200     | Entries in one folder listing                          |
+| `maxSuggestions`      | 5       | Names suggested on a miss                              |
+| `maxConvertBytes`     | 64 MiB  | Source bytes that a converter can read                 |
+| `maxMediaBytes`       | 5 MiB   | Total bytes of media parts in one result               |
+
+A `sampleBytes` that you set above `maxScanBytes` throws `TypeError`. When you set only `maxScanBytes` below 8 KiB, the default `sampleBytes` goes down to it. [Limits](/guides/read/limits) explains each limit.
+
+## Content
+
+The formatter makes `content` one time, with `mode: "model"`. A formatter that returns a string gives one text part.
+
+| Formatter                       | Output                                                                                                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `lineNumberFormatter()`         | `1\|source` lines, a blank line, then the `[read:<code>]` note lines. Media: a text part with the notes, then the parts |
+| `plainFormatter()`              | The source lines with no gutter, then the note lines                                                                    |
+| `jsonFormatter()`               | JSON text of the outcome, or of `pick(outcome)`. Byte arrays become `{ "bytes": n }`, and media parts follow as parts   |
+| `@better-fs-tools/read/formats` | `opencodeFormat()`, `deepAgentsFormat()`, `hashlineFormat()`, and `hermesFormat()`                                      |
+
+A formatter is an object with an `id` and a `format(outcome, ctx)` function. `format` is synchronous. `ctx` holds `digest`, `limits`, `call`, and `mode`. In `mode: "view"` it formats the body only, with no notes. If the formatter throws, the tool uses `lineNumberFormatter()` and adds no note.
+
+## ReadStateStore
+
+`state` takes a `ReadStateStore`, or a function of the call that returns one or `null`. `memoryStore()` is the built-in store. A store is a cache: a `get` or `put` that fails never fails the read.
+
+```ts
+interface ReadStateStore {
+  get(key: string): Promise<ReadRecord | null>;
+  put(key: string, record: ReadRecord): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+```
+
+The key is `file.resolvedPath`. With a `state` and a `digest`, an `ok` or `media` result stores this record:
+
+```ts
+interface ReadRecord {
+  schema: 2;
+  origin: "read" | "write";
+  observationId: string;
+  resolvedPath: string;
+  identity: string | null;
+  version: string | null; // file.version
+  digest: string; // the Digest.id that made contentId and viewId
+  contentId: string | null;
+  viewId: string;
+  observedAt: string;
+  wholeFileVisible: boolean;
+  totalsExact: boolean;
+  request: { offset: number; limit: number } | null; // null for a write record
+}
+```
+
+A write tool stores a record with `origin: "write"` after a commit. Its `viewId` is the same as its `contentId`, and its `request` is `null`. Hooks see the earlier record as `ctx.previous`. A record of another schema, or from another digest, counts as absent. `repeatReadGuard` fires only on a record with `origin: "read"`.
+
+`memoryStore(options?)` takes `maxEntries` (default 1,000), `ttlMs` (default 30 minutes), and `clock`. To keep records somewhere else, write your own store:
+
+```ts
+import { memoryFileSystem } from "@better-fs-tools/fs";
+import { createReadTool, sha256Digest } from "@better-fs-tools/read";
+import type { ReadRecord, ReadStateStore } from "@better-fs-tools/read";
+
+// A store over a Map. Put your own database calls here.
+const records = new Map<string, ReadRecord>();
+const store: ReadStateStore = {
+  get: async (key) => records.get(key) ?? null,
+  put: async (key, record) => {
+    records.set(key, record);
+  },
+  delete: async (key) => {
+    records.delete(key);
+  },
+};
+
+const read = createReadTool({
+  fs: memoryFileSystem({ files: { "/a.txt": "alpha\n" } }),
+  state: store,
+  digest: sha256Digest(),
+});
+
+await read({ path: "/a.txt" });
+const record = records.get("/a.txt");
+console.log(record?.origin, record?.wholeFileVisible); // read true
+```
+
+`state` needs a `digest`. `createReadTool` throws `TypeError` for a `state` with no `digest`, and the `StateNeedsDigest` type refuses it at compile time.
+
+## Converter
+
+`converters` is a list of `Converter` objects. A converter is a `FileConverter` or a `DirectoryConverter`. For a file, the first converter whose `accepts` returns `true` runs. For a folder, the first folder converter runs.
+
+```ts
+interface FileConverter<THost> {
+  readonly id: string;
+  readonly target: "file";
+  accepts(match: ConverterMatch): boolean; // synchronous. The only place to decline
+  convert(input: FileConvertInput, ctx: ReadHookContext<THost>): Promise<ConvertOutcome>;
+}
+
+interface ConverterMatch {
+  readonly classification: Classification;
+  readonly classifier: string;
+  readonly sample: ClassificationSample;
+}
+
+interface FileConvertInput {
+  readonly info: Readonly<OpenFileInfo>;
+  readonly classification: Classification;
+  readonly sample: ClassificationSample;
+  bytes(): AsyncIterable<Uint8Array>; // from byte 0, cut at limits.maxConvertBytes. Call it once
+}
+
+interface DirectoryConverter<THost> {
+  readonly id: string;
+  readonly target: "directory";
+  convert(input: DirectoryConvertInput, ctx: ReadHookContext<THost>): Promise<ConvertOutcome>;
+}
+
+interface DirectoryConvertInput {
+  readonly path: string; // the path that open() reported as a folder
+  readonly target: { readonly resolvedPath: string; readonly displayPath: string } | null;
+  list(): Promise<ListOutcome>; // authorizes and lists, up to maxDirectoryEntries. Call it once
+}
+
+type ConvertOutcome =
+  | {
+      kind: "text";
+      text: string | AsyncIterable<string>;
+      mimeType: string | null;
+      notes?: readonly ReadNote[];
+    }
+  | { kind: "media"; parts: readonly ContentPart[]; notes?: readonly ReadNote[] }
+  | { kind: "refuse"; code: string; note: ReadNote };
+```
+
+A `text` outcome goes through the normal scan, so `offset`, `limit`, and the limits work on the converted lines. A `media` outcome gives a `media` result. A `refuse` outcome gives an `unsupported` result with that code. A converter that throws gives `EXTENSION_FAILED`.
+
+```ts
+import { memoryFileSystem } from "@better-fs-tools/fs";
+import { createReadTool, defaultClassifiers, textOf } from "@better-fs-tools/read";
+import type { FileConverter } from "@better-fs-tools/read";
+
+// Reads a PDF as a fixed line of text. Put your own extraction here.
+const pdfStub: FileConverter<unknown> = {
+  id: "pdf-stub",
+  target: "file",
+  accepts: (match) =>
+    match.classification.kind === "unsupported" && match.classification.code === "PDF",
+  convert: async (input) => {
+    let bytes = 0;
+    for await (const chunk of input.bytes()) bytes += chunk.byteLength;
+    return { kind: "text", text: `PDF with ${bytes} bytes\n`, mimeType: "text/plain" };
+  },
+};
+
+const read = createReadTool({
+  fs: memoryFileSystem({ files: { "/a.pdf": "%PDF-1.7\n" } }),
+  classifiers: defaultClassifiers(),
+  converters: [pdfStub],
+});
+
+const result = await read({ path: "/a.pdf" });
+console.log(result.status); // "ok"
+console.log(textOf(result)); // "1|PDF with 9 bytes"
+```
+
+The built-in converters are `imageConverter()`, `notebookConverter()`, `textConverter()`, and `directoryListing()`. See [File types](/guides/read/file-types).
+
+## Classifier
+
+`classifiers` is an ordered list. Each classifier gets a sample of the file. The first classifier that returns a value wins. `null` means "no opinion".
+
+```ts
+interface Classifier {
+  readonly id: string;
+  classify(sample: ClassificationSample): Classification | null;
+  // A refusal for bad UTF-8 that the tool finds after the sample was accepted as text.
+  encodingFailure?(sample: ClassificationSample): UnsupportedClassification | null;
+}
+
+interface ClassificationSample {
+  readonly bytes: Uint8Array; // at most limits.sampleBytes
+  readonly complete: boolean; // true when the sample is the whole file
+  readonly path: string; // the display path
+  readonly mimeType: string | null; // from the backend
+}
+```
+
+A `Classification` is `{ kind: "text", mimeType, confidence, reasons, notes? }` or `{ kind: "unsupported", code, mimeType, confidence, reasons, note }`. `confidence` is `"high"`, `"medium"`, or `"low"`.
+
+`defaultClassifiers()` gives the chain below, in this order. Each classifier takes `{ note?: NoteOverride }` to change its refusal note.
+
+| Classifier           | id       | Effect                                                                                                                      |
+| -------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `imageClassifier()`  | `image`  | Refuses PNG, JPEG, GIF, and WebP by their magic bytes, with code `IMAGE`                                                    |
+| `pdfClassifier()`    | `pdf`    | Refuses a file that starts with `%PDF-`, with code `PDF`                                                                    |
+| `officeClassifier()` | `office` | Refuses a zip with an Office marker or a `.docx`, `.xlsx`, or `.pptx` name, with code `OFFICE_DOCUMENT`                     |
+| `binaryClassifier()` | `binary` | Refuses a zip, or a sample with a NUL byte, with code `BINARY`                                                              |
+| `utf8Classifier()`   | `utf8`   | Accepts UTF-8 text. Refuses bad UTF-8 with `UNKNOWN_ENCODING`, also after the sample. Adds `utf8-bom` for a byte order mark |
+
+`notebookClassifier()` refuses a notebook with code `NOTEBOOK`. It is not in the default chain. `extensionClassifier({ unsupported, text })` decides by the file extension only, with confidence `"medium"`.
+
+## Lower-level helpers
+
+The tool uses these helpers. Use them when you write your own tool around the core, or when you test a host.
+
+| Helper                                        | Returns                                                                                                                                                                                              |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parseReadInput(input, limits)`               | A `ReadRequest`. Throws `TypeError` for an unknown key, a blank path or a path with NUL, or an `offset` or `limit` that is not a positive safe integer. A larger `limit` is cut to `limits.maxLines` |
+| `resolveReadLimits(overrides?)`               | The frozen `ReadLimits`, with `overrides` over `defaultReadLimits`. Throws `TypeError` as in [Limits](#limits)                                                                                       |
+| `resolveReadMessages(overrides?)`             | The frozen `ReadMessageCatalog`, with `overrides` over `defaultReadMessages`. Throws `TypeError` for an unknown key or a value that is not a function                                                |
+| `binaryClassifier(options?)` and the others   | One `Classifier`. See [Classifier](#classifier)                                                                                                                                                      |
+| `suggestFileNames(requested, names, maximum)` | Up to `maximum` names close to `requested`: the same name in another case, the same stem, a shared prefix, or an edit distance of 3 or less                                                          |
+| `canonicalizeFileName(value)`                 | The name in NFC form, with narrow and non-breaking spaces as plain spaces, and typographic quotes as plain quotes                                                                                    |
+| `compileGlob(pattern)`                        | A function `(path) => boolean` for `/` paths. `**` matches zero or more whole segments, `*` any text in one segment, and `?` one character. Dot names are not special. `denyPaths` uses it           |
+| `defaultNoteLine(note)`                       | The text of one note line: `[read:<code>] <message>`                                                                                                                                                 |
+| `textOf(result)`                              | The text parts of `content`, joined with `"\n"`                                                                                                                                                      |
+
+`defaultSuggest()` uses `canonicalizeFileName` and `suggestFileNames`. It puts names that are the same after `canonicalizeFileName` first.
+
+```ts
+import {
+  binaryClassifier,
+  canonicalizeFileName,
+  compileGlob,
+  defaultNoteLine,
+  parseReadInput,
+  resolveReadLimits,
+  resolveReadMessages,
+  suggestFileNames,
+  utf8Classifier,
+} from "@better-fs-tools/read";
+
+const limits = resolveReadLimits({ maxLines: 100 });
+console.log(parseReadInput({ path: "src/a.ts", limit: 500 }, limits));
+// { path: "src/a.ts", offset: 1, limit: 100, ranged: true }
+
+try {
+  parseReadInput({ file_path: "src/a.ts" }, limits);
+} catch (error) {
+  console.log((error as TypeError).message); // "Unknown read input key: file_path"
+}
+
+const messages = resolveReadMessages({ empty: ({ path }) => `${path} has no content.` });
+console.log(messages.empty({ path: "a.txt" })); // "a.txt has no content."
+
+const isEnv = compileGlob("**/.env");
+console.log(isEnv("/repo/.env"), isEnv("/repo/.env.local")); // true false
+
+console.log(suggestFileNames("READMe.md", ["README.md", "src", "package.json"], 5)); // ["README.md"]
+console.log(canonicalizeFileName("Screen Shot 10.42 AM.png")); // "Screen Shot 10.42 AM.png"
+
+console.log(defaultNoteLine({ code: "empty", severity: "info", message: "a.txt is empty." }));
+// "[read:empty] a.txt is empty."
+
+const sample = (text: string) => ({
+  bytes: new TextEncoder().encode(text),
+  complete: true,
+  path: "/a.txt",
+  mimeType: null,
+});
+console.log(utf8Classifier().classify(sample("hello\n"))?.kind); // "text"
+console.log(binaryClassifier().classify(sample("a\0b"))?.kind); // "unsupported"
+console.log(binaryClassifier().classify(sample("hello\n"))); // null: no opinion
+```
