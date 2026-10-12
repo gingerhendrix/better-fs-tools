@@ -45,7 +45,7 @@ export async function ask(model: LanguageModel, prompt: string): Promise<string>
 - `createAiSdkReadTool(options)` takes every `createReadTool()` option, plus `signature`. `fs` is required. `digest` defaults to `null`, as in the core.
 - The model sees the signature's name, description, and JSON Schema. The tool is `strict: true`, and the provider schema stays inside the JSON Schema subset that [OpenAI strict mode](https://developers.openai.com/api/docs/guides/structured-outputs#supported-schemas) documents. See [Strict provider schema](#strict-provider-schema). The default signature is `defaultReadSignature()`: `read` with `path`, `offset`, and `limit`.
 - The schema's `validate` hook runs `signature.toInput` and then the core input check. A refusal names the host's parameters, and `generateText` reports it as a tool error.
-- `execute` passes AI SDK's `ToolExecutionOptions` object to the core as `ctx.call.host`, with `abortSignal` as the signal and `toolCallId` as `callId`. Host functions can read `ctx.call.host.context`. `execute` returns the whole `ReadResult`. If `toInput` refuses an input that reached `execute`, `execute` rejects with that `TypeError`.
+- `execute` passes AI SDK's `ToolExecutionOptions` object to the core as `ctx.call.host`, with `abortSignal` as the signal and `toolCallId` as `callId`. Host functions can read `ctx.call.host.context`. Set `contextSchema` on a factory or on the bundle to give each tool a context schema. The AI SDK then accepts a `toolsContext` of the factory's context type, and validates it before `execute`. `execute` returns the whole `ReadResult`. If `toInput` refuses an input that reached `execute`, `execute` rejects with that `TypeError`.
 - Retry text in notes uses the signature's names. `result.continuation.next` stays canonical.
 - `converters` defaults to `[imageConverter()]`, so an image read gives a `media` result. The core has no converters by default; this host turns images on. A list you pass replaces the default: `converters: []` turns images off, and a list without `imageConverter()` refuses images.
 - `toModelOutput` maps text parts to text parts, and media parts to base64 `file` parts. `toAiSdkOutput(result)` does the same mapping for your own tool.
@@ -131,7 +131,7 @@ OPENAI_API_KEY=sk-... bun run test:e2e
 
 ## Links
 
-- `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the defaults of every host and bundle, and what each backend can do
+- [Choose a host](https://better-fs-tools.gandrew.com/hosts) and [Backends](https://better-fs-tools.gandrew.com/backends) on the docs site: the defaults of every host and bundle, and what each backend can do. `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has the same tables
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option, and the signature builders
 - [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): every write option, and the write signatures
 - [`@better-fs-tools/cloudflare-shell`](https://www.npmjs.com/package/@better-fs-tools/cloudflare-shell): a filesystem for Cloudflare Agents

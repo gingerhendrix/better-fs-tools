@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { generateText, isStepCount } from "ai";
+import { generateText, isStepCount, jsonSchema } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
@@ -179,6 +179,66 @@ describe("createAiSdkFsTools", () => {
       (result) => (result.output as MutationResult).status,
     );
     expect(outputs).toEqual(["ok", "ok"]);
+  });
+
+  test("contextSchema goes on every tool, and toolsContext reaches the fs factory", async () => {
+    const roots: string[] = [];
+    const contextSchema = jsonSchema<{ root: string }>({
+      type: "object",
+      properties: { root: { type: "string" } },
+      required: ["root"],
+      additionalProperties: false,
+    });
+    const tools = createAiSdkFsTools<{ root: string }>({
+      fs: (call) => {
+        roots.push(call.host.context.root);
+        return memoryFileSystem({ files: { "/a.txt": "one\n" } });
+      },
+      contextSchema,
+      applyPatch: true,
+      bash: { runner, env: shellEnv() },
+    });
+    for (const tool of Object.values(tools.tools)) expect(tool.contextSchema).toBe(contextSchema);
+
+    const model = new MockLanguageModelV4({
+      doGenerate: [
+        {
+          content: [
+            {
+              type: "tool-call",
+              toolCallId: "read-1",
+              toolName: "read",
+              input: JSON.stringify({ path: "/a.txt", offset: null, limit: null }),
+            },
+          ],
+          finishReason: { unified: "tool-calls", raw: "tool-calls" },
+          usage,
+          warnings: [],
+        },
+        {
+          content: [{ type: "text", text: "done" }],
+          finishReason: { unified: "stop", raw: "stop" },
+          usage,
+          warnings: [],
+        },
+      ],
+    });
+    const { read } = tools.tools;
+    if (read === undefined) throw new Error("expected a read tool");
+    const generated = await generateText({
+      model,
+      prompt: "Read /a.txt",
+      tools: { read },
+      toolsContext: { read: { root: "/work" } },
+      stopWhen: isStepCount(2),
+    });
+    expect(generated.steps[0]?.toolResults[0]?.output).toMatchObject({ status: "ok" });
+    expect(roots).toEqual(["/work"]);
+  });
+
+  test("a tool has no contextSchema key unless the option sets it", () => {
+    const tools = createAiSdkFsTools({ fs: memoryFileSystem() });
+    expect(Object.hasOwn(tools.read, "contextSchema")).toBe(false);
   });
 
   test("invalidate deletes the record, so the next edit needs a read", async () => {

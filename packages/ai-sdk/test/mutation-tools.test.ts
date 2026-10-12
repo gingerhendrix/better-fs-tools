@@ -62,7 +62,7 @@ function tools(files: Record<string, string> = { "/a.txt": "alpha\nbeta\nalpha\n
   };
 }
 
-async function validate(tool: AiSdkMutationTool<Record<string, unknown>>, value: unknown) {
+async function validate(tool: AiSdkMutationTool, value: unknown) {
   const validator = tool.inputSchema.validate;
   if (validator === undefined) throw new Error("the schema has no validator");
   return await validator(value);

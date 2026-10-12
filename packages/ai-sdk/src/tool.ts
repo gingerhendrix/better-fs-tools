@@ -1,5 +1,5 @@
 import { jsonSchema } from "ai";
-import type { JSONSchema7, Schema, ToolExecutionOptions } from "ai";
+import type { FlexibleSchema, JSONSchema7, Schema, ToolExecutionOptions } from "ai";
 
 import {
   createReadTool,
@@ -33,6 +33,8 @@ export type CreateAiSdkReadToolOptions<C = unknown> = ReadToolDeps<ToolExecution
   StateNeedsDigest & {
     /** Defaults to defaultReadSignature(). */
     readonly signature?: ReadSignature;
+    /** Checks the `toolsContext` entry of this tool. The AI SDK validates the context with it before `execute`. */
+    readonly contextSchema?: FlexibleSchema<C>;
   };
 
 /** An AI SDK read tool, assignable to `Tool<JsonObject, ReadResult, C>` from ai 7.0.77. */
@@ -42,6 +44,11 @@ export interface AiSdkReadTool<C = unknown> {
   readonly strict: true;
   /** The strict input schema. A `null` for an optional parameter means absent. */
   readonly inputSchema: Schema<JsonObject>;
+  /**
+   * The schema of the context that AI SDK passes from `toolsContext`, if set.
+   * The field also lets the AI SDK types accept a `toolsContext` entry of type `C`.
+   */
+  readonly contextSchema?: FlexibleSchema<C>;
   /** Runs the read. The AI SDK execution options are the call's host. */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ReadResult>;
   toModelOutput(options: { output: ReadResult }): AiSdkToolOutput;
@@ -58,13 +65,13 @@ export function createAiSdkReadTool<C = unknown>(
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("AI SDK read tool options must be an object");
   }
-  const { signature = defaultReadSignature(), ...deps } = options;
+  const { signature = defaultReadSignature(), contextSchema, ...deps } = options;
   const read = createReadTool<ToolExecutionOptions<C>>({
     ...deps,
     converters: aiSdkConverters(deps.converters),
     messages: { ...readSignatureMessages(signature), ...deps.messages },
   });
-  return adaptReadTool(signature, read, deps.limits);
+  return adaptReadTool(signature, read, deps.limits, contextSchema);
 }
 
 /** The host's converters, or [imageConverter()] when it passes none. */
@@ -78,6 +85,7 @@ export function adaptReadTool<C>(
   signature: ReadSignature,
   read: ReadTool<ToolExecutionOptions<C>>,
   limitOverrides: Partial<ReadLimits> | undefined,
+  contextSchema?: FlexibleSchema<C>,
 ): AiSdkReadTool<C> {
   const limits = resolveReadLimits(limitOverrides);
   const strict = toStrictSchema(signature.schema, signature.name);
@@ -109,5 +117,6 @@ export function adaptReadTool<C>(
       return read(signature.toInput(fromStrictInput(signature.schema, input)), call);
     },
     toModelOutput: ({ output }) => toAiSdkOutput(output),
+    ...(contextSchema === undefined ? {} : { contextSchema }),
   });
 }

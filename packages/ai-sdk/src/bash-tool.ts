@@ -1,5 +1,5 @@
 import { jsonSchema } from "ai";
-import type { JSONSchema7, Schema, ToolExecutionOptions } from "ai";
+import type { FlexibleSchema, JSONSchema7, Schema, ToolExecutionOptions } from "ai";
 
 import type { JsonObject, ToolCallContext } from "@better-fs-tools/read";
 import { createBashTool, parseBashInput, resolveShellLimits } from "@better-fs-tools/shell";
@@ -14,6 +14,8 @@ import { fromStrictInput, toStrictSchema } from "./strict.ts";
 export type CreateAiSdkBashToolOptions<C = unknown> = ShellToolDeps<ToolExecutionOptions<C>> & {
   /** Defaults to defaultBashSignature() for the runner's id and the limits. */
   readonly signature?: BashSignature;
+  /** Checks the `toolsContext` entry of this tool. The AI SDK validates the context with it before `execute`. */
+  readonly contextSchema?: FlexibleSchema<C>;
 };
 
 /** An AI SDK bash tool, assignable to `Tool<JsonObject, ShellResult, C>` from ai 7.0.77. */
@@ -23,6 +25,11 @@ export interface AiSdkBashTool<C = unknown> {
   readonly strict: true;
   /** The strict input schema. A `null` for an optional parameter means absent. */
   readonly inputSchema: Schema<JsonObject>;
+  /**
+   * The schema of the context that AI SDK passes from `toolsContext`, if set.
+   * The field also lets the AI SDK types accept a `toolsContext` entry of type `C`.
+   */
+  readonly contextSchema?: FlexibleSchema<C>;
   /** Runs the command. The AI SDK execution options are the call's host. */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ShellResult>;
   toModelOutput(options: { output: ShellResult }): AiSdkToolOutput;
@@ -41,13 +48,13 @@ export function createAiSdkBashTool<C = unknown>(
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("AI SDK bash tool options must be an object");
   }
-  const { signature: given, ...deps } = options;
+  const { signature: given, contextSchema, ...deps } = options;
   const signature = given ?? defaultAiSdkBashSignature(deps);
   const bash = createBashTool<ToolExecutionOptions<C>>({
     ...deps,
     messages: { ...bashSignatureMessages(signature), ...deps.messages },
   });
-  return adaptBashTool(signature, bash, deps.limits);
+  return adaptBashTool(signature, bash, deps.limits, contextSchema);
 }
 
 export function defaultAiSdkBashSignature(deps: {
@@ -65,6 +72,7 @@ export function adaptBashTool<C>(
   signature: BashSignature,
   bash: BashTool<ToolExecutionOptions<C>>,
   limitOverrides: Partial<ShellLimits> | undefined,
+  contextSchema?: FlexibleSchema<C>,
 ): AiSdkBashTool<C> {
   const limits = resolveShellLimits(limitOverrides);
   const strict = toStrictSchema(signature.schema, signature.name);
@@ -96,5 +104,6 @@ export function adaptBashTool<C>(
       return bash(signature.toInput(fromStrictInput(signature.schema, input)), call);
     },
     toModelOutput: ({ output }) => toAiSdkOutput(output),
+    ...(contextSchema === undefined ? {} : { contextSchema }),
   });
 }

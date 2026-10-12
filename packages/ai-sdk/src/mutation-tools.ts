@@ -1,5 +1,5 @@
 import { jsonSchema } from "ai";
-import type { JSONSchema7, Schema, ToolExecutionOptions } from "ai";
+import type { FlexibleSchema, JSONSchema7, Schema, ToolExecutionOptions } from "ai";
 
 import type { JsonObject, StateNeedsDigest, ToolCallContext } from "@better-fs-tools/read";
 import {
@@ -40,6 +40,8 @@ export type CreateAiSdkEditToolOptions<C = unknown> = EditToolDeps<ToolExecution
   StateNeedsDigest & {
     /** Defaults to defaultEditSignature() for `options.matchers`. */
     readonly signature?: EditSignature;
+    /** Checks the `toolsContext` entry of this tool. The AI SDK validates the context with it before `execute`. */
+    readonly contextSchema?: FlexibleSchema<C>;
   };
 
 /** Options for createAiSdkWriteTool. A state store requires a digest. */
@@ -47,6 +49,8 @@ export type CreateAiSdkWriteToolOptions<C = unknown> = WriteToolDeps<ToolExecuti
   StateNeedsDigest & {
     /** Defaults to defaultWriteSignature(). */
     readonly signature?: WriteSignature;
+    /** Checks the `toolsContext` entry of this tool. The AI SDK validates the context with it before `execute`. */
+    readonly contextSchema?: FlexibleSchema<C>;
   };
 
 /** Options for createAiSdkApplyPatchTool. A state store requires a digest. */
@@ -56,6 +60,8 @@ export type CreateAiSdkApplyPatchToolOptions<C = unknown> = ApplyPatchToolDeps<
   StateNeedsDigest & {
     /** Defaults to defaultPatchSignature(). A grammar on the signature is ignored: AI SDK tools take JSON only. */
     readonly signature?: PatchSignature;
+    /** Checks the `toolsContext` entry of this tool. The AI SDK validates the context with it before `execute`. */
+    readonly contextSchema?: FlexibleSchema<C>;
   };
 
 /** An AI SDK edit, write, or apply_patch tool, assignable to `Tool<JsonObject, MutationResult, C>` from ai 7.0.77. */
@@ -65,6 +71,11 @@ export interface AiSdkMutationTool<C = unknown> {
   readonly strict: true;
   /** The strict input schema. A `null` for an optional parameter means absent. */
   readonly inputSchema: Schema<JsonObject>;
+  /**
+   * The schema of the context that AI SDK passes from `toolsContext`, if set.
+   * The field also lets the AI SDK types accept a `toolsContext` entry of type `C`.
+   */
+  readonly contextSchema?: FlexibleSchema<C>;
   /** Runs the change. The AI SDK execution options are the call's host. */
   execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<MutationResult>;
   toModelOutput(options: { output: MutationResult }): AiSdkToolOutput;
@@ -80,13 +91,13 @@ export function createAiSdkEditTool<C = unknown>(
   options: CreateAiSdkEditToolOptions<C>,
 ): AiSdkMutationTool<C> {
   checkOptions(options, "edit");
-  const { signature: given, ...deps } = options;
+  const { signature: given, contextSchema, ...deps } = options;
   const signature = given ?? defaultEditSignature(matchersOf(deps.matchers));
   const edit = createEditTool<ToolExecutionOptions<C>>({
     ...deps,
     messages: { ...writeSignatureMessages(signature), ...deps.messages },
   });
-  return adaptMutationTool(signature, edit, parseEditInput, deps.limits);
+  return adaptMutationTool(signature, edit, parseEditInput, deps.limits, contextSchema);
 }
 
 /** Creates an AI SDK write tool. `options.messages` override the signature's messages. */
@@ -94,12 +105,12 @@ export function createAiSdkWriteTool<C = unknown>(
   options: CreateAiSdkWriteToolOptions<C>,
 ): AiSdkMutationTool<C> {
   checkOptions(options, "write");
-  const { signature = defaultWriteSignature(), ...deps } = options;
+  const { signature = defaultWriteSignature(), contextSchema, ...deps } = options;
   const write = createWriteTool<ToolExecutionOptions<C>>({
     ...deps,
     messages: { ...writeSignatureMessages(signature), ...deps.messages },
   });
-  return adaptMutationTool(signature, write, parseWriteInput, deps.limits);
+  return adaptMutationTool(signature, write, parseWriteInput, deps.limits, contextSchema);
 }
 
 /**
@@ -111,12 +122,12 @@ export function createAiSdkApplyPatchTool<C = unknown>(
   options: CreateAiSdkApplyPatchToolOptions<C>,
 ): AiSdkMutationTool<C> {
   checkOptions(options, "apply_patch");
-  const { signature = defaultPatchSignature(), ...deps } = options;
+  const { signature = defaultPatchSignature(), contextSchema, ...deps } = options;
   const applyPatch = createApplyPatchTool<ToolExecutionOptions<C>>({
     ...deps,
     messages: { ...writeSignatureMessages(signature), ...deps.messages },
   });
-  return adaptMutationTool(signature, applyPatch, parseApplyPatchInput, deps.limits);
+  return adaptMutationTool(signature, applyPatch, parseApplyPatchInput, deps.limits, contextSchema);
 }
 
 function checkOptions(options: unknown, tool: string): void {
@@ -134,6 +145,7 @@ export function adaptMutationTool<TInput, C>(
   tool: BuiltMutationTool<C>,
   parse: (input: TInput, limits: Readonly<WriteLimits>) => unknown,
   limitOverrides: Partial<WriteLimits> | undefined,
+  contextSchema?: FlexibleSchema<C>,
 ): AiSdkMutationTool<C> {
   const limits = resolveWriteLimits(limitOverrides);
   const strict = toStrictSchema(signature.schema, signature.name);
@@ -165,5 +177,6 @@ export function adaptMutationTool<TInput, C>(
       return tool(signature.toInput(fromStrictInput(signature.schema, input)) as never, call);
     },
     toModelOutput: ({ output }) => toAiSdkOutput(output),
+    ...(contextSchema === undefined ? {} : { contextSchema }),
   });
 }

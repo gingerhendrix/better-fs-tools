@@ -1,4 +1,4 @@
-import type { ToolExecutionOptions } from "ai";
+import type { FlexibleSchema, ToolExecutionOptions } from "ai";
 
 import type {
   Clock,
@@ -97,6 +97,11 @@ export interface CreateAiSdkFsToolsOptions<C = unknown> {
   readonly locks?: LockManager;
   /** Defaults to () => new Date(). */
   readonly clock?: Clock;
+  /**
+   * Checks the `toolsContext` entry of each tool. The AI SDK validates the
+   * context with it before `execute`. Every tool of the bundle gets the same schema.
+   */
+  readonly contextSchema?: FlexibleSchema<C>;
   readonly read?: AiSdkFsToolsReadOptions<C>;
   readonly edit?: AiSdkFsToolsEditOptions<C>;
   readonly write?: AiSdkFsToolsWriteOptions<C>;
@@ -142,6 +147,7 @@ const KNOWN: ReadonlySet<string> = new Set([
   "digest",
   "locks",
   "clock",
+  "contextSchema",
   "read",
   "edit",
   "write",
@@ -189,6 +195,7 @@ export function createAiSdkFsTools<C = unknown>(
   options: CreateAiSdkFsToolsOptions<C>,
 ): AiSdkFsTools<C> {
   checkOptions(options);
+  const { contextSchema } = options;
   const { signature: readSignature = defaultReadSignature(), ...read } = options.read ?? {};
   const { signature: editGiven, ...edit } = options.edit ?? {};
   const editSignature = editGiven ?? defaultEditSignature(matchersOf(edit.matchers));
@@ -248,9 +255,15 @@ export function createAiSdkFsTools<C = unknown>(
   });
 
   const adapted = {
-    read: adaptReadTool<C>(readSignature, core.read, read.limits),
-    edit: adaptMutationTool(editSignature, core.edit, parseEditInput, edit.limits),
-    write: adaptMutationTool(writeSignature, core.write, parseWriteInput, write.limits),
+    read: adaptReadTool<C>(readSignature, core.read, read.limits, contextSchema),
+    edit: adaptMutationTool(editSignature, core.edit, parseEditInput, edit.limits, contextSchema),
+    write: adaptMutationTool(
+      writeSignature,
+      core.write,
+      parseWriteInput,
+      write.limits,
+      contextSchema,
+    ),
     applyPatch:
       patch === null || core.applyPatch === null
         ? null
@@ -259,11 +272,12 @@ export function createAiSdkFsTools<C = unknown>(
             core.applyPatch,
             parseApplyPatchInput,
             patch.deps.limits,
+            contextSchema,
           ),
     bash:
       bash === null || core.bash === null
         ? null
-        : adaptBashTool<C>(bash.signature, core.bash, bash.deps.limits),
+        : adaptBashTool<C>(bash.signature, core.bash, bash.deps.limits, contextSchema),
   };
   const tools: Record<string, AiSdkReadTool<C> | AiSdkMutationTool<C> | AiSdkBashTool<C>> = {};
   for (const tool of Object.values(adapted)) {

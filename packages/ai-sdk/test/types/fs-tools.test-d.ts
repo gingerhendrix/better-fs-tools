@@ -1,4 +1,5 @@
-import type { ToolSet } from "ai";
+import { generateText } from "ai";
+import type { LanguageModel, ToolSet } from "ai";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { memoryStore } from "@better-fs-tools/read";
@@ -29,3 +30,20 @@ export const withState = createAiSdkFsTools({ fs, state: memoryStore() });
 createAiSdkReadTool({ fs, state: memoryStore() });
 // @ts-expect-error: a state needs a digest.
 createAiSdkEditTool({ fs, state: memoryStore() });
+
+// A typed context reaches the AI SDK types, so generateText takes a matching toolsContext.
+declare const model: LanguageModel;
+const typed = createAiSdkFsTools<{ root: string }>({ fs });
+export const withContext: Promise<unknown> = generateText({
+  model,
+  prompt: "",
+  tools: typed.tools,
+  toolsContext: { read: { root: "/work" } },
+});
+generateText({
+  model,
+  prompt: "",
+  tools: { read: typed.read },
+  // @ts-expect-error: root must be a string.
+  toolsContext: { read: { root: 1 } },
+});
