@@ -1,0 +1,100 @@
+---
+title: Get started
+description: Choose the packages, install them, and run a first example with createNodeFsTools().
+---
+
+## The packages
+
+All packages release together at one version. Install matching versions.
+
+| Package                                | Use it for                                                                               |
+| -------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `@better-fs-tools/read`                | The `read` tool: a bounded file reader for agent tools                                   |
+| `@better-fs-tools/write`               | The `edit`, `write`, and `apply_patch` tools on one mutation core, and `createFsTools()` |
+| `@better-fs-tools/shell`               | The `bash` tool: a small run core with hooks and defaults                                |
+| `@better-fs-tools/fs`                  | The filesystem contract, POSIX path helpers, a memory filesystem, and conformance suites |
+| `@better-fs-tools/node`                | The Node filesystem, a SHA-256 digest, a bash runner, and `createNodeFsTools()`          |
+| `@better-fs-tools/ai-sdk`              | The read, write, and bash tools for AI SDK 7                                             |
+| `@better-fs-tools/pi`                  | The read, write, and bash tools, and an extension, for the Pi coding agent               |
+| `@better-fs-tools/cloudflare-shell`    | A readable and writable filesystem over a Cloudflare Shell Workspace                     |
+| `@better-fs-tools/cloudflare-computer` | A readable and writable filesystem over a Cloudflare Computer workspace (experimental)   |
+| `@better-fs-tools/just-bash`           | A readable and writable filesystem and a bash command runner over just-bash              |
+
+## Install
+
+For local tools on Node 24 or later, or on Bun:
+
+```sh
+npm install @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write
+```
+
+For an agent host, add its package and its peers:
+
+```sh
+# AI SDK 7. The peer is ai ^7.0.77.
+npm install @better-fs-tools/ai-sdk @better-fs-tools/read @better-fs-tools/write ai
+
+# Pi. The peers are @earendil-works/pi-coding-agent ^0.84.2 and typebox ^1.3.16.
+npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-coding-agent typebox
+```
+
+The AI SDK package needs a filesystem package too, for example `@better-fs-tools/node` or `@better-fs-tools/cloudflare-shell`.
+
+## A first example
+
+`createNodeFsTools()` from `@better-fs-tools/node` creates `read`, `edit`, and `write` over one Node filesystem rooted at `process.cwd()`. The tools share one SHA-256 digest and one lock manager. This example also sets two options:
+
+- `state: memoryStore()` turns on read before write. Without it, `edit` and `write` change files that the model has not read.
+- `protectPaths()` refuses changes to `AGENTS.md`, `CLAUDE.md`, and the `.git` folder.
+
+```ts
+import { createNodeFsTools } from "@better-fs-tools/node";
+import { memoryStore, textOf } from "@better-fs-tools/read";
+import { protectPaths } from "@better-fs-tools/write";
+
+// read, edit, and write over one nodeFileSystem rooted at process.cwd().
+// memoryStore() turns on read before write.
+const tools = createNodeFsTools({
+  state: memoryStore(),
+  edit: { authorize: protectPaths() },
+  write: { authorize: protectPaths() },
+});
+
+const created = await tools.write({ path: "config.ts", content: "export const a = 1;\n" });
+console.log(textOf(created));
+
+const read = await tools.read({ path: "config.ts" });
+console.log(textOf(read));
+
+const edited = await tools.edit({
+  path: "config.ts",
+  edits: [{ oldText: "a = 1", newText: "a = 2" }],
+});
+console.log(textOf(edited));
+```
+
+Run it in an empty folder. It prints the text that the model sees:
+
+```text
+Created config.ts (1 line).
+1|export const a = 1;
+Edited config.ts: 1 replacement at line 1.
+```
+
+`config.ts` now contains `export const a = 2;`.
+
+With the same tools, an edit of a file that the model has not read, and a write to `AGENTS.md`, return `status: "error"`:
+
+```text
+[edit:not-read] Read notes.txt with the read tool before changing it.
+[write:denied] AGENTS.md was refused by policy (the path is protected).
+```
+
+`apply_patch` and `bash` are off by default. Set `applyPatch: true` or `bash: true` to add them. `tools.invalidate(path)` makes the next change to `path` need a new read, for example after a shell command changed the file.
+
+## Where next
+
+- [One bundle for all tools](/guides/one-bundle): which bundle to use, and the defaults of each host
+- [AI SDK](/hosts/ai-sdk) and [Pi](/hosts/pi): give the tools to an agent
+- [Backends](/backends): the Node, memory, just-bash, and Cloudflare filesystems
+- [Read tool](/guides/read), [write tools](/guides/write), and [bash tool](/guides/bash): every option
