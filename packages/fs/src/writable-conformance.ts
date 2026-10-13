@@ -5,6 +5,7 @@ import type {
   Precondition,
   StatOutcome,
   WritableFileSystem,
+  MutationErrorReason,
   WriteOptions,
 } from "./writable.ts";
 
@@ -13,9 +14,12 @@ export interface WritableConformanceFixtures {
   readonly scratchDirectory: string;
   /** A directory the suite must refuse as a write target. Default: scratchDirectory. */
   readonly directoryPath?: string;
-  /** A path the adapter's policy refuses for writing. */
+  /** A path the adapter's policy refuses for writing. The refusal may also give read-only. */
   readonly refusedPath?: string;
 }
+
+/** Write refusals add read-only to the read policy reasons. */
+const WRITE_POLICY_REASONS: readonly MutationErrorReason[] = [...POLICY_REASONS, "read-only"];
 
 const ENCODER = new TextEncoder();
 const ANY: Precondition = { kind: "any" };
@@ -212,7 +216,7 @@ export async function runWritableFileSystemConformance(
     await check("a refused path gives a policy reason", async () => {
       const outcome = await write(refusedPath, "x\n", ANY);
       if (outcome.ok) return "a refused path was written";
-      return (POLICY_REASONS as readonly string[]).includes(outcome.error.reason)
+      return WRITE_POLICY_REASONS.includes(outcome.error.reason)
         ? null
         : `reason was ${outcome.error.reason}`;
     });

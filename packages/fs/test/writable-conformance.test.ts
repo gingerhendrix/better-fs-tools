@@ -128,6 +128,37 @@ describe("runWritableFileSystemConformance", () => {
     expect(failed(report)).toContain("stat of an existing file matches open().info.version");
   });
 
+  function refusingAt(prefix: string, reason: "read-only" | "io"): WritableFileSystem {
+    const fs = memoryFixture({ directories: ["/work", "/locked"] });
+    return {
+      ...fs,
+      write: (path, bytes, options) =>
+        path.startsWith(prefix)
+          ? Promise.resolve({ ok: false, error: { reason } })
+          : fs.write(path, bytes, options),
+    };
+  }
+
+  test("a refused path that gives read-only passes the policy check", async () => {
+    const report = await runWritableFileSystemConformance(refusingAt("/locked/", "read-only"), {
+      scratchDirectory: "/work",
+      refusedPath: "/locked/x.txt",
+    });
+    expect(failed(report)).toEqual([]);
+    expect(report.checks.map((check) => check.name)).toContain(
+      "a refused path gives a policy reason",
+    );
+  });
+
+  test("a refused path that gives a reason outside policy fails", async () => {
+    const report = await runWritableFileSystemConformance(refusingAt("/locked/", "io"), {
+      scratchDirectory: "/work",
+      refusedPath: "/locked/x.txt",
+    });
+    expect(failed(report)).toEqual(["a refused path gives a policy reason"]);
+    expect(report.checks.find((check) => !check.ok)?.detail).toBe("reason was io");
+  });
+
   test("a read-only adapter fails the create check", async () => {
     const report = await runWritableFileSystemConformance(
       memoryFixture({ readOnly: true }),
