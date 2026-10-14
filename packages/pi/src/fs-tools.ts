@@ -18,6 +18,7 @@ import type {
   PiMutationOptions,
   PiMutationTool,
 } from "./mutation-tools.ts";
+import { piMutationQueueLocks } from "./locks.ts";
 import { checkPiOptions, PI_ROOT_KEYS, piFileSystems } from "./roots.ts";
 import type { PiRootOptions } from "./roots.ts";
 import { adaptPiReadTool, piReadDeps, piReadParts } from "./tool.ts";
@@ -43,7 +44,7 @@ export interface CreatePiFsToolsOptions extends PiRootOptions {
   readonly state?: ReadStateStore | null;
   /** Default nodeDigest(). */
   readonly digest?: Digest;
-  /** Default memoryLocks(). */
+  /** Default piMutationQueueLocks(): Pi's own per-file queue, shared with Pi's edit and write. */
   readonly locks?: LockManager;
   /** Default () => new Date(). */
   readonly clock?: Clock;
@@ -174,7 +175,7 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
     fs,
     digest: options.digest ?? nodeDigest(),
     ...(options.state === undefined ? {} : { state: options.state }),
-    ...(options.locks === undefined ? {} : { locks: options.locks }),
+    locks: options.locks ?? piMutationQueueLocks(),
     ...(options.clock === undefined ? {} : { clock: options.clock }),
     read: { ...read, ...piReadDeps(parts.read) },
     edit: { ...edit, messages: parts.edit.messages },

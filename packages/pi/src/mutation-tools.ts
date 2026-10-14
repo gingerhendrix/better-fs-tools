@@ -31,6 +31,7 @@ import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
 import { PI_PATCH_ANNOTATIONS, PI_WRITE_ANNOTATIONS } from "./results.ts";
 import type { PiToolAnnotations } from "./results.ts";
+import { piMutationQueueLocks } from "./locks.ts";
 import { checkPiContext, checkPiOptions, piFileSystems } from "./roots.ts";
 import type { PiRootOptions } from "./roots.ts";
 
@@ -177,12 +178,16 @@ export function createPiEditTool(options: CreatePiEditToolOptions = {}): PiMutat
   const fs = piFileSystems({ denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode });
   const made = piEditParts(options);
   const { messages } = made;
+  const locks = deps.locks ?? piMutationQueueLocks();
   // digest: null narrows the options to the branch without a state.
   if (deps.digest === null) {
-    return adaptPiMutationTool(made, createEditTool({ ...deps, fs, messages, digest: null }));
+    return adaptPiMutationTool(
+      made,
+      createEditTool({ ...deps, fs, locks, messages, digest: null }),
+    );
   }
   const digest = deps.digest ?? nodeDigest();
-  return adaptPiMutationTool(made, createEditTool({ ...deps, fs, messages, digest }));
+  return adaptPiMutationTool(made, createEditTool({ ...deps, fs, locks, messages, digest }));
 }
 
 /** Creates a Pi write tool, as createPiEditTool. `details` is always undefined, as for Pi's own write. */
@@ -202,11 +207,15 @@ export function createPiWriteTool(options: CreatePiWriteToolOptions = {}): PiMut
   const fs = piFileSystems({ denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode });
   const made = piWriteParts(options);
   const { messages } = made;
+  const locks = deps.locks ?? piMutationQueueLocks();
   if (deps.digest === null) {
-    return adaptPiMutationTool(made, createWriteTool({ ...deps, fs, messages, digest: null }));
+    return adaptPiMutationTool(
+      made,
+      createWriteTool({ ...deps, fs, locks, messages, digest: null }),
+    );
   }
   const digest = deps.digest ?? nodeDigest();
-  return adaptPiMutationTool(made, createWriteTool({ ...deps, fs, messages, digest }));
+  return adaptPiMutationTool(made, createWriteTool({ ...deps, fs, locks, messages, digest }));
 }
 
 /** Creates a Pi apply_patch tool, as createPiEditTool. A grammar signature sets constrainedSampling. */
@@ -228,11 +237,15 @@ export function createPiApplyPatchTool(
   const fs = piFileSystems({ denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode });
   const made = piApplyPatchParts(options);
   const { messages } = made;
+  const locks = deps.locks ?? piMutationQueueLocks();
   if (deps.digest === null) {
-    return adaptPiMutationTool(made, createApplyPatchTool({ ...deps, fs, messages, digest: null }));
+    return adaptPiMutationTool(
+      made,
+      createApplyPatchTool({ ...deps, fs, locks, messages, digest: null }),
+    );
   }
   const digest = deps.digest ?? nodeDigest();
-  return adaptPiMutationTool(made, createApplyPatchTool({ ...deps, fs, messages, digest }));
+  return adaptPiMutationTool(made, createApplyPatchTool({ ...deps, fs, locks, messages, digest }));
 }
 
 export function adaptPiMutationTool(made: PiMutationParts, tool: Core): PiMutationTool {
