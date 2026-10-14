@@ -1,6 +1,6 @@
 {
   "name": "@better-fs-tools/shell",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A bash tool for TypeScript agents: a small run core with hooks and defaults.",
   "license": "MIT",
   "repository": {
