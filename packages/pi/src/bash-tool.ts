@@ -13,6 +13,8 @@ import type { BashSignature } from "@better-fs-tools/shell/signature";
 
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
+import { PI_BASH_OUTPUT_SCHEMA, toPiBashOutput } from "./results.ts";
+import type { PiBashOutput } from "./results.ts";
 import { checkPiContext, checkPiOptions } from "./roots.ts";
 
 const PI_BUILTIN_BASH_PROMPT_SNIPPET = "Execute bash commands (ls, grep, find, etc.)";
@@ -45,6 +47,14 @@ export interface PiBashDetails {
 export interface PiBashToolResult {
   content: PiContentPart[];
   details: PiBashDetails | undefined;
+  /**
+   * Pi's bash output for codemode scripts, when the command ended by itself
+   * with an exit code. Absent for a timeout, an abort, or an error, so a script
+   * gets a rejection, as with Pi's own bash.
+   */
+  structuredContent?: PiBashOutput;
+  /** true for a nonzero exit, a timeout, and an error, as Pi's own bash. */
+  isError: boolean;
 }
 
 /** Assignable to ToolDefinition<TSchema, PiBashDetails | undefined> from Pi 1.x. */
@@ -56,6 +66,8 @@ export interface PiBashTool {
   readonly promptGuidelines: string[];
   /** The JSON Schema of the tool input. */
   readonly parameters: TSchema;
+  /** Pi's own bash output schema: output, truncated, full_output_path, exit_code, wall_time_seconds. */
+  readonly outputSchema: TSchema;
   execute(
     toolCallId: string,
     input: JsonObject,
@@ -104,6 +116,7 @@ export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashT
     promptSnippet,
     promptGuidelines: [...promptGuidelines],
     parameters: Type.Unsafe(signature.schema),
+    outputSchema: PI_BASH_OUTPUT_SCHEMA,
     async execute(toolCallId, input, signal, _onUpdate, ctx) {
       checkPiContext(ctx, "bash");
       if (!isAbsolute(ctx.cwd))
@@ -115,9 +128,12 @@ export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashT
       };
       const result = await bash(signature.toInput(input), call);
       const spill = result.output?.spill ?? null;
+      const structured = toPiBashOutput(result);
       return {
         content: result.content.map((part) => toPiPart(part, "bash")),
         details: spill === null ? undefined : { fullOutputPath: spill },
+        ...(structured === undefined ? {} : { structuredContent: structured }),
+        isError: result.status !== "ok",
       };
     },
   });

@@ -82,8 +82,23 @@ export default function readExtension(pi: ExtensionAPI): void {
 - `fs`, `cwd`, and `allowedRoots` throw `TypeError`, as for the read tool. Writes go through `nodeFileSystem` with `ctx.cwd` as the only allowed root, and `hardLinks: "in-place"` by default: a file with more than one hard link is written through the link, not atomically. `hardLinks: "refuse"` fails that write with `DENIED`. `newFileMode` and `newDirectoryMode` set the modes of new files and directories exactly. Without them, a new file is `0o666` and a new directory `0o777`, less the process umask.
 - The default signatures follow Pi's own tools: `edit` takes `path` and `edits: [{ oldText, newText }]` (`multiEditSignature({ name: "edit" })`), and `write` takes `path` and `content`. Their prompt snippets and guidelines are Pi's own, so the system prompt stays the same. `apply_patch` uses `freeformPatchSignature()`: models with grammar-tool support get the Codex patch grammar, and other models get the JSON schema.
 - `edit` and `apply_patch` return `details` in the shape of Pi's `EditToolDetails` (`diff`, `patch`, `firstChangedLine`), so Pi's edit renderer draws the diff. `toPiMutationDetails()` builds them for your own tool. `write` returns no details, as Pi's own `write` does.
-- A tool error becomes Pi content text. The tool does not throw for a tool error.
+- A tool error becomes Pi content text with `isError: true`. The tool does not throw for a tool error. Pi shows the text as an error, and `tool_result` handlers see `isError: true`.
 - Pi's `edit` guideline says the old text must match exactly. The tool also accepts close matches, and the result says when it used one.
+
+## Results and hints
+
+Each tool sets the Pi 1.x tool fields that Pi's own tools set, and a few more:
+
+| Tool                  | `isError`                                      | `outputSchema` and `structuredContent`                                                            | `annotations`                                                            |
+| --------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `read`                | `true` for status `error`                      | Pi's own read schema: the text, or `{ type: "image", data, mimeType, note }`                      | `readOnlyHint: true`                                                     |
+| `edit`, `apply_patch` | `true` for status `error`                      | None, as Pi's own `edit`. Codemode scripts get the text                                           | `destructiveHint: true`, `idempotentHint: false`, `openWorldHint: false` |
+| `write`               | `true` for status `error`                      | None, as Pi's own `write`                                                                         | As `edit`, with `idempotentHint: true`                                   |
+| `bash`                | `true` for a nonzero exit, a timeout, an error | Pi's own bash schema: `output`, `truncated`, `full_output_path`, `exit_code`, `wall_time_seconds` | None                                                                     |
+
+A failed `read` has no `structuredContent`, so a codemode script that calls it gets a rejection, as with Pi's own `read`. A `bash` command that exits with a nonzero code keeps its `structuredContent`, so the script gets the exit code. A timeout or an abort has none. `structuredContent.output` is the output that the tool kept: the head and the tail, with Pi's `[... N bytes omitted ...]` marker between them.
+
+Permission extensions read `annotations` from `pi.getAllTools()`. The hints are not checked.
 
 ## Bash tool
 

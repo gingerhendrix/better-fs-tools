@@ -213,7 +213,7 @@ describe("pi write tools: execute", () => {
     }
   });
 
-  test("a tool error is content text with no details, not a throw", async () => {
+  test("a tool error is content text with isError and no details, not a throw", async () => {
     const cwd = await fixture({ "a.txt": "a\na\n" });
     const result = await run(
       createPiEditTool({ signature: defaultEditSignature() }),
@@ -224,6 +224,7 @@ describe("pi write tools: execute", () => {
       "[edit:ambiguous-match] Edit 1: the old_string matches 2 places in a.txt (lines 1, 2). Add surrounding lines to make it unique, or set replace_all.",
     );
     expect(result.details).toBeUndefined();
+    expect(result.isError).toBe(true);
   });
 
   test("the multi-edit default does not suggest a replaceAll it lacks", async () => {

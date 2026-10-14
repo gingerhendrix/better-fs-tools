@@ -29,6 +29,8 @@ import { toPiMutationDetails } from "./mutation-details.ts";
 import type { PiMutationDetails } from "./mutation-details.ts";
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
+import { PI_PATCH_ANNOTATIONS, PI_WRITE_ANNOTATIONS } from "./results.ts";
+import type { PiToolAnnotations } from "./results.ts";
 import { checkPiContext, checkPiOptions, piFileSystems } from "./roots.ts";
 import type { PiRootOptions } from "./roots.ts";
 
@@ -79,6 +81,8 @@ export type CreatePiApplyPatchToolOptions = Omit<ApplyPatchToolDeps<ExtensionCon
 export interface PiMutationToolResult {
   content: PiContentPart[];
   details: PiMutationDetails | undefined;
+  /** true when the change failed (status "error"). Pi then shows the content as an error. */
+  isError: boolean;
 }
 
 /** Assignable to ToolDefinition<TSchema, PiMutationDetails | undefined> from Pi 1.x. */
@@ -92,6 +96,8 @@ export interface PiMutationTool {
   readonly parameters: TSchema;
   /** Set when the signature has a grammar. */
   readonly constrainedSampling?: { type: "grammar"; variants: { openai_lark: string } };
+  /** destructiveHint: true. idempotentHint is true for write only. */
+  readonly annotations: PiToolAnnotations;
   execute(
     toolCallId: string,
     input: JsonObject,
@@ -240,6 +246,7 @@ export function adaptPiMutationTool(made: PiMutationParts, tool: Core): PiMutati
     promptSnippet,
     promptGuidelines: [...promptGuidelines],
     parameters: Type.Unsafe(signature.schema),
+    annotations: { ...(toolName === "write" ? PI_WRITE_ANNOTATIONS : PI_PATCH_ANNOTATIONS) },
     ...(grammar === undefined
       ? {}
       : {
@@ -256,6 +263,7 @@ export function adaptPiMutationTool(made: PiMutationParts, tool: Core): PiMutati
       return {
         content: result.content.map((part) => toPiPart(part, toolName)),
         details: withDetails ? toPiMutationDetails(result) : undefined,
+        isError: result.status === "error",
       };
     },
   });

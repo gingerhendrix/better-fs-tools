@@ -31,6 +31,8 @@ import { toPiReadDetails } from "./details.ts";
 import type { PiReadDetails } from "./details.ts";
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
+import { PI_READ_ANNOTATIONS, PI_READ_OUTPUT_SCHEMA, toPiReadOutput } from "./results.ts";
+import type { PiReadOutput, PiToolAnnotations } from "./results.ts";
 import { checkPiContext, checkPiOptions, piFileSystems } from "./roots.ts";
 
 export type { PiContentPart } from "./parts.ts";
@@ -66,6 +68,10 @@ export type CreatePiReadToolOptions = Omit<ReadToolDeps<ExtensionContext>, "fs">
 export interface PiReadToolResult {
   content: PiContentPart[];
   details: PiReadDetails;
+  /** Pi's read output for codemode scripts. Absent on an error, so a script gets a rejection. */
+  structuredContent?: PiReadOutput;
+  /** true when the read failed (status "error"). Pi then shows the content as an error. */
+  isError: boolean;
 }
 
 /** Assignable to ToolDefinition<TSchema, PiReadDetails> from Pi 1.x. */
@@ -77,6 +83,10 @@ export interface PiReadTool {
   readonly promptGuidelines: string[];
   /** The JSON Schema of the tool input. */
   readonly parameters: TSchema;
+  /** Pi's own read output schema: the text, or an image with the text as its note. */
+  readonly outputSchema: TSchema;
+  /** readOnlyHint: true. */
+  readonly annotations: PiToolAnnotations;
   execute(
     toolCallId: string,
     input: JsonObject,
@@ -166,6 +176,8 @@ export function adaptPiReadTool(
     promptSnippet,
     promptGuidelines: [...promptGuidelines],
     parameters: Type.Unsafe(signature.schema),
+    outputSchema: PI_READ_OUTPUT_SCHEMA,
+    annotations: { ...PI_READ_ANNOTATIONS },
     async execute(toolCallId, input, signal, _onUpdate, ctx) {
       checkPiContext(ctx, "read");
       const call: ReadContext<ExtensionContext> = {
@@ -174,14 +186,14 @@ export function adaptPiReadTool(
         host: ctx,
       };
       const result = await read(signature.toInput(input), call);
-      return {
-        content: result.content.map((part) => toPiPart(part, "read")),
-        details: toPiReadDetails(
-          result,
-          viewOf(formatter, result, { digest, limits, mode: "view", call }),
-          limits.maxViewBytes,
-        ),
-      };
+      const content = result.content.map((part) => toPiPart(part, "read"));
+      const details = toPiReadDetails(
+        result,
+        viewOf(formatter, result, { digest, limits, mode: "view", call }),
+        limits.maxViewBytes,
+      );
+      if (result.status === "error") return { content, details, isError: true };
+      return { content, details, structuredContent: toPiReadOutput(content), isError: false };
     },
   });
 }
