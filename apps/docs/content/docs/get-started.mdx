@@ -16,6 +16,7 @@ All packages release together at one version. Install matching versions.
 | `@better-fs-tools/node`                | The Node filesystem, a SHA-256 digest, a bash runner, and `createNodeFsTools()`          |
 | `@better-fs-tools/ai-sdk`              | The read, write, and bash tools for AI SDK 7                                             |
 | `@better-fs-tools/pi`                  | The read, write, and bash tools, and an extension, for the Pi coding agent               |
+| `@better-fs-tools/pi-durable`          | The read, write, and bash tools for the Pi durable harness (experimental)                |
 | `@better-fs-tools/cloudflare-shell`    | A readable and writable filesystem over a Cloudflare Shell Workspace                     |
 | `@better-fs-tools/cloudflare-computer` | A readable and writable filesystem over a Cloudflare Computer workspace (experimental)   |
 | `@better-fs-tools/just-bash`           | A readable and writable filesystem and a bash command runner over just-bash              |
@@ -37,7 +38,7 @@ For an agent host, add its package and its peers:
 # AI SDK 7. The peer is ai ^7.0.77.
 npm install @better-fs-tools/ai-sdk @better-fs-tools/read @better-fs-tools/write ai
 
-# Pi. The peers are @earendil-works/pi-coding-agent ^0.84.2 and typebox ^1.3.16.
+# Pi. The peers are @earendil-works/pi-coding-agent ^1.0.0 and typebox ^1.3.16.
 npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-coding-agent typebox
 ```
 
