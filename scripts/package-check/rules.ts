@@ -32,6 +32,16 @@ export const RULES: Readonly<Record<string, PackageRule>> = {
     node: true,
     extraFiles: [],
   },
+  "pi-durable": {
+    dependencies: ["fs", "read", "write", "shell"],
+    peers: {
+      "@earendil-works/chord": "~1.2.0",
+      "@earendil-works/pi-durable": "~1.2.0",
+      typebox: "^1.3.16",
+    },
+    node: false,
+    extraFiles: [],
+  },
   "cloudflare-shell": { dependencies: ["fs"], peers: {}, node: false, extraFiles: [] },
   "cloudflare-computer": { dependencies: ["fs"], peers: {}, node: false, extraFiles: [] },
   "just-bash": {
@@ -51,6 +61,7 @@ export const RUNTIME_NEUTRAL = [
   "cloudflare-shell",
   "cloudflare-computer",
   "just-bash",
+  "pi-durable",
 ];
 
 /** Export entries that are empty on purpose. The Node consumer fails if a listed entry exports something. */

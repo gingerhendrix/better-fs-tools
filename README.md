@@ -14,7 +14,8 @@ The documentation site is deployed at [better-fs-tools.gandrew.com](https://bett
 | [`@better-fs-tools/fs`](packages/fs)                                   | The read and write filesystem contract, a memory filesystem, and suites                  |
 | [`@better-fs-tools/node`](packages/node)                               | The Node filesystem, a SHA-256 digest, a bash runner, and `createNodeFsTools()`          |
 | [`@better-fs-tools/ai-sdk`](packages/ai-sdk)                           | The read, write, and bash tools for AI SDK 7                                             |
-| [`@better-fs-tools/pi`](packages/pi)                                   | The read, write, and bash tools and extension for the Pi coding agent                    |
+| [`@better-fs-tools/pi`](packages/pi)                                   | The read, write, and bash tools and extension for the Pi coding agent and pi-agent-core  |
+| [`@better-fs-tools/pi-durable`](packages/pi-durable)                   | The read, write, and bash tools for the Pi durable harness (experimental)                |
 | [`@better-fs-tools/cloudflare-shell`](packages/cloudflare-shell)       | A writable filesystem over a Cloudflare Shell Workspace                                  |
 | [`@better-fs-tools/cloudflare-computer`](packages/cloudflare-computer) | A writable filesystem over a Cloudflare Computer workspace (experimental)                |
 | [`@better-fs-tools/just-bash`](packages/just-bash)                     | A writable filesystem and a bash runner over just-bash                                   |

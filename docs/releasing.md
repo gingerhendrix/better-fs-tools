@@ -1,6 +1,6 @@
 # Releasing Better FS Tools
 
-[Tegami](https://tegami.fuma-nama.dev) versions and publishes the ten `@better-fs-tools/*` packages. All ten share one version. `scripts/tegami.mts` holds the configuration, and the package list comes from `scripts/package-check/rules.ts`.
+[Tegami](https://tegami.fuma-nama.dev) versions and publishes the eleven `@better-fs-tools/*` packages. All eleven share one version. `scripts/tegami.mts` holds the configuration, and the package list comes from `scripts/package-check/rules.ts`.
 
 ## Add a release note
 
@@ -23,7 +23,7 @@ packages:
 `read` now returns an empty page when the offset is past the last line.
 ```
 
-Use `patch`, `minor`, or `major`. The packages share a version, so a note for one package bumps all ten. Use `"group:better-fs-tools"` when the note is about every package.
+Use `patch`, `minor`, or `major`. The packages share a version, so a note for one package bumps all eleven. Use `"group:better-fs-tools"` when the note is about every package.
 
 Do not edit package versions or create release tags by hand.
 

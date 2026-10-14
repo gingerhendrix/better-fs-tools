@@ -10,6 +10,7 @@
     { "path": "./packages/just-bash" },
     { "path": "./packages/node" },
     { "path": "./packages/pi" },
+    { "path": "./packages/pi-durable" },
     { "path": "./packages/read" },
     { "path": "./packages/shell" },
     { "path": "./packages/write" },

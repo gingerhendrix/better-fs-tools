@@ -1,0 +1,45 @@
+{
+  "name": "@better-fs-tools/pi-durable",
+  "version": "0.2.0",
+  "description": "The Better FS Tools read, edit, write, apply_patch, and bash tools for the experimental Pi durable harness, over its execution environment.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gingerhendrix/better-fs-tools.git",
+    "directory": "packages/pi-durable"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "dependencies": {
+    "@better-fs-tools/fs": "workspace:^",
+    "@better-fs-tools/read": "workspace:^",
+    "@better-fs-tools/shell": "workspace:^",
+    "@better-fs-tools/write": "workspace:^"
+  },
+  "devDependencies": {
+    "@earendil-works/chord": "catalog:",
+    "@earendil-works/pi-ai": "catalog:",
+    "@earendil-works/pi-durable": "catalog:",
+    "typebox": "catalog:"
+  },
+  "peerDependencies": {
+    "@earendil-works/chord": "catalog:",
+    "@earendil-works/pi-durable": "catalog:",
+    "typebox": "catalog:"
+  }
+}
