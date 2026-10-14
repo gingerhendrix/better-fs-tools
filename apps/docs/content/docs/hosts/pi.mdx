@@ -140,6 +140,151 @@ export default function singleToolsExtension(pi: ExtensionAPI): void {
 
 `createPiFsTools()` does the same with less code. Use a single factory when you register one tool only.
 
+## Use Pi from code (SDK)
+
+`@earendil-works/pi-coding-agent` is also an SDK. `createAgentSession()` runs the same session as the `pi` command, in your own Node or Bun process. The tools from `createPiFsTools()` work there with no change.
+
+### Replace the built-in tools
+
+Give the tools to `customTools`. A custom tool with the name of a built-in tool replaces that built-in tool, so `read`, `edit`, and `write` replace Pi's own. Pi's own `bash` stays:
+
+```ts
+import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
+import { createPiFsTools } from "@better-fs-tools/pi";
+import { memoryStore } from "@better-fs-tools/read";
+
+const cwd = "/work/repo";
+const tools = createPiFsTools({ state: memoryStore(), applyPatch: true });
+
+// read, edit, and write have the names of Pi's built-in tools, so they replace
+// them. Pi's own bash stays.
+const { session } = await createAgentSession({
+  cwd,
+  sessionManager: SessionManager.inMemory(cwd),
+  customTools: [tools.read, tools.edit, tools.write, tools.applyPatch],
+});
+
+try {
+  await session.prompt("Rename greet() to welcome() in src/greet.ts.");
+} finally {
+  session.dispose();
+}
+```
+
+The active tools of this session are `read`, `bash`, `edit`, `write`, and `apply_patch`.
+
+### Choose the active tools
+
+Three options of `createAgentSession()` choose which tools the model gets:
+
+| Option         | Effect                                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| `tools`        | An allowlist of tool names. Only these tools are active. A custom tool must be in the list too               |
+| `excludeTools` | A list of tool names to turn off. It applies after `tools`                                                   |
+| `noTools`      | `"builtin"` turns off Pi's built-in tools and keeps custom and extension tools. `"all"` starts with no tools |
+
+This session can read and search, but it cannot change files. `read` is the Better FS Tools `read`:
+
+```ts
+import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
+import { createPiFsTools } from "@better-fs-tools/pi";
+
+const cwd = "/work/repo";
+const tools = createPiFsTools();
+
+// A read-only session: the Better FS Tools read, and Pi's grep, find, and ls.
+const { session } = await createAgentSession({
+  cwd,
+  sessionManager: SessionManager.inMemory(cwd),
+  customTools: [tools.read],
+  tools: ["read", "grep", "find", "ls"],
+});
+session.dispose();
+```
+
+### Add hooks and guards with an inline extension
+
+`customTools` only adds tools. To also use Pi events, for example a `tool_call` guard, or a bash `afterRun` hook that calls `invalidate()`, write an extension function. Give it to `DefaultResourceLoader` in `extensionFactories`. Pi loads it as it loads an extension file:
+
+```ts
+import {
+  createAgentSession,
+  DefaultResourceLoader,
+  getAgentDir,
+  isToolCallEventType,
+  SessionManager,
+} from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createPiBashTool, createPiFsTools } from "@better-fs-tools/pi";
+import { memoryStore } from "@better-fs-tools/read";
+
+const cwd = "/work/repo";
+
+function fsToolsExtension(pi: ExtensionAPI): void {
+  const tools = createPiFsTools({ state: memoryStore() });
+  const bash = createPiBashTool({
+    afterRun: [
+      {
+        id: "invalidate-package-json",
+        afterRun: async (_outcome, ctx) => {
+          await tools.invalidate("package.json", ctx.call);
+          return {};
+        },
+      },
+    ],
+  });
+  pi.registerTool(tools.read);
+  pi.registerTool(tools.edit);
+  pi.registerTool(tools.write);
+  pi.registerTool(bash);
+
+  // A guard: Pi calls tool_call handlers before each tool runs.
+  pi.on("tool_call", async (event) => {
+    if (isToolCallEventType("bash", event) && /\bgit\s+push\b/u.test(event.input.command)) {
+      return { block: true, reason: "git push is not allowed in this host" };
+    }
+    return undefined;
+  });
+}
+
+const resourceLoader = new DefaultResourceLoader({
+  cwd,
+  agentDir: getAgentDir(),
+  extensionFactories: [{ name: "better-fs-tools", factory: fsToolsExtension }],
+});
+await resourceLoader.reload();
+
+const { session } = await createAgentSession({
+  cwd,
+  resourceLoader,
+  sessionManager: SessionManager.inMemory(cwd),
+  // Turn off Pi's built-in tools. The extension's tools stay active.
+  noTools: "builtin",
+});
+
+try {
+  await session.prompt("Update the version in package.json to 2.0.0.");
+} finally {
+  session.dispose();
+}
+```
+
+With `noTools: "builtin"`, the active tools are the four tools of the extension. `DefaultResourceLoader` also finds the extension files in your user and project folders, as the `pi` command does. Set `noExtensions: true` to skip the extension files that Pi finds. The inline extensions still load.
+
+### The working directory
+
+The `cwd` of `createAgentSession()` is the `ctx.cwd` of each tool call. The tools use it as their only root. See [Each call uses ctx.cwd](#each-call-uses-ctxcwd). Give the same directory to `createAgentSession()`, to `DefaultResourceLoader`, and to `SessionManager.inMemory()`. One session works in one directory. For a second directory, make a second session.
+
+`SessionManager.inMemory()` keeps the conversation in memory and writes no session file. A `memoryStore()` also keeps its read records in memory only, so each new process starts with no reads.
+
+### Pi versions
+
+The SDK examples on this page compile against Pi 0.84.2 and Pi 1.2.0. The peer range of `@better-fs-tools/pi` is `^0.84.2`, which does not include 1.x. With Pi 1.x installed, `npm install @better-fs-tools/pi` stops with `ERESOLVE`. Add `--legacy-peer-deps` to install it anyway.
+
+Pi 1.x has tool fields that this package does not set yet. See [Not yet in Better FS Tools](#not-yet-in-better-fs-tools).
+
+For a host on `pi-agent-core` without the coding agent, see [Pi agent core](/hosts/pi-agent-core). For the durable harness, see [Pi durable](/hosts/pi-durable).
+
 ## Each call uses ctx.cwd
 
 Pi gives each tool call an `ExtensionContext`. The tools use its `cwd` as the only allowed root of that call. The tool reads and writes through `nodeFileSystem` with `cwd: ctx.cwd` and `allowedRoots: [ctx.cwd]`. When the working directory changes between calls, the root changes too.
@@ -387,9 +532,19 @@ Pass the call to `invalidate(path, call)`. In a bash `afterRun` hook, the call i
 
 With the call, the outcome is `{ ok: true, resolvedPath, recorded }`. `recorded` is `true` when the store had a record for the path. With `state: null`, `recorded` is `false`.
 
+## Not yet in Better FS Tools
+
+These changes are proposals. The published packages do not have them:
+
+- A peer range that includes Pi 1.x.
+- `isError: true` on a tool error. Pi 0.99.0 added this field. Today a tool error is content text, so Pi records the call as a success, and a `tool_result` handler sees `isError: false`.
+- `annotations`, for example `readOnlyHint: true` on `read`, and `outputSchema` with `structuredContent` for codemode scripts.
+- A lock manager that shares Pi's `withFileMutationQueue()`. Today a Better FS Tools `edit` and a Pi tool that change the same file do not wait for each other.
+
 ## See also
 
 - [Read guide](/guides/read) and [write guide](/guides/write): the options under `read`, `edit`, `write`, and `applyPatch`
 - [Bash guide](/guides/bash): the `createPiBashTool()` options
 - [Choose a host](/hosts): the defaults of every host bundle
 - [Node backend](/backends/node): the filesystem that each call uses
+- [Pi agent core](/hosts/pi-agent-core) and [Pi durable](/hosts/pi-durable): the tools in the other Pi libraries
