@@ -1,0 +1,215 @@
+---
+title: Pi agent core
+description: Wrap the read, edit, and write tools as AgentTool objects for an Agent or agentLoop() from @earendil-works/pi-agent-core.
+---
+
+`@earendil-works/pi-agent-core` is the agent loop under the Pi coding agent. It has the `Agent` class and the lower `agentLoop()` function. Its tools are `AgentTool` objects. Use this page when your host runs the agent loop itself, without the coding agent's sessions, settings, and extensions.
+
+Better FS Tools has no `AgentTool` bundle. Each tool takes a few lines of glue, which this page shows. The glue uses only published functions. The examples compile against `pi-agent-core` 1.2.0.
+
+## Why the Pi bundle does not fit
+
+An `AgentTool` gets `execute(toolCallId, params, signal, onUpdate)`. It gets no context object. The tools from `createPiFsTools()` need `ctx.cwd` from the coding agent on every call, so they do not work here.
+
+Use the portable bundles. They take the filesystem when you make them:
+
+- `createNodeFsTools({ cwd })` from `@better-fs-tools/node`, for the local disk.
+- `createFsTools({ fs })` from `@better-fs-tools/write`, for any filesystem. It needs no Node module, so it also runs in a browser or a Worker.
+
+## Install
+
+```sh
+npm install @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-agent-core typebox
+```
+
+## Wrap the tools
+
+A signature gives each tool its model-facing name, description, and JSON Schema. `signature.toInput()` turns the model's arguments into the input of the tool. Pass the signature's messages to the tool too, so that the notes name the parameters that the model sees. See [Use a signature in your own integration](/hosts/tool-definition#use-a-signature-in-your-own-integration).
+
+```ts
+import { Buffer } from "node:buffer";
+
+import type { AgentTool } from "@earendil-works/pi-agent-core";
+import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
+import { createNodeFsTools } from "@better-fs-tools/node";
+import { toPiMutationDetails } from "@better-fs-tools/pi";
+import { memoryStore } from "@better-fs-tools/read";
+import type { ContentPart } from "@better-fs-tools/read";
+import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
+import {
+  defaultWriteSignature,
+  multiEditSignature,
+  writeSignatureMessages,
+} from "@better-fs-tools/write/signature";
+
+const readSignature = defaultReadSignature({ name: "read" });
+const editSignature = multiEditSignature({ name: "edit" });
+const writeSignature = defaultWriteSignature();
+
+// One filesystem, one read store, and one lock manager for the three tools.
+const fsTools = createNodeFsTools({
+  cwd: "/work/repo",
+  state: memoryStore(),
+  read: { messages: readSignatureMessages(readSignature) },
+  edit: { messages: writeSignatureMessages(editSignature) },
+  write: { messages: writeSignatureMessages(writeSignature) },
+});
+
+function toContent(parts: readonly ContentPart[]): (TextContent | ImageContent)[] {
+  return parts.map((part) => {
+    if (part.type === "text") return { type: "text", text: part.text };
+    if (part.mediaType.startsWith("image/")) {
+      const data = Buffer.from(part.data).toString("base64");
+      return { type: "image", data, mimeType: part.mediaType };
+    }
+    return { type: "text", text: `[media omitted] ${part.mediaType}` };
+  });
+}
+
+export const readTool: AgentTool = {
+  name: readSignature.name,
+  label: "Read",
+  description: readSignature.description,
+  parameters: Type.Unsafe(readSignature.schema),
+  async execute(toolCallId, params, signal) {
+    const result = await fsTools.read(readSignature.toInput(params), {
+      callId: toolCallId,
+      signal,
+    });
+    return {
+      content: toContent(result.content),
+      details: undefined,
+      isError: result.status === "error",
+    };
+  },
+};
+
+export const editTool: AgentTool = {
+  name: editSignature.name,
+  label: "Edit",
+  description: editSignature.description,
+  parameters: Type.Unsafe(editSignature.schema),
+  executionMode: "sequential",
+  async execute(toolCallId, params, signal) {
+    const result = await fsTools.edit(editSignature.toInput(params), {
+      callId: toolCallId,
+      signal,
+    });
+    return {
+      content: toContent(result.content),
+      details: toPiMutationDetails(result),
+      isError: result.status === "error",
+    };
+  },
+};
+
+export const writeTool: AgentTool = {
+  name: writeSignature.name,
+  label: "Write",
+  description: writeSignature.description,
+  parameters: Type.Unsafe(writeSignature.schema),
+  executionMode: "sequential",
+  async execute(toolCallId, params, signal) {
+    const result = await fsTools.write(writeSignature.toInput(params), {
+      callId: toolCallId,
+      signal,
+    });
+    return {
+      content: toContent(result.content),
+      details: undefined,
+      isError: result.status === "error",
+    };
+  },
+};
+```
+
+`apply_patch` follows the same pattern. Set `applyPatch: true` on the bundle, and use `defaultPatchSignature()` from `@better-fs-tools/write/signature`.
+
+## Give the tools to the agent
+
+Put the tools in `agent.state.tools`, or in the `tools` of the context that you give to `agentLoop()`. This file imports the glue above from `fs-tools.ts`:
+
+```ts
+import { Agent } from "@earendil-works/pi-agent-core";
+import type { AgentContext } from "@earendil-works/pi-agent-core";
+
+import { editTool, readTool, writeTool } from "./fs-tools.ts";
+
+export function addFsTools(agent: Agent): void {
+  agent.state.tools = [...agent.state.tools, readTool, editTool, writeTool];
+}
+
+// For agentLoop(), put the tools in the context.
+export const context: AgentContext = {
+  messages: [],
+  tools: [readTool, editTool, writeTool],
+};
+```
+
+## Errors
+
+A Better FS Tools tool does not throw for a tool error. It returns a result with `status: "error"` and a message in `content`. The `AgentTool` contract asks for a throw, or for a result with `isError: true`. A failure that is only text in `content` counts as a success.
+
+The glue sets `isError: result.status === "error"`. The model then sees an error result, and an `afterToolCall` hook gets `isError: true`. With the read store on, an edit before a read gives this result:
+
+```json
+{
+  "content": [
+    { "type": "text", "text": "[edit:not-read] Read a.txt with the read tool before changing it." }
+  ],
+  "isError": true
+}
+```
+
+A read can also return `status: "unsupported"`, for example for a binary file or a file that is too large. The content tells the model why the tool did not show the file. The glue does not mark it as an error. Add `result.status === "unsupported"` to `isError` if your hooks must count it as a failure.
+
+## Run order
+
+The agent runs the tool calls of one model response in parallel by default. The tools take one lock for each path, so two writes to the same file wait for each other. `executionMode: "sequential"` on `edit` and `write` makes the agent run the whole batch one call at a time. Set it when the order of the calls must be the order of the model, or when other tools in your host change files too. Leave it out to keep parallel calls.
+
+## Details
+
+`details` go to your UI and your hooks. The model does not see them.
+
+- `toPiMutationDetails(result)` gives `{ diff, patch, firstChangedLine }` for an `edit` or `apply_patch` result, in the shape of the coding agent's edit details. It gives `undefined` for an error or no change.
+- `toPiReadDetails(result, view, maxViewBytes)` gives the read truncation in the shape of the coding agent. It needs the formatted text in `"view"` mode. See [Details for your own tool](/hosts/pi#details-for-your-own-tool).
+
+Both functions are in `@better-fs-tools/pi`. That package has `@earendil-works/pi-coding-agent` as a required peer, so npm also installs the coding agent. Leave `details` as `undefined` if you do not want that package.
+
+## Other filesystems
+
+`createFsTools()` takes any filesystem. The same `AgentTool` glue works over it. This bundle needs no Node module:
+
+```ts
+import { memoryFileSystem } from "@better-fs-tools/fs";
+import { memoryStore } from "@better-fs-tools/read";
+import { createFsTools } from "@better-fs-tools/write";
+
+// No Node APIs: the same AgentTool wrappers work over this bundle.
+export const fsTools = createFsTools({
+  fs: memoryFileSystem({ files: { "/src/index.ts": "export const a = 1;\n" } }),
+  state: memoryStore(),
+});
+```
+
+In a browser, `Agent` can call the model through your server with `streamProxy()`. Use a Cloudflare or just-bash filesystem there. See [Backends](/backends). The `Buffer` in `toContent()` is a Node module. In a browser, encode the image bytes to base64 in another way.
+
+## Use pi-ai only
+
+A host can also call `@earendil-works/pi-ai` directly and run the tools itself. Declare each tool in the request with `name`, `description`, and `parameters`, as in the glue above. For each tool call in the model's answer, call `signature.toInput(toolCall.arguments)` and the tool. Then add a `toolResult` message with the tool's text and `isError: result.status === "error"`. pi-ai only sends and receives the messages. The loop, the parallel calls, and the hooks are yours.
+
+## Not yet in Better FS Tools
+
+These are proposals. The published packages do not have them:
+
+- A `toAgentTool()` helper, or a `createAgentCoreFsTools()` bundle, to replace the glue on this page.
+- `outputSchema` with `structuredContent`, so codemode scripts get the structured result and not the text.
+- A peer range of `@better-fs-tools/pi` that includes Pi 1.x.
+
+## See also
+
+- [Pi](/hosts/pi): the coding agent extension and SDK
+- [Pi durable](/hosts/pi-durable): the tools in the durable harness
+- [Customise the tool definition](/hosts/tool-definition): signatures, names, and descriptions
+- [Choose a host](/hosts): the defaults of every bundle

@@ -1,4 +1,4 @@
 {
   "title": "Hosts",
-  "pages": ["index", "ai-sdk", "pi", "tool-definition"]
+  "pages": ["index", "ai-sdk", "pi", "pi-agent-core", "pi-durable", "tool-definition"]
 }

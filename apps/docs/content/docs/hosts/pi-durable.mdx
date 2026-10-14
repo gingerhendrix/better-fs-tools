@@ -1,0 +1,246 @@
+---
+title: Pi durable
+description: Replace the read, edit, and write tools of the experimental @earendil-works/pi-durable harness with a defineTool() extension over createFsTools().
+---
+
+<Callout type="warn">
+  `@earendil-works/pi-durable` is experimental. Its API can change in each release. This page
+  follows `@earendil-works/pi-durable` 1.2.0. Pin that version, and check this page again before you
+  update.
+</Callout>
+
+`@earendil-works/pi-durable` is a durable agent harness. It is separate from the Pi coding agent. The Harness stores each conversation, each model turn, and each tool call before it shows the result. When the process stops during a turn, the next process opens the same storage and continues the work.
+
+Each tool call is a durable task. The Harness stores the intent of the call before `execute()` runs, and it stores the result before anyone sees it. Tools come in extensions, and a registry holds the extensions.
+
+Better FS Tools has no pi-durable package. This page shows an extension of about 100 lines over the portable bundle `createFsTools()`. It uses only published functions.
+
+## Install
+
+```sh
+npm install @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-durable@1.2.0 @earendil-works/pi-ai@1.2.0 @earendil-works/chord@1.2.0
+```
+
+## How a tool fits
+
+A pi-durable tool is `defineTool({ name, description, parameters, execute })`. `execute(args, api, context)` gets:
+
+- `args`, which the Harness checked against `parameters`.
+- `api`, the `ToolExecutionApi`. `api.env` is the execution environment of the call, built by the `env` option of `Harness.open()` from the conversation's `cwd`. `api.callId` and `api.conversationId` name the call and its conversation.
+- `context`, a Chord `Context`. `context.abortSignal` stops the call.
+
+The result has `output` for the model, and `isError` for a failure.
+
+The recipe reads and writes the local disk with `nodeFileSystem`, at `api.env.cwd`. It does not read files through `api.env`. So it only works with a local `NodeExecutionEnv`, and it refuses other environments. See [What the recipe does not do](#what-the-recipe-does-not-do).
+
+## Write the extension
+
+```ts
+import type { Context } from "@earendil-works/chord/context";
+import { Type } from "@earendil-works/pi-ai";
+import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
+import { defineExtension, defineTool } from "@earendil-works/pi-durable";
+import type { ConversationId, ToolExecutionApi } from "@earendil-works/pi-durable";
+import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import type { NodeFileSystem } from "@better-fs-tools/node";
+import { memoryStore, textOf } from "@better-fs-tools/read";
+import type { ContentPart, ToolCallContext } from "@better-fs-tools/read";
+import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
+import { createFsTools, memoryLocks } from "@better-fs-tools/write";
+import type { FsTools } from "@better-fs-tools/write";
+import {
+  defaultWriteSignature,
+  multiEditSignature,
+  writeSignatureMessages,
+} from "@better-fs-tools/write/signature";
+
+/** The host of each call: the working directory of the call's environment. */
+interface DurableHost {
+  readonly cwd: string;
+}
+
+const readSignature = defaultReadSignature({ name: "read" });
+const editSignature = multiEditSignature({ name: "edit" });
+const writeSignature = defaultWriteSignature();
+
+// One filesystem for each working directory, rooted there.
+const filesystems = new Map<string, NodeFileSystem>();
+function filesystemAt(cwd: string): NodeFileSystem {
+  let fs = filesystems.get(cwd);
+  if (fs === undefined) {
+    fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+    filesystems.set(cwd, fs);
+  }
+  return fs;
+}
+
+// One lock manager for every conversation, so two conversations that change
+// the same file wait for each other.
+const locks = memoryLocks();
+
+// One bundle, with its own read store, for each conversation.
+const bundles = new Map<ConversationId, FsTools<DurableHost>>();
+function toolsFor(conversationId: ConversationId): FsTools<DurableHost> {
+  let tools = bundles.get(conversationId);
+  if (tools === undefined) {
+    tools = createFsTools<DurableHost>({
+      fs: (call) => filesystemAt(call.host.cwd),
+      state: memoryStore(),
+      locks,
+      read: { messages: readSignatureMessages(readSignature) },
+      edit: { messages: writeSignatureMessages(editSignature) },
+      write: { messages: writeSignatureMessages(writeSignature) },
+    });
+    bundles.set(conversationId, tools);
+  }
+  return tools;
+}
+
+type CallApi = Pick<ToolExecutionApi, "env" | "callId" | "conversationId">;
+
+/** The tools and the call of one durable tool call. Refuses environments that are not local. */
+function prepare(api: CallApi, context: Context) {
+  const env = api.env;
+  if (!(env instanceof NodeExecutionEnv)) {
+    throw new Error("Better FS Tools needs a local NodeExecutionEnv for this call");
+  }
+  const call: ToolCallContext<DurableHost> = {
+    callId: api.callId,
+    host: { cwd: env.cwd },
+    signal: context.abortSignal,
+  };
+  return { tools: toolsFor(api.conversationId), call };
+}
+
+function toOutput(parts: readonly ContentPart[]): (TextContent | ImageContent)[] {
+  // The core read tool returns text unless you add converters.
+  return [{ type: "text", text: textOf({ content: parts }) }];
+}
+
+// Above the read limits of Better FS Tools, so the Harness does not cut the
+// output a second time. Line numbers and notes add to the 50 KiB view.
+const outputLimits = { maxBytes: 128 * 1024, maxLines: 4_000 };
+
+export const BetterFsTools = defineExtension({
+  name: "better-fs-tools",
+  tools: [
+    defineTool({
+      name: readSignature.name,
+      description: readSignature.description,
+      parameters: Type.Unsafe(readSignature.schema),
+      replay: "safe",
+      outputLimits,
+      async execute(args, api, context) {
+        const { tools, call } = prepare(api, context);
+        const result = await tools.read(readSignature.toInput(args), call);
+        return { output: toOutput(result.content), isError: result.status === "error" };
+      },
+    }),
+    defineTool({
+      name: editSignature.name,
+      description: editSignature.description,
+      parameters: Type.Unsafe(editSignature.schema),
+      outputLimits,
+      async execute(args, api, context) {
+        const { tools, call } = prepare(api, context);
+        const result = await tools.edit(editSignature.toInput(args), call);
+        return { output: toOutput(result.content), isError: result.status === "error" };
+      },
+    }),
+    defineTool({
+      name: writeSignature.name,
+      description: writeSignature.description,
+      parameters: Type.Unsafe(writeSignature.schema),
+      async execute(args, api, context) {
+        const { tools, call } = prepare(api, context);
+        const result = await tools.write(writeSignature.toInput(args), call);
+        return { output: toOutput(result.content), isError: result.status === "error" };
+      },
+    }),
+  ],
+});
+```
+
+A throw from `execute()` gives the model an error result. A Better FS Tools tool does not throw for a tool error. It returns `status: "error"` and a message, so the recipe sets `isError` from the status.
+
+## Replace the built-in tools
+
+`CodingTools` from `@earendil-works/pi-durable/tools` has `read`, `write`, `edit`, and `bash`. When two selected extensions have a tool with the same name, the extension installed later wins. Install `BetterFsTools` after `CodingTools`. Its `read`, `edit`, and `write` then replace those of `CodingTools`, and the `bash` of `CodingTools` stays:
+
+```ts
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { createModels } from "@earendil-works/pi-ai/models";
+import { createRegistry, Harness, MemoryStorage } from "@earendil-works/pi-durable";
+import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
+import { CodingTools } from "@earendil-works/pi-durable/tools";
+
+import { BetterFsTools } from "./fs-extension.ts";
+
+const registry = createRegistry();
+registry.install(CodingTools);
+// Installed later, so its read, edit, and write replace those of CodingTools.
+// The bash of CodingTools stays.
+registry.install(BetterFsTools);
+
+const context = BACKGROUND_CONTEXT;
+const harness = await Harness.open(
+  new MemoryStorage(),
+  {
+    models: createModels(),
+    registry,
+    env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? process.cwd() }),
+  },
+  context,
+);
+const root = await harness.root(context, { agent: { cwd: "/work/repo" } });
+await root.submit({ type: "input", content: "Fix the typo in README.md." }, context);
+await harness.close(context);
+```
+
+`fs-extension.ts` is the file with the extension above. The tools of this conversation are `read`, `write`, `edit`, and `bash`. `read`, `edit`, and `write` are the Better FS Tools tools.
+
+To give one conversation an exact tool list, use `conversation.configure({ tools: [...] }, context)` with the tool objects.
+
+## Replay after a crash
+
+When the process stops during a tool call, the next process finds the stored intent without a result. `replay` on the tool decides what happens then:
+
+| Tool    | `replay`                | Why                                                                                                                                                                     |
+| ------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read`  | `"safe"`                | A read changes no file, so the Harness can run it again                                                                                                                 |
+| `edit`  | `"unsafe"`, the default | The first run may have changed the file. A second run can then fail to find the old text, or make the change twice                                                      |
+| `write` | `"unsafe"`, the default | A second run with the same content gives the same file. But another writer may change the file between the crash and the rerun, and the rerun then replaces that change |
+
+With `"unsafe"`, the model gets an `interrupted` error result with the output stored so far. The model can read the file and try again.
+
+## Output limits
+
+The Harness cuts each tool's output at `outputLimits`. The default is 50 KiB, 2,000 lines, and `retain: "head"`. The Better FS Tools `read` already stops its view at 2,000 lines and 50 KiB by default, and it tells the model how to continue. Line numbers and notes make the output longer than the view. With the Harness defaults, the Harness can cut the end of the output a second time, and the model then loses the note that tells it how to continue.
+
+The recipe sets `outputLimits` to 128 KiB and 4,000 lines on `read` and `edit`, so the limits of Better FS Tools apply first. When you raise the read limits, raise `outputLimits` too. See [Read limits](/guides/read/limits).
+
+## What the recipe does not do
+
+- **Other environments.** The recipe uses `nodeFileSystem` at `env.cwd`, on the disk of this process. A remote environment, for example pi-env's `RemoteExecutionEnv` over SSH, has its files on another machine. So `prepare()` refuses every environment that is not a `NodeExecutionEnv`. A filesystem adapter over `ExecutionEnv` would remove this limit. It is not in Better FS Tools yet.
+- **A durable read store.** `memoryStore()` keeps the read records in process memory. After a restart, the records are gone, so the next `edit` of a file needs a new read. A fork is a new conversation, so it starts with no reads too.
+- **Shared lock keys.** The Better FS Tools lock manager keys each lock by the absolute path, in this process. The `edit` and `write` of pi-durable key their locks by the environment `id` and the path. The two lock managers do not share locks. A `CodingTools` tool that you keep, for example `bash`, does not wait for a Better FS Tools write.
+- **Images.** The core `read` returns no images unless you add `imageConverter()` to `read.converters`. `toOutput()` then needs to turn a media part into an `ImageContent`.
+- **Structured output.** The tools give no `structuredOutputSchema`, so codemode scripts get the text of each result.
+
+## Not yet in Better FS Tools
+
+These are proposals. The published packages do not have them:
+
+- A `@better-fs-tools/pi-durable` package with `createDurableFsTools()`, to replace the recipe.
+- `executionEnvFileSystem(env)`, a Better FS Tools filesystem over the pi-durable `ExecutionEnv`. It would let the tools work in each environment, also over SSH and in containers.
+- `executionEnvRunner(env)`, a bash runner over `env.exec()`.
+- A read store in a conversation document, which stays after a restart and follows a fork.
+- Lock keys with the environment `id`.
+
+## See also
+
+- [Pi](/hosts/pi): the coding agent extension and SDK
+- [Pi agent core](/hosts/pi-agent-core): the tools for `Agent` and `agentLoop()`
+- [Customise the tool definition](/hosts/tool-definition): signatures, names, and descriptions
+- [Read before write](/guides/write/read-before-write): what the read store does
