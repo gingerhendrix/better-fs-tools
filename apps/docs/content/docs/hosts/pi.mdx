@@ -21,7 +21,7 @@ To write your own extension with `createPiFsTools()`, install the package and it
 npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-coding-agent typebox
 ```
 
-`@earendil-works/pi-coding-agent` (`^0.84.2`) and `typebox` (`^1.3.16`) are required peers. The package needs Node 24 or later.
+`@earendil-works/pi-coding-agent` (`^1.0.0`) and `typebox` (`^1.3.16`) are required peers. Pi versions before 1.0 are not supported. The package needs Node 24 or later.
 
 ## What the package registers
 
@@ -77,7 +77,7 @@ The tools share one digest, one lock manager, one clock, and one cache of filesy
 | ----------------------- | --------------------------------- | --------------------------------------------------------------------------------------- |
 | `state`                 | `null`                            | The read store. `null` turns read before write off. `memoryStore()` turns it on         |
 | `digest`                | `nodeDigest()`                    | The digest for read records                                                             |
-| `locks`                 | `memoryLocks()`                   | The lock manager of the write tools                                                     |
+| `locks`                 | `piMutationQueueLocks()`          | The lock manager of the write tools. See [Locks](#locks)                                |
 | `clock`                 | `() => new Date()`                | The clock of the tools and the store                                                    |
 | `applyPatch`            | off                               | `true`, or an options object, adds `apply_patch`                                        |
 | Root options            | see [Root options](#root-options) | `denyRoots`, `symlinks`, `hardLinks`, `newFileMode`, `newDirectoryMode`                 |
@@ -121,20 +121,20 @@ export default function readExtension(pi: ExtensionAPI): void {
 
 `createPiReadTool()` takes every `createReadTool()` option except `fs`. It also takes `signature`, `promptSnippet`, `promptGuidelines`, `denyRoots`, and `symlinks`. The write factories take every option of `createEditTool()`, `createWriteTool()`, or `createApplyPatchTool()` except `fs`, plus the same Pi options and all five root options. Each single factory defaults `digest` to `nodeDigest()`.
 
-A single factory shares nothing with another one. Each write tool makes its own lock manager, and no tool has a read store unless you pass one. To use single factories with read before write, pass one store and one lock manager to all of them:
+A single factory shares no read store with another one. No tool has a read store unless you pass one. The write factories default to `piMutationQueueLocks()`, which uses Pi's own queue, so they already wait for each other. To use single factories with read before write, pass one store to all of them:
 
 ```ts
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createPiEditTool, createPiReadTool, createPiWriteTool } from "@better-fs-tools/pi";
 import { memoryStore } from "@better-fs-tools/read";
-import { memoryLocks } from "@better-fs-tools/write";
 
 export default function singleToolsExtension(pi: ExtensionAPI): void {
+  // One read store for the three tools. The write tools share Pi's file queue
+  // by default.
   const state = memoryStore();
-  const locks = memoryLocks();
   pi.registerTool(createPiReadTool({ state }));
-  pi.registerTool(createPiEditTool({ state, locks }));
-  pi.registerTool(createPiWriteTool({ state, locks }));
+  pi.registerTool(createPiEditTool({ state }));
+  pi.registerTool(createPiWriteTool({ state }));
 }
 ```
 
@@ -277,11 +277,9 @@ The `cwd` of `createAgentSession()` is the `ctx.cwd` of each tool call. The tool
 
 `SessionManager.inMemory()` keeps the conversation in memory and writes no session file. A `memoryStore()` also keeps its read records in memory only, so each new process starts with no reads.
 
-### Pi versions
+### One copy of Pi
 
-The SDK examples on this page compile against Pi 0.84.2 and Pi 1.2.0. The peer range of `@better-fs-tools/pi` is `^0.84.2`, which does not include 1.x. With Pi 1.x installed, `npm install @better-fs-tools/pi` stops with `ERESOLVE`. Add `--legacy-peer-deps` to install it anyway.
-
-Pi 1.x has tool fields that this package does not set yet. See [Not yet in Better FS Tools](#not-yet-in-better-fs-tools).
+`piMutationQueueLocks()` uses the file queue of the `@earendil-works/pi-coding-agent` module that the package imports. In an SDK host, install one copy of Pi, so that the package and your session use the same module. With two copies, a Better FS Tools `edit` and Pi's own `write` on the same file do not wait for each other. `npm ls @earendil-works/pi-coding-agent` shows the copies.
 
 For a host on `pi-agent-core` without the coding agent, see [Pi agent core](/hosts/pi-agent-core). For the durable harness, see [Pi durable](/hosts/pi-durable).
 
@@ -384,7 +382,7 @@ The default guideline stays the same as Pi's own. Set `promptGuidelines` if you 
 
 ## Results in Pi
 
-Each tool returns Pi `content` parts and Pi `details`. A tool error becomes Pi content text. The tool does not throw for a tool error:
+Each tool returns Pi `content` parts and Pi `details`. A tool error becomes Pi content text with `isError: true`. The tool does not throw for a tool error. Pi shows the text as an error, and a `tool_result` handler sees `isError: true`:
 
 ```text
 [edit:not-read] Read greet.ts with the read tool before changing it.
@@ -398,6 +396,23 @@ An image part becomes a Pi `image` part. Other media becomes a text part that sa
 | `edit`, `apply_patch` | `{ diff, patch, firstChangedLine }`, the shape of Pi's `EditToolDetails`. `undefined` for an error or no change |
 | `write`               | `undefined`, as for Pi's own `write`                                                                            |
 | `bash`                | `{ fullOutputPath }` when the output spilled to a file, else `undefined`                                        |
+
+### Errors, output schemas, and hints
+
+Each tool sets the Pi 1.x tool fields that Pi's own tools set, and some more:
+
+| Tool                  | `isError`                                      | `outputSchema` and `structuredContent`                                                            | `annotations`                                                            |
+| --------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `read`                | `true` for status `error`                      | Pi's own read schema: the text, or `{ type: "image", data, mimeType, note }`                      | `readOnlyHint: true`                                                     |
+| `edit`, `apply_patch` | `true` for status `error`                      | None, as Pi's own `edit`. Codemode scripts get the text                                           | `destructiveHint: true`, `idempotentHint: false`, `openWorldHint: false` |
+| `write`               | `true` for status `error`                      | None, as Pi's own `write`                                                                         | As `edit`, with `idempotentHint: true`                                   |
+| `bash`                | `true` for a nonzero exit, a timeout, an error | Pi's own bash schema: `output`, `truncated`, `full_output_path`, `exit_code`, `wall_time_seconds` | None                                                                     |
+
+A failed `read` has no `structuredContent`. A codemode script that calls it then gets a rejection, as with Pi's own `read`. A `bash` command that exits with a nonzero code keeps its `structuredContent`, so the script gets the exit code. A timeout or an abort has none. `structuredContent.output` is the output that the tool kept: the head and the tail, with Pi's `[... N bytes omitted ...]` marker between them.
+
+A read with status `unsupported`, for example of a binary file, is not an error. Its text tells the model why the tool did not show the file.
+
+Permission extensions read `annotations` from `pi.getAllTools()`. Pi does not check the hints.
 
 ### Read truncation
 
@@ -532,14 +547,26 @@ Pass the call to `invalidate(path, call)`. In a bash `afterRun` hook, the call i
 
 With the call, the outcome is `{ ok: true, resolvedPath, recorded }`. `recorded` is `true` when the store had a record for the path. With `state: null`, `recorded` is `false`.
 
-## Not yet in Better FS Tools
+## Locks
 
-These changes are proposals. The published packages do not have them:
+`piMutationQueueLocks()` is a lock manager over `withFileMutationQueue()`, the per-file queue of Pi's own `edit` and `write`. It is the default of `createPiFsTools()` and of each single write factory. A Better FS Tools `edit` and Pi's own `edit` or `write` that change the same file then wait for each other.
 
-- A peer range that includes Pi 1.x.
-- `isError: true` on a tool error. Pi 0.99.0 added this field. Today a tool error is content text, so Pi records the call as a success, and a `tool_result` handler sees `isError: false`.
-- `annotations`, for example `readOnlyHint: true` on `read`, and `outputSchema` with `structuredContent` for codemode scripts.
-- A lock manager that shares Pi's `withFileMutationQueue()`. Today a Better FS Tools `edit` and a Pi tool that change the same file do not wait for each other.
+| Option      | Default  | Meaning                                                                                 |
+| ----------- | -------- | --------------------------------------------------------------------------------------- |
+| `timeoutMs` | `30_000` | How long a change waits for its files. After that, the change fails with `LOCK_TIMEOUT` |
+
+In a Pi extension, Pi's loader gives the package Pi's own module, so the queue is Pi's. In an SDK host, see [One copy of Pi](#one-copy-of-pi). To use a lock manager of this process only, as in 0.2.0, pass `locks: memoryLocks()` from `@better-fs-tools/write`:
+
+```ts
+import { createPiFsTools, piMutationQueueLocks } from "@better-fs-tools/pi";
+import { memoryLocks } from "@better-fs-tools/write";
+
+// Wait 5 seconds for Pi's queue, then fail the change with LOCK_TIMEOUT.
+export const tools = createPiFsTools({ locks: piMutationQueueLocks({ timeoutMs: 5_000 }) });
+
+// Or do not wait for Pi's own tools.
+export const separate = createPiFsTools({ locks: memoryLocks() });
+```
 
 ## See also
 
@@ -547,4 +574,4 @@ These changes are proposals. The published packages do not have them:
 - [Bash guide](/guides/bash): the `createPiBashTool()` options
 - [Choose a host](/hosts): the defaults of every host bundle
 - [Node backend](/backends/node): the filesystem that each call uses
-- [Pi agent core](/hosts/pi-agent-core) and [Pi durable](/hosts/pi-durable): the tools in the other Pi libraries
+- [Pi agent core](/hosts/pi-agent-core) and [Pi durable](/hosts/pi-durable): `createAgentCoreFsTools()` and `@better-fs-tools/pi-durable`, the tools for the other Pi libraries
