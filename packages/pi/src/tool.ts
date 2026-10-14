@@ -68,7 +68,7 @@ export interface PiReadToolResult {
   details: PiReadDetails;
 }
 
-/** Assignable to ToolDefinition<TSchema, PiReadDetails> from Pi 0.84.2. */
+/** Assignable to ToolDefinition<TSchema, PiReadDetails> from Pi 1.x. */
 export interface PiReadTool {
   readonly name: string;
   readonly label: string;

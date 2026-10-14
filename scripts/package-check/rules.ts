@@ -28,7 +28,7 @@ export const RULES: Readonly<Record<string, PackageRule>> = {
   },
   pi: {
     dependencies: ["node", "read", "write", "shell"],
-    peers: { "@earendil-works/pi-coding-agent": "^0.84.2", typebox: "^1.3.16" },
+    peers: { "@earendil-works/pi-coding-agent": "^1.0.0", typebox: "^1.3.16" },
     node: true,
     extraFiles: [],
   },

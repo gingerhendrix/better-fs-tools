@@ -47,7 +47,7 @@ export interface PiBashToolResult {
   details: PiBashDetails | undefined;
 }
 
-/** Assignable to ToolDefinition<TSchema, PiBashDetails | undefined> from Pi 0.84.2. */
+/** Assignable to ToolDefinition<TSchema, PiBashDetails | undefined> from Pi 1.x. */
 export interface PiBashTool {
   readonly name: string;
   readonly label: string;

@@ -81,7 +81,7 @@ export interface PiMutationToolResult {
   details: PiMutationDetails | undefined;
 }
 
-/** Assignable to ToolDefinition<TSchema, PiMutationDetails | undefined> from Pi 0.84.2. */
+/** Assignable to ToolDefinition<TSchema, PiMutationDetails | undefined> from Pi 1.x. */
 export interface PiMutationTool {
   readonly name: string;
   readonly label: string;

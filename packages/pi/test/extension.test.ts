@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { discoverAndLoadExtensions } from "@earendil-works/pi-coding-agent";
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 
 import fsToolsExtension from "../src/extension.ts";
 import type { PiMutationTool, PiReadTool } from "../src/index.ts";
@@ -97,7 +97,8 @@ describe("pi extension", () => {
         const definition = tools?.get("read")?.definition;
         if (definition === undefined) throw new Error("the read tool was not registered");
 
-        const context = { cwd: project } as ExtensionContext;
+        // Pi 1.x passes an ExtensionToolContext to a registered tool.
+        const context = { cwd: project } as ExtensionToolContext;
         const read = await definition.execute(
           "probe",
           { path: "fixture.txt", offset: 2, limit: 2 },
