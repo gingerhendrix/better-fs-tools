@@ -56,6 +56,7 @@
         "@better-fs-tools/write": "workspace:^",
         "@cloudflare/computer": "catalog:",
         "@cloudflare/shell": "catalog:",
+        "@earendil-works/pi-agent-core": "catalog:",
         "@earendil-works/pi-coding-agent": "catalog:",
         "ai": "catalog:",
         "just-bash": "catalog:",
@@ -146,6 +147,7 @@
       },
       "devDependencies": {
         "@better-fs-tools/fs": "workspace:^",
+        "@earendil-works/pi-agent-core": "catalog:",
         "@earendil-works/pi-coding-agent": "catalog:",
         "typebox": "catalog:",
       },
@@ -189,6 +191,7 @@
     "@ai-sdk/openai": "4.0.78",
     "@cloudflare/computer": "0.2.1",
     "@cloudflare/shell": "0.4.3",
+    "@earendil-works/pi-agent-core": "^1.0.0",
     "@earendil-works/pi-coding-agent": "^1.0.0",
     "@types/bun": "^1.3.10",
     "ai": "^7.0.77",

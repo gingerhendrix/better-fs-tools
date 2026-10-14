@@ -150,6 +150,33 @@ export default function fsAndBashExtension(pi: ExtensionAPI): void {
 }
 ```
 
+## Pi agent core
+
+`@better-fs-tools/pi/agent-core` has `createAgentCoreFsTools()`. It gives the tools as `AgentTool` objects for `@earendil-works/pi-agent-core`: for `agent.state.tools`, or the `tools` of an `agentLoop()` context. An `AgentTool` gets no context object, so the bundle takes a filesystem, as `createFsTools()` does:
+
+```ts
+import { Agent } from "@earendil-works/pi-agent-core";
+import { createAgentCoreFsTools } from "@better-fs-tools/pi/agent-core";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { memoryStore } from "@better-fs-tools/read";
+
+const fsTools = createAgentCoreFsTools({
+  fs: nodeFileSystem({ cwd: "/work/repo", allowedRoots: ["/work/repo"] }),
+  state: memoryStore(),
+});
+
+export function addFsTools(agent: Agent): void {
+  agent.state.tools = [...agent.state.tools, ...fsTools.tools];
+}
+```
+
+- The options are those of `createFsTools()`: `fs` (required), `state`, `digest`, `locks`, `clock`, `read`, `edit`, `write`, `applyPatch`, and `bash`. Each tool's options also take a `signature`. The default signatures, prompt-facing names, and output schemas are those of the coding agent's own tools.
+- `fs` can be any writable filesystem. The module imports no Node module and no Pi package at run time, so it runs in a browser or a Worker, for example with `memoryFileSystem()` or a Cloudflare filesystem.
+- pi-agent-core has no tools of its own. `bash: { runner, env }` adds a `bash` tool in the coding agent's shape, `{ command, timeout }` with the timeout in seconds.
+- A tool error is a result with `isError: true`. Bad model input throws `TypeError`, which the agent reports as an error result.
+- `read` sets `replay: "safe"`. `read` and `bash` set the `outputSchema` and `structuredContent` of the coding agent's own tools. `edit` and `apply_patch` give `toPiMutationDetails()` as `details`.
+- The tools use `memoryLocks()` by default. pi-agent-core has no file queue of its own. Two calls in one batch that change one file wait for each other.
+
 ## Links
 
 - `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the defaults of every host and bundle, and what each backend can do
