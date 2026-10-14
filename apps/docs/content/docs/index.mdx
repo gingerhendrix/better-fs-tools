@@ -1,6 +1,35 @@
 ---
 title: Better FS Tools
-description: Focused filesystem tools for TypeScript.
+description: The best read, write, edit, patch, and bash tools your agent can have.
 ---
 
-Coming soon.
+Better FS Tools puts the best features of the filesystem tools in every harness and framework into one package.
+
+<Cards>
+  <Card
+    title="Get started"
+    href="/get-started"
+    description="Install the packages and run a first example."
+  />
+  <Card
+    title="Choose a host"
+    href="/hosts"
+    description="Pick the bundle for your agent framework."
+  />
+</Cards>
+
+## Features
+
+- **Use it anywhere.** Framework adapters for [AI SDK](/hosts/ai-sdk) 7, the [Pi coding agent](/hosts/pi), [Pi agent core](/hosts/pi-agent-core), and [Pi durable](/hosts/pi-durable). For any other host, `createFsTools()` gives you the tools to wrap.
+- **Any filesystem.** Local files on Node or Bun, files in memory, a just-bash sandbox, or a Cloudflare Shell or Computer workspace. See [Backends](/backends).
+- **Fully configurable.** Change the tool names, the parameter names, and the descriptions with a [signature](/hosts/tool-definition). Formatters, messages, limits, and hooks change the text that the model sees.
+- **Bounded reads.** The [read tool](/guides/read) stops at line, byte, and line-length limits, and at an optional token budget. It also reads images, notebooks, PDFs, and folders.
+- **Read before write.** `edit` and `write` can refuse a change to a file that the model has not read, or that changed after the read. See [Read before write](/guides/write/read-before-write).
+- **Edits that find the text.** When the old text does not match exactly, `edit` tries a normalized match and tells the model. See [Matching](/guides/write/matching).
+- **Safe patches.** `apply_patch` checks the whole patch before it changes a file. See [Patches](/guides/write/patches).
+- **Permissions.** Refuse paths, protect `AGENTS.md`, `CLAUDE.md`, and `.git`, or ask the user before a change. See [Permissions](/guides/write/permissions).
+- **A bash tool with limits.** Set timeouts and output caps, save the full output to a file, and refuse or rewrite commands. See [Bash tool](/guides/bash).
+
+## How it compares
+
+We read the file tools of 19 agent harnesses and frameworks, for example [Claude Code](/comparisons/claude-code), [Codex](/comparisons/codex), [Gemini CLI](/comparisons/gemini-cli), [OpenCode](/comparisons/opencode), and [Pi](/comparisons/pi). Each comparison page shows the file and shell tools of one harness.
