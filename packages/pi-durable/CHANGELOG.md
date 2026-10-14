@@ -1,9 +1,6 @@
----
-packages:
-  "@better-fs-tools/pi-durable": minor
----
+## @better-fs-tools/pi-durable@0.3.0
 
-## New package: @better-fs-tools/pi-durable
+### New package: @better-fs-tools/pi-durable
 
 Better FS Tools for `@earendil-works/pi-durable`, the experimental durable harness of Pi. `createDurableFsTools()` is an extension that replaces the `read`, `edit`, and `write` of `CodingTools`, and can add `apply_patch` and `bash`.
 
