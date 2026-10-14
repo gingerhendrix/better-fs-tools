@@ -1,6 +1,7 @@
-import { Buffer } from "node:buffer";
-
 import type { ContentPart } from "@better-fs-tools/read";
+
+// Keeps each String.fromCharCode spread under engine argument-count limits.
+const CHUNK = 0x8000;
 
 export type PiContentPart =
   | { type: "text"; text: string }
@@ -18,12 +19,15 @@ export function toPiPart(part: ContentPart, tool: string): PiContentPart {
           text: `[${tool}:media-omitted] ${part.mediaType} (${part.data.byteLength} bytes) cannot be shown in Pi.`,
         };
       }
-      return {
-        type: "image",
-        data: Buffer.from(part.data.buffer, part.data.byteOffset, part.data.byteLength).toString(
-          "base64",
-        ),
-        mimeType: part.mediaType,
-      };
+      return { type: "image", data: toBase64(part.data), mimeType: part.mediaType };
   }
+}
+
+/** Base64 without node:buffer, so the agent core tools run in a browser or a Worker. */
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let offset = 0; offset < bytes.byteLength; offset += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + CHUNK));
+  }
+  return btoa(binary);
 }

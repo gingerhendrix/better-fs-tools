@@ -1,4 +1,4 @@
-import type { ReadResult } from "@better-fs-tools/read";
+import type { ReadFormatContext, ReadFormatter, ReadResult } from "@better-fs-tools/read";
 
 /** Pi's published TruncationResult. Fields and meanings are Pi's. */
 export interface PiTruncationResult {
@@ -51,4 +51,25 @@ export function toPiReadDetails(
       maxBytes: maxViewBytes,
     },
   };
+}
+
+/**
+ * The formatted text of an ok read in "view" mode, for toPiReadDetails. null
+ * for another status, a formatter that returns parts, or a formatter that
+ * throws.
+ */
+export function viewOf<THost>(
+  formatter: ReadFormatter<THost>,
+  result: ReadResult,
+  ctx: ReadFormatContext<THost>,
+): string | null {
+  if (result.status !== "ok") return null;
+  const { content: _content, ...outcome } = result;
+  try {
+    const view = formatter.format(outcome, ctx);
+    return typeof view === "string" ? view : null;
+  } catch {
+    // The core already fell back and reported the error in "model" mode.
+    return null;
+  }
 }

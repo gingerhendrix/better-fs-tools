@@ -15,11 +15,9 @@ import type {
   Digest,
   JsonObject,
   ReadContext,
-  ReadFormatContext,
   ReadFormatter,
   ReadLimits,
   ReadMessageCatalog,
-  ReadResult,
   ReadTool,
   ReadToolDeps,
   StateNeedsDigestOrDefault,
@@ -27,7 +25,7 @@ import type {
 import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
 
-import { toPiReadDetails } from "./details.ts";
+import { toPiReadDetails, viewOf } from "./details.ts";
 import type { PiReadDetails } from "./details.ts";
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
@@ -196,20 +194,4 @@ export function adaptPiReadTool(
       return { content, details, structuredContent: toPiReadOutput(content), isError: false };
     },
   });
-}
-
-function viewOf(
-  formatter: ReadFormatter<ExtensionContext>,
-  result: ReadResult,
-  ctx: ReadFormatContext<ExtensionContext>,
-): string | null {
-  if (result.status !== "ok") return null;
-  const { content: _content, ...outcome } = result;
-  try {
-    const view = formatter.format(outcome, ctx);
-    return typeof view === "string" ? view : null;
-  } catch {
-    // The core already fell back and reported the error in "model" mode.
-    return null;
-  }
 }
