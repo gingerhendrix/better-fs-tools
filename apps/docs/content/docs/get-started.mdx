@@ -1,38 +1,26 @@
 ---
 title: Get started
-description: Choose the packages, install them, and run a first example with createNodeFsTools().
+description: Choose an integration and a filesystem, choose your tools, and configure them for your use case.
 ---
 
-## The packages
+Set up the tools in three steps. All packages release together at one version, so install matching versions.
 
-All packages release together at one version. Install matching versions.
+## 1. Choose your integration
 
-| Package                                | Use it for                                                                               |
-| -------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `@better-fs-tools/read`                | The `read` tool: a bounded file reader for agent tools                                   |
-| `@better-fs-tools/write`               | The `edit`, `write`, and `apply_patch` tools on one mutation core, and `createFsTools()` |
-| `@better-fs-tools/shell`               | The `bash` tool: a small run core with hooks and defaults                                |
-| `@better-fs-tools/fs`                  | The filesystem contract, POSIX path helpers, a memory filesystem, and conformance suites |
-| `@better-fs-tools/node`                | The Node filesystem, a SHA-256 digest, a bash runner, and `createNodeFsTools()`          |
-| `@better-fs-tools/ai-sdk`              | The read, write, and bash tools for AI SDK 7                                             |
-| `@better-fs-tools/pi`                  | The read, write, and bash tools, and an extension, for the Pi coding agent               |
-| `@better-fs-tools/pi-durable`          | The read, write, and bash tools for the Pi durable harness (experimental)                |
-| `@better-fs-tools/cloudflare-shell`    | A readable and writable filesystem over a Cloudflare Shell Workspace                     |
-| `@better-fs-tools/cloudflare-computer` | A readable and writable filesystem over a Cloudflare Computer workspace (experimental)   |
-| `@better-fs-tools/just-bash`           | A readable and writable filesystem and a bash command runner over just-bash              |
+An integration package has helpers that return the tools in the native format of its host. You give the result to your agent with no more glue.
 
-## Install
+| Host                                     | Package                          | Helper                     | Guide                                 |
+| ---------------------------------------- | -------------------------------- | -------------------------- | ------------------------------------- |
+| AI SDK 7 `generateText` or `streamText`  | `@better-fs-tools/ai-sdk`        | `createAiSdkFsTools()`     | [AI SDK](/hosts/ai-sdk)               |
+| Pi coding agent: the `pi` command or SDK | `@better-fs-tools/pi`            | `createPiFsTools()`        | [Pi](/hosts/pi)                       |
+| `pi-agent-core` or `pi-ai`               | `@better-fs-tools/pi/agent-core` | `createAgentCoreFsTools()` | [Pi agent core](/hosts/pi-agent-core) |
+| `pi-durable`, experimental               | `@better-fs-tools/pi-durable`    | `createDurableFsTools()`   | [Pi durable](/hosts/pi-durable)       |
+| Your own code on Node or Bun             | `@better-fs-tools/node`          | `createNodeFsTools()`      | [Choose a host](/hosts)               |
+| Your own code anywhere, such as a Worker | `@better-fs-tools/write`         | `createFsTools()`          | [Choose a host](/hosts)               |
 
-For local tools on Node 24 or later, or on Bun:
+With your own code, the tools are plain async functions. You write the tool definition for your host, or you call the functions from your code.
 
-```sh
-npm install @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write
-
-# With Bun
-bun add @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write
-```
-
-For an agent host, add its package and its peers:
+Install the integration with the tool packages and the host's peers:
 
 ```sh
 # AI SDK 7. The peer is ai ^7.0.77.
@@ -40,13 +28,89 @@ npm install @better-fs-tools/ai-sdk @better-fs-tools/read @better-fs-tools/write
 
 # Pi. The peers are @earendil-works/pi-coding-agent ^1.0.0 and typebox ^1.3.16.
 npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-coding-agent typebox
+
+# Your own code on Node 24 or later, or on Bun.
+npm install @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write
 ```
 
-With Bun, use `bun add` with the same package names. The AI SDK package needs a filesystem package too, for example `@better-fs-tools/node` or `@better-fs-tools/cloudflare-shell`.
+With Bun, use `bun add` with the same package names. Add `@better-fs-tools/shell` for a bash tool outside the Node and Pi packages.
 
-## A first example
+### Choose a filesystem
 
-`createNodeFsTools()` from `@better-fs-tools/node` creates `read`, `edit`, and `write` over one Node filesystem rooted at `process.cwd()`. The tools share one SHA-256 digest and one lock manager. This example also sets two options:
+All tools need a filesystem. The tools do not open files themselves. The filesystem resolves each path and checks it against the folders that you allow.
+
+| Filesystem                       | Package                                | Use it for                                         |
+| -------------------------------- | -------------------------------------- | -------------------------------------------------- |
+| `nodeFileSystem()`               | `@better-fs-tools/node`                | Local files on Node 24 or later, or Bun            |
+| `memoryFileSystem()`             | `@better-fs-tools/fs`                  | Tests, examples, and files that you keep in memory |
+| `justBashFileSystem()`           | `@better-fs-tools/just-bash`           | A just-bash sandbox, with no real files            |
+| `cloudflareShellFileSystem()`    | `@better-fs-tools/cloudflare-shell`    | A Cloudflare Shell workspace in a Worker           |
+| `cloudflareComputerFileSystem()` | `@better-fs-tools/cloudflare-computer` | A Cloudflare Computer workspace. Experimental      |
+
+Give the filesystem to the helper as `fs`. Some helpers make their own:
+
+- `createNodeFsTools()` makes a `nodeFileSystem()` rooted at `process.cwd()`.
+- `createPiFsTools()` makes a `nodeFileSystem()` rooted at `ctx.cwd` on each call.
+- `createDurableFsTools()` uses the execution environment of each call.
+
+[Backends](/backends) compares what each filesystem can do.
+
+## 2. Choose your tools
+
+There are five tools:
+
+| Tool          | Package                  | Does                                                         |
+| ------------- | ------------------------ | ------------------------------------------------------------ |
+| `read`        | `@better-fs-tools/read`  | Reads a file within line, byte, and size limits              |
+| `edit`        | `@better-fs-tools/write` | Replaces text in a file that exists                          |
+| `write`       | `@better-fs-tools/write` | Creates a file, or replaces a whole file                     |
+| `apply_patch` | `@better-fs-tools/write` | Applies a patch that adds, changes, moves, and deletes files |
+| `bash`        | `@better-fs-tools/shell` | Runs a command, with timeouts and output limits              |
+
+Each tool has its own constructor, for example `createAiSdkReadTool()` or `createPiEditTool()`. Use one when you need only one tool:
+
+```ts
+import { createAiSdkReadTool } from "@better-fs-tools/ai-sdk";
+import { nodeFileSystem } from "@better-fs-tools/node";
+
+const cwd = process.cwd();
+const read = createAiSdkReadTool({ fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }) });
+const tools = { [read.name]: read };
+```
+
+Or use the single constructor from step 1. It creates `read`, `edit`, and `write` over one filesystem. The tools share one digest, one lock manager, and one clock. Set `applyPatch` or `bash` to add those tools:
+
+```ts
+import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
+import { nodeFileSystem } from "@better-fs-tools/node";
+
+const cwd = process.cwd();
+const { tools } = createAiSdkFsTools({
+  fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
+  applyPatch: true,
+});
+// tools has the keys read, edit, write, and apply_patch.
+```
+
+Use the single constructor when you install more than one tool. Constructors for single tools share nothing, so `edit` and `write` cannot know what `read` read. [Choose a host](/hosts#single-tool-factories) lists the constructors of each package.
+
+## 3. Configure the tools for your use case
+
+Each tool works with no options. Set the options that your agent needs. In the single constructor, set the shared options once at the top level. Set the options of one tool under `read`, `edit`, `write`, `applyPatch`, or `bash`.
+
+| To do this                                                  | Set                                             | Guide                                                                                    |
+| ----------------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Refuse a change to a file that the model has not read       | `state: memoryStore()`                          | [Read before write](/guides/write/read-before-write)                                     |
+| Protect `AGENTS.md`, `CLAUDE.md`, and `.git`                | `edit` and `write`: `authorize: protectPaths()` | [Write permissions](/guides/write/permissions)                                           |
+| Refuse paths to the read tool, such as `.env`               | `read`: `authorize: denyPaths([...])`           | [Read permissions](/guides/read/permissions)                                             |
+| Change the read limits or add a token budget                | `read`: `limits` or `budget`                    | [Read limits](/guides/read/limits)                                                       |
+| Read images, notebooks, PDFs, and folders                   | `read`: `converters`                            | [File types](/guides/read/file-types)                                                    |
+| Change how `edit` matches old text                          | `edit`: `matchers`                              | [Matching](/guides/write/matching)                                                       |
+| Change the bash timeouts, output limits, or commands        | `bash`: `limits`, `beforeRun`, `authorize`      | [Bash limits](/guides/bash/limits), [Bash policy](/guides/bash/policy)                   |
+| Rename a tool or its parameters, or change the descriptions | `signature` on each tool                        | [Customise the tool definition](/hosts/tool-definition)                                  |
+| Change the text that the model sees                         | `formatter` and `messages` on each tool         | [Read formatting](/guides/read/formatting), [Write formatting](/guides/write/formatting) |
+
+This example uses `createNodeFsTools()` and sets two options:
 
 - `state: memoryStore()` turns on read before write. Without it, `edit` and `write` change files that the model has not read.
 - `protectPaths()` refuses changes to `AGENTS.md`, `CLAUDE.md`, and the `.git` folder.
@@ -94,11 +158,11 @@ With the same tools, an edit of a file that the model has not read, and a write 
 [write:denied] AGENTS.md was refused by policy (the path is protected).
 ```
 
-`apply_patch` and `bash` are off by default. Set `applyPatch: true` or `bash: true` to add them. `tools.invalidate(path)` makes the next change to `path` need a new read, for example after a shell command changed the file.
+`tools.invalidate(path)` makes the next change to `path` need a new read, for example after a shell command changed the file.
 
 ## Where next
 
-- [Choose a host](/hosts): which bundle to use, and the defaults of each host
+- [Choose a host](/hosts): the defaults of each single constructor
 - [AI SDK](/hosts/ai-sdk) and [Pi](/hosts/pi): give the tools to an agent
 - [Backends](/backends): the Node, memory, just-bash, and Cloudflare filesystems
 - [Read tool](/guides/read), [write tools](/guides/write), and [bash tool](/guides/bash): every option
