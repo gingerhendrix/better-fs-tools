@@ -1,4 +1,12 @@
 {
   "title": "Read tool",
-  "pages": ["index", "formatting", "paths", "permissions", "file-types", "limits", "hooks-and-state"]
+  "pages": [
+    "index",
+    "formatting",
+    "paths",
+    "permissions",
+    "file-types",
+    "limits",
+    "hooks-and-state"
+  ]
 }

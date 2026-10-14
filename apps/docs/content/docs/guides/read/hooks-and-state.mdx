@@ -44,7 +44,11 @@ const sizeNote: ReadHook = {
   afterRead(outcome) {
     const lines = outcome.status === "ok" ? outcome.totals.lines : null;
     if (lines === null || lines < 1_000) return outcome;
-    const note = { code: "large-file", severity: "info" as const, message: `This file has ${lines} lines. Search it before you read more.` };
+    const note = {
+      code: "large-file",
+      severity: "info" as const,
+      message: `This file has ${lines} lines. Search it before you read more.`,
+    };
     return { ...outcome, notes: [...outcome.notes, note] };
   },
 };

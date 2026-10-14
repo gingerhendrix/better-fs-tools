@@ -43,12 +43,12 @@ const read = createReadTool({
 });
 ```
 
-| Converter | Reads | Options |
-| --- | --- | --- |
-| `imageConverter()` | Images, as a media part | `transform` changes the bytes before they go to the model |
-| `notebookConverter()` | Jupyter notebooks, as text. Needs `notebookClassifier()` | `outputs: false` leaves out cell outputs |
-| `directoryListing()` | Folders, one entry for each line | `trailingSlash`, `sort: "name" \| "type-then-name"` |
-| `textConverter()` | Any type, with your own function | See [Read PDFs and other formats](#read-pdfs-and-other-formats) |
+| Converter             | Reads                                                    | Options                                                         |
+| --------------------- | -------------------------------------------------------- | --------------------------------------------------------------- |
+| `imageConverter()`    | Images, as a media part                                  | `transform` changes the bytes before they go to the model       |
+| `notebookConverter()` | Jupyter notebooks, as text. Needs `notebookClassifier()` | `outputs: false` leaves out cell outputs                        |
+| `directoryListing()`  | Folders, one entry for each line                         | `trailingSlash`, `sort: "name" \| "type-then-name"`             |
+| `textConverter()`     | Any type, with your own function                         | See [Read PDFs and other formats](#read-pdfs-and-other-formats) |
 
 Converted text works like a text file. `offset`, `limit`, the [limits](/guides/read/limits), and the continuation apply to the converted lines. `result.conversion` names the converter that read the file.
 

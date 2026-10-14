@@ -18,15 +18,15 @@ const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
 const read = createReadTool({ fs, formatter: plainFormatter() });
 ```
 
-| Formatter | Import from | Gives |
-| --- | --- | --- |
-| `lineNumberFormatter()` | `@better-fs-tools/read` | `1\|text` lines, then notes. The default |
-| `plainFormatter()` | `@better-fs-tools/read` | The source text with no line numbers, then notes |
-| `jsonFormatter()` | `@better-fs-tools/read` | JSON text of the result, or of the fields you pick |
-| `opencodeFormat()` | `@better-fs-tools/read/formats` | The OpenCode layout: `<path>`, `<type>`, and `1: text` lines in `<content>` |
-| `deepAgentsFormat()` | `@better-fs-tools/read/formats` | The Deep Agents layout: a range header and plain lines |
-| `hermesFormat()` | `@better-fs-tools/read/formats` | The Hermes layout: one JSON object |
-| `hashlineFormat()` | `@better-fs-tools/read/formats` | A file hash, then `1:2b\|text` lines with a line hash |
+| Formatter               | Import from                     | Gives                                                                       |
+| ----------------------- | ------------------------------- | --------------------------------------------------------------------------- |
+| `lineNumberFormatter()` | `@better-fs-tools/read`         | `1\|text` lines, then notes. The default                                    |
+| `plainFormatter()`      | `@better-fs-tools/read`         | The source text with no line numbers, then notes                            |
+| `jsonFormatter()`       | `@better-fs-tools/read`         | JSON text of the result, or of the fields you pick                          |
+| `opencodeFormat()`      | `@better-fs-tools/read/formats` | The OpenCode layout: `<path>`, `<type>`, and `1: text` lines in `<content>` |
+| `deepAgentsFormat()`    | `@better-fs-tools/read/formats` | The Deep Agents layout: a range header and plain lines                      |
+| `hermesFormat()`        | `@better-fs-tools/read/formats` | The Hermes layout: one JSON object                                          |
+| `hashlineFormat()`      | `@better-fs-tools/read/formats` | A file hash, then `1:2b\|text` lines with a line hash                       |
 
 Use the format of another harness when your model was tuned on that harness. This is `opencodeFormat()` for the first three lines of `src/greet.ts`:
 
@@ -46,20 +46,25 @@ Use the format of another harness when your model was tuned on that harness. Thi
 
 `lineNumberFormatter()` and `plainFormatter()` take options for each part of the layout:
 
-| Option | Default | Sets |
-| --- | --- | --- |
-| `gutter` | `` `${line.number}\|` `` | The text before each line. Not on `plainFormatter()` |
+| Option        | Default                         | Sets                                                               |
+| ------------- | ------------------------------- | ------------------------------------------------------------------ |
+| `gutter`      | `` `${line.number}\|` ``        | The text before each line. Not on `plainFormatter()`               |
 | `clampMarker` | `… [line truncated at N chars]` | The text after a line that the tool cut. Not on `plainFormatter()` |
-| `header` | none | A line before the text. Return `null` for no header |
-| `footer` | none | A line after the text. Return `null` for no footer |
-| `notes` | show all | A filter for notes. Return `null` to hide a note |
-| `noteLine` | `[read:code] message` | How each note is printed |
+| `header`      | none                            | A line before the text. Return `null` for no header                |
+| `footer`      | none                            | A line after the text. Return `null` for no footer                 |
+| `notes`       | show all                        | A filter for notes. Return `null` to hide a note                   |
+| `noteLine`    | `[read:code] message`           | How each note is printed                                           |
 
 The package has helpers for `gutter`, `header`, and `footer`. `hashlineGutter()` adds the start of a hash of each line, and `fileHashHeader()` adds a hash of the file. Both need a `digest`. With no digest, the gutter shows only the line number, and the header does not show:
 
 ```ts
 import { nodeDigest } from "@better-fs-tools/node";
-import { eofFooter, fileHashHeader, hashlineGutter, lineNumberFormatter } from "@better-fs-tools/read";
+import {
+  eofFooter,
+  fileHashHeader,
+  hashlineGutter,
+  lineNumberFormatter,
+} from "@better-fs-tools/read";
 
 const read = createReadTool({
   fs,

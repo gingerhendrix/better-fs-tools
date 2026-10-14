@@ -106,7 +106,10 @@ const noMinified: ReadAuthorizer = {
           note: {
             code: "denied",
             severity: "warning",
-            message: ctx.messages.denied({ path: target.requestedPath, detail: "minified files are off" }),
+            message: ctx.messages.denied({
+              path: target.requestedPath,
+              detail: "minified files are off",
+            }),
           },
         }
       : { allow: true },
@@ -117,14 +120,14 @@ const noMinified: ReadAuthorizer = {
 [read:denied] src/bundle.min.js was refused by policy (minified files are off).
 ```
 
-| `target` field | Holds |
-| --- | --- |
-| `action` | `"read"` for a file. `"list"` before the tool lists a folder, for suggestions or a folder listing |
-| `requestedPath` | The path from the model |
-| `resolvedPath` | The real path for `"read"`. The folder path for `"list"` |
-| `displayPath` | The path to show to a user |
-| `size` | The file size in bytes, or `null` |
-| `mtimeMs` | The time the file last changed, or `null` |
+| `target` field  | Holds                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| `action`        | `"read"` for a file. `"list"` before the tool lists a folder, for suggestions or a folder listing |
+| `requestedPath` | The path from the model                                                                           |
+| `resolvedPath`  | The real path for `"read"`. The folder path for `"list"`                                          |
+| `displayPath`   | The path to show to a user                                                                        |
+| `size`          | The file size in bytes, or `null`                                                                 |
+| `mtimeMs`       | The time the file last changed, or `null`                                                         |
 
 If `authorize` throws, the read fails with `EXTENSION_FAILED`.
 
@@ -135,7 +138,9 @@ If `authorize` throws, the read fails with `EXTENSION_FAILED`.
 `authorize` runs after the filesystem opens the file, and before the tool reads any content. When your rule refuses a read, no content goes to the model.
 
 <Callout type="warn">
-Some backends get the whole file when they open it: Cloudflare Shell and just-bash. With these backends, a refused file has already left the backend. To keep a file inside the backend, put it in `denyRoots`, or leave it out of `allowedRoots`.
+  Some backends get the whole file when they open it: Cloudflare Shell and just-bash. With these
+  backends, a refused file has already left the backend. To keep a file inside the backend, put it
+  in `denyRoots`, or leave it out of `allowedRoots`.
 </Callout>
 
 These rules apply to the read tool only. A `bash` tool can still run `cat .env`.

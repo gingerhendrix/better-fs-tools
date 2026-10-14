@@ -21,17 +21,17 @@ const read = createReadTool({
 });
 ```
 
-| Limit | Default | Sets |
-| --- | --- | --- |
-| `maxLines` | 2,000 | The most lines in one read. This is also the default `limit` and the largest `limit` |
-| `maxViewBytes` | 50 KiB | The most bytes of text in one read |
-| `maxCharsPerLine` | 2,000 | The characters of a line before the tool cuts it |
-| `maxScanBytes` | 64 MiB | The bytes the tool scans to count the lines and hash the file |
-| `sampleBytes` | 8 KiB | The bytes that [classifiers](/guides/read/file-types#decide-the-file-type) get. Not more than `maxScanBytes` |
-| `maxDirectoryEntries` | 200 | The most entries in a [folder listing](/guides/read/file-types#list-folders) |
-| `maxSuggestions` | 5 | The most [suggested names](/guides/read/paths#suggest-names-on-a-miss) when a file is missing |
-| `maxConvertBytes` | 64 MiB | The bytes that a converter can read |
-| `maxMediaBytes` | 5 MiB | The bytes of images in one result |
+| Limit                 | Default | Sets                                                                                                         |
+| --------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `maxLines`            | 2,000   | The most lines in one read. This is also the default `limit` and the largest `limit`                         |
+| `maxViewBytes`        | 50 KiB  | The most bytes of text in one read                                                                           |
+| `maxCharsPerLine`     | 2,000   | The characters of a line before the tool cuts it                                                             |
+| `maxScanBytes`        | 64 MiB  | The bytes the tool scans to count the lines and hash the file                                                |
+| `sampleBytes`         | 8 KiB   | The bytes that [classifiers](/guides/read/file-types#decide-the-file-type) get. Not more than `maxScanBytes` |
+| `maxDirectoryEntries` | 200     | The most entries in a [folder listing](/guides/read/file-types#list-folders)                                 |
+| `maxSuggestions`      | 5       | The most [suggested names](/guides/read/paths#suggest-names-on-a-miss) when a file is missing                |
+| `maxConvertBytes`     | 64 MiB  | The bytes that a converter can read                                                                          |
+| `maxMediaBytes`       | 5 MiB   | The bytes of images in one result                                                                            |
 
 Each value must be a positive whole number. `createReadTool` throws `TypeError` for an unknown limit or a value it cannot use:
 

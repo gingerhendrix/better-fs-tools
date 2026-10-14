@@ -59,12 +59,12 @@ const read = createReadTool({
 });
 ```
 
-| Resolver | Rewrites |
-| --- | --- |
-| `stripPrefixes()` | `file://` and a leading `@`. Set `{ at: false }` when your paths start with `@`, for example `@types/node` |
-| `expandHome({ home })` | `~` and `~/…` to `home` |
-| `reanchorLeadingSlash({ firstSegmentExists })` | `/src/a.ts` to `src/a.ts`, when your function returns `true` for `src` |
-| `unicodeRepair()` | A name that matches one file in the folder except for its space or quote characters |
+| Resolver                                       | Rewrites                                                                                                   |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `stripPrefixes()`                              | `file://` and a leading `@`. Set `{ at: false }` when your paths start with `@`, for example `@types/node` |
+| `expandHome({ home })`                         | `~` and `~/…` to `home`                                                                                    |
+| `reanchorLeadingSlash({ firstSegmentExists })` | `/src/a.ts` to `src/a.ts`, when your function returns `true` for `src`                                     |
+| `unicodeRepair()`                              | A name that matches one file in the folder except for its space or quote characters                        |
 
 A resolver cannot give access to more files. The filesystem checks the rewritten path.
 

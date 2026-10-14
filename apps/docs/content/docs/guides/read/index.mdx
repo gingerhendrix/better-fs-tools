@@ -4,7 +4,11 @@ description: Create the read function with createReadTool, and configure it with
 ---
 
 <Callout type="info">
-To give a read tool to an agent, use a provider integration such as [AI SDK](/hosts/ai-sdk) or [Pi](/hosts/pi). The integration gives you the tool definition: the name, the description, and the parameter schema. It takes the options on this page, plus a [`signature`](/hosts/tool-definition) for the tool definition. The AI SDK and Pi integrations add `imageConverter()` when you set no `converters`.
+  To give a read tool to an agent, use a provider integration such as [AI SDK](/hosts/ai-sdk) or
+  [Pi](/hosts/pi). The integration gives you the tool definition: the name, the description, and the
+  parameter schema. It takes the options on this page, plus a [`signature`](/hosts/tool-definition)
+  for the tool definition. The AI SDK and Pi integrations add `imageConverter()` when you set no
+  `converters`.
 </Callout>
 
 `createReadTool` is the lower-level API. It creates the function that implements the tool. Use it when you write your own integration, or when your code reads files for the agent.
@@ -22,22 +26,22 @@ const read = createReadTool({ fs });
 
 On Node or Bun, `createNodeReadTool()` from `@better-fs-tools/node` does the same with a filesystem rooted at `process.cwd()`, and sets `digest: nodeDigest()`. It takes the same options.
 
-| Option | Default | Use it to |
-| --- | --- | --- |
-| `fs` | Required | Set the filesystem, the allowed folders, and the symlink policy |
-| `formatter` | `lineNumberFormatter()` | Change the text the tool returns |
-| `messages` | `defaultReadMessages` | Change the wording of notes |
-| `resolve` | `null` | Rewrite paths before the tool opens them |
-| `suggest` | `defaultSuggest()` | Suggest names when a file is missing |
-| `authorize` | `null` (allow all) | Refuse paths, large files, or ask the user |
-| `classifiers` | `defaultClassifiers()` | Decide which files are text, images, PDFs, or binary |
-| `converters` | `[]` | Read images, notebooks, PDFs, and folders |
-| `limits` | `defaultReadLimits` | Change the line, byte, and size limits |
-| `budget` | `null` | Stop a read at a token budget |
-| `hooks` | `[]` | Change a result after the read, for example to redact secrets |
-| `state` | `null` | Store each read, so later calls and tools know what was read |
-| `digest` | `null` | Hash file content. `state` needs it |
-| `clock` | `() => new Date()` | Set the time used in stored reads |
+| Option        | Default                 | Use it to                                                       |
+| ------------- | ----------------------- | --------------------------------------------------------------- |
+| `fs`          | Required                | Set the filesystem, the allowed folders, and the symlink policy |
+| `formatter`   | `lineNumberFormatter()` | Change the text the tool returns                                |
+| `messages`    | `defaultReadMessages`   | Change the wording of notes                                     |
+| `resolve`     | `null`                  | Rewrite paths before the tool opens them                        |
+| `suggest`     | `defaultSuggest()`      | Suggest names when a file is missing                            |
+| `authorize`   | `null` (allow all)      | Refuse paths, large files, or ask the user                      |
+| `classifiers` | `defaultClassifiers()`  | Decide which files are text, images, PDFs, or binary            |
+| `converters`  | `[]`                    | Read images, notebooks, PDFs, and folders                       |
+| `limits`      | `defaultReadLimits`     | Change the line, byte, and size limits                          |
+| `budget`      | `null`                  | Stop a read at a token budget                                   |
+| `hooks`       | `[]`                    | Change a result after the read, for example to redact secrets   |
+| `state`       | `null`                  | Store each read, so later calls and tools know what was read    |
+| `digest`      | `null`                  | Hash file content. `state` needs it                             |
+| `clock`       | `() => new Date()`      | Set the time used in stored reads                               |
 
 `limits` and `messages` merge with their defaults key by key. Every other option replaces its default. `createReadTool` throws `TypeError` for an unknown option or an option with the wrong shape.
 
