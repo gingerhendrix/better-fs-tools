@@ -1,0 +1,120 @@
+---
+title: Runners and environment
+description: Choose where commands run, set the working directory, and set the environment of each command.
+---
+
+A runner starts one command. The tool handles the timeout, the stop, and the output. Set `runner` to one of the runners below, or to your own.
+
+| Runner                         | Import from                  | Runs commands                                                            |
+| ------------------------------ | ---------------------------- | ------------------------------------------------------------------------ |
+| `nodeCommandRunner()`          | `@better-fs-tools/node`      | With `bash -c` on the local machine. POSIX only                          |
+| `justBashCommandRunner(shell)` | `@better-fs-tools/just-bash` | In a [just-bash](/filesystems/just-bash) emulated shell, with no process |
+
+The runner's `id` goes into the tool description, so the model knows where its commands run.
+
+## Run commands on this machine
+
+`nodeCommandRunner()` runs `bash -c` in `process.cwd()`. Set `cwd` for another folder, and `shell` for another shell. A relative `cwd` is relative to `process.cwd()`:
+
+```ts
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { createBashTool, shellEnv } from "@better-fs-tools/shell";
+
+const bash = createBashTool({
+  runner: nodeCommandRunner({ cwd: "src", shell: "/bin/bash" }),
+  env: shellEnv(() => process.env),
+});
+```
+
+The command runs in its own process group. To stop it, the runner sends SIGTERM to the group, then SIGKILL after `limits.killGraceMs`. A background child, as in `sleep 60 &`, keeps running after the shell exits, and the tool does not wait for it.
+
+## Run commands in an emulated shell
+
+`justBashCommandRunner()` runs each command in a just-bash `Bash` instance. Commands see only the files of that instance:
+
+```ts
+import { Bash } from "just-bash";
+import { justBashCommandRunner } from "@better-fs-tools/just-bash";
+
+const shell = new Bash({
+  files: { "/workspace/notes.txt": "one\ntwo\n" },
+  cwd: "/workspace",
+  executionLimits: { maxCommandCount: 100_000 },
+});
+const bash = createBashTool({ runner: justBashCommandRunner(shell), env: shellEnv() });
+```
+
+```text
+Exit code 0 · 0 s
+2 notes.txt
+```
+
+just-bash returns the output when the command ends. A loop that does not stop also blocks the timeout, so set `executionLimits` on the `Bash` instance. On Bun, just-bash 3.4.2 also needs `defenseInDepth: false`, or every command fails with `SPAWN_FAILED`.
+
+## Set the working directory
+
+Commands run in the runner's `cwd`. Set `cwd` on the tool to use another absolute folder. The `cwd` input of a call is relative to this folder. A missing folder returns status `error` with code `CWD_NOT_FOUND`.
+
+To use a different runner or folder for each call, set `runner` or `cwd` to a function. The tool calls it once for each call, with the call context:
+
+```ts
+const bash = createBashTool<{ root: string }>({
+  runner: (call) => nodeCommandRunner({ cwd: call.host.root }),
+  env: shellEnv(() => process.env),
+});
+
+await bash({ command: "ls" }, { host: { root: `${process.cwd()}/src` } });
+```
+
+Set `resolve` to rewrite the `cwd` input with a [path resolver](/read/paths#rewrite-paths), for example `expandHome({ home: homedir() })` for `~/notes`. The bash tool cannot list folders, so a resolver that lists a folder cannot help here.
+
+## Set the environment
+
+`env` is required. It returns the whole environment of the command. The command gets no other variables. `shellEnv()` makes an `env` for the common cases:
+
+| Call                                   | The command gets                              |
+| -------------------------------------- | --------------------------------------------- |
+| `shellEnv(() => process.env)`          | The host environment, read again on each call |
+| `shellEnv({ PATH: process.env.PATH })` | Only the variables you list                   |
+| `shellEnv()`                           | No host variables                             |
+
+Each one adds `defaultShellEnv`: `PAGER=cat`, `GIT_PAGER=cat`, `GIT_TERMINAL_PROMPT=0`, `NO_COLOR=1`, and `TERM=dumb`. With the allow list above:
+
+```text
+Exit code 0 · 0 s
+HOME= PAGER=cat
+```
+
+`process.env` often holds API keys and tokens. Use an allow list when the model must not see them. `createNodeBashTool()` and `createNodeFsTools({ bash: true })` use `shellEnv(() => process.env)` when you do not set `env`.
+
+To make the environment your own way, set `env` to a function. It gets the command and the call context, and can be async:
+
+```ts
+const bash = createBashTool({
+  runner: nodeCommandRunner(),
+  env: async () => ({ PATH: "/usr/bin:/bin", API_TOKEN: "abc" }),
+});
+```
+
+If `env` throws, the call returns `EXTENSION_FAILED` and the command does not run.
+
+## Write your own runner
+
+A runner is an object with an `id`, an absolute `cwd`, and a `run(request)` function. `request` holds the `command`, the absolute `cwd`, the `env`, a `signal`, and `killGraceMs`. `run` returns `output`, an async iterable of `{ stream, bytes }` chunks, and `exit`, a promise of `{ code, signal }`. When `signal` aborts, the runner must stop the whole process tree. The [bash reference](/reference/bash#commandrunner) lists every field.
+
+To run commands in a sandbox, wrap a runner. This one runs each command under `nice`. Put your sandbox command, for example `bwrap` or `docker exec`, in its place:
+
+```ts
+import type { CommandRunner } from "@better-fs-tools/shell";
+
+const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
+const inner = nodeCommandRunner();
+const lowPriority: CommandRunner = {
+  id: "node (nice)",
+  cwd: inner.cwd,
+  run: (request) =>
+    inner.run({ ...request, command: `nice -n 10 bash -c ${quote(request.command)}` }),
+};
+```
+
+`result.run.command` and your `authorize` rule still see the command from the model.

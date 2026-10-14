@@ -1,0 +1,170 @@
+---
+title: Hooks and policy
+description: Refuse or rewrite commands, ask the user before a command runs, and change the output after the run.
+---
+
+<Callout type="warn">
+  The `allowedRoots` of the filesystem do not limit a command. A command can read, change, or delete
+  any file that the process can get to, and it can use the network. The package ships no rules for
+  commands. Add your rules with the options on this page, and run commands in a sandbox through a
+  [wrapper runner](/bash/runners#write-your-own-runner).
+</Callout>
+
+The tool runs your options in this order:
+
+1. `beforeRun` hooks check or rewrite the command, in list order.
+2. `authorize` decides on the command that will run.
+3. `env` makes the environment, and the runner runs the command.
+4. `afterRun` hooks change the output and the notes, in list order.
+
+## Check or rewrite a command
+
+A `beforeRun` hook gets the command, the absolute `cwd`, and the timeout. It returns `{ allow: true }` to continue, or `{ allow: false, note }` to refuse:
+
+```ts
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { createBashTool, shellEnv } from "@better-fs-tools/shell";
+import type { BeforeRunHook } from "@better-fs-tools/shell";
+
+const noInteractive: BeforeRunHook = {
+  id: "no-interactive",
+  beforeRun: (run) =>
+    /^(vim|less|top)\b/u.test(run.command)
+      ? {
+          allow: false,
+          note: {
+            code: "interactive",
+            severity: "warning",
+            message: "stdin is closed. Use cat or sed in place of an editor or a pager.",
+          },
+        }
+      : { allow: true },
+};
+
+const bash = createBashTool({
+  runner: nodeCommandRunner(),
+  env: shellEnv(() => process.env),
+  beforeRun: [noInteractive],
+});
+```
+
+```text
+[bash:refused] stdin is closed. Use cat or sed in place of an editor or a pager.
+```
+
+A refusal returns status `error` with code `REFUSED`, and the next hooks do not run. With no `note`, the note is `The command was refused by the no-interactive check.`
+
+To rewrite the command, return `{ allow: true, command }`. The next hook and `authorize` get the new command. `result.run.command` holds the command that ran, and `result.request.command` holds the command from the model.
+
+## Decide with authorize
+
+`authorize` takes one authorizer. It gets a `target` with the final command, and returns `{ allow: true }` or `{ allow: false, note }`. It can be async, for example to ask the user:
+
+```ts
+import type { ShellAuthorizer } from "@better-fs-tools/shell";
+
+declare function confirmInUi(question: string): Promise<boolean>;
+
+const askFirst: ShellAuthorizer = {
+  id: "ask-first",
+  authorize: async (target) =>
+    (await confirmInUi(`Run ${target.command} in ${target.displayPath}?`))
+      ? { allow: true }
+      : {
+          allow: false,
+          note: {
+            code: "not-approved",
+            severity: "warning",
+            message: "The user did not approve the command.",
+          },
+        },
+};
+```
+
+| `target` field | Holds                                                                       |
+| -------------- | --------------------------------------------------------------------------- |
+| `command`      | The command that will run, after every `beforeRun` rewrite                  |
+| `cwd`          | The absolute working directory                                              |
+| `displayPath`  | The working directory relative to the default one, for example `.` or `src` |
+| `timeoutMs`    | The timeout of the call                                                     |
+
+A refusal returns status `error` with code `DENIED`. The note code is always `denied`. Your own code goes to `result.error.data.source`:
+
+```text
+[bash:denied] The user did not approve the command.
+```
+
+Give each refusal a `note` with a message for the model. With no note, the message names the absolute working directory.
+
+A rule gets the whole command string. A check on the start of the command, such as `startsWith("ls")`, also allows `ls && rm -rf ~`.
+
+To use more than one rule, put reusable checks in `beforeRun`, and keep the last decision in `authorize`. If `authorize` throws, the call returns `EXTENSION_FAILED`, and the command does not run.
+
+### Rules from the read package
+
+`denyPaths()` from `@better-fs-tools/read` works with `authorize`, but it checks only the working directory. With `denyPaths(["**/secrets", "**/secrets/**"])`, a call with `cwd: "secrets"` is refused, and `ls secrets` runs. `askUser()` does not work with the bash tool.
+
+## Change the output
+
+An `afterRun` hook gets the status, the run, the output, and the notes. It returns only what it changes: `{ output?, notes? }`. This hook masks GitHub tokens:
+
+```ts
+import type { AfterRunHook } from "@better-fs-tools/shell";
+
+const maskTokens: AfterRunHook = {
+  id: "mask-tokens",
+  afterRun: (outcome) => ({
+    output: {
+      ...outcome.output,
+      head: outcome.output.head.replaceAll(/ghp_\w+/gu, "ghp_***"),
+      tail: outcome.output.tail?.replaceAll(/ghp_\w+/gu, "ghp_***") ?? null,
+    },
+  }),
+};
+```
+
+```text
+Exit code 0 · 0 s
+token=ghp_***
+```
+
+`notes` replaces the whole list, so keep the notes you got. A hook cannot change the status or the exit code. It runs for every command that started, also after a timeout or `OUTPUT_CAP`.
+
+`afterRun` changes only what the model sees. To keep a secret away from the command, leave it out of [`env`](/bash/runners#set-the-environment).
+
+If a hook throws, the call returns `EXTENSION_FAILED`. The result keeps the run and the output:
+
+```text
+Exit code 0 · 0 s
+hi
+
+[bash:extension-failed] The bad extension failed during the afterRun phase. This is a host problem, not a problem with the command.
+```
+
+## Keep the file tools in step
+
+The bash tool does not update the read records of the file tools. The bundles keep read records only when you set `state: memoryStore()`. When a command then changes a file, the edit tool sees that the file changed since the last read, and returns `STALE`. To make the model read a file again after a command, call `invalidate(path)` of a bundle from an `afterRun` hook. See [Choose an integration](/integrations):
+
+```ts
+import { createNodeFsTools } from "@better-fs-tools/node";
+import { memoryStore } from "@better-fs-tools/read";
+
+const tools = createNodeFsTools({
+  state: memoryStore(),
+  bash: {
+    afterRun: [
+      {
+        id: "invalidate-package-json",
+        afterRun: async () => {
+          await tools.invalidate("package.json");
+          return {};
+        },
+      },
+    ],
+  },
+});
+```
+
+```text
+[edit:not-read] Read package.json with the read tool before changing it.
+```

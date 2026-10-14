@@ -1,0 +1,130 @@
+---
+title: Path handling
+description: Set the folders the tool can read, rewrite paths before a read, and suggest names when a file is missing.
+---
+
+The tool gets a path from the model and gives it to three options, in this order:
+
+1. `resolve` rewrites the path. The default is `null`, which keeps the path.
+2. `fs` opens the path, or refuses it when it is outside the allowed folders.
+3. `suggest` finds similar names when the file is missing.
+
+## Set the folders
+
+The filesystem in `fs` decides which paths the tool can open. For `nodeFileSystem`, set `allowedRoots`, and optionally `denyRoots` and `symlinks`:
+
+```ts
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool } from "@better-fs-tools/read";
+
+const cwd = process.cwd();
+const read = createReadTool({
+  fs: nodeFileSystem({
+    cwd,
+    allowedRoots: [`${cwd}/src`, `${cwd}/docs`],
+    denyRoots: [`${cwd}/docs/private`],
+  }),
+});
+```
+
+A path outside the allowed folders returns status `error` with code `OUTSIDE_ALLOWED_ROOTS`:
+
+```text
+[read:outside-allowed-roots] logs/server.log is outside every configured allowed root.
+```
+
+By default the tool follows a symbolic link only when its target is inside the allowed folders. Set `symlinks: "reject"` to refuse every link. The [Node filesystem](/filesystems/node) page lists all `nodeFileSystem` options, and [Filesystems](/filesystems) lists the other filesystems.
+
+To use different folders for each call, set `fs` to a function. The tool calls it once for each read, with the call context:
+
+```ts
+const read = createReadTool<{ root: string }>({
+  fs: (call) => nodeFileSystem({ cwd: call.host.root, allowedRoots: [call.host.root] }),
+});
+
+await read({ path: "greet.ts" }, { host: { root: `${cwd}/src` } });
+```
+
+## Rewrite paths
+
+Models often send `@src/greet.ts`, `file:///repo/src/greet.ts`, or `~/notes.md`. Set `resolve` to fix these paths before the tool opens them. `pathResolvers()` runs resolvers from left to right:
+
+```ts
+import { homedir } from "node:os";
+import { expandHome, pathResolvers, stripPrefixes } from "@better-fs-tools/read";
+
+const read = createReadTool({
+  fs,
+  resolve: pathResolvers(stripPrefixes(), expandHome({ home: homedir() })),
+});
+```
+
+| Resolver                                       | Rewrites                                                                                                   |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `stripPrefixes()`                              | `file://` and a leading `@`. Set `{ at: false }` when your paths start with `@`, for example `@types/node` |
+| `expandHome({ home })`                         | `~` and `~/…` to `home`                                                                                    |
+| `reanchorLeadingSlash({ firstSegmentExists })` | `/src/a.ts` to `src/a.ts`, when your function returns `true` for `src`                                     |
+| `unicodeRepair()`                              | A name that matches one file in the folder except for its space or quote characters                        |
+
+A resolver cannot give access to more files. The filesystem checks the rewritten path.
+
+`result.file.resolvedFrom` holds the path from the model when a resolver changed it, and `null` when no resolver changed it. The continuation keeps the path from the model, so the model can use it again:
+
+```text
+1|export function greet(name: string): string {
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"@src/greet.ts","offset":2,"limit":1}.
+```
+
+### Repair file names
+
+macOS puts a narrow no-break space in screenshot names, and a model usually types a normal space. With no resolver, the read fails and the correct name comes back as a suggestion. With `unicodeRepair()`, the tool opens the file and adds a note:
+
+```text
+1|# Meeting notes
+
+[read:path-repaired] The requested filename "docs/notes 10.42 AM.md" was repaired to the unique Unicode-equivalent path "docs/notes 10.42 AM.md".
+```
+
+`unicodeRepair()` lists the folder on each read, so it is not in the defaults. Set `unicodeRepair({ note: false })` to repair with no note.
+
+### Write your own resolver
+
+A resolver is an object with an `id` and a `resolve(path, ctx)` function. `resolve` returns `{ kind: "path", path }` with the new path, or `{ kind: "not-found" }` to fail the read:
+
+```ts
+import type { PathResolver } from "@better-fs-tools/read";
+
+const srcAlias: PathResolver = {
+  id: "src-alias",
+  resolve: (path) =>
+    path.startsWith("$SRC/")
+      ? { kind: "path", path: `src/${path.slice(5)}` }
+      : { kind: "path", path },
+};
+```
+
+Both kinds can hold a `note` for the model. `ctx.paths` has path functions for the filesystem, and `ctx.list(dir)` lists one folder. If `resolve` throws, the read fails with `EXTENSION_FAILED`.
+
+## Suggest names on a miss
+
+When a file is missing, the tool lists its folder and `defaultSuggest()` picks up to five similar names. The names are in the note and in `result.error.data.suggestions`:
+
+```text
+[read:not-found] docs/setpu.md was not found. Nearby names: "setup.md".
+```
+
+Set `suggest` to a function to pick names your own way. It gets the folder entries in `ctx.entries`, and the most names to return in `ctx.max`:
+
+```ts
+const read = createReadTool({
+  fs,
+  suggest: (ctx) =>
+    ctx.entries
+      .map((entry) => entry.name)
+      .filter((name) => name.endsWith(".md"))
+      .slice(0, ctx.max),
+});
+```
+
+Set `suggest: null` to turn suggestions off. The tool then does not list the folder. Set `limits.maxSuggestions` to change the number of names.

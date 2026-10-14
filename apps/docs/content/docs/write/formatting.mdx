@@ -1,0 +1,145 @@
+---
+title: Customise formatting
+description: Show the diff, change the layout, hide or change notes, or write your own formatter for the write tools.
+---
+
+A formatter turns the result of a call into `result.content`, the parts that go to the model. The default is `defaultWriteFormatter()`. The formatter changes only `content`. `status`, `changes`, `notes`, and the other fields stay the same.
+
+## What the default shows
+
+The default prints one line that tells what changed, then a blank line and the notes. A failed call prints only the notes:
+
+| Tool          | First line                                                                | Then                                                           |
+| ------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `edit`        | `Edited src/greet.ts: 1 replacement at line 2.`                           | Nothing. `snippet: true` adds the new lines around each change |
+| `write`       | `Created src/names.ts (1 line).` or `Updated src/greet.ts (+2 -5 lines).` | Nothing                                                        |
+| `apply_patch` | `Success. Updated the following files:`                                   | One line for each file: `A`, `M`, or `D`, and the path         |
+
+A `no-change` result prints `No change to src/greet.ts.`
+
+## Change the layout
+
+`defaultWriteFormatter()` takes five options:
+
+| Option     | Default               | Sets                                                        |
+| ---------- | --------------------- | ----------------------------------------------------------- |
+| `snippet`  | `false`               | `true` adds the new lines around each change of an `edit`   |
+| `diff`     | `false`               | `true` adds the unified diff of each file in a fenced block |
+| `gutter`   | `` (n) => `${n}\|` `` | The text before each line of an `edit` snippet              |
+| `notes`    | show all              | A filter for notes. Return `null` to hide a note            |
+| `noteLine` | `[tool:code] message` | How each note is printed. Gets the note and the tool name   |
+
+```ts
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createEditTool, defaultWriteFormatter } from "@better-fs-tools/write";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const edit = createEditTool({ fs, formatter: defaultWriteFormatter({ diff: true }) });
+```
+
+{/* prettier-ignore */}
+````text
+Edited src/greet.ts: 1 replacement at line 2.
+```diff
+--- a/src/greet.ts
++++ b/src/greet.ts
+@@ -1,5 +1,5 @@
+ export function greet(name: string): string {
+-  return `Hello, ${name}!`;
++  return `Hi, ${name}!`;
+ }
+ 
+ export function farewell(name: string): string {
+```
+````
+
+The full diff is always in `result.changes[].diff`, cut at `limits.maxDiffLines`.
+
+## Show the changed lines
+
+Set `snippet: true` to show the new lines of an `edit`, with the `2|` gutter of the read tool:
+
+```ts
+const edit = createEditTool({ fs, formatter: defaultWriteFormatter({ snippet: true }) });
+```
+
+```text
+Edited src/greet.ts: 1 replacement at line 2.
+1|export function greet(name: string): string {
+2|  return `Hi, ${name}!`;
+3|}
+4|
+5|export function farewell(name: string): string {
+```
+
+The snippet shows 3 lines of context around each change, and at most 40 lines for each file. Set `limits.snippetLines` and `limits.maxSnippetLines` to change this.
+
+## Hide or rewrite notes
+
+Set `notes` to hide a note from the text, or to change it. The function gets the note and the tool name. It returns the note to show, a changed note, or `null`. A note filter changes only the text. The note stays in `result.notes`:
+
+```ts
+import { createWriteTool, executableShebang } from "@better-fs-tools/write";
+
+const write = createWriteTool({
+  fs,
+  hooks: [executableShebang()],
+  formatter: defaultWriteFormatter({
+    notes: (note) => (note.code === "executable" ? null : note),
+  }),
+});
+```
+
+When the model creates `build.sh` with a `#!` line, the text has no `executable` note:
+
+```text
+Created build.sh (2 lines).
+```
+
+## Change the wording of notes
+
+Set `messages` to change the text of a note. Each message is a function that gets the details of the note and returns a string. The messages you leave out keep their default text:
+
+```ts
+const edit = createEditTool({
+  fs,
+  messages: {
+    notFound: ({ path }) => `No file at ${path}. Create it with the write tool.`,
+  },
+});
+```
+
+```text
+[edit:not-found] No file at src/missing.ts. Create it with the write tool.
+```
+
+The note `code` does not change, so key your code on `code`, not on the text. The [write reference](/reference/write#messages) lists every message and its arguments.
+
+Many messages name a parameter, for example `the oldText was not found`. When a [signature](/integrations/tool-definition) renames the parameters, pass `messages: writeSignatureMessages(signature)` from `@better-fs-tools/write/signature`. The notes then use the names that the model sees. The provider integrations do this for you.
+
+## Write your own formatter
+
+A formatter is an object with an `id` and a `format(report, ctx)` function. `format` returns a string, or a list of content parts. It must be synchronous:
+
+```ts
+import type { WriteFormatter } from "@better-fs-tools/write";
+
+const summary: WriteFormatter<unknown> = {
+  id: "summary",
+  format: (report) =>
+    report.status === "error"
+      ? report.error.message
+      : report.changes
+          .map((c) => `${c.kind} ${c.path} +${c.linesAdded} -${c.linesRemoved}`)
+          .join("\n"),
+};
+```
+
+```text
+update src/greet.ts +1 -1
+```
+
+`report` is the result without `content`. `ctx` holds the `digest`, the `limits`, and the call context in `call`. Narrow on `report.status` before you read `report.error`.
+
+If your formatter throws, the tool uses `defaultWriteFormatter()` for that result. The change is not lost, and the tool adds no note.

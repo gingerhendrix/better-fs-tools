@@ -1,0 +1,181 @@
+---
+title: just-bash filesystem
+description: Read and write the files of a just-bash sandbox with justBashFileSystem, and run the bash tool in the same sandbox.
+---
+
+`justBashFileSystem()` from `@better-fs-tools/just-bash` reads and writes the files of a [just-bash](https://www.npmjs.com/package/just-bash) sandbox. just-bash is an emulated shell with its own filesystem. Nothing touches real files, and nothing starts a process.
+
+```sh
+npm install @better-fs-tools/just-bash @better-fs-tools/read @better-fs-tools/write just-bash
+```
+
+`just-bash` is a required peer, with the range `^3.4.2`.
+
+```ts
+import { InMemoryFs } from "just-bash";
+import { readOnlyFileSystem } from "@better-fs-tools/fs";
+import { justBashFileSystem } from "@better-fs-tools/just-bash";
+import { createReadTool, textOf } from "@better-fs-tools/read";
+
+const bash = new InMemoryFs({ "/workspace/src/index.ts": "const a = 1;\n" });
+
+// readOnlyFileSystem drops the write methods, so no write tool can use this view.
+const read = createReadTool({
+  fs: readOnlyFileSystem(
+    justBashFileSystem(bash, {
+      id: "sandbox",
+      cwd: "/workspace",
+      allowedRoots: ["/workspace"],
+      maxBufferedBytes: 4 * 1024 * 1024,
+    }),
+  ),
+});
+
+console.log(textOf(await read({ path: "src/index.ts" })));
+// 1|const a = 1;
+```
+
+The same filesystem with a write tool and a read store, so `edit` needs a read first:
+
+```ts
+import { InMemoryFs } from "just-bash";
+import { justBashFileSystem } from "@better-fs-tools/just-bash";
+import { nodeDigest } from "@better-fs-tools/node";
+import { createReadTool, memoryStore, textOf } from "@better-fs-tools/read";
+import { createEditTool, memoryLocks } from "@better-fs-tools/write";
+
+const bash = new InMemoryFs({ "/workspace/src/index.ts": "const a = 1;\n" });
+const fs = justBashFileSystem(bash, {
+  id: "sandbox",
+  cwd: "/workspace",
+  allowedRoots: ["/workspace"],
+  maxBufferedBytes: 4 * 1024 * 1024,
+});
+const shared = { fs, state: memoryStore(), digest: nodeDigest() };
+const read = createReadTool(shared);
+const edit = createEditTool({ ...shared, locks: memoryLocks() });
+
+await read({ path: "src/index.ts" });
+console.log(textOf(await edit({ path: "src/index.ts", edits: [{ oldText: "1", newText: "2" }] })));
+// Edited src/index.ts: 1 replacement at line 1.
+console.log(await bash.readFile("/workspace/src/index.ts")); // const a = 2;
+```
+
+`nodeDigest()` needs Node or Bun. In a Worker, use `sha256Digest()` from `@better-fs-tools/read`, or pass the filesystem to `createFsTools()`, which uses `sha256Digest()` by default.
+
+## Options
+
+The backend takes the [shared options](/filesystems#shared-options) and `maxBufferedBytes`:
+
+| Option             | Default       | Meaning                                                                                               |
+| ------------------ | ------------- | ----------------------------------------------------------------------------------------------------- |
+| `allowedRoots`     | Required      | At least one folder. Relative roots resolve against `cwd`                                             |
+| `cwd`              | `/`           | Must be an absolute path                                                                              |
+| `denyRoots`        | None          | Refused as `DANGEROUS_PATH`                                                                           |
+| `symlinks`         | `"reject"`    | `"follow-within-roots"` follows a link when its real path stays inside the roots                      |
+| `identity`         | `"none"`      | `"required"` makes every file need an identity, or a device and an inode, from the backend's `stat()` |
+| `id`               | `"just-bash"` | Appears in versions. Give two backends that share one read store two ids                              |
+| `maxBufferedBytes` | 16 MiB        | A larger file gives `TOO_LARGE`, for reads and writes                                                 |
+
+The filesystem exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `maxBufferedBytes`, `identity`, and `symlinks`.
+
+The backend checks each path against `allowedRoots` and `denyRoots` before it calls just-bash. It checks the path again after `realpath()`.
+
+With `identity: "none"`, versions use the size and the modification time. With `identity: "required"`, a file without an identity gives `UNSUPPORTED_BACKEND`. The write tools then trust the version. A change by another writer to the same size, in the same millisecond, is not seen. With the default, the write tools also compare the content hash of what the model read.
+
+## Reads are buffered
+
+just-bash returns whole files, so `open()` reads the whole file into memory. A file over `maxBufferedBytes` gives `TOO_LARGE`.
+
+<Callout type="warn">
+  The whole file leaves the backend inside `open()`, before the read tool runs `authorize`. A file
+  that `authorize` refuses has already left the backend. To keep a file inside the backend, put it
+  in `denyRoots`, or leave it out of `allowedRoots`. See [Buffered reads and
+  authorize](/filesystems#buffered-reads-and-authorize).
+</Callout>
+
+`list()` lists folders, so name suggestions and `directoryListing()` work.
+
+The backend reduces a just-bash error to a POSIX code and a phase. It does not pass on the error message, because the message can contain paths.
+
+## Writes
+
+The backend type is `JustBashBackend`. Reads need `lstat`, `realpath`, `stat`, `readFileBuffer`, and `readdir`. `readdirWithFileTypes` is optional. A write needs `writeFile`, `mkdir`, `chmod`, and `utimes`, and `remove()` needs `rm`. A full `IFileSystem` such as `InMemoryFs` has all of them.
+
+The backend checks the write methods when a write runs, not when you create the filesystem. A backend object without them still serves reads, and a write gives `UNSUPPORTED_BACKEND`:
+
+```ts
+import { InMemoryFs } from "just-bash";
+import { justBashFileSystem } from "@better-fs-tools/just-bash";
+import type { JustBashBackend } from "@better-fs-tools/just-bash";
+import { createReadTool, textOf } from "@better-fs-tools/read";
+import { createWriteTool } from "@better-fs-tools/write";
+
+const memory = new InMemoryFs({ "/workspace/notes.txt": "one\n" });
+
+// Only the read methods. The adapter checks the write methods when a write runs.
+const backend: JustBashBackend = {
+  lstat: (path) => memory.lstat(path),
+  realpath: (path) => memory.realpath(path),
+  stat: (path) => memory.stat(path),
+  readFileBuffer: (path) => memory.readFileBuffer(path),
+  readdir: (path) => memory.readdir(path),
+};
+const fs = justBashFileSystem(backend, { cwd: "/workspace", allowedRoots: ["/workspace"] });
+
+console.log(textOf(await createReadTool({ fs })({ path: "notes.txt" })));
+console.log(textOf(await createWriteTool({ fs })({ path: "notes.txt", content: "two\n" })));
+```
+
+```text
+1|one
+[write:unsupported-backend] The backend cannot change notes.txt (the IFileSystem has no writeFile(), so this backend cannot write); this is a configuration problem rather than a property of the file.
+```
+
+How a write works:
+
+- Writes use the same roots, deny roots, and symlink policy as `open()`. Under `"follow-within-roots"`, a write follows a link inside the roots and changes the real file. It refuses a link out of the roots and a link to a file that does not exist.
+- `writeCapabilities` is `{ compareAndSwap: false }`. just-bash has no version check, so the backend checks the precondition with a fresh `stat` just before the write.
+- A write is `writeFile` and then `chmod`, so it is not atomic.
+- `InMemoryFs` sets the mode to `0o644` on every write. A replace calls `chmod` with the old mode, so the file keeps its mode. A new file gets the backend's default.
+- `InMemoryFs` keeps the modification time when two writes fall in the same millisecond. Then the backend moves the time on by one millisecond with `utimes`, so every write changes the version.
+- There is no `stage()`. `apply_patch` writes each file in turn, and undoes them when a later file fails.
+- `EEXIST` gives `exists`, `EROFS` gives `read-only`, and `ENOSPC` and `EDQUOT` give `no-space`.
+
+## Run bash in the same sandbox
+
+`justBashCommandRunner()` from the same package runs the `bash` tool in a just-bash `Bash`. Give the shell the same `InMemoryFs` in its `fs` option. The file tools and the commands then see the same files:
+
+```ts
+import { Bash, InMemoryFs } from "just-bash";
+import { justBashCommandRunner, justBashFileSystem } from "@better-fs-tools/just-bash";
+import { createBashTool, shellEnv } from "@better-fs-tools/shell";
+import { createWriteTool } from "@better-fs-tools/write";
+import { textOf } from "@better-fs-tools/read";
+
+// One InMemoryFs for the file tools and the shell.
+const files = new InMemoryFs({ "/workspace/notes.txt": "one\n" });
+const fs = justBashFileSystem(files, { cwd: "/workspace", allowedRoots: ["/workspace"] });
+const shell = new Bash({
+  fs: files,
+  cwd: "/workspace",
+  executionLimits: { maxCommandCount: 100_000 },
+  // just-bash 3.4.2 needs this on Bun. Leave it out on Node.
+  defenseInDepth: false,
+});
+
+const write = createWriteTool({ fs });
+const bash = createBashTool({ runner: justBashCommandRunner(shell), env: shellEnv() });
+
+await write({ path: "notes.txt", content: "one\ntwo\n" });
+console.log(textOf(await bash({ command: "wc -l notes.txt" })));
+```
+
+```text
+Exit code 0 · 0 s
+2 notes.txt
+```
+
+[Command runners](/bash/runners#run-commands-in-an-emulated-shell) lists the limits of the emulated shell.
+
+The allowed roots and the deny roots of the filesystem do not limit what a command can read. Here, `cat /workspace/.env` works even when `.env` is in `denyRoots`.

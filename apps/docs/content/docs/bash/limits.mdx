@@ -1,0 +1,124 @@
+---
+title: Timeouts and output
+description: Set how long a command can run and how much output the model sees, and save the full output to a file.
+---
+
+## Change the limits
+
+Set `limits` with the values you want to change. The other limits keep their defaults:
+
+```ts
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { createBashTool, shellEnv } from "@better-fs-tools/shell";
+
+const bash = createBashTool({
+  runner: nodeCommandRunner(),
+  env: shellEnv(() => process.env),
+  limits: { defaultTimeoutMs: 30_000, maxOutputLines: 5 },
+});
+```
+
+| Limit              | Default          | Sets                                                                           |
+| ------------------ | ---------------- | ------------------------------------------------------------------------------ |
+| `defaultTimeoutMs` | 120,000 (2 min)  | The timeout when the model does not set one                                    |
+| `maxTimeoutMs`     | 600,000 (10 min) | The largest timeout the model can set                                          |
+| `killGraceMs`      | 2,000            | The time between SIGTERM and SIGKILL when the tool stops a command             |
+| `maxOutputBytes`   | 30,000           | The most bytes of output the model sees                                        |
+| `maxOutputLines`   | 2,000            | The most lines of output the model sees                                        |
+| `headPercent`      | 20               | The percent of the output view for the first part. The last part gets the rest |
+| `maxCaptureBytes`  | 10 MiB           | The output at which the tool stops the command                                 |
+
+Each value must be a positive whole number, and `headPercent` must be 100 or less. `createBashTool` throws `TypeError` for an unknown limit, or for a `defaultTimeoutMs` over `maxTimeoutMs`. When you set only `maxTimeoutMs` below 2 minutes, the default timeout drops to it. `defaultShellLimits` holds the defaults.
+
+## Timeouts
+
+The model sets `timeoutMs` for one call. A value over `maxTimeoutMs` is cut, and the tool adds a note:
+
+```text
+[bash:clamped] The requested timeout of 15 min is over the maximum, so 10 min was used.
+```
+
+At the timeout, the tool stops the whole process tree and returns status `timeout`. The output so far is kept. This is `echo start; sleep 5` with `timeoutMs: 500`:
+
+```text
+Timed out after 0.5 s. The process tree was stopped.
+start
+```
+
+To stop a command from your code, pass an abort `signal` in the call context. The call returns status `error` with code `ABORTED`:
+
+```ts
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 200);
+const result = await bash({ command: "sleep 5" }, { signal: controller.signal });
+```
+
+```text
+Ended by SIGTERM · 0.2 s
+(no output)
+
+[bash:aborted] Aborted after 0.2 s. The process tree was stopped.
+```
+
+The tool sends SIGTERM, then SIGKILL after `killGraceMs`. If the runner does not confirm the stop within `killGraceMs` plus one second, the tool returns with an `unconfirmed-stop` note.
+
+## Read the output
+
+stdout and stderr are merged in the order they arrive. The tool removes ANSI color codes. When the output is longer than `maxOutputBytes` or `maxOutputLines`, the model sees the first part, a line that tells how much is not shown, and the last part. The last part is larger, because errors are usually at the end.
+
+`result.output` holds the counts:
+
+```ts
+const result = await bash({ command: "cat logs/server.log" });
+
+if (result.status !== "error") {
+  result.output.totalLines; // 5000
+  result.output.omittedLines; // 4995
+  result.output.stderrBytes; // 0
+}
+```
+
+`output.head` holds the first part. `output.tail` holds the last part, or `null` when nothing was cut.
+
+## Stop a command with too much output
+
+When a command writes more than `maxCaptureBytes`, the tool stops it. The call returns status `error` with code `OUTPUT_CAP`, and keeps the output view:
+
+```text
+[bash:output-cap] The command wrote more than 10.5 MB of output, so it was stopped. Send less output, for example with a filter, a count, or a redirect to a file.
+```
+
+## Save the full output
+
+Set `spill` to save every byte of output. The tool calls `open` once for each command, writes each chunk, and calls `close`. `close` returns a reference, for example a path, and the tool adds it to the line between the two parts:
+
+```ts
+import { mkdir, open } from "node:fs/promises";
+import type { SpillSink } from "@better-fs-tools/shell";
+
+const fileSpill: SpillSink = {
+  id: "file",
+  async open() {
+    await mkdir(".bash-output", { recursive: true });
+    const path = `.bash-output/${crypto.randomUUID()}.log`;
+    const file = await open(path, "w");
+    return {
+      write: async (bytes) => {
+        await file.write(bytes);
+      },
+      close: async () => {
+        await file.close();
+        return path;
+      },
+    };
+  },
+};
+```
+
+```text
+[… 4995 lines (183.7 KB) not shown] Full output: .bash-output/db632e11-9e41-4c3e-8f36-331d34f9c367.log
+```
+
+Put the files inside the `allowedRoots` of the read tool, so the model can read the part it did not see. `result.output.spill` holds the reference. The [Pi integration](/integrations/pi) gives it to Pi as `fullOutputPath`.
+
+If `write` or `close` fails, the command is not affected, the tool adds no note, and `result.output.spill` is `null`. If `open` throws, the command does not run, and the call returns `EXTENSION_FAILED`.

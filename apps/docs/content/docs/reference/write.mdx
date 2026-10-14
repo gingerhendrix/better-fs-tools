@@ -3,13 +3,13 @@ title: Write reference
 description: Every field of the edit, write, and apply_patch result, every error and note code, every message, the limits, the patch types, and the lower-level helpers of @better-fs-tools/write.
 ---
 
-This page lists the types and helpers of `@better-fs-tools/write`. For a walkthrough, see the [write guide](/guides/write).
+This page lists the types and helpers of `@better-fs-tools/write`. For a walkthrough, see the [write guide](/write).
 
 | Entry                              | Contents                                                                                                                                                                                                                                                                                               |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `@better-fs-tools/write`           | `createEditTool`, `createWriteTool`, `createApplyPatchTool`, `createFsTools`, the matchers, guards, authorizers, hooks, `defaultWriteFormatter`, `utf8Codec`, `memoryLocks`, `createInvalidator`, the helpers on this page, and the types. `textOf` is the same function as in `@better-fs-tools/read` |
 | `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, `CODEX_PATCH_GRAMMAR`, and the [patch types](#patchparser)                                                                                                                                                                                                           |
-| `@better-fs-tools/write/signature` | The edit, write, and patch signatures, and `writeSignatureMessages`. See [tool definition](/hosts/tool-definition)                                                                                                                                                                                     |
+| `@better-fs-tools/write/signature` | The edit, write, and patch signatures, and `writeSignatureMessages`. See [tool definition](/integrations/tool-definition)                                                                                                                                                                              |
 
 ## MutationResult
 
@@ -212,7 +212,7 @@ Guards and authorizers can add allow notes of their own.
 
 ## Messages
 
-`messages` sets the text of each note. Each message is a function. The messages you leave out keep their default text. [Customise formatting](/guides/write/formatting#change-the-wording-of-notes) shows an example. `defaultWriteMessages` holds the default functions.
+`messages` sets the text of each note. Each message is a function. The messages you leave out keep their default text. [Customise formatting](/write/formatting#change-the-wording-of-notes) shows an example. `defaultWriteMessages` holds the default functions.
 
 `param(name)` gives the name that the model sees for a canonical parameter: `path`, `edits`, `oldText`, `newText`, `replaceAll`, `content`, or `patch`. The default texts use it. An empty string means that the tool has no such parameter, and the default texts then leave out the advice that names it. `writeSignatureMessages(signature)` sets `param` for a signature.
 
@@ -286,7 +286,7 @@ A `sampleBytes` that you set above `maxFileBytes` throws `TypeError`. When you s
 
 ## Preconditions
 
-`preconditions` sets the read-before-write rules. It merges with `defaultPreconditions` key by key. The rules apply only when the tool has a `state` store. See [Read before write](/guides/write/read-before-write).
+`preconditions` sets the read-before-write rules. It merges with `defaultPreconditions` key by key. The rules apply only when the tool has a `state` store. See [Read before write](/write/read-before-write).
 
 | Key           | Default       | Values                                                                                                                                                     |
 | ------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -376,7 +376,7 @@ The formatter makes `content` one time, with `mode: "model"`. A formatter that r
 | `apply_patch` | `Success. Updated the following files:`                                       | One line for each file: `A`, `M`, or `D`, and the path                                                   |
 | Any           | `No change to <path>.` for `no-change`. `write` adds the reason               | None                                                                                                     |
 
-[Customise formatting](/guides/write/formatting) lists the options of `defaultWriteFormatter()`. If a formatter throws, the tool uses `defaultWriteFormatter()` and adds no note.
+[Customise formatting](/write/formatting) lists the options of `defaultWriteFormatter()`. If a formatter throws, the tool uses `defaultWriteFormatter()` and adds no note.
 
 ## The stored record
 

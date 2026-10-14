@@ -2,9 +2,11 @@
   "pages": [
     "index",
     "get-started",
-    "guides",
-    "hosts",
-    "backends",
+    "read",
+    "write",
+    "bash",
+    "integrations",
+    "filesystems",
     "reference",
     "read_tool",
     "comparisons"

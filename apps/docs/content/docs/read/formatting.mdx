@@ -1,0 +1,182 @@
+---
+title: Customise formatting
+description: Choose a formatter, change the layout, change the wording of notes, or write your own formatter.
+---
+
+A formatter turns the result of a read into `result.content`, the parts that go to the model. The default is `lineNumberFormatter()`. The formatter changes only `content`. `status`, `view`, `notes`, and the other fields stay the same, so your code can read them with any formatter.
+
+## Choose a formatter
+
+Set `formatter` to one of the built-in formatters:
+
+```ts
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool, plainFormatter } from "@better-fs-tools/read";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const read = createReadTool({ fs, formatter: plainFormatter() });
+```
+
+| Formatter               | Import from                     | Gives                                                                       |
+| ----------------------- | ------------------------------- | --------------------------------------------------------------------------- |
+| `lineNumberFormatter()` | `@better-fs-tools/read`         | `1\|text` lines, then notes. The default                                    |
+| `plainFormatter()`      | `@better-fs-tools/read`         | The source text with no line numbers, then notes                            |
+| `jsonFormatter()`       | `@better-fs-tools/read`         | JSON text of the result, or of the fields you pick                          |
+| `opencodeFormat()`      | `@better-fs-tools/read/formats` | The OpenCode layout: `<path>`, `<type>`, and `1: text` lines in `<content>` |
+| `deepAgentsFormat()`    | `@better-fs-tools/read/formats` | The Deep Agents layout: a range header and plain lines                      |
+| `hermesFormat()`        | `@better-fs-tools/read/formats` | The Hermes layout: one JSON object                                          |
+| `hashlineFormat()`      | `@better-fs-tools/read/formats` | A file hash, then `1:2b\|text` lines with a line hash                       |
+
+Use the format of another harness when your model was tuned on that harness. This is `opencodeFormat()` for the first three lines of `src/greet.ts`:
+
+```text
+<path>src/greet.ts</path>
+<type>file</type>
+<content>
+1: export function greet(name: string): string {
+2:   return `Hello, ${name}!`;
+3: }
+</content>
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"src/greet.ts","offset":4,"limit":3}.
+```
+
+## Change the layout
+
+`lineNumberFormatter()` and `plainFormatter()` take options for each part of the layout:
+
+| Option        | Default                         | Sets                                                               |
+| ------------- | ------------------------------- | ------------------------------------------------------------------ |
+| `gutter`      | `` `${line.number}\|` ``        | The text before each line. Not on `plainFormatter()`               |
+| `clampMarker` | `… [line truncated at N chars]` | The text after a line that the tool cut. Not on `plainFormatter()` |
+| `header`      | none                            | A line before the text. Return `null` for no header                |
+| `footer`      | none                            | A line after the text. Return `null` for no footer                 |
+| `notes`       | show all                        | A filter for notes. Return `null` to hide a note                   |
+| `noteLine`    | `[read:code] message`           | How each note is printed                                           |
+
+The package has helpers for `gutter`, `header`, and `footer`. `hashlineGutter()` adds the start of a hash of each line, and `fileHashHeader()` adds a hash of the file. Both need a `digest`. With no digest, the gutter shows only the line number, and the header does not show:
+
+```ts
+import { nodeDigest } from "@better-fs-tools/node";
+import {
+  eofFooter,
+  fileHashHeader,
+  hashlineGutter,
+  lineNumberFormatter,
+} from "@better-fs-tools/read";
+
+const read = createReadTool({
+  fs,
+  digest: nodeDigest(),
+  formatter: lineNumberFormatter({
+    gutter: hashlineGutter({ width: 2 }),
+    header: fileHashHeader(),
+    footer: eofFooter((n) => `(${n} lines)`),
+  }),
+});
+```
+
+```text
+file-hash: sha256:1ccd45e39bd9ff6fc370d097d7b33bc92d915241f3ac7ec77298a883e1b38ae7
+1:2b|export function greet(name: string): string {
+2:04|  return `Hello, ${name}!`;
+3:d1|}
+4:e3|
+5:03|export function farewell(name: string): string {
+6:51|  return `Goodbye, ${name}!`;
+7:d1|}
+(7 lines)
+```
+
+`eofFooter()` shows its text only when the read gets to the end of the file.
+
+## Hide or restyle notes
+
+A note filter changes only the text. The note stays in `result.notes`:
+
+```ts
+const read = createReadTool({
+  fs,
+  formatter: lineNumberFormatter({
+    notes: (note) => (note.code === "continue" ? null : note),
+    noteLine: (note) => `<note code="${note.code}">${note.message}</note>`,
+  }),
+});
+```
+
+```text
+<note code="not-found">docs/setpu.md was not found. Nearby names: "setup.md".</note>
+```
+
+The [read reference](/reference/read#notes) lists every note code.
+
+## Return JSON
+
+`jsonFormatter()` gives JSON text. With no options, the JSON holds the whole result. Set `pick` to choose the fields, and `notes: "after"` to print the notes as lines after the JSON:
+
+```ts
+import { jsonFormatter } from "@better-fs-tools/read";
+
+const read = createReadTool({
+  fs,
+  formatter: jsonFormatter({
+    pick: (outcome) => ({
+      status: outcome.status,
+      lines: outcome.status === "ok" ? outcome.view.lines.map((line) => line.text) : [],
+    }),
+    notes: "after",
+  }),
+});
+```
+
+```text
+{"status":"ok","lines":["export function greet(name: string): string {","  return `Hello, ${name}!`;"]}
+
+[read:continue] Output stopped at the line limit. Continue with {"path":"src/greet.ts","offset":3,"limit":2}.
+```
+
+Set `space` to indent the JSON. Image bytes are left out of the JSON. The image parts follow the JSON text in `content`.
+
+## Change the wording of notes
+
+Set `messages` to change the text of a note. Each message is a function that gets the details of the note and returns a string. The messages you leave out keep their default text:
+
+```ts
+const read = createReadTool({
+  fs,
+  messages: {
+    notFound: ({ request }) => `No file at ${request.path}. List the folder first.`,
+    retry: (next) => `offset=${next.offset} limit=${next.limit}`,
+  },
+});
+```
+
+```text
+[read:not-found] No file at docs/setpu.md. List the folder first.
+```
+
+`retry` sets how every note prints the next call. The default is `JSON.stringify(next)`. The `continue` note now ends with `Continue with offset=3 limit=2.`
+
+The [read reference](/reference/read#messages) lists every message and its arguments. A [signature](/integrations/tool-definition) sets `retry` for you when you rename the tool parameters.
+
+## Write your own formatter
+
+A formatter is an object with an `id` and a `format(outcome, ctx)` function. `format` returns a string, or a list of content parts. It must be synchronous:
+
+```ts
+import type { ReadFormatter } from "@better-fs-tools/read";
+
+const markdown: ReadFormatter = {
+  id: "markdown",
+  format(outcome) {
+    if (outcome.status !== "ok") return outcome.notes.map((note) => note.message).join("\n");
+    const body = outcome.view.lines.map((line) => line.text).join("\n");
+    return `\`\`\`\n${body}\n\`\`\``;
+  },
+};
+```
+
+`outcome` is the result without `content`. `ctx` holds the `digest`, the `limits`, the call context in `call`, and `mode`. `mode` is `"model"` for the text that goes to the model. The [Pi integration](/integrations/pi) also calls the formatter with `mode: "view"` to show the file in its UI. In that mode, leave out the notes. For a `media` result, return the media parts from `outcome.parts`, or the image does not reach the model.
+
+If your formatter throws, the tool uses `lineNumberFormatter()` for that result. The status does not change, and the tool adds no note.

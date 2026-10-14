@@ -9,14 +9,14 @@ Set up the tools in three steps. All packages release together at one version, s
 
 An integration package has helpers that return the tools in the native format of its host. You give the result to your agent with no more glue.
 
-| Host                                     | Package                          | Helper                     | Guide                                 |
-| ---------------------------------------- | -------------------------------- | -------------------------- | ------------------------------------- |
-| AI SDK 7 `generateText` or `streamText`  | `@better-fs-tools/ai-sdk`        | `createAiSdkFsTools()`     | [AI SDK](/hosts/ai-sdk)               |
-| Pi coding agent: the `pi` command or SDK | `@better-fs-tools/pi`            | `createPiFsTools()`        | [Pi](/hosts/pi)                       |
-| `pi-agent-core` or `pi-ai`               | `@better-fs-tools/pi/agent-core` | `createAgentCoreFsTools()` | [Pi agent core](/hosts/pi-agent-core) |
-| `pi-durable`, experimental               | `@better-fs-tools/pi-durable`    | `createDurableFsTools()`   | [Pi durable](/hosts/pi-durable)       |
-| Your own code on Node or Bun             | `@better-fs-tools/node`          | `createNodeFsTools()`      | [Choose a host](/hosts)               |
-| Your own code anywhere, such as a Worker | `@better-fs-tools/write`         | `createFsTools()`          | [Choose a host](/hosts)               |
+| Host                                     | Package                          | Helper                     | Guide                                        |
+| ---------------------------------------- | -------------------------------- | -------------------------- | -------------------------------------------- |
+| AI SDK 7 `generateText` or `streamText`  | `@better-fs-tools/ai-sdk`        | `createAiSdkFsTools()`     | [AI SDK](/integrations/ai-sdk)               |
+| Pi coding agent: the `pi` command or SDK | `@better-fs-tools/pi`            | `createPiFsTools()`        | [Pi](/integrations/pi)                       |
+| `pi-agent-core` or `pi-ai`               | `@better-fs-tools/pi/agent-core` | `createAgentCoreFsTools()` | [Pi agent core](/integrations/pi-agent-core) |
+| `pi-durable`, experimental               | `@better-fs-tools/pi-durable`    | `createDurableFsTools()`   | [Pi durable](/integrations/pi-durable)       |
+| Your own code on Node or Bun             | `@better-fs-tools/node`          | `createNodeFsTools()`      | [Choose an integration](/integrations)       |
+| Your own code anywhere, such as a Worker | `@better-fs-tools/write`         | `createFsTools()`          | [Choose an integration](/integrations)       |
 
 With your own code, the tools are plain async functions. You write the tool definition for your host, or you call the functions from your code.
 
@@ -53,7 +53,7 @@ Give the filesystem to the helper as `fs`. Some helpers make their own:
 - `createPiFsTools()` makes a `nodeFileSystem()` rooted at `ctx.cwd` on each call.
 - `createDurableFsTools()` uses the execution environment of each call.
 
-[Backends](/backends) compares what each filesystem can do.
+[Filesystems](/filesystems) compares what each filesystem can do.
 
 ## 2. Choose your tools
 
@@ -92,23 +92,23 @@ const { tools } = createAiSdkFsTools({
 // tools has the keys read, edit, write, and apply_patch.
 ```
 
-Use the single constructor when you install more than one tool. Constructors for single tools share nothing, so `edit` and `write` cannot know what `read` read. [Choose a host](/hosts#single-tool-factories) lists the constructors of each package.
+Use the single constructor when you install more than one tool. Constructors for single tools share nothing, so `edit` and `write` cannot know what `read` read. [Choose an integration](/integrations#single-tool-factories) lists the constructors of each package.
 
 ## 3. Configure the tools for your use case
 
 Each tool works with no options. Set the options that your agent needs. In the single constructor, set the shared options once at the top level. Set the options of one tool under `read`, `edit`, `write`, `applyPatch`, or `bash`.
 
-| To do this                                                  | Set                                             | Guide                                                                                    |
-| ----------------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Refuse a change to a file that the model has not read       | `state: memoryStore()`                          | [Read before write](/guides/write/read-before-write)                                     |
-| Protect `AGENTS.md`, `CLAUDE.md`, and `.git`                | `edit` and `write`: `authorize: protectPaths()` | [Write permissions](/guides/write/permissions)                                           |
-| Refuse paths to the read tool, such as `.env`               | `read`: `authorize: denyPaths([...])`           | [Read permissions](/guides/read/permissions)                                             |
-| Change the read limits or add a token budget                | `read`: `limits` or `budget`                    | [Read limits](/guides/read/limits)                                                       |
-| Read images, notebooks, PDFs, and folders                   | `read`: `converters`                            | [File types](/guides/read/file-types)                                                    |
-| Change how `edit` matches old text                          | `edit`: `matchers`                              | [Matching](/guides/write/matching)                                                       |
-| Change the bash timeouts, output limits, or commands        | `bash`: `limits`, `beforeRun`, `authorize`      | [Bash limits](/guides/bash/limits), [Bash policy](/guides/bash/policy)                   |
-| Rename a tool or its parameters, or change the descriptions | `signature` on each tool                        | [Customise the tool definition](/hosts/tool-definition)                                  |
-| Change the text that the model sees                         | `formatter` and `messages` on each tool         | [Read formatting](/guides/read/formatting), [Write formatting](/guides/write/formatting) |
+| To do this                                                  | Set                                             | Guide                                                                      |
+| ----------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------- |
+| Refuse a change to a file that the model has not read       | `state: memoryStore()`                          | [Read before write](/write/read-before-write)                              |
+| Protect `AGENTS.md`, `CLAUDE.md`, and `.git`                | `edit` and `write`: `authorize: protectPaths()` | [Write permissions](/write/permissions)                                    |
+| Refuse paths to the read tool, such as `.env`               | `read`: `authorize: denyPaths([...])`           | [Read permissions](/read/permissions)                                      |
+| Change the read limits or add a token budget                | `read`: `limits` or `budget`                    | [Read limits](/read/limits)                                                |
+| Read images, notebooks, PDFs, and folders                   | `read`: `converters`                            | [File types](/read/file-types)                                             |
+| Change how `edit` matches old text                          | `edit`: `matchers`                              | [Matching](/write/matching)                                                |
+| Change the bash timeouts, output limits, or commands        | `bash`: `limits`, `beforeRun`, `authorize`      | [Bash limits](/bash/limits), [Bash policy](/bash/policy)                   |
+| Rename a tool or its parameters, or change the descriptions | `signature` on each tool                        | [Customise the tool definition](/integrations/tool-definition)             |
+| Change the text that the model sees                         | `formatter` and `messages` on each tool         | [Read formatting](/read/formatting), [Write formatting](/write/formatting) |
 
 This example uses `createNodeFsTools()` and sets two options:
 
@@ -162,7 +162,7 @@ With the same tools, an edit of a file that the model has not read, and a write 
 
 ## Where next
 
-- [Choose a host](/hosts): the defaults of each single constructor
-- [AI SDK](/hosts/ai-sdk) and [Pi](/hosts/pi): give the tools to an agent
-- [Backends](/backends): the Node, memory, just-bash, and Cloudflare filesystems
-- [Read tool](/guides/read), [write tools](/guides/write), and [bash tool](/guides/bash): every option
+- [Choose an integration](/integrations): the defaults of each single constructor
+- [AI SDK](/integrations/ai-sdk) and [Pi](/integrations/pi): give the tools to an agent
+- [Filesystems](/filesystems): the Node, memory, just-bash, and Cloudflare filesystems
+- [Read tool](/read), [write tools](/write), and [bash tool](/bash): every option

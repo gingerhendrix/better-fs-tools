@@ -3,12 +3,12 @@ title: Bash reference
 description: Every field of the bash result, every error and note code, every message, the limits, the runner contract, and the lower-level helpers of @better-fs-tools/shell.
 ---
 
-This page lists the types and helpers of `@better-fs-tools/shell`. For a walkthrough, see the [bash guide](/guides/bash).
+This page lists the types and helpers of `@better-fs-tools/shell`. For a walkthrough, see the [bash guide](/bash).
 
 | Entry                              | Contents                                                                                                                                                                       |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `@better-fs-tools/shell`           | `createBashTool`, `shellEnv`, `defaultShellEnv`, `defaultShellFormatter`, the helpers on this page, and the types. `textOf` is the same function as in `@better-fs-tools/read` |
-| `@better-fs-tools/shell/signature` | `defaultBashSignature`, `bashSignatureMessages`, and the signature types. See [tool definition](/hosts/tool-definition)                                                        |
+| `@better-fs-tools/shell/signature` | `defaultBashSignature`, `bashSignatureMessages`, and the signature types. See [tool definition](/integrations/tool-definition)                                                 |
 
 ## ShellResult
 
@@ -99,7 +99,7 @@ interface BashRequest {
 }
 ```
 
-The checked canonical input. `timeoutMs` is the input value cut to `limits.maxTimeoutMs`, or `limits.defaultTimeoutMs` when the input has no timeout. `cwd` is the requested folder as the model sent it, or `null`. It uses the canonical names, also when the tool has a [signature](/hosts/tool-definition) with other names.
+The checked canonical input. `timeoutMs` is the input value cut to `limits.maxTimeoutMs`, or `limits.defaultTimeoutMs` when the input has no timeout. `cwd` is the requested folder as the model sent it, or `null`. It uses the canonical names, also when the tool has a [signature](/integrations/tool-definition) with other names.
 
 ### ShellRun
 
@@ -184,7 +184,7 @@ The notes come in this order: the error note, `clamped`, the resolver note, the 
 
 ## Messages
 
-`messages` sets the text of each note and of the status line. Each message is a function. The messages you leave out keep their default text. [Customise formatting](/guides/bash/formatting) shows an example. `defaultShellMessages` holds the default functions.
+`messages` sets the text of each note and of the status line. Each message is a function. The messages you leave out keep their default text. [Customise formatting](/bash/formatting) shows an example. `defaultShellMessages` holds the default functions.
 
 | Message              | Arguments                                                                                                                                    |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -235,11 +235,11 @@ The formatter makes `content` one time, with `mode: "model"`. A formatter that r
 2. The output view: `head`, the gap line, then `tail`. The gap line is, for example, `[… 11945 lines (1.8 MB) not shown] Full output: /tmp/bash-1.log`. The view is `(no output)` when the command wrote nothing.
 3. A blank line, then the note lines.
 
-A call that did not start prints only the note lines. In `mode: "view"` the tool leaves out the notes. [Customise formatting](/guides/bash/formatting) lists the options of `defaultShellFormatter()`.
+A call that did not start prints only the note lines. In `mode: "view"` the tool leaves out the notes. [Customise formatting](/bash/formatting) lists the options of `defaultShellFormatter()`.
 
 ## CommandRunner
 
-`runner` takes a `CommandRunner`, or a function of the call that returns one. A runner starts one command. The tool handles the timeout, the abort, and the output budget. [Runners](/guides/bash/runners) shows the built-in runners.
+`runner` takes a `CommandRunner`, or a function of the call that returns one. A runner starts one command. The tool handles the timeout, the abort, and the output budget. [Runners](/bash/runners) shows the built-in runners.
 
 ```ts
 interface CommandRunner {

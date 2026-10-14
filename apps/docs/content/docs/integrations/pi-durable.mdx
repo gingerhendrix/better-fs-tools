@@ -1,0 +1,173 @@
+---
+title: Pi durable
+description: Replace the read, edit, and write tools of the experimental @earendil-works/pi-durable harness with createDurableFsTools() from @better-fs-tools/pi-durable.
+---
+
+<Callout type="warn">
+  `@earendil-works/pi-durable` is experimental. Its API can change in each release.
+  `@better-fs-tools/pi-durable` follows pi-durable 1.2, and its peer range is `~1.2.0`. Check this
+  page again before you update pi-durable.
+</Callout>
+
+`@earendil-works/pi-durable` is a durable agent harness. It is separate from the Pi coding agent. The Harness stores each conversation, each model turn, and each tool call before it shows the result. When the process stops during a turn, the next process opens the same storage and continues the work.
+
+Each tool call is a durable task. The Harness stores the intent of the call before `execute()` runs, and it stores the result before anyone sees it. Tools come in extensions, and a registry holds the extensions.
+
+`createDurableFsTools()` from `@better-fs-tools/pi-durable` is an extension with the Better FS Tools `read`, `edit`, and `write`. It can also add `apply_patch` and `bash`. Each call reads and writes through the execution environment of that call. So the tools work on the local machine, over SSH with `@earendil-works/pi-env`, and in a container.
+
+## Install
+
+```sh
+npm install @better-fs-tools/pi-durable @earendil-works/pi-durable@~1.2.0 @earendil-works/chord@~1.2.0 typebox
+```
+
+`@earendil-works/pi-durable` (`~1.2.0`), `@earendil-works/chord` (`~1.2.0`), and `typebox` (`^1.3.16`) are required peers. The package imports no `node:` module. The Harness example below also uses `@earendil-works/pi-ai` for the models.
+
+## Replace the built-in tools
+
+`CodingTools` from `@earendil-works/pi-durable/tools` has `read`, `write`, `edit`, and `bash`. When two selected extensions have a tool with the same name, the extension installed later wins. Install the Better FS Tools extension after `CodingTools`. Its `read`, `edit`, and `write` then replace those of `CodingTools`, and the `bash` of `CodingTools` stays:
+
+```ts
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { createModels } from "@earendil-works/pi-ai/models";
+import { createRegistry, Harness, MemoryStorage } from "@earendil-works/pi-durable";
+import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
+import { CodingTools } from "@earendil-works/pi-durable/tools";
+import { createDurableFsTools } from "@better-fs-tools/pi-durable";
+
+const registry = createRegistry();
+registry.install(CodingTools);
+// Installed later, so its read, edit, and write replace those of CodingTools.
+// The bash of CodingTools stays.
+registry.install(createDurableFsTools());
+
+const context = BACKGROUND_CONTEXT;
+const harness = await Harness.open(
+  new MemoryStorage(),
+  {
+    models: createModels(),
+    registry,
+    env: ({ cwd }) => new NodeExecutionEnv({ cwd: cwd ?? process.cwd() }),
+  },
+  context,
+);
+const root = await harness.root(context, { agent: { cwd: "/work/repo" } });
+await root.submit({ type: "input", content: "Fix the typo in README.md." }, context);
+await harness.close(context);
+```
+
+The tools of this conversation are `read`, `write`, `edit`, and `bash`. `read`, `edit`, and `write` are the Better FS Tools tools. To give one conversation an exact tool list, use `conversation.configure({ tools: [...] }, context)` with the tool objects.
+
+## How each call works
+
+A pi-durable tool gets `execute(args, api, context)`. `api.env` is the execution environment of the call. The `env` option of `Harness.open()` builds it from the conversation's `cwd`. `context` is a Chord `Context`, and a cancel of the call stops it.
+
+For each call, the extension builds a filesystem over `api.env` with `executionEnvFileSystem()`. The only allowed root is the environment's `cwd`. A call without an environment fails with an error result.
+
+Host functions, for example an `authorize` function, get `{ api, env, context }` as `ctx.call.host`.
+
+## Options
+
+| Option                  | Default                 | Meaning                                                                                        |
+| ----------------------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `name`                  | `"better-fs-tools"`     | The extension name                                                                             |
+| `state`                 | `"document"`            | The read store. See [Read records](#read-records)                                              |
+| `digest`                | `sha256Digest()`        | The digest for read records                                                                    |
+| `locks`                 | `memoryLocks()`         | One lock manager for every call of the extension. See [Locks](#locks)                          |
+| `clock`                 | `() => new Date()`      | The clock of the tools and the store                                                           |
+| `allowedRoots`          | `["."]`                 | The roots of each call, relative to the environment's `cwd`                                    |
+| `denyRoots`             | none                    | Paths that are refused                                                                         |
+| `symlinks`              | `"follow-within-roots"` | Follow a link when its real path stays inside the roots                                        |
+| `outputLimits`          | 128 KiB and 4,000 lines | The Harness output limits of the file tools. See [Output limits](#output-limits)               |
+| `applyPatch`            | off                     | `true`, or an options object, adds `apply_patch`                                               |
+| `bash`                  | off                     | `true`, or an options object, adds `bash` over the environment. See [Bash](#bash)              |
+| `read`, `edit`, `write` | `{}`                    | The options of one tool, and its `signature`. See the [read](/read) and [write](/write) guides |
+
+An unknown key throws `TypeError`. The default signatures are those of the Pi tools: `read({ path, offset?, limit? })`, `edit({ path, edits: [{ oldText, newText }] })`, `write({ path, content })`, and `apply_patch({ patch })` with the Codex grammar. `read` returns images by default.
+
+## Read records
+
+With `state: "document"`, read before write is on. Each read record is a `ReadStateDoc` document of the conversation, keyed by the environment id and the path.
+
+- The records stay after a restart. An `edit` in the next process needs no new read.
+- A fork starts with the records that its parent had at the fork entry. A model in the fork can change only what that history read.
+
+`state: null` turns read before write off. A `ReadStateStore`, such as `memoryStore()`, keeps the records in process memory, and every conversation shares it.
+
+## Replay after a crash
+
+When the process stops during a tool call, the next process finds the stored intent without a result. `replay` on the tool decides what happens then:
+
+| Tool                           | `replay`                | Why                                                                                                                |
+| ------------------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `read`                         | `"safe"`                | A read changes no file, so the Harness can run it again                                                            |
+| `edit`, `write`, `apply_patch` | `"unsafe"`, the default | The first run may have changed the file. A second run can then fail to find the old text, or make the change twice |
+
+With `"unsafe"`, the model gets an `interrupted` error result with the output stored so far. The model can read the file and try again.
+
+## Output limits
+
+The Harness cuts each tool's output at `outputLimits`. The Harness default is 50 KiB, 2,000 lines, and `retain: "head"`. The Better FS Tools `read` already stops its view at 2,000 lines and 50 KiB by default, and it tells the model how to continue. Line numbers and notes make the output longer than the view. With the Harness defaults, the Harness can cut the end of the output a second time, and the model then loses the note that tells it how to continue.
+
+The extension sets `outputLimits` to 128 KiB and 4,000 lines on the file tools, so the limits of Better FS Tools apply first. When you raise the read limits, raise `outputLimits` too. See [Read limits](/read/limits).
+
+## Results
+
+A Better FS Tools tool does not throw for a tool error. It returns `isError: true`. `read`, `edit`, and `write` give programs their text, as the tools of `CodingTools` do. A read with status `unsupported`, for example of a binary file, is not an error.
+
+## Locks
+
+The default lock manager is one `memoryLocks()` for every call of the extension. Each key has the environment id and the real path. So two conversations that change the same file in one environment wait for each other, and the same path in two environments does not wait.
+
+The tools do not share the queue of the `CodingTools` `edit` and `write`, because pi-durable does not export it. A `CodingTools` tool that you keep, for example `bash`, does not wait for a Better FS Tools write.
+
+## Bash
+
+`bash: true`, or an options object, adds a `bash` tool over the environment's `exec()`. Its input is the shape of the Durable `bash`: `{ command, timeout }`, with the timeout in seconds. Install the extension after `CodingTools` to replace its `bash`.
+
+- A command keeps the environment's own variables, for example `PATH` and `HOME` on a remote host. The `env` of the tool goes over them. Set `inheritEnv: false` to make the tool's `env` the whole environment of the command.
+- `structuredOutput` has the schema of the Durable `bash`: `output`, `truncated`, `fullOutputPath`, and `exitCode`.
+- A nonzero exit is an error result.
+
+See the [bash guide](/bash) for limits and policy.
+
+## The parts
+
+The package also exports the parts of the extension, for your own tools:
+
+| Export                                                   | What it is                                                            |
+| -------------------------------------------------------- | --------------------------------------------------------------------- |
+| `createDurableFsTools(options?)`                         | The extension                                                         |
+| `executionEnvFileSystem(env, { context, allowedRoots })` | A `WritableFileSystem` over any `ExecutionEnv`, for `createFsTools()` |
+| `executionEnvRunner(env, { context })`                   | A bash `CommandRunner` over `env.exec()`                              |
+| `documentReadStore(api, envId, context)`                 | A `ReadStateStore` in the conversation's `ReadStateDoc` documents     |
+| `ReadStateDoc`                                           | The document family of the read records                               |
+
+This example uses the filesystem with the portable bundle:
+
+```ts
+import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
+import { executionEnvFileSystem } from "@better-fs-tools/pi-durable";
+import { createFsTools } from "@better-fs-tools/write";
+
+// The files of one environment, rooted at its cwd.
+const env = new NodeExecutionEnv({ cwd: "/work/repo" });
+const fs = executionEnvFileSystem(env, { context: BACKGROUND_CONTEXT, allowedRoots: ["."] });
+export const tools = createFsTools({ fs });
+```
+
+Paths are POSIX paths in the environment. A path is checked against the roots as written, and again after its symbolic links resolve. A write through a dangling symbolic link is refused. Writes use the environment's `writeFile()`, which replaces the content in place. The file keeps its mode, but the write is not atomic. Versions are weak: size and modification time.
+
+## Limits
+
+- **Writes are not atomic.** A crash during a write can leave part of the new content in the file.
+- **No shared queue with `CodingTools`.** See [Locks](#locks).
+- **Untested environments.** The package tests use `NodeExecutionEnv`. A remote environment over SSH and a crash with a replay are not part of the tests.
+
+## See also
+
+- [Pi](/integrations/pi): the coding agent extension and SDK
+- [Pi agent core](/integrations/pi-agent-core): the tools for `Agent` and `agentLoop()`
+- [Customise the tool definition](/integrations/tool-definition): signatures, names, and descriptions
+- [Read before write](/write/read-before-write): what the read store does

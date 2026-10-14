@@ -3,13 +3,13 @@ title: Read reference
 description: Every field of the read result, every error and note code, every message, the limits, the extension types, and the lower-level helpers of @better-fs-tools/read.
 ---
 
-This page lists the types and helpers of `@better-fs-tools/read`. For a walkthrough, see the [read guide](/guides/read).
+This page lists the types and helpers of `@better-fs-tools/read`. For a walkthrough, see the [read guide](/read).
 
-| Entry                             | Contents                                                                                                                                      |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@better-fs-tools/read`           | `createReadTool`, `textOf`, the helpers on this page, the classifiers, resolvers, authorizers, converters, hooks, formatters, and the types   |
-| `@better-fs-tools/read/signature` | `defaultReadSignature`, `lineRangeSignature`, `readSignatureMessages`, and the signature types. See [tool definition](/hosts/tool-definition) |
-| `@better-fs-tools/read/formats`   | `opencodeFormat`, `deepAgentsFormat`, `hashlineFormat`, `hermesFormat`                                                                        |
+| Entry                             | Contents                                                                                                                                             |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@better-fs-tools/read`           | `createReadTool`, `textOf`, the helpers on this page, the classifiers, resolvers, authorizers, converters, hooks, formatters, and the types          |
+| `@better-fs-tools/read/signature` | `defaultReadSignature`, `lineRangeSignature`, `readSignatureMessages`, and the signature types. See [tool definition](/integrations/tool-definition) |
+| `@better-fs-tools/read/formats`   | `opencodeFormat`, `deepAgentsFormat`, `hashlineFormat`, `hermesFormat`                                                                               |
 
 The package does not export the filesystem types. Import `FileSystem` and the other filesystem types from `@better-fs-tools/fs`.
 
@@ -133,7 +133,7 @@ As a `ReadResult`, the variant also has `content`, for example `[{ type: "text",
 | `conversion`     | The converter that made the text, or `null` for plain text                                                                                                                                                                                                                                                                                                               |
 | `view`           | `lines[].text` is the source text cut at `limits.maxCharsPerLine`, with no gutter. `sourceChars` is the length before the cut, else `null`. `endLine` is `startLine - 1` for an empty view. `bytes` counts UTF-8 source bytes plus one byte for each line break. `partial` is `true` when the view starts after line 1, stops before the end, or has a truncation reason |
 | `truncation`     | `reasons` can hold `lines`, `bytes`, `budget`, `scan-limit`, and `line-length`. `primary` is the first reason, or `null`                                                                                                                                                                                                                                                 |
-| `continuation`   | `next` is a complete canonical input, `{ path, offset, limit }`. It uses the canonical names, also when the tool has a [signature](/hosts/tool-definition) with other names                                                                                                                                                                                              |
+| `continuation`   | `next` is a complete canonical input, `{ path, offset, limit }`. It uses the canonical names, also when the tool has a [signature](/integrations/tool-definition) with other names                                                                                                                                                                                       |
 | `totals`         | `lines` is `null` and `exact` is `false` when the scan limit stopped the count. `bytes` is the scanned byte count when the scan reached the end, and the file size otherwise                                                                                                                                                                                             |
 | `observation`    | `null` with no `digest`, and for folders. `contentId` is `null` when the scan stopped before the end. `wholeFileVisible` is `true` only when `offset` is 1, nothing was cut, and no hook changed the view                                                                                                                                                                |
 
@@ -272,7 +272,7 @@ The notes come in this order: the view notes, the classifier or converter notes,
 
 ## Messages
 
-`messages` sets the text of each note. Each message is a function that gets one object and returns a string. The messages you leave out keep their default text. [Customise formatting](/guides/read/formatting) shows an example. `defaultReadMessages` holds the default functions.
+`messages` sets the text of each note. Each message is a function that gets one object and returns a string. The messages you leave out keep their default text. [Customise formatting](/read/formatting) shows an example. `defaultReadMessages` holds the default functions.
 
 | Message               | Arguments                                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -319,7 +319,7 @@ The notes come in this order: the view notes, the classifier or converter notes,
 | `maxConvertBytes`     | 64 MiB  | Source bytes that a converter can read                 |
 | `maxMediaBytes`       | 5 MiB   | Total bytes of media parts in one result               |
 
-A `sampleBytes` that you set above `maxScanBytes` throws `TypeError`. When you set only `maxScanBytes` below 8 KiB, the default `sampleBytes` goes down to it. [Limits](/guides/read/limits) explains each limit.
+A `sampleBytes` that you set above `maxScanBytes` throws `TypeError`. When you set only `maxScanBytes` below 8 KiB, the default `sampleBytes` goes down to it. [Limits](/read/limits) explains each limit.
 
 ## Content
 
@@ -479,7 +479,7 @@ console.log(result.status); // "ok"
 console.log(textOf(result)); // "1|PDF with 9 bytes"
 ```
 
-The built-in converters are `imageConverter()`, `notebookConverter()`, `textConverter()`, and `directoryListing()`. See [File types](/guides/read/file-types).
+The built-in converters are `imageConverter()`, `notebookConverter()`, `textConverter()`, and `directoryListing()`. See [File types](/read/file-types).
 
 ## Classifier
 

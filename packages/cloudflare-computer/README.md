@@ -64,7 +64,7 @@ export function computerTools(workspace: Workspace) {
 
 ## Links
 
-- [Choose a host](https://better-fs-tools.gandrew.com/hosts) and [Backends](https://better-fs-tools.gandrew.com/backends) on the docs site: the defaults of every host and bundle, and what each backend can do. `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has the same tables
+- [Choose an integration](https://better-fs-tools.gandrew.com/integrations) and [Filesystems](https://better-fs-tools.gandrew.com/filesystems) on the docs site: the defaults of every host and bundle, and what each backend can do. `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has the same tables
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option
 - [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the write tools
 - [`@better-fs-tools/fs`](https://www.npmjs.com/package/@better-fs-tools/fs): the filesystem contract

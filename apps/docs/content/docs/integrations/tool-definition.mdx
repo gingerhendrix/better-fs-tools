@@ -1,0 +1,300 @@
+---
+title: Customise the tool definition
+description: Change the tool name, the parameter names, and the descriptions of the read, edit, write, apply_patch, and bash tools with a signature.
+---
+
+The model sees a tool definition: a name, a description, and a JSON Schema for the parameters. A signature makes all three, and turns the model input into the input of `read`. Set `signature` on a provider integration:
+
+```ts
+import { createAiSdkReadTool } from "@better-fs-tools/ai-sdk";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { defaultReadSignature } from "@better-fs-tools/read/signature";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const read = createAiSdkReadTool({
+  fs,
+  signature: defaultReadSignature({
+    description: "Read a file in the repository.",
+    describe: { path: "Path relative to the repository root." },
+  }),
+});
+```
+
+`createPiReadTool()` takes the same `signature` option. In a bundle, set it for each tool, for example `createAiSdkFsTools({ fs, read: { signature } })`. The other options are the [read tool options](/read).
+
+The default signature is `defaultReadSignature()`. The tool is `read`, with the parameters `path`, `offset`, and `limit`.
+
+## Change the descriptions
+
+`defaultReadSignature()` takes these options:
+
+| Option        | Sets                                       |
+| ------------- | ------------------------------------------ |
+| `name`        | The tool name                              |
+| `description` | The tool description                       |
+| `describe`    | The description of each parameter you name |
+| `names`       | A new name for each parameter you name     |
+
+This is the default tool description:
+
+```text
+Read a UTF-8 text file. `offset` is a one-based source line and `limit` is a number of source lines. Output is bounded by line, byte, and line-length limits. When the result reports truncation, follow the continuation it returns instead of guessing the next `offset`. Paths outside the allowed roots, binary content, and special files are refused.
+```
+
+## Rename the tool and its parameters
+
+Set `name` and `names`:
+
+```ts
+const signature = defaultReadSignature({
+  name: "read_file",
+  names: { path: "file_path", offset: "start", limit: "max_lines" },
+});
+```
+
+The schema then has `file_path`, `start`, and `max_lines`, and the default description uses the new names. The integration also changes the notes, so a `continue` note gives the next call with the new names.
+
+## Use a start line and an end line
+
+`lineRangeSignature()` gives the model an inclusive line range in place of `offset` and `limit`. It takes the same options. Its parameters are `path`, `start`, and `end`:
+
+```ts
+import { lineRangeSignature } from "@better-fs-tools/read/signature";
+
+const read = createAiSdkReadTool({
+  fs,
+  signature: lineRangeSignature({
+    name: "read_file",
+    names: { path: "file_path", start: "start_line", end: "end_line" },
+  }),
+});
+```
+
+A model call `{ "file_path": "src/greet.ts", "start_line": 1, "end_line": 2 }` gives this text:
+
+```text
+1|export function greet(name: string): string {
+2|  return `Hello, ${name}!`;
+
+[read:continue] Output stopped at the line limit. Continue with {"file_path":"src/greet.ts","start_line":3,"end_line":4}.
+```
+
+The result is the same as for any read. `result.continuation.next` is `{ path: "src/greet.ts", offset: 3, limit: 2 }`.
+
+## Input with the wrong names
+
+The signature does not guess. Input with an unknown name throws a `TypeError` that lists the names it expects:
+
+```text
+TypeError: Unknown read input key: path. Expected file_path, start_line, end_line
+```
+
+The AI SDK gives a thrown error back to the model as a tool error, so the model can call again.
+
+## Use a signature in your own integration
+
+Use the signature parts to register the tool with your framework. `signature.name`, `signature.description`, and `signature.schema` give the definition. `signature.toInput()` turns the model input into the input of `read`. Set `messages: readSignatureMessages(signature)`, so the notes use the names from the signature:
+
+```ts
+import { createReadTool } from "@better-fs-tools/read";
+import { lineRangeSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
+
+const signature = lineRangeSignature({ name: "read_file" });
+const read = createReadTool({ fs, messages: readSignatureMessages(signature) });
+
+const result = await read(signature.toInput({ path: "src/greet.ts", start: 1, end: 2 }));
+```
+
+The tool reads one path in each call. For a tool that reads many files in one call, call `read` once for each file.
+
+## Signatures for edit, write, and apply_patch
+
+The edit, write, and apply_patch tools take a signature in the same way. The presets come from `@better-fs-tools/write/signature`. Each preset takes `name`, `description`, `describe`, and `names`, as `defaultReadSignature()` does. The keys of `describe` and `names` are the preset's own parameter names. For example, `defaultEditSignature()` takes `old_string`, and `camelCaseEditSignature()` takes `oldString`. A key that the preset does not have, or a parameter name that is used two times, throws a `TypeError`.
+
+| Preset                      | Tool          | Parameters                                          | Default for   |
+| --------------------------- | ------------- | --------------------------------------------------- | ------------- |
+| `defaultEditSignature()`    | `edit`        | `path`, `old_string`, `new_string`, `replace_all?`  | AI SDK        |
+| `camelCaseEditSignature()`  | `edit`        | `filePath`, `oldString`, `newString`, `replaceAll?` | None          |
+| `multiEditSignature()`      | `edit`        | `path`, `edits: [{ oldText, newText }]`             | Pi            |
+| `defaultWriteSignature()`   | `write`       | `path`, `content`                                   | AI SDK and Pi |
+| `snakeCaseWriteSignature()` | `write_file`  | `file_path`, `content`                              | None          |
+| `defaultPatchSignature()`   | `apply_patch` | `patch`                                             | AI SDK        |
+| `freeformPatchSignature()`  | `apply_patch` | `patch`, plus the Codex patch grammar               | Pi            |
+
+`camelCaseEditSignature()` uses the names of OpenCode and Kilo Code. `snakeCaseWriteSignature()` uses the names of Claude Code. In a bundle, set the signature in the options of each tool:
+
+```ts
+import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
+import { camelCaseEditSignature, snakeCaseWriteSignature } from "@better-fs-tools/write/signature";
+
+const { tools } = createAiSdkFsTools({
+  fs,
+  edit: { signature: camelCaseEditSignature() },
+  write: { signature: snakeCaseWriteSignature() },
+  applyPatch: true,
+});
+```
+
+`tools` is keyed by tool name, so it has `read`, `edit`, `write_file`, and `apply_patch`. The single factories, such as `createAiSdkEditTool()` and `createPiEditTool()`, take the same `signature` option.
+
+### Edit
+
+`defaultEditSignature()` and `camelCaseEditSignature()` take one replacement in each call. The old text must match one place in the file, or the model sets `replace_all` to change every place. `toInput()` gives `{ path, edits: [{ oldText, newText, replaceAll? }] }`:
+
+```ts
+import { camelCaseEditSignature } from "@better-fs-tools/write/signature";
+
+const signature = camelCaseEditSignature({ name: "edit_file" });
+signature.toInput({ filePath: "a.ts", oldString: "x", newString: "y" });
+// { path: "a.ts", edits: [ { oldText: "x", newText: "y" } ] }
+```
+
+This is the default description of `defaultEditSignature()`, with the default matchers:
+
+```text
+Edit a text file by replacing text. `old_string` must match exactly one place in the file: add surrounding lines to make it unique, or set `replace_all` to change every place. `old_string` should match the file exactly. When it does not, a close match is used, and the result says so. A close match may differ in: trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces. Copy old text from the file without the line-number prefix the read tool adds. Read the file with the read tool before you edit it. After an edit, the same file can be edited again without another read. To create a file or replace all of its content, use the write tool.
+```
+
+`multiEditSignature()` takes a list of replacements in one call. Each `oldText` is matched against the original file, and the edits must not overlap. This preset has no `replaceAll` parameter, so no message tells the model to set one.
+
+This is the default description of `multiEditSignature()`:
+
+```text
+Edit a text file with one or more replacements in one call. Each `edits[].oldText` must match exactly one place in the original file. Edits must not overlap or nest: merge nearby changes into one edit. `edits[].oldText` should match the file exactly. When it does not, a close match is used, and the result says so. A close match may differ in: trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces. Copy old text from the file without the line-number prefix the read tool adds. Read the file with the read tool before you edit it. After an edit, the same file can be edited again without another read. To create a file or replace all of its content, use the write tool.
+```
+
+The three edit presets also take `matchers`. This option does not change how the tool matches text. It changes one sentence in the description, so the model knows if a close match is used. The default is `defaultEditMatchers()`, the default of the edit tool. When you give the edit tool other matchers, give the same list to the signature:
+
+```ts
+import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
+import { exactMatcher } from "@better-fs-tools/write";
+import { defaultEditSignature } from "@better-fs-tools/write/signature";
+
+const matchers = [exactMatcher()];
+const { tools } = createAiSdkFsTools({
+  fs,
+  edit: { matchers, signature: defaultEditSignature({ name: "str_replace", matchers }) },
+});
+```
+
+With only `exactMatcher()`, the description says that `old_string` must match the file exactly, including whitespace and indentation. When you leave out `signature`, the AI SDK and Pi integrations give the default signature the edit tool's `matchers`.
+
+### Write
+
+`defaultWriteSignature()` gives `write` with `path` and `content`. `snakeCaseWriteSignature()` gives `write_file` with `file_path` and `content`. The two presets are the same in all other ways. Both parameters are required.
+
+This is the default description:
+
+```text
+Create a text file, or replace all of its content. Missing parent directories are created. To replace a file that exists, read all of it with the read tool first. To change part of a file, use the edit tool: it sends less text and keeps the rest of the file as it is.
+```
+
+### Apply patch
+
+`defaultPatchSignature()` gives `apply_patch` with one required parameter, `patch`. The model sends the whole patch as a JSON string. The description has a short example of the Codex patch format.
+
+This is the default description:
+
+```text
+Apply a patch that adds, updates, moves, or deletes text files. The input is one patch text (the `patch` parameter) in the Codex apply_patch format:
+
+*** Begin Patch
+*** Update File: src/app.ts
+@@ export function main() {
+ const a = 1;
+-const b = 2;
++const b = 3;
+*** Add File: docs/notes.md
++# Notes
+*** Delete File: old.txt
+*** End Patch
+
+In an Update, each line starts with a space (context), `-` (remove), or `+` (add). `@@ <line>` names a line above the change to find the right place. Put `*** Move to: <path>` after an Update line to rename the file. Every line of an Add starts with `+`. Every hunk is checked before any file changes: when one fails, no file changes. Read each file you update or delete with the read tool first.
+```
+
+`freeformPatchSignature()` is the same, and adds `signature.grammar.lark`. Its value is `CODEX_PATCH_GRAMMAR` from `@better-fs-tools/write/patch`: the Lark grammar of the Codex apply_patch format. A host with grammar tools can use it to constrain the patch text that the model writes:
+
+```ts
+import { CODEX_PATCH_GRAMMAR } from "@better-fs-tools/write/patch";
+import { freeformPatchSignature } from "@better-fs-tools/write/signature";
+
+const signature = freeformPatchSignature();
+signature.grammar?.lark === CODEX_PATCH_GRAMMAR; // true
+```
+
+The Pi integration sends the grammar to models that support grammar tools. Other Pi models get the JSON schema. AI SDK tools take JSON only, so the AI SDK integration accepts this signature but does not send the grammar.
+
+### Use a write signature in your own integration
+
+Pass `messages: writeSignatureMessages(signature)` to the core tool, so the notes use the names from the signature:
+
+```ts
+import { memoryFileSystem } from "@better-fs-tools/fs";
+import { createEditTool } from "@better-fs-tools/write";
+import { camelCaseEditSignature, writeSignatureMessages } from "@better-fs-tools/write/signature";
+
+const signature = camelCaseEditSignature({ name: "edit_file" });
+const edit = createEditTool({
+  fs: memoryFileSystem({ files: { "/a.ts": "x\n" } }),
+  messages: writeSignatureMessages(signature),
+});
+
+const result = await edit(signature.toInput({ filePath: "/a.ts", oldString: "x", newString: "y" }));
+```
+
+When the old text is not in the file, the note names `oldString`:
+
+```text
+[edit:no-match] Edit 1: the oldString was not found in /a.ts.
+```
+
+## Signature for bash
+
+`defaultBashSignature()` from `@better-fs-tools/shell/signature` gives `bash` with `command`, `timeout`, and `cwd`. Only `command` is required. It takes `name`, `description`, `describe`, and `names`, and these options:
+
+| Option        | Default              | Sets                                                                                            |
+| ------------- | -------------------- | ----------------------------------------------------------------------------------------------- |
+| `timeoutUnit` | `"ms"`               | The unit of `timeout`, `"ms"` or `"s"`. `toInput()` gives `timeoutMs` in milliseconds           |
+| `cwd`         | `true`               | With `false`, the schema has no `cwd` parameter, and `names.cwd` and `describe.cwd` are ignored |
+| `runner`      | None                 | A runner name for the description. The description then ends with `Commands run in: <runner>.`  |
+| `limits`      | `defaultShellLimits` | The limits that the description names: the default and maximum timeout, and the output limits   |
+
+`runner` and `limits` change only the text that the model sees. They do not choose a runner or set the limits of the tool. Give the tool and the signature the same limits.
+
+This is the default description, with no `runner` and the default limits:
+
+```text
+Run a shell command with bash -c and return its exit code and output. Each call starts a new shell: a cd, an export, or a variable does not carry to the next call. stdin is closed, so a command that waits for input gets end of file. Do not start interactive programs. The command stops after 2 min unless you set a timeout. The whole process tree is stopped at the timeout. stdout and stderr are merged. Long output keeps the first and the last lines, up to 2000 lines or 30000 bytes. Prefer the read, edit, and write tools for files.
+```
+
+The AI SDK integration uses `defaultBashSignature()` with the `id` of the runner and the tool's `limits`. The Pi integration also sets `timeoutUnit: "s"` and `cwd: false`. When you give your own signature, the integration does not add the runner or the limits, so set them yourself:
+
+```ts
+import { createAiSdkBashTool } from "@better-fs-tools/ai-sdk";
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { shellEnv } from "@better-fs-tools/shell";
+import { defaultBashSignature } from "@better-fs-tools/shell/signature";
+
+const runner = nodeCommandRunner();
+const limits = { defaultTimeoutMs: 30_000, maxTimeoutMs: 60_000 };
+const bash = createAiSdkBashTool({
+  runner,
+  env: shellEnv(() => process.env),
+  limits,
+  signature: defaultBashSignature({
+    timeoutUnit: "s",
+    names: { timeout: "timeout_seconds" },
+    runner: runner.id,
+    limits,
+  }),
+});
+```
+
+The schema then describes `timeout_seconds` as `Timeout in seconds. Default 30 seconds, maximum 60 seconds.` A model call `{ "command": "ls", "timeout_seconds": 5 }` becomes `{ command: "ls", timeoutMs: 5000 }`. To use the same names and unit in your own integration, pass `messages: bashSignatureMessages(signature)` to `createBashTool()`, as the [bash formatting guide](/bash/formatting) shows.
+
+## Custom schemas and AI SDK strict mode
+
+Every AI SDK tool is `strict: true`, so the integration changes the signature's schema to the JSON Schema subset that OpenAI strict mode accepts. An optional parameter becomes required and nullable, and the tool reads a `null` as a missing parameter. Keywords outside the subset, such as `minLength`, are removed from the schema that the provider gets. The tool still runs `signature.toInput()` on each call, so the checks in `toInput()` still apply.
+
+All the presets on this page work in strict mode. A custom signature with a schema that strict mode cannot express, for example one with `not`, `if`, or `patternProperties`, throws a `TypeError` when you create the tool. The [AI SDK page](/integrations/ai-sdk) gives all the rules.

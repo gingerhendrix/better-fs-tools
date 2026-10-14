@@ -1,0 +1,113 @@
+---
+title: Permissions
+description: Refuse paths, protect agent files, or ask the user before a change, with the authorize option of the write tools.
+---
+
+The filesystem decides which folders the tools can change, as for the [read tool](/read/paths#set-the-folders). A path outside them returns `OUTSIDE_ALLOWED_ROOTS`. `resolve` takes the same [path resolvers](/read/paths#rewrite-paths) as the read tool.
+
+Set `authorize` to refuse changes inside those folders. The default is `null`, which allows every change. A refused change returns status `error` with code `DENIED`, and no file changes.
+
+## Refuse paths
+
+`denyPaths()` from the read package refuses paths that match a glob. `protectPaths()` refuses `**/AGENTS.md`, `**/CLAUDE.md`, and `**/.git/**`. `writeAuthorizers()` runs rules from left to right, and the first refusal wins:
+
+```ts
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { denyPaths } from "@better-fs-tools/read";
+import { createWriteTool, protectPaths, writeAuthorizers } from "@better-fs-tools/write";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const write = createWriteTool({
+  fs,
+  authorize: writeAuthorizers(denyPaths(["**/.env", "**/.env.*"]), protectPaths()),
+});
+```
+
+```text
+[write:denied] .env was refused by policy (the path matches a denied pattern).
+[write:denied] AGENTS.md was refused by policy (the path is protected).
+```
+
+Set `patterns` on `protectPaths()` to use your own list. Set `ask` to ask the user before a change to a protected path. `protectPaths()` also checks the source of a move in `apply_patch`.
+
+You can give the same `denyPaths()` rule to the read tool and the write tools.
+
+## Ask the user
+
+`askBeforeWrite()` calls your function once for each call, with every planned change. Each change has its `kind`, `displayPath`, `diff`, and line counts. Return `true` to allow the call. A throw or any other value refuses it:
+
+```ts
+import { askBeforeWrite } from "@better-fs-tools/write";
+
+declare function confirmInUi(question: string, diff: string): Promise<boolean>;
+
+const write = createWriteTool({
+  fs,
+  authorize: askBeforeWrite((plan) =>
+    confirmInUi(`Apply ${plan.length} change(s)?`, plan.map((change) => change.diff).join("\n")),
+  ),
+});
+```
+
+```text
+[write:denied] notes.md was refused by policy (the user did not approve the change).
+```
+
+For `edit` and `write`, your function can also return `{ content }` with text from the user. The tool writes that text, and adds a note:
+
+```text
+[write:user-modified] The user changed the content before it was written to notes.md. The file holds their version. Read it before changing it again.
+```
+
+`askBeforeWrite()` runs after the [guards](/write/guards-and-hooks), so the user sees only changes that the tool can write. It does not remember answers between calls.
+
+## Write your own rule
+
+An authorizer is an object with an `id` and an `authorize(target, ctx)` function. It returns `{ allow: true }`, or `{ allow: false, note }` with the note for the model. It can be async. The tool calls it twice:
+
+1. For each path, before the tool reads the file. `target.change` is `null`.
+2. For each planned change, after the guards. `target.change` holds the change, and `target.plan` holds every change of the call.
+
+This rule refuses to delete files:
+
+```ts
+import type { WriteAuthorizer } from "@better-fs-tools/write";
+
+const noDeletes: WriteAuthorizer<unknown> = {
+  id: "no-deletes",
+  authorize: (target, ctx) =>
+    target.action === "delete"
+      ? {
+          allow: false,
+          note: {
+            code: "denied",
+            severity: "warning",
+            message: ctx.messages.denied({ path: target.requestedPath, detail: "deletes are off" }),
+          },
+        }
+      : { allow: true },
+};
+```
+
+```text
+[apply_patch:denied] src/old.ts was refused by policy (deletes are off).
+```
+
+Only `apply_patch` deletes files. The bundles create it only when you set `applyPatch: true`. See [Apply patches](/write/patches).
+
+| `target` field  | Holds                                                                        |
+| --------------- | ---------------------------------------------------------------------------- |
+| `action`        | `"create"`, `"update"`, `"delete"`, or `"move"`                              |
+| `tool`          | `"edit"`, `"write"`, or `"apply_patch"`                                      |
+| `requestedPath` | The path from the model                                                      |
+| `resolvedPath`  | The real path                                                                |
+| `displayPath`   | The path to show to a user                                                   |
+| `change`        | The planned change with its `diff`, or `null` before the tool reads the file |
+| `plan`          | Every planned change of the call. Empty before the tool reads the file       |
+
+If `authorize` throws, the call fails with `EXTENSION_FAILED`.
+
+A rule of type `ToolAuthorizer` from the read package, such as `denyPaths()`, works with all tools. It sees only `action` and the three paths. A `WriteAuthorizer` works only with the write tools.
+
+These rules apply to the write tools only. A `bash` tool can still run `rm AGENTS.md`.

@@ -1,0 +1,146 @@
+---
+title: Permissions
+description: Refuse paths and large files, or ask the user before a read, with the authorize option.
+---
+
+The filesystem decides which folders the tool can open. See [Path handling](/read/paths#set-the-folders). Set `authorize` to refuse reads inside those folders. The default is `null`, which allows every read.
+
+A refused read returns status `error` with code `DENIED`. `result.file` is `null`, so the result does not show the real path of the file.
+
+## Refuse paths
+
+`denyPaths()` refuses paths that match a glob:
+
+```ts
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool, denyPaths } from "@better-fs-tools/read";
+
+const cwd = process.cwd();
+const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
+const read = createReadTool({
+  fs,
+  authorize: denyPaths(["**/.env", "**/.env.*", "**/*.pem"]),
+});
+```
+
+`denyPaths()` checks the real path of the file, so it also refuses a link to a denied file. Here `src/settings` is a link to `.env`:
+
+```text
+[read:denied] src/settings was refused by policy (the path matches a denied pattern).
+```
+
+`**` matches any number of folders, `*` matches any text in one name, and `?` matches one character.
+
+## Refuse large files
+
+`sizeCeiling()` refuses a file that is larger than `maxBytes`. Set `unrangedOnly: true` to refuse only a read of the whole file. The note then tells the model how to read a part of the file:
+
+```ts
+import { sizeCeiling } from "@better-fs-tools/read";
+
+const read = createReadTool({
+  fs,
+  authorize: sizeCeiling({ maxBytes: 64 * 1024, unrangedOnly: true }),
+});
+```
+
+```text
+[read:denied] logs/server.log was refused by policy (183890 bytes is over the 65536-byte ceiling for a whole-file read; a ranged read such as {"path":"logs/server.log","offset":1,"limit":2000} is allowed).
+```
+
+A read with an `offset` or a `limit` gets through. To cut a read short, with no refusal, use [limits](/read/limits) in its place.
+
+## Ask the user
+
+`askUser()` calls your function before each read of a file. The read continues only when the function returns `true`. A throw or any other value refuses the read:
+
+```ts
+import { askUser } from "@better-fs-tools/read";
+
+declare function confirmInUi(question: string): Promise<boolean>;
+
+const read = createReadTool({
+  fs,
+  authorize: askUser((target) => confirmInUi(`Read ${target.displayPath}?`)),
+});
+```
+
+```text
+[read:denied] src/config.ts was refused by policy (the user did not approve the read).
+```
+
+`askUser()` does not ask before it lists a folder, and it does not remember answers. To remember answers for a session, keep them in the call context. See [Hooks and state](/read/hooks-and-state#use-one-store-for-each-session).
+
+When the call has a `signal` and it aborts, the read stops, even when your prompt is still open. If the file changes while the prompt is open, the read fails with `CHANGED_DURING_READ`.
+
+## Use more than one rule
+
+`readAuthorizers()` runs rules from left to right. The first refusal wins:
+
+```ts
+import { readAuthorizers } from "@better-fs-tools/read";
+
+const read = createReadTool({
+  fs,
+  authorize: readAuthorizers(
+    denyPaths(["**/.env", "**/.env.*", "**/*.pem"]),
+    sizeCeiling({ maxBytes: 256 * 1024, unrangedOnly: true }),
+    askUser((target) => confirmInUi(`Read ${target.displayPath}?`)),
+  ),
+});
+```
+
+## Write your own rule
+
+An authorizer is an object with an `id` and an `authorize(target, ctx)` function. It returns `{ allow: true }`, or `{ allow: false, note }` with the note for the model. It can be async:
+
+```ts
+import type { ReadAuthorizer } from "@better-fs-tools/read";
+
+const noMinified: ReadAuthorizer = {
+  id: "no-minified",
+  authorize: (target, ctx) =>
+    target.action === "read" && target.resolvedPath.endsWith(".min.js")
+      ? {
+          allow: false,
+          note: {
+            code: "denied",
+            severity: "warning",
+            message: ctx.messages.denied({
+              path: target.requestedPath,
+              detail: "minified files are off",
+            }),
+          },
+        }
+      : { allow: true },
+};
+```
+
+```text
+[read:denied] src/bundle.min.js was refused by policy (minified files are off).
+```
+
+| `target` field  | Holds                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------- |
+| `action`        | `"read"` for a file. `"list"` before the tool lists a folder, for suggestions or a folder listing |
+| `requestedPath` | The path from the model                                                                           |
+| `resolvedPath`  | The real path for `"read"`. The folder path for `"list"`                                          |
+| `displayPath`   | The path to show to a user                                                                        |
+| `size`          | The file size in bytes, or `null`                                                                 |
+| `mtimeMs`       | The time the file last changed, or `null`                                                         |
+
+If `authorize` throws, the read fails with `EXTENSION_FAILED`.
+
+`denyPaths()` also works with the `edit`, `write`, and `apply_patch` tools, so you can give the same list to each tool. A rule of type `ReadAuthorizer` works only with the read tool.
+
+## What authorize cannot stop
+
+`authorize` runs after the filesystem opens the file, and before the tool reads any content. When your rule refuses a read, no content goes to the model.
+
+<Callout type="warn">
+  Some backends get the whole file when they open it: Cloudflare Shell and just-bash. With these
+  backends, a refused file has already left the backend. To keep a file inside the backend, put it
+  in `denyRoots`, or leave it out of `allowedRoots`.
+</Callout>
+
+These rules apply to the read tool only. A `bash` tool can still run `cat .env`.
