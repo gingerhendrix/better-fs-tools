@@ -13,8 +13,16 @@ There are four bundles. `createFsTools()` is the portable core. The other three 
 | ---------------------- | ------------------------- | --------------------------------------------------------------------------------------------------- |
 | `createFsTools()`      | `@better-fs-tools/write`  | You write your own host glue, or you run in a Worker with a Cloudflare or just-bash filesystem      |
 | `createNodeFsTools()`  | `@better-fs-tools/node`   | You run on Node or Bun and want the local filesystem                                                |
-| `createPiFsTools()`    | `@better-fs-tools/pi`     | You write a [Pi](/hosts/pi) coding agent extension                                                  |
+| `createPiFsTools()`    | `@better-fs-tools/pi`     | You write a [Pi](/hosts/pi) coding agent extension, or you use the Pi SDK                           |
 | `createAiSdkFsTools()` | `@better-fs-tools/ai-sdk` | You pass the tools to [AI SDK](/hosts/ai-sdk) 7 `generateText` or `streamText`, with any filesystem |
+
+Pi has more than one library. The Pi bundle only fits the coding agent. For the other Pi libraries, wrap a portable bundle:
+
+| Pi library                                | Bundle                                                | Page                                  |
+| ----------------------------------------- | ----------------------------------------------------- | ------------------------------------- |
+| Coding agent: the `pi` command or the SDK | `createPiFsTools()`                                   | [Pi](/hosts/pi)                       |
+| `pi-agent-core` or `pi-ai`                | `createNodeFsTools()` or `createFsTools()`, with glue | [Pi agent core](/hosts/pi-agent-core) |
+| `pi-durable`, experimental                | `createFsTools()`, with glue                          | [Pi durable](/hosts/pi-durable)       |
 
 The just-bash, Cloudflare Shell, and Cloudflare Computer packages give you a filesystem. They do not give you a bundle. Pass their filesystem as `fs` to `createFsTools()` or `createAiSdkFsTools()`. See [Backends](/backends).
 
