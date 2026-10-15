@@ -5,14 +5,13 @@ description: Choose the bundle for your integration, and see what each bundle se
 
 A bundle creates `read`, `edit`, and `write` over one filesystem. When you ask for them, it also creates `apply_patch` and `bash`. The tools share one digest, one lock manager, and one clock. When you set `state`, they also share one read store, so `edit` and `write` know what the model has read.
 
-There are four bundles. `createFsTools()` is the portable core. The other three wrap it for one host.
+There are three bundles. `createFsTools()` is the portable core. The other two wrap it for one host.
 
 ## Choose a bundle
 
 | Bundle                 | Package                   | Use it when                                                                                                |
 | ---------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `createFsTools()`      | `@better-fs-tools/write`  | You write your own host glue, or you run in a Worker with a Cloudflare or just-bash filesystem             |
-| `createNodeFsTools()`  | `@better-fs-tools/node`   | You run on Node or Bun and want the local filesystem                                                       |
+| `createFsTools()`      | `@better-fs-tools/write`  | You write your own host glue, on Node, Bun, or a Worker, with any filesystem                               |
 | `createPiFsTools()`    | `@better-fs-tools/pi`     | You write a [Pi](/integrations/pi) coding agent extension, or you use the Pi SDK                           |
 | `createAiSdkFsTools()` | `@better-fs-tools/ai-sdk` | You pass the tools to [AI SDK](/integrations/ai-sdk) 7 `generateText` or `streamText`, with any filesystem |
 
@@ -24,7 +23,7 @@ Pi has more than one library. The Pi bundle only fits the coding agent. The othe
 | `pi-agent-core` or `pi-ai`                | `createAgentCoreFsTools()` from `@better-fs-tools/pi/agent-core` | [Pi agent core](/integrations/pi-agent-core) |
 | `pi-durable`, experimental                | `createDurableFsTools()` from `@better-fs-tools/pi-durable`      | [Pi durable](/integrations/pi-durable)       |
 
-The just-bash, Cloudflare Shell, and Cloudflare Computer packages give you a filesystem. They do not give you a bundle. Pass their filesystem as `fs` to `createFsTools()` or `createAiSdkFsTools()`. See [Filesystems](/filesystems).
+The Node, just-bash, Cloudflare Shell, and Cloudflare Computer packages give you a filesystem. They do not give you a bundle. Pass their filesystem as `fs` to `createFsTools()` or `createAiSdkFsTools()`. See [Filesystems](/filesystems).
 
 The core bundle runs anywhere. This example uses an in-memory filesystem:
 
@@ -45,14 +44,21 @@ console.log(textOf(result));
 // Edited /src/index.ts: 1 replacement at line 1.
 ```
 
-The Node bundle makes its own filesystem in `process.cwd()`. It can also add a bash tool with no more setup:
+On Node or Bun, give the core bundle a `nodeFileSystem()` for the local files. For a bash tool, also give it a Node runner and an environment:
 
 ```ts
-import { createNodeFsTools } from "@better-fs-tools/node";
+import { nodeCommandRunner, nodeFileSystem } from "@better-fs-tools/node";
 import { memoryStore } from "@better-fs-tools/read";
+import { shellEnv } from "@better-fs-tools/shell";
+import { createFsTools } from "@better-fs-tools/write";
 
 // read, edit, write, apply_patch, and bash in process.cwd().
-export const tools = createNodeFsTools({ state: memoryStore(), applyPatch: true, bash: true });
+export const tools = createFsTools({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
+  state: memoryStore(),
+  applyPatch: true,
+  bash: { runner: nodeCommandRunner(), env: shellEnv(() => process.env) },
+});
 ```
 
 The AI SDK bundle gives you `tools`, keyed by tool name, for `generateText`:
@@ -90,32 +96,32 @@ export default function fsToolsExtension(pi: ExtensionAPI): void {
 
 ## Bundle defaults
 
-| Setting                           | `createFsTools()`                                                     | `createNodeFsTools()`                                                                             | `createPiFsTools()`                                                                        | `createAiSdkFsTools()`                                                |
-| --------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `fs`                              | required: a filesystem, or a function of the call                     | `nodeFileSystem({ cwd, allowedRoots: [cwd] })`, `cwd` default `process.cwd()`. `fs` throws        | a `nodeFileSystem` rooted at `ctx.cwd` on each call. `fs`, `cwd`, and `allowedRoots` throw | required, as in `createFsTools()`                                     |
-| Tool input                        | canonical                                                             | canonical                                                                                         | the Pi signatures below                                                                    | the AI SDK signatures below, `strict: true`                           |
-| `state`                           | `null`: no read before write. `memoryStore()` turns it on             | `null`, as `createFsTools()`                                                                      | `null`, as `createFsTools()`                                                               | `null`, as `createFsTools()`                                          |
-| `applyPatch`                      | off. `true` or an options object adds `apply_patch`                   | off, as `createFsTools()`                                                                         | off, as `createFsTools()`. The `pi.extensions` entry does not register it                  | off, as `createFsTools()`. When off, `tools` has no `apply_patch` key |
-| `digest`                          | `sha256Digest()`, plain JavaScript                                    | `nodeDigest()`                                                                                    | `nodeDigest()`                                                                             | `sha256Digest()`                                                      |
-| `locks`                           | `memoryLocks()`                                                       | `memoryLocks()`                                                                                   | `piMutationQueueLocks()`: Pi's own per-file queue                                          | `memoryLocks()`                                                       |
-| `clock`                           | `() => new Date()`                                                    | `() => new Date()`                                                                                | `() => new Date()`                                                                         | `() => new Date()`                                                    |
-| `bash`                            | off. An options object with `runner` and `env` adds it. `true` throws | off. `true` or an options object adds it                                                          | no option: a `bash` key throws. Register `createPiBashTool()` on its own                   | off. An options object with `runner` and `env` adds it. `true` throws |
-| bash `runner`                     | required                                                              | `nodeCommandRunner({ cwd })`                                                                      | `createPiBashTool()`: a Node runner at `ctx.cwd`                                           | required                                                              |
-| bash `env`                        | required                                                              | `shellEnv(() => process.env)`                                                                     | `createPiBashTool()`: `shellEnv(() => process.env)`                                        | required                                                              |
-| `read` images                     | off: `converters` is `[]`                                             | off, as `createFsTools()`                                                                         | on: `converters` is `[imageConverter()]`. `[]` turns it off                                | on, as `createPiFsTools()`. An image becomes a file part              |
-| New file and directory modes      | the filesystem's                                                      | `0o666` and `0o777` less the process umask. `newFileMode` and `newDirectoryMode` set them exactly | as Node                                                                                    | the filesystem's                                                      |
-| `symlinks`, `identity`, buffering | the filesystem's                                                      | `"follow-within-roots"`, `"required"`, streams                                                    | as Node                                                                                    | the filesystem's                                                      |
-| `invalidate`                      | `(path, call?)`                                                       | `(path, call?)`, `call` ignored                                                                   | `(path, call?)`, pass the call                                                             | `(path, call?)`                                                       |
+| Setting                           | `createFsTools()`                                                     | `createPiFsTools()`                                                                        | `createAiSdkFsTools()`                                                |
+| --------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `fs`                              | required: a filesystem, or a function of the call                     | a `nodeFileSystem` rooted at `ctx.cwd` on each call. `fs`, `cwd`, and `allowedRoots` throw | required, as in `createFsTools()`                                     |
+| Tool input                        | canonical                                                             | the Pi signatures below                                                                    | the AI SDK signatures below, `strict: true`                           |
+| `state`                           | `null`: no read before write. `memoryStore()` turns it on             | `null`, as `createFsTools()`                                                               | `null`, as `createFsTools()`                                          |
+| `applyPatch`                      | off. `true` or an options object adds `apply_patch`                   | off, as `createFsTools()`. The `pi.extensions` entry does not register it                  | off, as `createFsTools()`. When off, `tools` has no `apply_patch` key |
+| `digest`                          | `sha256Digest()`, plain JavaScript                                    | `nodeDigest()`                                                                             | `sha256Digest()`                                                      |
+| `locks`                           | `memoryLocks()`                                                       | `piMutationQueueLocks()`: Pi's own per-file queue                                          | `memoryLocks()`                                                       |
+| `clock`                           | `() => new Date()`                                                    | `() => new Date()`                                                                         | `() => new Date()`                                                    |
+| `bash`                            | off. An options object with `runner` and `env` adds it. `true` throws | no option: a `bash` key throws. Register `createPiBashTool()` on its own                   | off. An options object with `runner` and `env` adds it. `true` throws |
+| bash `runner`                     | required                                                              | `createPiBashTool()`: a Node runner at `ctx.cwd`                                           | required                                                              |
+| bash `env`                        | required                                                              | `createPiBashTool()`: `shellEnv(() => process.env)`                                        | required                                                              |
+| `read` images                     | off: `converters` is `[]`                                             | on: `converters` is `[imageConverter()]`. `[]` turns it off                                | on, as `createPiFsTools()`. An image becomes a file part              |
+| New file and directory modes      | the filesystem's                                                      | as `nodeFileSystem()`                                                                      | the filesystem's                                                      |
+| `symlinks`, `identity`, buffering | the filesystem's                                                      | as `nodeFileSystem()`                                                                      | the filesystem's                                                      |
+| `invalidate`                      | `(path, call?)`                                                       | `(path, call?)`, pass the call                                                             | `(path, call?)`                                                       |
 
 ### Defaults that differ between integrations
 
 Check these rows when you move tools from one host to another:
 
-- **`digest`**. The core and AI SDK bundles use `sha256Digest()` from `@better-fs-tools/read`. It is plain JavaScript, so it runs in a Worker. The Node and Pi bundles use `nodeDigest()`, which uses `node:crypto`. Both have the id `sha256`.
-- **`bash: true`**. The Node bundle adds a bash tool with a Node runner and `process.env`. The core and AI SDK bundles start no process and do not read `process.env`, so `bash: true` throws `TypeError`. Give them an options object with your own `runner` and `env`. The Pi bundle has no `bash` option. Register `createPiBashTool()` next to the bundle tools.
-- **`fs`**. The core and AI SDK bundles need `fs`. The Node bundle makes its own filesystem from `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, `hardLinks`, `newFileMode`, and `newDirectoryMode`, and an `fs` key throws. The Pi bundle takes the same root options except `cwd` and `allowedRoots`, because the root is always `ctx.cwd`.
-- **Images**. The Pi and AI SDK `read` tools return images, as the host's own read tool does. The core and Node `read` tools do not. Set `read: { converters }` to change this.
-- **`invalidate`**. The Node bundle has one filesystem, so it ignores `call`. The Pi bundle picks a filesystem for each call, so `invalidate(path)` without the call returns `ok: false`. In a bash `afterRun` hook, pass `ctx.call`. The core and AI SDK bundles need the call only when `fs` is a function.
+- **`digest`**. The core and AI SDK bundles use `sha256Digest()` from `@better-fs-tools/read`. It is plain JavaScript, so it runs in a Worker. The Pi bundle uses `nodeDigest()`, which uses `node:crypto`. Both have the id `sha256`.
+- **`bash: true`**. The core and AI SDK bundles start no process and do not read `process.env`, so `bash: true` throws `TypeError`. Give them an options object with your own `runner` and `env`. The Pi bundle has no `bash` option. Register `createPiBashTool()` next to the bundle tools.
+- **`fs`**. The core and AI SDK bundles need `fs`. The Pi bundle makes its own `nodeFileSystem()`. It takes the root options of `nodeFileSystem()` except `cwd` and `allowedRoots`, because the root is always `ctx.cwd`. An `fs` key throws.
+- **Images**. The Pi and AI SDK `read` tools return images, as the host's own read tool does. The core `read` tool does not. Set `read: { converters }` to change this.
+- **`invalidate`**. The Pi bundle picks a filesystem for each call, so `invalidate(path)` without the call returns `ok: false`. In a bash `afterRun` hook, pass `ctx.call`. The core and AI SDK bundles need the call only when `fs` is a function.
 
 ### Rules for every bundle
 

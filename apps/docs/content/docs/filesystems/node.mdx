@@ -27,7 +27,7 @@ const fs = nodeFileSystem({
 export const read = createReadTool({ fs });
 ```
 
-You do not always need to create it. `createNodeReadTool()`, `createNodeFsTools()`, and the other Node factories create a `nodeFileSystem` rooted at `process.cwd()` when you set no `fs`. The Pi tools create one for each call, rooted at the working directory of the call. [Choose an integration](/integrations) lists these defaults.
+Give it to a bundle as `fs`, for example `createFsTools({ fs: nodeFileSystem({ allowedRoots: [process.cwd()] }) })` from `@better-fs-tools/write`. You do not always need to create it. `createNodeReadTool()` and the other Node factories create a `nodeFileSystem` rooted at `process.cwd()` when you set no `fs`. The Pi tools create one for each call, rooted at the working directory of the call. [Choose an integration](/integrations) lists these defaults.
 
 ## Options
 

@@ -24,7 +24,7 @@ const bash = createBashTool({
 });
 ```
 
-On Node or Bun, `createNodeBashTool()` from `@better-fs-tools/node` does the same. It runs `bash -c` in `process.cwd()` with `process.env`, and takes the same options. To get the bash tool with the file tools, set `bash` on a bundle: `createNodeFsTools({ bash: true })`, or `createFsTools({ fs, bash: { runner, env } })`.
+On Node or Bun, `createNodeBashTool()` from `@better-fs-tools/node` does the same. It runs `bash -c` in `process.cwd()` with `process.env`, and takes the same options. To get the bash tool with the file tools, set `bash` on a bundle: `createFsTools({ fs, bash: { runner, env } })`. On Node or Bun, `runner` is `nodeCommandRunner()` and `fs` is `nodeFileSystem()`.
 
 | Option      | Default                   | Use it to                                                                        |
 | ----------- | ------------------------- | -------------------------------------------------------------------------------- |

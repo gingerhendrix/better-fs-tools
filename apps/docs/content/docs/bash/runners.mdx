@@ -85,7 +85,7 @@ Exit code 0 · 0 s
 HOME= PAGER=cat
 ```
 
-`process.env` often holds API keys and tokens. Use an allow list when the model must not see them. `createNodeBashTool()` and `createNodeFsTools({ bash: true })` use `shellEnv(() => process.env)` when you do not set `env`.
+`process.env` often holds API keys and tokens. Use an allow list when the model must not see them. `createNodeBashTool()` uses `shellEnv(() => process.env)` when you do not set `env`.
 
 To make the environment your own way, set `env` to a function. It gets the command and the call context, and can be async:
 

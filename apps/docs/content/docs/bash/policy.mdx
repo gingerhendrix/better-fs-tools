@@ -146,12 +146,17 @@ hi
 The bash tool does not update the read records of the file tools. The bundles keep read records only when you set `state: memoryStore()`. When a command then changes a file, the edit tool sees that the file changed since the last read, and returns `STALE`. To make the model read a file again after a command, call `invalidate(path)` of a bundle from an `afterRun` hook. See [Choose an integration](/integrations):
 
 ```ts
-import { createNodeFsTools } from "@better-fs-tools/node";
+import { nodeCommandRunner, nodeFileSystem } from "@better-fs-tools/node";
 import { memoryStore } from "@better-fs-tools/read";
+import { shellEnv } from "@better-fs-tools/shell";
+import { createFsTools } from "@better-fs-tools/write";
 
-const tools = createNodeFsTools({
+const tools = createFsTools({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
   state: memoryStore(),
   bash: {
+    runner: nodeCommandRunner(),
+    env: shellEnv(() => process.env),
     afterRun: [
       {
         id: "invalidate-package-json",
