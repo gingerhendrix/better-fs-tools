@@ -21,7 +21,8 @@ export type {
   PiMutationTool,
   PiMutationToolResult,
 } from "./mutation-tools.ts";
-export type { PiBashOutput, PiReadOutput, PiToolAnnotations } from "./results.ts";
+export { piToolRenderers } from "./renderers.ts";
+export type { PiToolAnnotations } from "./results.ts";
 export { createPiReadTool } from "./tool.ts";
 export type {
   CreatePiReadToolOptions,

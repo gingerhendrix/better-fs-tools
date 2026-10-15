@@ -2,20 +2,52 @@ import { describe, expect, test } from "bun:test";
 
 import type { CommandRunner } from "@better-fs-tools/shell";
 
+import { defaultBashSignature } from "@better-fs-tools/shell/signature";
+
 import { createPiBashTool } from "../src/index.ts";
 import { fixtures, piContext } from "./helpers.ts";
 
 const makeRoot = fixtures();
 
 describe("createPiBashTool", () => {
-  test("has Pi's own bash shape: command and timeout in seconds, no cwd", () => {
+  test("has the shared default signature: command, timeout in milliseconds, and cwd", () => {
     const tool = createPiBashTool();
     expect(tool.name).toBe("bash");
     expect(tool.label).toBe("bash");
-    expect(tool.promptSnippet).toBe("Execute bash commands (ls, grep, find, etc.)");
+    expect(tool.description).toBe(defaultBashSignature().description);
+    expect(tool.promptSnippet).toBe(
+      "Run a shell command with bash -c and return its exit code and output",
+    );
+    expect(tool.promptGuidelines).toEqual([]);
     expect(Object.keys((tool.parameters as { properties: object }).properties)).toEqual([
       "command",
       "timeout",
+      "cwd",
+    ]);
+  });
+
+  test("the timeoutUnit seconds preset gives Pi's own bash keys", () => {
+    const tool = createPiBashTool({
+      signature: defaultBashSignature({ timeoutUnit: "s", cwd: false }),
+    });
+    expect(Object.keys((tool.parameters as { properties: object }).properties)).toEqual([
+      "command",
+      "timeout",
+    ]);
+  });
+
+  test("a cwd from the model is relative to ctx.cwd", async () => {
+    const root = await makeRoot({ "sub/b.txt": "b" });
+    const tool = createPiBashTool();
+    const result = await tool.execute(
+      "c0",
+      { command: "pwd", cwd: "sub" },
+      undefined,
+      undefined,
+      piContext(root),
+    );
+    expect(result.content).toEqual([
+      { type: "text", text: expect.stringContaining(`${root}/sub`) },
     ]);
   });
 
@@ -46,12 +78,12 @@ describe("createPiBashTool", () => {
     expect(one.details).toBeUndefined();
   });
 
-  test("the timeout is in seconds", async () => {
+  test("the timeout is in milliseconds", async () => {
     const root = await makeRoot();
     const tool = createPiBashTool({ limits: { killGraceMs: 100 } });
     const result = await tool.execute(
       "c3",
-      { command: "sleep 5", timeout: 0.2 },
+      { command: "sleep 5", timeout: 200 },
       undefined,
       undefined,
       piContext(root),
@@ -79,11 +111,13 @@ describe("createPiBashTool", () => {
     expect(result.details).toEqual({ fullOutputPath: "/tmp/full.log" });
   });
 
-  test("the default description names the configured timeouts, in seconds", () => {
+  test("the default description names the configured timeouts, in milliseconds", () => {
     const tool = createPiBashTool({ limits: { defaultTimeoutMs: 1_000, maxTimeoutMs: 2_000 } });
     const timeout = (tool.parameters as { properties: { timeout: { description: string } } })
       .properties.timeout.description;
-    expect(timeout).toBe("Timeout in seconds. Default 1 seconds, maximum 2 seconds.");
+    expect(timeout).toBe(
+      "Timeout in milliseconds. Default 1000 milliseconds, maximum 2000 milliseconds.",
+    );
     expect(tool.description).not.toContain("120");
     expect(tool.description).toContain("The command stops after 1 s");
   });

@@ -5,7 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { discoverAndLoadExtensions } from "@earendil-works/pi-coding-agent";
-import type { ExtensionContext, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
+import type {
+  ExtensionContext,
+  ExtensionToolContext,
+  ToolRendererResolver,
+} from "@earendil-works/pi-coding-agent";
 
 import fsToolsExtension from "../src/extension.ts";
 import type { PiMutationTool, PiReadTool } from "../src/index.ts";
@@ -17,10 +21,12 @@ const PACKAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), ".."
 const EXTENSION_SOURCE = path.join(PACKAGE_DIR, "src", "extension.ts");
 
 describe("pi extension", () => {
-  test("registers read, edit, and write, with no renderers", () => {
+  test("registers read, edit, and write with the shared signatures, and one renderer resolver", () => {
     const registered: (PiReadTool | PiMutationTool)[] = [];
+    const resolvers: ToolRendererResolver[] = [];
     fsToolsExtension({
       registerTool: (tool: PiReadTool | PiMutationTool) => registered.push(tool),
+      registerToolRenderer: (resolver) => resolvers.push(resolver),
     });
 
     expect(registered.map((tool) => tool.name)).toEqual(["read", "edit", "write"]);
@@ -29,24 +35,31 @@ describe("pi extension", () => {
       expect(Object.hasOwn(tool, "renderResult")).toBe(false);
     }
     const edit = registered[1]?.parameters as { properties?: object } | undefined;
-    expect(Object.keys(edit?.properties ?? {})).toEqual(["path", "edits"]);
+    expect(Object.keys(edit?.properties ?? {})).toEqual([
+      "path",
+      "old_string",
+      "new_string",
+      "replace_all",
+    ]);
+    expect(resolvers).toHaveLength(1);
   });
 
   test("the registered tools keep no store: edit needs no read", async () => {
     const registered: (PiReadTool | PiMutationTool)[] = [];
     fsToolsExtension({
       registerTool: (tool: PiReadTool | PiMutationTool) => registered.push(tool),
+      registerToolRenderer: () => {},
     });
     const [read, edit] = registered as [PiReadTool, PiMutationTool];
     const cwd = await fixture({ "a.txt": "one\n" });
     const context = { cwd } as ExtensionContext;
-    const input = { path: "a.txt", edits: [{ oldText: "one", newText: "two" }] };
+    const input = { path: "a.txt", old_string: "one", new_string: "two" };
 
     await read.execute("r1", { path: "a.txt" }, undefined, undefined, context);
     const first = await edit.execute("e1", input, undefined, undefined, context);
     expect(first.details?.diff).toBe("-1 one\n+1 two");
     await writeFile(path.join(cwd, "a.txt"), "changed\n");
-    const unread = { path: "a.txt", edits: [{ oldText: "changed", newText: "three" }] };
+    const unread = { path: "a.txt", old_string: "changed", new_string: "three" };
     const second = await edit.execute("e2", unread, undefined, undefined, context);
     expect(second.details?.diff).toBe("-1 changed\n+1 three");
     expect(await readFile(path.join(cwd, "a.txt"), "utf8")).toBe("three\n");
@@ -94,6 +107,7 @@ describe("pi extension", () => {
 
         const tools = loaded.extensions[0]?.tools;
         expect([...(tools?.keys() ?? [])]).toEqual(["read", "edit", "write"]);
+        expect(loaded.extensions[0]?.toolRenderers).toHaveLength(1);
         const definition = tools?.get("read")?.definition;
         if (definition === undefined) throw new Error("the read tool was not registered");
 

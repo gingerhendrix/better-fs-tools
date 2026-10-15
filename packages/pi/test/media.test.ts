@@ -67,6 +67,7 @@ describe("pi images by default", () => {
     const registered: (PiReadTool | PiMutationTool)[] = [];
     fsToolsExtension({
       registerTool: (tool: PiReadTool | PiMutationTool) => registered.push(tool),
+      registerToolRenderer: () => {},
     });
     const read = registered[0] as PiReadTool;
     const cwd = await fixture({ "a.png": PNG });

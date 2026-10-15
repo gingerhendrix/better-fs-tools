@@ -42,7 +42,7 @@ describe("piMutationQueueLocks", () => {
     let finished = false;
     const edit = run(
       createPiEditTool(),
-      { path: "a.txt", edits: [{ oldText: "one", newText: "two" }] },
+      { path: "a.txt", old_string: "one", new_string: "two" },
       cwd,
     ).then((result) => {
       finished = true;

@@ -16,7 +16,8 @@ const fixture = fixtures();
 
 const EDIT = (oldText: string, newText: string) => ({
   path: "a.txt",
-  edits: [{ oldText, newText }],
+  old_string: oldText,
+  new_string: newText,
 });
 
 describe("createPiFsTools", () => {

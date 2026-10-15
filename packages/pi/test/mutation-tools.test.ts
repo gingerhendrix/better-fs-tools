@@ -29,41 +29,49 @@ const fixture = fixtures();
 const PATCH = (...lines: string[]) => ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
 
 describe("pi write tool shapes", () => {
-  test("edit matches Pi's built-in edit name, prompt text, and parameter keys", () => {
+  test("edit has the shared default signature, with the built-in edit name", () => {
     const tool = createPiEditTool();
     const builtIn = createBuiltInPiEditTool(process.cwd());
 
     expect(tool.name).toBe(builtIn.name);
     expect(tool.label).toBe("edit");
-    expect(tool.promptSnippet).toBe(builtIn.promptSnippet as string);
-    expect(tool.promptGuidelines).toEqual(builtIn.promptGuidelines as string[]);
-    expect(tool.description).toBe(multiEditSignature().description);
-    expect(tool.parameters).toEqual(multiEditSignature().schema as never);
-    const builtInKeys = Object.keys((builtIn.parameters as { properties: object }).properties);
-    expect(Object.keys((tool.parameters as { properties: object }).properties)).toEqual(
-      builtInKeys,
-    );
+    expect(tool.promptSnippet).toBe("Edit a text file by replacing text");
+    expect(tool.promptGuidelines).toEqual([]);
+    expect(tool.description).toBe(defaultEditSignature().description);
+    expect(tool.parameters).toEqual(defaultEditSignature().schema as never);
+    expect(Object.keys((tool.parameters as { properties: object }).properties)).toEqual([
+      "path",
+      "old_string",
+      "new_string",
+      "replace_all",
+    ]);
     expect(tool.constrainedSampling).toBeUndefined();
   });
 
-  test("write matches Pi's built-in write name, prompt text, and parameter keys", () => {
+  test("write has the shared default signature, with the built-in write name and keys", () => {
     const tool = createPiWriteTool();
     const builtIn = createBuiltInPiWriteTool(process.cwd());
 
     expect(tool.name).toBe(builtIn.name);
-    expect(tool.promptSnippet).toBe(builtIn.promptSnippet as string);
-    expect(tool.promptGuidelines).toEqual(builtIn.promptGuidelines as string[]);
+    expect(tool.promptSnippet).toBe("Create a text file, or replace all of its content");
+    expect(tool.promptGuidelines).toEqual([]);
     expect(tool.parameters).toEqual(defaultWriteSignature().schema as never);
     expect(Object.keys((tool.parameters as { properties: object }).properties)).toEqual(
       Object.keys((builtIn.parameters as { properties: object }).properties),
     );
   });
 
-  test("apply_patch defaults to the freeform signature with an openai_lark grammar", () => {
+  test("apply_patch defaults to the JSON patch signature, with no constrainedSampling", () => {
     const tool = createPiApplyPatchTool();
-    const signature = freeformPatchSignature();
     expect(tool.name).toBe("apply_patch");
-    expect(tool.description).toBe(signature.description);
+    expect(tool.description).toBe(defaultPatchSignature().description);
+    expect(tool.parameters).toEqual(defaultPatchSignature().schema as never);
+    expect(Object.hasOwn(tool, "constrainedSampling")).toBe(false);
+  });
+
+  test("the freeformPatchSignature preset sets an openai_lark grammar", () => {
+    const tool = createPiApplyPatchTool({ signature: freeformPatchSignature() });
+    expect(tool.description).toBe(freeformPatchSignature().description);
     expect(tool.constrainedSampling).toEqual({
       type: "grammar",
       variants: { openai_lark: CODEX_PATCH_GRAMMAR },
@@ -79,14 +87,17 @@ describe("pi write tool shapes", () => {
     expect(parameters.properties[parameters.required[0] as string]?.type).toBe("string");
   });
 
-  test("a JSON patch signature has no constrainedSampling", () => {
-    const tool = createPiApplyPatchTool({ signature: defaultPatchSignature() });
-    expect(Object.hasOwn(tool, "constrainedSampling")).toBe(false);
+  test("the multiEditSignature preset gives Pi's own edit keys", () => {
+    const tool = createPiEditTool({ signature: multiEditSignature() });
+    const builtIn = createBuiltInPiEditTool(process.cwd());
+    expect(Object.keys((tool.parameters as { properties: object }).properties)).toEqual(
+      Object.keys((builtIn.parameters as { properties: object }).properties),
+    );
   });
 
   test("the default edit signature describes the tool's matchers", () => {
     const tool = createPiEditTool({ matchers: [exactMatcher()] });
-    expect(tool.description).toBe(multiEditSignature({ matchers: [exactMatcher()] }).description);
+    expect(tool.description).toBe(defaultEditSignature({ matchers: [exactMatcher()] }).description);
   });
 
   test("prompt options replace the defaults, and the tools are frozen", () => {
@@ -117,7 +128,7 @@ describe("pi write tools: execute", () => {
 
     const edit = await run(
       createPiEditTool(),
-      { path: "a.txt", edits: [{ oldText: "two", newText: "TWO" }] },
+      { path: "a.txt", old_string: "two", new_string: "TWO" },
       cwd,
     );
     expect(edit.content[0]?.type).toBe("text");
@@ -159,7 +170,7 @@ describe("pi write tools: execute", () => {
     expect(textOf(patch)).toMatch(/^\[apply_patch:outside-allowed-roots\]/u);
     const edit = await run(
       createPiEditTool(),
-      { path: "escape.txt", edits: [{ oldText: "secret", newText: "gone" }] },
+      { path: "escape.txt", old_string: "secret", new_string: "gone" },
       inside,
     );
     expect(textOf(edit)).toMatch(/^\[edit:(outside-allowed-roots|denied)\]/u);
@@ -197,7 +208,7 @@ describe("pi write tools: execute", () => {
     const controller = new AbortController();
     for (const [tool, input] of [
       [createPiWriteTool({ authorize }), { path: "a.txt", content: "y\n" }],
-      [createPiEditTool({ authorize }), { path: "a.txt", edits: [{ oldText: "y", newText: "z" }] }],
+      [createPiEditTool({ authorize }), { path: "a.txt", old_string: "y", new_string: "z" }],
       [createPiApplyPatchTool({ authorize }), { patch: PATCH("*** Add File: b.txt", "+b") }],
     ] as const) {
       seen.length = 0;
@@ -216,7 +227,7 @@ describe("pi write tools: execute", () => {
   test("a tool error is content text with isError and no details, not a throw", async () => {
     const cwd = await fixture({ "a.txt": "a\na\n" });
     const result = await run(
-      createPiEditTool({ signature: defaultEditSignature() }),
+      createPiEditTool(),
       { path: "a.txt", old_string: "a", new_string: "b" },
       cwd,
     );
@@ -227,10 +238,10 @@ describe("pi write tools: execute", () => {
     expect(result.isError).toBe(true);
   });
 
-  test("the multi-edit default does not suggest a replaceAll it lacks", async () => {
+  test("the multiEditSignature preset does not suggest a replaceAll it lacks", async () => {
     const cwd = await fixture({ "a.txt": "a\na\n" });
     const result = await run(
-      createPiEditTool(),
+      createPiEditTool({ signature: multiEditSignature() }),
       { path: "a.txt", edits: [{ oldText: "a", newText: "b" }] },
       cwd,
     );
@@ -241,9 +252,9 @@ describe("pi write tools: execute", () => {
 
   test("invalid model input throws TypeError that names the parameter", async () => {
     const cwd = await fixture();
-    await expect(run(createPiEditTool(), { path: "a.txt", edits: [] }, cwd)).rejects.toThrow(
-      "edits must be a non-empty array",
-    );
+    await expect(
+      run(createPiEditTool(), { path: "a.txt", old_string: 1, new_string: "b" }, cwd),
+    ).rejects.toThrow("old_string must be a string");
   });
 
   test("a missing ctx.cwd throws TypeError", async () => {
@@ -256,7 +267,7 @@ describe("pi write tools: execute", () => {
   test("a given store turns read-before-write on", async () => {
     const cwd = await fixture({ "a.txt": "x\n" });
     const edit = createPiEditTool({ state: memoryStore() });
-    const result = await run(edit, { path: "a.txt", edits: [{ oldText: "x", newText: "y" }] }, cwd);
+    const result = await run(edit, { path: "a.txt", old_string: "x", new_string: "y" }, cwd);
     expect(textOf(result)).toBe(
       "[edit:not-read] Read a.txt with the read tool before changing it.",
     );

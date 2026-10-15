@@ -27,7 +27,7 @@ import { execute, fixtures, piContext, textOf } from "./helpers.ts";
 const fixture = fixtures();
 
 describe("pi tool shape", () => {
-  test("matches Pi's built-in read name, label, prompt text, and parameter keys", () => {
+  test("has the shared default signature, with the built-in read name and keys", () => {
     const tool = createPiReadTool();
     const builtIn = createBuiltInPiReadTool(process.cwd());
 
@@ -35,10 +35,8 @@ describe("pi tool shape", () => {
     expect(tool.name).toBe(builtIn.name);
     expect(tool.label).toBe("read");
     expect(tool.label).toBe(builtIn.label);
-    expect(tool.promptSnippet).toBe("Read file contents");
-    expect(tool.promptSnippet).toBe(builtIn.promptSnippet as string);
-    expect(tool.promptGuidelines).toEqual(["Use read to examine files instead of cat or sed."]);
-    expect(tool.promptGuidelines).toEqual(builtIn.promptGuidelines as string[]);
+    expect(tool.promptSnippet).toBe("Read a UTF-8 text file");
+    expect(tool.promptGuidelines).toEqual([]);
     expect(tool.description).toBe(defaultReadSignature().description);
 
     const parameters = tool.parameters as unknown as {

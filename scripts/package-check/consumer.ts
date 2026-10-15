@@ -113,8 +113,13 @@ expect("just-bash bash", (await virtualBash({ command: "cat c.txt" })).output.he
 const { pathToFileURL } = await import("node:url");
 const entry = new URL(${JSON.stringify(piExtension)}, pathToFileURL(process.cwd() + "/node_modules/${SCOPE}/pi/"));
 const tools = [];
-(await import(entry.href)).default({ registerTool: (tool) => tools.push(tool) });
+const renderers = [];
+(await import(entry.href)).default({
+  registerTool: (tool) => tools.push(tool),
+  registerToolRenderer: (resolver) => renderers.push(resolver),
+});
 expect("pi extension", tools.map((tool) => tool.name).join(), "read,edit,write");
+expect("pi extension renderers", renderers.length, 1);
 const { createPiFsTools } = await import("${SCOPE}/pi");
 expect("pi apply_patch off by default", createPiFsTools().applyPatch, null);
 expect("pi bundle apply_patch", createPiFsTools({ applyPatch: true }).applyPatch?.name, "apply_patch");

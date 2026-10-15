@@ -29,31 +29,28 @@ import { toPiReadDetails, viewOf } from "./details.ts";
 import type { PiReadDetails } from "./details.ts";
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
-import { PI_READ_ANNOTATIONS, PI_READ_OUTPUT_SCHEMA, toPiReadOutput } from "./results.ts";
-import type { PiReadOutput, PiToolAnnotations } from "./results.ts";
+import { signatureSnippet } from "./prompt.ts";
+import { canonicalArgs, setRenderArgs } from "./renderers.ts";
+import { PI_READ_ANNOTATIONS } from "./results.ts";
+import type { PiToolAnnotations } from "./results.ts";
 import { checkPiContext, checkPiOptions, piFileSystems } from "./roots.ts";
 
 export type { PiContentPart } from "./parts.ts";
 
-const PI_BUILTIN_READ_SNIPPET = "Read file contents";
-const PI_BUILTIN_READ_GUIDELINES: readonly string[] = [
-  "Use read to examine files instead of cat or sed.",
-];
-
 /** Pi prompt options of the read tool. */
 export interface PiReadOptions {
-  /** Default defaultReadSignature({ name: "read" }). */
+  /** Default defaultReadSignature(), as in every integration. */
   readonly signature?: ReadSignature;
-  /** Default "Read file contents". */
+  /** Default the first sentence of the signature description. Pi lists the tool with it. */
   readonly promptSnippet?: string;
-  /** Default ["Use read to examine files instead of cat or sed."]. */
+  /** Default []. */
   readonly promptGuidelines?: readonly string[];
 }
 
 /**
  * Options for createPiReadTool. digest defaults to nodeDigest(); a state needs
- * a digest that is not null. converters defaults to [imageConverter()], as
- * Pi's own read shows images. A list you pass replaces it: [] turns images off.
+ * a digest that is not null. converters defaults to [imageConverter()], as in
+ * the AI SDK integration. A list you pass replaces it: [] turns images off.
  */
 export type CreatePiReadToolOptions = Omit<ReadToolDeps<ExtensionContext>, "fs"> &
   StateNeedsDigestOrDefault &
@@ -66,8 +63,6 @@ export type CreatePiReadToolOptions = Omit<ReadToolDeps<ExtensionContext>, "fs">
 export interface PiReadToolResult {
   content: PiContentPart[];
   details: PiReadDetails;
-  /** Pi's read output for codemode scripts. Absent on an error, so a script gets a rejection. */
-  structuredContent?: PiReadOutput;
   /** true when the read failed (status "error"). Pi then shows the content as an error. */
   isError: boolean;
 }
@@ -81,8 +76,6 @@ export interface PiReadTool {
   readonly promptGuidelines: string[];
   /** The JSON Schema of the tool input. */
   readonly parameters: TSchema;
-  /** Pi's own read output schema: the text, or an image with the text as its note. */
-  readonly outputSchema: TSchema;
   /** readOnlyHint: true. */
   readonly annotations: PiToolAnnotations;
   execute(
@@ -139,15 +132,15 @@ export function piReadParts(
       "limits" | "messages" | "formatter" | "converters"
     >,
 ): PiReadParts {
-  const signature = options.signature ?? defaultReadSignature({ name: "read" });
+  const signature = options.signature ?? defaultReadSignature();
   return {
     signature,
-    promptSnippet: options.promptSnippet ?? PI_BUILTIN_READ_SNIPPET,
-    promptGuidelines: options.promptGuidelines ?? PI_BUILTIN_READ_GUIDELINES,
+    promptSnippet: options.promptSnippet ?? signatureSnippet(signature.description),
+    promptGuidelines: options.promptGuidelines ?? [],
     limits: resolveReadLimits(options.limits),
     formatter: options.formatter ?? lineNumberFormatter(),
     messages: { ...readSignatureMessages(signature), ...options.messages },
-    // Pi's own read returns images, so the Pi host turns them on.
+    // Images are on in Pi and the AI SDK. Open decision: the same in every integration.
     converters: options.converters ?? [imageConverter<ExtensionContext>()],
   };
 }
@@ -167,14 +160,13 @@ export function adaptPiReadTool(
   digest: Digest | null,
 ): PiReadTool {
   const { signature, promptSnippet, promptGuidelines, limits, formatter } = parts;
-  return Object.freeze<PiReadTool>({
+  const tool = Object.freeze<PiReadTool>({
     name: signature.name,
     label: signature.name,
     description: signature.description,
     promptSnippet,
     promptGuidelines: [...promptGuidelines],
     parameters: Type.Unsafe(signature.schema),
-    outputSchema: PI_READ_OUTPUT_SCHEMA,
     annotations: { ...PI_READ_ANNOTATIONS },
     async execute(toolCallId, input, signal, _onUpdate, ctx) {
       checkPiContext(ctx, "read");
@@ -190,8 +182,9 @@ export function adaptPiReadTool(
         viewOf(formatter, result, { digest, limits, mode: "view", call }),
         limits.maxViewBytes,
       );
-      if (result.status === "error") return { content, details, isError: true };
-      return { content, details, structuredContent: toPiReadOutput(content), isError: false };
+      return { content, details, isError: result.status === "error" };
     },
   });
+  setRenderArgs(tool, (args) => signature.toInput(args), canonicalArgs);
+  return tool;
 }

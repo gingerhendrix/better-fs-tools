@@ -13,14 +13,13 @@ import type { BashSignature } from "@better-fs-tools/shell/signature";
 
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
-import { PI_BASH_OUTPUT_SCHEMA, toPiBashOutput } from "./results.ts";
-import type { PiBashOutput } from "./results.ts";
+import { signatureSnippet } from "./prompt.ts";
+import { piBashArgs, setRenderArgs } from "./renderers.ts";
 import { checkPiContext, checkPiOptions } from "./roots.ts";
 
-const PI_BUILTIN_BASH_PROMPT_SNIPPET = "Execute bash commands (ls, grep, find, etc.)";
 const MAX_CACHED_RUNNERS = 8;
 
-/** Options for createPiBashTool. Commands always run in ctx.cwd. */
+/** Options for createPiBashTool. Commands run in ctx.cwd, or in the cwd that the model gives. */
 export interface CreatePiBashToolOptions extends Omit<
   ShellToolDeps<ExtensionContext>,
   "runner" | "cwd" | "env"
@@ -30,12 +29,14 @@ export interface CreatePiBashToolOptions extends Omit<
   /** Default process.env with defaultShellEnv over it. */
   readonly env?: ShellToolDeps<ExtensionContext>["env"];
   /**
-   * Default Pi's own bash input, { command, timeout } with the timeout in
-   * seconds, so Pi's bash renderer and prompt fit. Its description names the
-   * configured timeouts, output limits, and runner id.
+   * Default defaultBashSignature(), as in every integration: { command,
+   * timeout?, cwd? } with the timeout in milliseconds. Its description names
+   * the configured timeouts, output limits, and runner id.
    */
   readonly signature?: BashSignature;
+  /** Default the first sentence of the signature description. Pi lists the tool with it. */
   readonly promptSnippet?: string;
+  /** Default []. */
   readonly promptGuidelines?: readonly string[];
 }
 
@@ -47,13 +48,7 @@ export interface PiBashDetails {
 export interface PiBashToolResult {
   content: PiContentPart[];
   details: PiBashDetails | undefined;
-  /**
-   * Pi's bash output for codemode scripts, when the command ended by itself
-   * with an exit code. Absent for a timeout, an abort, or an error, so a script
-   * gets a rejection, as with Pi's own bash.
-   */
-  structuredContent?: PiBashOutput;
-  /** true for a nonzero exit, a timeout, and an error, as Pi's own bash. */
+  /** true for a nonzero exit, a timeout, and an error. */
   isError: boolean;
 }
 
@@ -66,8 +61,6 @@ export interface PiBashTool {
   readonly promptGuidelines: string[];
   /** The JSON Schema of the tool input. */
   readonly parameters: TSchema;
-  /** Pi's own bash output schema: output, truncated, full_output_path, exit_code, wall_time_seconds. */
-  readonly outputSchema: TSchema;
   execute(
     toolCallId: string,
     input: JsonObject,
@@ -88,7 +81,7 @@ export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashT
   checkPiOptions(options, "bash");
   const {
     signature: given,
-    promptSnippet = PI_BUILTIN_BASH_PROMPT_SNIPPET,
+    promptSnippet,
     promptGuidelines = [],
     runner = recentRunnerPerCwd(),
     ...deps
@@ -97,8 +90,6 @@ export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashT
   const signature =
     given ??
     defaultBashSignature({
-      timeoutUnit: "s",
-      cwd: false,
       ...(runnerId === undefined ? {} : { runner: runnerId }),
       ...(deps.limits === undefined ? {} : { limits: deps.limits }),
     });
@@ -109,14 +100,13 @@ export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashT
     env: deps.env ?? shellEnv(() => process.env),
     messages: { ...bashSignatureMessages(signature), ...deps.messages },
   });
-  return Object.freeze<PiBashTool>({
+  const tool = Object.freeze<PiBashTool>({
     name: signature.name,
     label: signature.name,
     description: signature.description,
-    promptSnippet,
+    promptSnippet: promptSnippet ?? signatureSnippet(signature.description),
     promptGuidelines: [...promptGuidelines],
     parameters: Type.Unsafe(signature.schema),
-    outputSchema: PI_BASH_OUTPUT_SCHEMA,
     async execute(toolCallId, input, signal, _onUpdate, ctx) {
       checkPiContext(ctx, "bash");
       if (!isAbsolute(ctx.cwd))
@@ -128,15 +118,15 @@ export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashT
       };
       const result = await bash(signature.toInput(input), call);
       const spill = result.output?.spill ?? null;
-      const structured = toPiBashOutput(result);
       return {
         content: result.content.map((part) => toPiPart(part, "bash")),
         details: spill === null ? undefined : { fullOutputPath: spill },
-        ...(structured === undefined ? {} : { structuredContent: structured }),
         isError: result.status !== "ok",
       };
     },
   });
+  setRenderArgs(tool, (args) => signature.toInput(args), piBashArgs);
+  return tool;
 }
 
 function recentRunnerPerCwd(): (call: ToolCallContext<ExtensionContext>) => CommandRunner {

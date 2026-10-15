@@ -13,9 +13,9 @@ import type {
   WriteToolDeps,
 } from "@better-fs-tools/write";
 import {
+  defaultEditSignature,
+  defaultPatchSignature,
   defaultWriteSignature,
-  freeformPatchSignature,
-  multiEditSignature,
   writeSignatureMessages,
 } from "@better-fs-tools/write/signature";
 import type {
@@ -29,38 +29,27 @@ import { toPiMutationDetails } from "./mutation-details.ts";
 import type { PiMutationDetails } from "./mutation-details.ts";
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
+import { signatureSnippet } from "./prompt.ts";
+import { canonicalArgs, piEditArgs, setRenderArgs } from "./renderers.ts";
 import { PI_PATCH_ANNOTATIONS, PI_WRITE_ANNOTATIONS } from "./results.ts";
 import type { PiToolAnnotations } from "./results.ts";
 import { piMutationQueueLocks } from "./locks.ts";
 import { checkPiContext, checkPiOptions, piFileSystems } from "./roots.ts";
 import type { PiRootOptions } from "./roots.ts";
 
-const PI_BUILTIN_EDIT_SNIPPET =
-  "Make precise file edits with exact text replacement, including multiple disjoint edits in one call";
-const EDIT_GUIDELINES: readonly string[] = [
-  "Use edit for precise changes (edits[].oldText must match exactly)",
-  "When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls",
-  "Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.",
-  "Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.",
-];
-const PI_BUILTIN_WRITE_SNIPPET = "Create or overwrite files";
-const WRITE_GUIDELINES: readonly string[] = ["Use write only for new files or complete rewrites."];
-const PATCH_SNIPPET = "Add, update, move, or delete files with one patch";
-const PATCH_GUIDELINES: readonly string[] = [
-  "Use apply_patch for related changes across several files, or to add, move, or delete files.",
-];
-
 /** Pi prompt options of the edit, write, and apply_patch tools. */
 export interface PiMutationOptions<TSignature> {
   readonly signature?: TSignature;
+  /** Default the first sentence of the signature description. Pi lists the tool with it. */
   readonly promptSnippet?: string;
+  /** Default []. */
   readonly promptGuidelines?: readonly string[];
 }
 
 /**
- * Options for createPiEditTool. The default signature is Pi's own edit input,
- * multiEditSignature({ matchers }), so Pi's edit renderer and prompt fit.
- * digest defaults to nodeDigest(); a state needs a digest that is not null.
+ * Options for createPiEditTool. The default signature is
+ * defaultEditSignature({ matchers }), as in every integration. digest defaults
+ * to nodeDigest(); a state needs a digest that is not null.
  */
 export type CreatePiEditToolOptions = Omit<EditToolDeps<ExtensionContext>, "fs"> &
   StateNeedsDigestOrDefault &
@@ -73,7 +62,7 @@ export type CreatePiWriteToolOptions = Omit<WriteToolDeps<ExtensionContext>, "fs
   PiRootOptions &
   PiMutationOptions<WriteSignature>;
 
-/** As CreatePiEditToolOptions, for apply_patch. The default signature is freeformPatchSignature(). */
+/** As CreatePiEditToolOptions, for apply_patch. The default signature is defaultPatchSignature(). */
 export type CreatePiApplyPatchToolOptions = Omit<ApplyPatchToolDeps<ExtensionContext>, "fs"> &
   StateNeedsDigestOrDefault &
   PiRootOptions &
@@ -127,32 +116,30 @@ export function piEditParts(
 ): PiMutationParts {
   const signature =
     options.signature ??
-    multiEditSignature(options.matchers === undefined ? {} : { matchers: options.matchers });
-  return parts("edit", signature, options, PI_BUILTIN_EDIT_SNIPPET, EDIT_GUIDELINES);
+    defaultEditSignature(options.matchers === undefined ? {} : { matchers: options.matchers });
+  return parts("edit", signature, options);
 }
 
 export function piWriteParts(options: PartsInput<WriteSignature>): PiMutationParts {
   const signature = options.signature ?? defaultWriteSignature();
-  return parts("write", signature, options, PI_BUILTIN_WRITE_SNIPPET, WRITE_GUIDELINES);
+  return parts("write", signature, options);
 }
 
 export function piApplyPatchParts(options: PartsInput<PatchSignature>): PiMutationParts {
-  const signature = options.signature ?? freeformPatchSignature();
-  return parts("apply_patch", signature, options, PATCH_SNIPPET, PATCH_GUIDELINES);
+  const signature = options.signature ?? defaultPatchSignature();
+  return parts("apply_patch", signature, options);
 }
 
 function parts(
   tool: PiMutationParts["tool"],
   signature: MutationSignature<unknown>,
   options: PartsInput<unknown>,
-  snippet: string,
-  guidelines: readonly string[],
 ): PiMutationParts {
   return {
     tool,
     signature,
-    promptSnippet: options.promptSnippet ?? snippet,
-    promptGuidelines: options.promptGuidelines ?? guidelines,
+    promptSnippet: options.promptSnippet ?? signatureSnippet(signature.description),
+    promptGuidelines: options.promptGuidelines ?? [],
     messages: { ...writeSignatureMessages(signature), ...options.messages },
   };
 }
@@ -252,7 +239,7 @@ export function adaptPiMutationTool(made: PiMutationParts, tool: Core): PiMutati
   const { signature, tool: toolName, promptSnippet, promptGuidelines } = made;
   const withDetails = toolName !== "write";
   const grammar = signature.grammar;
-  return Object.freeze<PiMutationTool>({
+  const adapted = Object.freeze<PiMutationTool>({
     name: signature.name,
     label: signature.name,
     description: signature.description,
@@ -280,4 +267,10 @@ export function adaptPiMutationTool(made: PiMutationParts, tool: Core): PiMutati
       };
     },
   });
+  // Pi has built-in renderers for edit and write. apply_patch has none.
+  if (toolName !== "apply_patch") {
+    const toPi = toolName === "edit" ? piEditArgs : canonicalArgs;
+    setRenderArgs(adapted, (args) => signature.toInput(args), toPi);
+  }
+  return adapted;
 }

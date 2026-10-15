@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createPiFsTools } from "@better-fs-tools/pi";
+import { createPiFsTools, piToolRenderers } from "@better-fs-tools/pi";
 import { denyPaths, memoryStore, unicodeRepair } from "@better-fs-tools/read";
 import { hashlineFormat } from "@better-fs-tools/read/formats";
 import { protectPaths } from "@better-fs-tools/write";
@@ -22,4 +22,6 @@ export default function fsToolsExtension(pi: ExtensionAPI): void {
   pi.registerTool(tools.edit);
   pi.registerTool(tools.write);
   pi.registerTool(tools.applyPatch);
+  // Pi's built-in read, edit, and write renderers draw the shared signatures.
+  pi.registerToolRenderer(piToolRenderers([tools.read, tools.edit, tools.write]));
 }

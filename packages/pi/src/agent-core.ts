@@ -33,9 +33,9 @@ import type {
   WriteToolDeps,
 } from "@better-fs-tools/write";
 import {
+  defaultEditSignature,
+  defaultPatchSignature,
   defaultWriteSignature,
-  freeformPatchSignature,
-  multiEditSignature,
   writeSignatureMessages,
 } from "@better-fs-tools/write/signature";
 import type {
@@ -51,36 +51,25 @@ import { toPiMutationDetails } from "./mutation-details.ts";
 import type { PiMutationDetails } from "./mutation-details.ts";
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
-import {
-  PI_BASH_OUTPUT_SCHEMA,
-  PI_READ_OUTPUT_SCHEMA,
-  toPiBashOutput,
-  toPiReadOutput,
-} from "./results.ts";
-import type { PiBashOutput, PiReadOutput } from "./results.ts";
 
 /** An AgentTool host has no context object, so each call's host is undefined. */
 type Host = undefined;
 
 /** The result of an agent core tool. Assignable to AgentToolResult<TDetails>. */
-export interface PiAgentToolResult<TDetails, TOutput = never> {
+export interface PiAgentToolResult<TDetails> {
   content: PiContentPart[];
   details: TDetails;
-  /** Set by read and bash, as by the coding agent's own read and bash. */
-  structuredContent?: TOutput;
   /** true for a tool error. bash also sets it for a nonzero exit and a timeout. */
   isError: boolean;
 }
 
 /** Assignable to AgentTool<TSchema, TDetails> from @earendil-works/pi-agent-core 1.x. */
-export interface PiAgentTool<TDetails, TOutput = never> {
+export interface PiAgentTool<TDetails> {
   readonly name: string;
   readonly label: string;
   readonly description: string;
   /** The JSON Schema of the tool input. */
   readonly parameters: TSchema;
-  /** Set on read and bash: the output schemas of the coding agent's own read and bash. */
-  readonly outputSchema?: TSchema;
   /** Set when the signature has a grammar. */
   readonly constrainedSampling?: { type: "grammar"; variants: { openai_lark: string } };
   /** "safe" on read: a rerun after a crash changes nothing. */
@@ -91,20 +80,20 @@ export interface PiAgentTool<TDetails, TOutput = never> {
     params: unknown,
     signal?: AbortSignal,
     onUpdate?: unknown,
-  ) => Promise<PiAgentToolResult<TDetails, TOutput>>;
+  ) => Promise<PiAgentToolResult<TDetails>>;
 }
 
-export type PiAgentReadTool = PiAgentTool<PiReadDetails, PiReadOutput>;
+export type PiAgentReadTool = PiAgentTool<PiReadDetails>;
 export type PiAgentMutationTool = PiAgentTool<PiMutationDetails | undefined>;
-export type PiAgentBashTool = PiAgentTool<{ fullOutputPath?: string } | undefined, PiBashOutput>;
+export type PiAgentBashTool = PiAgentTool<{ fullOutputPath?: string } | undefined>;
 
 /** Read options. converters defaults to [imageConverter()]; [] turns images off. */
 export type AgentCoreFsToolsReadOptions = Omit<Partial<ReadToolDeps<Host>>, FsToolsSharedKey> & {
-  /** Default defaultReadSignature({ name: "read" }), as the coding agent's own read. */
+  /** Default defaultReadSignature(), as in every integration. */
   readonly signature?: ReadSignature;
 };
 export type AgentCoreFsToolsEditOptions = Omit<Partial<EditToolDeps<Host>>, FsToolsSharedKey> & {
-  /** Default multiEditSignature({ matchers }): { path, edits: [{ oldText, newText }] }. */
+  /** Default defaultEditSignature({ matchers }): { path, old_string, new_string, replace_all? }. */
   readonly signature?: EditSignature;
 };
 export type AgentCoreFsToolsWriteOptions = Omit<Partial<WriteToolDeps<Host>>, FsToolsSharedKey> & {
@@ -115,12 +104,12 @@ export type AgentCoreFsToolsApplyPatchOptions = Omit<
   Partial<ApplyPatchToolDeps<Host>>,
   FsToolsSharedKey
 > & {
-  /** Default freeformPatchSignature(): the Codex patch grammar, with a JSON schema too. */
+  /** Default defaultPatchSignature(): { patch } with the Codex patch format. */
   readonly signature?: PatchSignature;
 };
 /** bash options. `runner` and `env` are required. */
 export type AgentCoreFsToolsBashOptions = FsToolsBashOptions<Host> & {
-  /** Default: the coding agent's bash shape, { command, timeout } with the timeout in seconds. */
+  /** Default defaultBashSignature(): { command, timeout?, cwd? } with the timeout in milliseconds. */
   readonly signature?: BashSignature;
 };
 
@@ -179,8 +168,7 @@ const KNOWN: ReadonlySet<string> = new Set([
  * Creates read, edit, and write AgentTools over one writable filesystem, with
  * one digest, lock manager, and clock, and the read store when `state` is
  * given. With `applyPatch`, also apply_patch. With `bash`, also bash. The
- * default signatures are the coding agent's own, so a model that knows Pi
- * gets the same tools.
+ * default signatures are the shared defaults of every integration.
  *
  * A tool error is a result with `isError: true`, not a throw. Bad model input
  * throws TypeError. Throws TypeError on an unknown option key, and on what
@@ -193,11 +181,11 @@ export function createAgentCoreFsTools(options: CreateAgentCoreFsToolsOptions): 
   for (const key of Object.keys(options)) {
     if (!KNOWN.has(key)) throw new TypeError(`Unknown createAgentCoreFsTools option: ${key}`);
   }
-  const { signature: readSignature = defaultReadSignature({ name: "read" }), ...read } =
-    options.read ?? {};
+  const { signature: readSignature = defaultReadSignature(), ...read } = options.read ?? {};
   const { signature: editGiven, ...edit } = options.edit ?? {};
   const editSignature =
-    editGiven ?? multiEditSignature(edit.matchers === undefined ? {} : { matchers: edit.matchers });
+    editGiven ??
+    defaultEditSignature(edit.matchers === undefined ? {} : { matchers: edit.matchers });
   const { signature: writeSignature = defaultWriteSignature(), ...write } = options.write ?? {};
   const patchOptions =
     options.applyPatch === true ? {} : options.applyPatch === false ? null : options.applyPatch;
@@ -246,7 +234,6 @@ export function createAgentCoreFsTools(options: CreateAgentCoreFsToolsOptions): 
 
   const readTool: PiAgentReadTool = Object.freeze<PiAgentReadTool>({
     ...declaration(readSignature),
-    outputSchema: PI_READ_OUTPUT_SCHEMA,
     replay: "safe",
     async execute(toolCallId, params, signal) {
       const call = callOf(toolCallId, signal);
@@ -254,8 +241,7 @@ export function createAgentCoreFsTools(options: CreateAgentCoreFsToolsOptions): 
       const content = result.content.map((part) => toPiPart(part, "read"));
       const view = viewOf(formatter, result, { digest: core.digest, limits, mode: "view", call });
       const details = toPiReadDetails(result, view, limits.maxViewBytes);
-      if (result.status === "error") return { content, details, isError: true };
-      return { content, details, structuredContent: toPiReadOutput(content), isError: false };
+      return { content, details, isError: result.status === "error" };
     },
   });
   const adapted = {
@@ -288,7 +274,7 @@ export function createAgentCoreFsTools(options: CreateAgentCoreFsToolsOptions): 
 }
 
 function splitPatchOptions(options: AgentCoreFsToolsApplyPatchOptions) {
-  const { signature = freeformPatchSignature(), ...deps } = options;
+  const { signature = defaultPatchSignature(), ...deps } = options;
   return { signature, deps };
 }
 
@@ -300,8 +286,6 @@ function splitBashOptions(options: AgentCoreFsToolsBashOptions) {
     signature:
       signature ??
       defaultBashSignature({
-        timeoutUnit: "s",
-        cwd: false,
         ...(runnerId === undefined ? {} : { runner: runnerId }),
         ...(deps.limits === undefined ? {} : { limits: deps.limits }),
       }),
@@ -360,15 +344,12 @@ type BashCore = (input: never, call: ToolCallContext<Host>) => Promise<ShellResu
 function bashTool(signature: BashSignature, run: BashCore): PiAgentBashTool {
   return Object.freeze<PiAgentBashTool>({
     ...declaration(signature),
-    outputSchema: PI_BASH_OUTPUT_SCHEMA,
     async execute(toolCallId, params, signal) {
       const result = await run(signature.toInput(params) as never, callOf(toolCallId, signal));
       const spill = result.output?.spill ?? null;
-      const structured = toPiBashOutput(result);
       return {
         content: result.content.map((part) => toPiPart(part, "bash")),
         details: spill === null ? undefined : { fullOutputPath: spill },
-        ...(structured === undefined ? {} : { structuredContent: structured }),
         isError: result.status !== "ok",
       };
     },

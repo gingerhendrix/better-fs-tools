@@ -52,14 +52,15 @@ function nodeTools(cwd: string) {
 }
 
 describe("createAgentCoreFsTools", () => {
-  test("has the coding agent's tool names and input keys", () => {
+  test("has the shared default signatures and no output schemas", () => {
     const tools = createAgentCoreFsTools({ fs: memoryFileSystem({ files: {} }) });
     expect(tools.tools.map((tool) => tool.name)).toEqual(["read", "edit", "write"]);
     const keys = (tool: { parameters: unknown }) =>
       Object.keys((tool.parameters as { properties: object }).properties);
     expect(keys(tools.read)).toEqual(["path", "offset", "limit"]);
-    expect(keys(tools.edit)).toEqual(["path", "edits"]);
+    expect(keys(tools.edit)).toEqual(["path", "old_string", "new_string", "replace_all"]);
     expect(keys(tools.write)).toEqual(["path", "content"]);
+    for (const tool of tools.tools) expect(Object.hasOwn(tool, "outputSchema")).toBe(false);
     expect(tools.read.replay).toBe("safe");
     expect(tools.applyPatch).toBeNull();
     expect(tools.bash).toBeNull();
@@ -72,11 +73,12 @@ describe("createAgentCoreFsTools", () => {
 
     const read = await callTool(tools, "read", { path: "a.txt" });
     expect(read.isError).toBe(false);
-    expect(read.result.structuredContent).toBe("1|one");
+    expect(read.result.content).toEqual([{ type: "text", text: "1|one" }]);
 
     const edit = await callTool(tools, "edit", {
       path: "a.txt",
-      edits: [{ oldText: "one", newText: "two" }],
+      old_string: "one",
+      new_string: "two",
     });
     expect(edit.isError).toBe(false);
     expect(edit.result.details).toMatchObject({ diff: "-1 one\n+1 two" });
@@ -88,7 +90,8 @@ describe("createAgentCoreFsTools", () => {
     const { tools } = nodeTools(cwd);
     const edit = await callTool(tools, "edit", {
       path: "a.txt",
-      edits: [{ oldText: "one", newText: "two" }],
+      old_string: "one",
+      new_string: "two",
     });
     expect(edit.isError).toBe(true);
     expect(edit.result.content).toEqual([
@@ -96,7 +99,6 @@ describe("createAgentCoreFsTools", () => {
     ]);
     const missing = await callTool(tools, "read", { path: "missing.txt" });
     expect(missing.isError).toBe(true);
-    expect(missing.result.structuredContent).toBeUndefined();
   });
 
   test("input that fails the schema never reaches the tool", async () => {
@@ -106,12 +108,12 @@ describe("createAgentCoreFsTools", () => {
     expect(outcome.isError).toBe(true);
   });
 
-  test("apply_patch uses the Codex grammar, and the memory filesystem needs no Node", async () => {
+  test("apply_patch uses the JSON patch signature, and the memory filesystem needs no Node", async () => {
     const tools = createAgentCoreFsTools({
       fs: memoryFileSystem({ files: { "/src/a.ts": "export const a = 1;\n" } }),
       applyPatch: true,
     });
-    expect(tools.applyPatch?.constrainedSampling?.type).toBe("grammar");
+    expect(tools.applyPatch?.constrainedSampling).toBeUndefined();
     const outcome = await callTool(tools.tools, "apply_patch", {
       patch: [
         "*** Begin Patch",
@@ -124,10 +126,10 @@ describe("createAgentCoreFsTools", () => {
     });
     expect(outcome.isError).toBe(false);
     const read = await callTool(tools.tools, "read", { path: "/src/a.ts" });
-    expect(read.result.structuredContent).toBe("1|export const a = 2;");
+    expect(read.result.content).toEqual([{ type: "text", text: "1|export const a = 2;" }]);
   });
 
-  test("bash has the coding agent's shape and output schema", async () => {
+  test("bash has the shared default signature; a nonzero exit is an error", async () => {
     const cwd = await fixture();
     const tools = createAgentCoreFsTools({
       fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
@@ -138,10 +140,11 @@ describe("createAgentCoreFsTools", () => {
     expect(Object.keys((bash.parameters as { properties: object }).properties)).toEqual([
       "command",
       "timeout",
+      "cwd",
     ]);
     const outcome = await callTool(tools.tools, "bash", { command: "echo hi; exit 2" });
     expect(outcome.isError).toBe(true);
-    expect(outcome.result.structuredContent).toMatchObject({ output: "hi", exit_code: 2 });
+    expect(outcome.result.content[0]).toMatchObject({ text: expect.stringContaining("hi") });
   });
 
   test("checks its options", () => {
