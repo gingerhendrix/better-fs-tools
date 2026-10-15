@@ -1,16 +1,19 @@
-import { createNodeFsTools, nodeCommandRunner } from "@better-fs-tools/node";
-import type { NodeFsToolsWithBash } from "@better-fs-tools/node";
+import { nodeCommandRunner, nodeFileSystem } from "@better-fs-tools/node";
 import { memoryStore } from "@better-fs-tools/read";
+import { shellEnv } from "@better-fs-tools/shell";
+import { createFsTools } from "@better-fs-tools/write";
+import type { FsToolsWithBash } from "@better-fs-tools/write";
 
 // bash is created only because `bash` is set. With a read store, the hook makes
 // the next edit of package.json need a read first, since a command may have
 // changed it.
-let tools: NodeFsToolsWithBash | undefined;
-tools = createNodeFsTools({
-  cwd: "/srv/project",
+let tools: FsToolsWithBash | undefined;
+tools = createFsTools({
+  fs: nodeFileSystem({ cwd: "/srv/project", allowedRoots: ["/srv/project"] }),
   state: memoryStore(),
   bash: {
     runner: nodeCommandRunner({ cwd: "/srv/project", shell: "/bin/bash" }),
+    env: shellEnv(() => process.env),
     afterRun: [
       {
         id: "invalidate-package-json",

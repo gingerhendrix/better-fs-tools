@@ -73,7 +73,7 @@ describe("createPiFsTools", () => {
     expect(await tools.state?.get(path.join(cwd, "a.txt"))).toBeNull();
   });
 
-  test("takes a digest, as createNodeFsTools does; the default is nodeDigest()", async () => {
+  test("takes a digest; the default is nodeDigest()", async () => {
     expect(createPiFsTools().digest.id).toBe(nodeDigest().id);
     const digest = sha256Digest();
     const tools = createPiFsTools({ digest });

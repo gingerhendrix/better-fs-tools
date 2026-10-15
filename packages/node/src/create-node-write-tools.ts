@@ -29,8 +29,9 @@ export type CreateNodeApplyPatchToolOptions<THost = undefined> = Partial<
 /**
  * Creates an edit tool for local files. `fs` defaults to nodeFileSystem rooted
  * at process.cwd(). `digest` defaults to nodeDigest(); pass `digest: null` to
- * turn it off. Read-before-write is off unless you pass a `state`; use
- * createNodeFsTools({ state }) for a store shared with read.
+ * turn it off. Read-before-write is off unless you pass a `state`. For a store
+ * shared with read, use createFsTools({ fs: nodeFileSystem(), state }) from
+ * @better-fs-tools/write.
  */
 export function createNodeEditTool<THost = undefined>(
   deps: CreateNodeEditToolOptions<THost> = {},

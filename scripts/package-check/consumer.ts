@@ -46,9 +46,8 @@ for (const specifier of ${JSON.stringify(imports)}) {
 }
 const { memoryFileSystem, readOnlyFileSystem } = await import("${SCOPE}/fs");
 const { createReadTool, memoryStore, textOf } = await import("${SCOPE}/read");
-const { createNodeReadTool } = await import("${SCOPE}/node");
+const { createNodeReadTool, nodeCommandRunner, nodeDigest, nodeFileSystem } = await import("${SCOPE}/node");
 const { createAiSdkReadTool } = await import("${SCOPE}/ai-sdk");
-const { createNodeFsTools } = await import("${SCOPE}/node");
 const { justBashFileSystem } = await import("${SCOPE}/just-bash");
 const { createEditTool } = await import("${SCOPE}/write");
 const { readFile } = await import("node:fs/promises");
@@ -78,8 +77,14 @@ const bash = readOnlyFileSystem(justBashFileSystem(new InMemoryFs({ "/w/a.txt": 
 }));
 expect("just-bash", textOf(await createReadTool({ fs: bash })({ path: "a.txt" })).split("\\n")[0], "1|x");
 
-const fsTools = createNodeFsTools({ bash: true });
-expect("node bash off by default", createNodeFsTools().bash, null);
+const { shellEnv } = await import("${SCOPE}/shell");
+const nodeFs = () => nodeFileSystem({ allowedRoots: [process.cwd()] });
+const fsTools = createFsTools({
+  fs: nodeFs(),
+  digest: nodeDigest(),
+  bash: { runner: nodeCommandRunner(), env: shellEnv(() => process.env) },
+});
+expect("node bash off by default", createFsTools({ fs: nodeFs() }).bash, null);
 expect("node apply_patch off by default", fsTools.applyPatch, null);
 expect("node create", (await fsTools.write({ path: "made/new.txt", content: "one\\n" })).status, "ok");
 const editNew = { path: "made/new.txt", edits: [{ oldText: "one", newText: "two" }] };
@@ -88,7 +93,7 @@ expect("node created bytes", await readFile("made/new.txt", "utf8"), "two\\n");
 const editFixture = { path: "fixture.txt", edits: [{ oldText: "beta", newText: "gamma" }] };
 expect("node edit before read", (await fsTools.edit(editFixture)).status, "ok");
 expect("node edited bytes", await readFile("fixture.txt", "utf8"), "alpha\\ngamma\\n");
-const guarded = createNodeFsTools({ state: memoryStore() });
+const guarded = createFsTools({ fs: nodeFs(), state: memoryStore() });
 const editGuarded = { path: "fixture.txt", edits: [{ oldText: "gamma", newText: "delta" }] };
 expect("node store edit before read", (await guarded.edit(editGuarded)).error?.code, "NOT_READ");
 await guarded.read({ path: "fixture.txt" });
@@ -100,7 +105,7 @@ const bashEdit = createEditTool({ fs: writableBash, preconditions: { requireRead
 expect("just-bash edit", (await bashEdit({ path: "b.txt", edits: [{ oldText: "y", newText: "z" }] })).status, "ok");
 expect("just-bash bytes", await bashBackend.readFile("/w/b.txt"), "z\\n");
 
-const { createBashTool, shellEnv } = await import("${SCOPE}/shell");
+const { createBashTool } = await import("${SCOPE}/shell");
 const { justBashCommandRunner } = await import("${SCOPE}/just-bash");
 const { Bash } = await import("just-bash");
 const ran = await fsTools.bash({ command: "cat fixture.txt; exit 3" });

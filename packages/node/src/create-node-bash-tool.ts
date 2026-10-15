@@ -21,15 +21,12 @@ export function createNodeBashTool<THost = undefined>(
   return createBashTool<THost>(withNodeShellDefaults(deps));
 }
 
-export function withNodeShellDefaults<THost>(
-  deps: Partial<ShellToolDeps<THost>>,
-  cwd?: string,
-): ShellToolDeps<THost> {
+function withNodeShellDefaults<THost>(deps: Partial<ShellToolDeps<THost>>): ShellToolDeps<THost> {
   const given = deps.cwd;
   return {
     ...deps,
     ...(isValidRelativePath(given) ? { cwd: path.resolve(given) } : {}),
-    runner: deps.runner ?? nodeCommandRunner(cwd === undefined ? {} : { cwd }),
+    runner: deps.runner ?? nodeCommandRunner(),
     env: deps.env ?? shellEnv(() => process.env),
   };
 }

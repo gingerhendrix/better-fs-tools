@@ -4,14 +4,7 @@ import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
-import {
-  createNodeBashTool,
-  createNodeFsTools,
-  nodeCommandRunner,
-  nodeFileSystem,
-} from "@better-fs-tools/node";
-import type { NodeFsToolsWithBash } from "@better-fs-tools/node";
-import { memoryStore } from "@better-fs-tools/read";
+import { createNodeBashTool, nodeCommandRunner, nodeFileSystem } from "@better-fs-tools/node";
 import { textOf } from "@better-fs-tools/shell";
 
 async function workdir(): Promise<string> {
@@ -115,8 +108,6 @@ describe("createNodeBashTool", () => {
     const result = await bash({ command: "pwd" });
     expect(result.status).toBe("ok");
     expect(result.run?.cwd).toBe(cwd);
-    const bundled = createNodeFsTools({ cwd, bash: { cwd: rel } });
-    expect((await bundled.bash({ command: "pwd" })).run?.cwd).toBe(cwd);
   });
 
   test("a missing cwd is CWD_NOT_FOUND and a file cwd is CWD_NOT_A_DIRECTORY", async () => {
@@ -146,89 +137,17 @@ describe("createNodeBashTool", () => {
     expect(() => nodeCommandRunner({ cwd: "a\0b" })).toThrow(TypeError);
   });
 
+  test("a cwd in the dependencies wins over the runner cwd", async () => {
+    const cwd = await workdir();
+    const other = await workdir();
+    const bash = createNodeBashTool({ runner: nodeCommandRunner({ cwd }), cwd: other });
+    expect((await bash({ command: "pwd" })).output?.head).toBe(other);
+  });
+
   test("a missing shell is SPAWN_FAILED", async () => {
     const runner = nodeCommandRunner({ shell: "/no/such/shell" });
     const result = await createNodeBashTool({ runner })({ command: "true" });
     expect(errorOf(result)?.code).toBe("SPAWN_FAILED");
-  });
-});
-
-describe("createNodeFsTools bash", () => {
-  test("is off by default: the bundle has no bash tool and starts no process", () => {
-    expect(createNodeFsTools().bash).toBeNull();
-    expect(createNodeFsTools({ bash: false }).bash).toBeNull();
-  });
-
-  test("bash: true runs in cwd with process.env, and gets the shared digest and clock", async () => {
-    const cwd = await workdir();
-    const now = new Date("2026-09-29T00:00:00.000Z");
-    const plain = createNodeFsTools({ cwd, bash: true });
-    const ran = await plain.bash({ command: 'pwd; printf "%s" "$HOME"' });
-    expect(ran.output?.head).toBe(`${cwd}\n${process.env.HOME}`);
-    const seen: unknown[] = [];
-    const tools = createNodeFsTools({
-      cwd,
-      clock: () => now,
-      bash: {
-        authorize: {
-          id: "spy",
-          authorize: (_target, ctx) => {
-            seen.push(ctx.digest, ctx.clock());
-            return { allow: true };
-          },
-        },
-      },
-    });
-    await tools.bash({ command: "true" });
-    expect(seen).toEqual([tools.digest, now]);
-    expect(tools.digest.id).toBe("sha256");
-  });
-
-  test("runs in the shared cwd, and an afterRun hook can invalidate a read record", async () => {
-    const cwd = await workdir();
-    await writeFile(join(cwd, "a.txt"), "one\n");
-    let tools: NodeFsToolsWithBash | undefined;
-    tools = createNodeFsTools({
-      cwd,
-      state: memoryStore(),
-      bash: {
-        afterRun: [
-          {
-            id: "invalidate",
-            afterRun: async () => {
-              await tools?.invalidate("a.txt");
-              return {};
-            },
-          },
-        ],
-      },
-    });
-    await tools.read({ path: "a.txt" });
-    const ran = await tools.bash({ command: "printf 'two\\n' > a.txt; pwd" });
-    expect(ran.output?.head).toBe(cwd);
-    const edit = await tools.edit({ path: "a.txt", edits: [{ oldText: "two", newText: "three" }] });
-    expect(errorOf(edit)?.code).toBe("NOT_READ");
-  });
-
-  test("an explicit cwd applies to a given runner, which has its own default cwd", async () => {
-    const cwd = await workdir();
-    const other = await workdir();
-    const tools = createNodeFsTools({ cwd, bash: { runner: nodeCommandRunner({ cwd: other }) } });
-    const ran = await tools.bash({ command: "pwd" });
-    expect(ran.output?.head).toBe(cwd);
-  });
-
-  test("bash.cwd wins over the top-level cwd", async () => {
-    const cwd = await workdir();
-    const other = await workdir();
-    const tools = createNodeFsTools({ cwd, bash: { runner: nodeCommandRunner(), cwd: other } });
-    expect((await tools.bash({ command: "pwd" })).output?.head).toBe(other);
-  });
-
-  test("without a top-level cwd, a given runner keeps its own cwd", async () => {
-    const other = await workdir();
-    const tools = createNodeFsTools({ bash: { runner: nodeCommandRunner({ cwd: other }) } });
-    expect((await tools.bash({ command: "pwd" })).output?.head).toBe(other);
   });
 });
 
