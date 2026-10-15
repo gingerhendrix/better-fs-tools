@@ -14,7 +14,7 @@ npm install @better-fs-tools/pi-durable @earendil-works/pi-durable @earendil-wor
 
 ## Example
 
-Install the extension after `CodingTools`. When two extensions have a tool with the same name, the one installed later wins. Here `read`, `edit`, and `write` come from Better FS Tools, and `bash` stays from `CodingTools`:
+Install the extension after `CodingTools`. When two extensions have a tool with the same name, the one installed later wins. Here `read`, `edit`, and `write` come from Better FS Tools, and `bash` stays from `CodingTools`. The second registry turns read-before-write on with records in the conversation's documents:
 
 ```ts
 import { createRegistry } from "@earendil-works/pi-durable";
@@ -22,11 +22,20 @@ import { CodingTools } from "@earendil-works/pi-durable/tools";
 import { createDurableFsTools } from "@better-fs-tools/pi-durable";
 
 // Installed after CodingTools, so its read, edit, and write win. The bash of
-// CodingTools stays. Read records live in the conversation's documents.
+// CodingTools stays.
 export function fsToolsRegistry() {
   const registry = createRegistry();
   registry.install(CodingTools);
   registry.install(createDurableFsTools());
+  return registry;
+}
+
+// Read-before-write is off by default. With state "document", the read
+// records live in the conversation's documents, so they stay after a restart.
+export function readFirstRegistry() {
+  const registry = createRegistry();
+  registry.install(CodingTools);
+  registry.install(createDurableFsTools({ state: "document" }));
   return registry;
 }
 ```
@@ -36,13 +45,13 @@ Give the registry to `Harness.open()` with an `env` option, as for `CodingTools`
 ## What the extension does
 
 - Each call builds its filesystem from `api.env`, the `ExecutionEnv` of the call. The only allowed root is the environment's `cwd`. Set `allowedRoots` (relative to that `cwd`), `denyRoots`, and `symlinks` to change it. A call without an environment fails with an error result.
-- `state` defaults to `"document"`: read-before-write is on, and each read record is a `ReadStateDoc` document of the conversation. The records stay after a restart, so an `edit` in the next process needs no new read. A fork starts with the records its parent had at the fork entry. `state: null` turns read-before-write off. A `ReadStateStore`, such as `memoryStore()`, is shared by every conversation.
+- `state` defaults to `null`, as in every integration: read-before-write is off. `state: "document"` turns it on, and each read record is a `ReadStateDoc` document of the conversation. The records stay after a restart, so an `edit` in the next process needs no new read. A fork starts with the records its parent had at the fork entry. A `ReadStateStore`, such as `memoryStore()`, is shared by every conversation.
 - `read` is `replay: "safe"`, so the Harness runs it again after a crash. `edit`, `write`, and `apply_patch` keep the default `"unsafe"`: after a crash the model gets an interrupted result and reads the file again.
 - `outputLimits` defaults to 128 KiB and 4,000 lines, above the 2,000-line and 50 KiB view of `read`, so the Harness does not cut the output a second time.
 - A tool error is a result with `isError: true`. `read`, `edit`, and `write` give programs their text, as the tools of `CodingTools` do.
 - `locks` defaults to one `memoryLocks()` for every call of the extension. The keys are the environment id and the real path, so the same path in two environments does not wait. The tools do not share the queue of the `CodingTools` `edit` and `write`: pi-durable does not export it.
-- `bash: true`, or an options object, adds `bash` over the environment's `exec()`, in Durable's shape: `{ command, timeout }` with the timeout in seconds. A command keeps the environment's own variables, with `defaultShellEnv` over them. Its `structuredOutput` has Durable's `bash` schema: `output`, `truncated`, `fullOutputPath`, and `exitCode`. A nonzero exit is an error result.
-- Each tool's options go under `read`, `edit`, `write`, `applyPatch`, and `bash`, with a `signature` to change the model-facing shape. Host functions, such as an authorizer, get `{ api, env, context }` as `ctx.call.host`.
+- `bash: true`, or an options object, adds `bash` over the environment's `exec()`, with `defaultBashSignature()`: `{ command, timeout?, cwd? }` with the timeout in milliseconds. A `cwd` from the model is relative to the environment's `cwd`. A command keeps the environment's own variables, with `defaultShellEnv` over them. A nonzero exit, a timeout, and an error are error results. No tool declares a `structuredOutputSchema`, so programs get the text.
+- The default signatures are the shared defaults of every integration: `defaultReadSignature()`, `defaultEditSignature()`, `defaultWriteSignature()`, `defaultPatchSignature()`, and `defaultBashSignature()`. Each tool's options go under `read`, `edit`, `write`, `applyPatch`, and `bash`, with a `signature` to change the model-facing shape. For example, `edit: { signature: multiEditSignature() }` gives the `edits: [{ oldText, newText }]` input of Durable's own `edit`. Host functions, such as an authorizer, get `{ api, env, context }` as `ctx.call.host`.
 
 ## The parts
 

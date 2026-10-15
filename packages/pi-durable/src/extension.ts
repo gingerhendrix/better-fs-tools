@@ -29,9 +29,9 @@ import type {
   WriteToolDeps,
 } from "@better-fs-tools/write";
 import {
+  defaultEditSignature,
+  defaultPatchSignature,
   defaultWriteSignature,
-  freeformPatchSignature,
-  multiEditSignature,
   writeSignatureMessages,
 } from "@better-fs-tools/write/signature";
 import type {
@@ -59,20 +59,12 @@ type Content = { type: "text"; text: string } | { type: "image"; data: string; m
 /** Above the default view of 2,000 lines and 50 KiB, so the Harness does not cut it again. */
 const DEFAULT_OUTPUT_LIMITS = Object.freeze({ maxBytes: 128 * 1024, maxLines: 4_000 });
 
-/** Durable's own bash output schema, so programs that call bash get the same value. */
-const BASH_OUTPUT_SCHEMA = Type.Object({
-  output: Type.String({ description: "Combined stdout and stderr, as the model sees it" }),
-  truncated: Type.Boolean({ description: "Whether output was cut" }),
-  fullOutputPath: Type.Optional(Type.String({ description: "File with the complete output" })),
-  exitCode: Type.Number(),
-});
-
 export type DurableFsToolsReadOptions = Omit<Partial<ReadToolDeps<Host>>, FsToolsSharedKey> & {
-  /** Default defaultReadSignature({ name: "read" }), as Durable's own read. */
+  /** Default defaultReadSignature(), as in every integration. */
   readonly signature?: ReadSignature;
 };
 export type DurableFsToolsEditOptions = Omit<Partial<EditToolDeps<Host>>, FsToolsSharedKey> & {
-  /** Default multiEditSignature({ matchers }): { path, edits: [{ oldText, newText }] }. */
+  /** Default defaultEditSignature({ matchers }): { path, old_string, new_string, replace_all? }. */
   readonly signature?: EditSignature;
 };
 export type DurableFsToolsWriteOptions = Omit<Partial<WriteToolDeps<Host>>, FsToolsSharedKey> & {
@@ -83,14 +75,14 @@ export type DurableFsToolsApplyPatchOptions = Omit<
   Partial<ApplyPatchToolDeps<Host>>,
   FsToolsSharedKey
 > & {
-  /** Default freeformPatchSignature(). */
+  /** Default defaultPatchSignature(). */
   readonly signature?: PatchSignature;
 };
 export type DurableFsToolsBashOptions = Omit<
   Partial<ShellToolDeps<Host>>,
   "runner" | "digest" | "clock"
 > & {
-  /** Default: Durable's own bash shape, { command, timeout } with the timeout in seconds. */
+  /** Default defaultBashSignature(): { command, timeout?, cwd? } with the timeout in milliseconds. */
   readonly signature?: BashSignature;
   /** Default true: the command keeps the environment's own variables. See executionEnvRunner. */
   readonly inheritEnv?: boolean;
@@ -100,9 +92,10 @@ export interface CreateDurableFsToolsOptions {
   /** The extension name. Default "better-fs-tools". */
   readonly name?: string;
   /**
-   * Default "document": the read records live in the conversation's
-   * ReadStateDoc documents, so they stay after a restart and follow a fork.
-   * null turns read-before-write off. A store is shared by every conversation.
+   * Default null: no read-before-write, as in every integration. "document"
+   * keeps the read records in the conversation's ReadStateDoc documents, so
+   * they stay after a restart and follow a fork. A store is shared by every
+   * conversation.
    */
   readonly state?: "document" | ReadStateStore | null;
   /** Default sha256Digest(). */
@@ -175,24 +168,19 @@ export function createDurableFsTools(options: CreateDurableFsToolsOptions = {}):
   }
   const locks = options.locks ?? memoryLocks();
   const outputLimits = options.outputLimits ?? DEFAULT_OUTPUT_LIMITS;
-  const { signature: readSignature = defaultReadSignature({ name: "read" }), ...read } =
-    options.read ?? {};
+  const { signature: readSignature = defaultReadSignature(), ...read } = options.read ?? {};
   const { signature: editGiven, ...edit } = options.edit ?? {};
   const editSignature =
-    editGiven ?? multiEditSignature(edit.matchers === undefined ? {} : { matchers: edit.matchers });
+    editGiven ??
+    defaultEditSignature(edit.matchers === undefined ? {} : { matchers: edit.matchers });
   const { signature: writeSignature = defaultWriteSignature(), ...write } = options.write ?? {};
   const patchOptions =
     options.applyPatch === true ? {} : options.applyPatch === false ? null : options.applyPatch;
-  const { signature: patchSignature = freeformPatchSignature(), ...patch } = patchOptions ?? {};
+  const { signature: patchSignature = defaultPatchSignature(), ...patch } = patchOptions ?? {};
   const bashOptions = options.bash === true ? {} : options.bash === false ? null : options.bash;
   const { signature: bashGiven, inheritEnv, ...bash } = bashOptions ?? {};
   const bashSignature =
-    bashGiven ??
-    defaultBashSignature({
-      timeoutUnit: "s",
-      cwd: false,
-      ...(bash.limits === undefined ? {} : { limits: bash.limits }),
-    });
+    bashGiven ?? defaultBashSignature(bash.limits === undefined ? {} : { limits: bash.limits });
 
   /** The core tools of one call, over the call's environment, store, and lock keys. */
   const toolsFor = (api: ToolExecutionApi, context: Context) => {
@@ -205,9 +193,9 @@ export function createDurableFsTools(options: CreateDurableFsToolsOptions = {}):
       ...(options.symlinks === undefined ? {} : { symlinks: options.symlinks }),
     });
     const state =
-      options.state === undefined || options.state === "document"
+      options.state === "document"
         ? documentReadStore(api, env.id, context)
-        : options.state;
+        : (options.state ?? null);
     const host: Host = { api, env, context };
     const core = createFsTools<Host>({
       fs,
@@ -288,7 +276,6 @@ export function createDurableFsTools(options: CreateDurableFsToolsOptions = {}):
     tools.push(
       defineTool({
         ...declaration(bashSignature),
-        structuredOutputSchema: BASH_OUTPUT_SCHEMA,
         outputLimits: { ...outputLimits, retain: "tail" },
         async execute(args, api, context) {
           const { core, call } = toolsFor(api, context);
@@ -336,24 +323,9 @@ function mutationTool(
   });
 }
 
+/** A nonzero exit, a timeout, an abort, and an error are error results, as in the Pi integration. */
 function bashResult(result: ShellResult) {
-  const output = toOutput(result.content);
-  if (result.status !== "ok" && result.status !== "failed") return { output, isError: true };
-  const { run, output: view } = result;
-  if (run.exitCode === null || run.stoppedBy !== null) return { output, isError: true };
-  return {
-    output,
-    structuredOutput: {
-      output:
-        view.tail === null
-          ? view.head
-          : `${view.head}\n\n[... ${view.omittedBytes} bytes omitted ...]\n\n${view.tail}`,
-      truncated: view.tail !== null,
-      ...(view.spill === null ? {} : { fullOutputPath: view.spill }),
-      exitCode: run.exitCode,
-    },
-    isError: result.status === "failed",
-  };
+  return { output: toOutput(result.content), isError: result.status !== "ok" };
 }
 
 /** Lock keys with the environment id: one path on two machines is two files. */

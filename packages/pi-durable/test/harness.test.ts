@@ -101,7 +101,7 @@ describe("createDurableFsTools in the Harness", () => {
       new MemoryStorage(),
       [
         ["read", { path: "a.txt" }],
-        ["edit", { path: "a.txt", edits: [{ oldText: "one", newText: "two" }] }],
+        ["edit", { path: "a.txt", old_string: "one", new_string: "two" }],
         ["bash", { command: "cat a.txt" }],
       ],
       [createDurableFsTools()],
@@ -124,15 +124,31 @@ describe("createDurableFsTools in the Harness", () => {
     }
   });
 
-  test("an edit before a read is an error result; the read record is a document", async () => {
+  test("no read-before-write by default, as in every integration", async () => {
+    const cwd = await fixture({ "a.txt": "one\n" });
+    const harness = await openHarness(
+      new MemoryStorage(),
+      [["edit", { path: "a.txt", old_string: "one", new_string: "two" }]],
+      [createDurableFsTools()],
+    );
+    try {
+      const root = await run(harness, cwd, "change it");
+      expect((await toolResults(root)).at(-1)).toMatchObject({ tool: "edit", isError: false });
+      expect(await readFile(path.join(cwd, "a.txt"), "utf8")).toBe("two\n");
+    } finally {
+      await harness.close(context);
+    }
+  });
+
+  test("with state document, an edit before a read is an error result; the record is a document", async () => {
     const cwd = await fixture({ "a.txt": "one\n" });
     const harness = await openHarness(
       new MemoryStorage(),
       [
-        ["edit", { path: "a.txt", edits: [{ oldText: "one", newText: "two" }] }],
+        ["edit", { path: "a.txt", old_string: "one", new_string: "two" }],
         ["read", { path: "a.txt" }],
       ],
-      [createDurableFsTools()],
+      [createDurableFsTools({ state: "document" })],
     );
     try {
       const root = await run(harness, cwd, "change it");
@@ -159,15 +175,15 @@ describe("createDurableFsTools in the Harness", () => {
       const first = await openHarness(
         await openNodeJsonlStorage(directory, context),
         [["read", { path: "a.txt" }]],
-        [createDurableFsTools()],
+        [createDurableFsTools({ state: "document" })],
       );
       await run(first, cwd, "read it");
       await first.close(context);
 
       const second = await openHarness(
         await openNodeJsonlStorage(directory, context),
-        [["edit", { path: "a.txt", edits: [{ oldText: "one", newText: "two" }] }]],
-        [createDurableFsTools()],
+        [["edit", { path: "a.txt", old_string: "one", new_string: "two" }]],
+        [createDurableFsTools({ state: "document" })],
       );
       try {
         const root = await run(second, cwd, "now change it");
@@ -187,7 +203,7 @@ describe("createDurableFsTools in the Harness", () => {
     const harness = await openHarness(
       new MemoryStorage(),
       [["read", { path: "a.txt" }]],
-      [createDurableFsTools()],
+      [createDurableFsTools({ state: "document" })],
     );
     try {
       const root = await run(harness, cwd, "read it");
@@ -231,13 +247,14 @@ describe("createDurableFsTools in the Harness", () => {
     }
   });
 
-  test("bash: true adds bash over the environment, with Durable's structured output", async () => {
-    const cwd = await fixture();
+  test("bash: true adds bash over the environment, with the shared signature", async () => {
+    const cwd = await fixture({ "sub/b.txt": "b\n" });
     const harness = await openHarness(
       new MemoryStorage(),
       [
         ["bash", { command: "echo hi" }],
         ["bash", { command: "exit 4" }],
+        ["bash", { command: "pwd", cwd: "sub", timeout: 5_000 }],
       ],
       [createDurableFsTools({ bash: true })],
     );
@@ -247,8 +264,10 @@ describe("createDurableFsTools in the Harness", () => {
       expect(results.map((result) => [result.tool, result.isError])).toEqual([
         ["bash", false],
         ["bash", true],
+        ["bash", false],
       ]);
       expect(results[0]?.text).toMatch(/^Exit code 0 · [\d.]+ s\nhi$/u);
+      expect(results[2]?.text).toContain(path.join(cwd, "sub"));
     } finally {
       await harness.close(context);
     }
