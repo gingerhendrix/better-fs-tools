@@ -13,6 +13,8 @@ Every bundle builds `read`, `edit`, and `write` over one backend, and `apply_pat
 | `createPiFsTools()`    | `@better-fs-tools/pi`     | You write a Pi coding agent extension                                                       |
 | `createAiSdkFsTools()` | `@better-fs-tools/ai-sdk` | You pass the tools to AI SDK 7 `generateText` or `streamText`, with any backend             |
 
+`createAgentCoreFsTools()` from `@better-fs-tools/pi/agent-core` and `createDurableFsTools()` from `@better-fs-tools/pi-durable` are bundles too. They take the option keys of `createFsTools()` and have the same defaults as `createAiSdkFsTools()`. [Where integrations differ](#where-integrations-differ) lists each exception.
+
 The just-bash, Cloudflare Shell, and Cloudflare Computer packages are backends, not bundles. Pass their filesystem as `fs` to `createFsTools()` or `createAiSdkFsTools()`.
 
 ## Bundle defaults
@@ -20,7 +22,7 @@ The just-bash, Cloudflare Shell, and Cloudflare Computer packages are backends, 
 | Setting                           | `createFsTools()`                                                     | `createNodeFsTools()`                                                                             | `createPiFsTools()`                                                                        | `createAiSdkFsTools()`                                                |
 | --------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
 | `fs`                              | required: a backend, or a factory of the call                         | `nodeFileSystem({ cwd, allowedRoots: [cwd] })`, `cwd` default `process.cwd()`                     | a `nodeFileSystem` rooted at `ctx.cwd` on each call. `fs`, `cwd`, and `allowedRoots` throw | required, as in `createFsTools()`                                     |
-| Tool input                        | canonical                                                             | canonical                                                                                         | the Pi signatures below                                                                    | the AI SDK signatures below, `strict: true`                           |
+| Tool input                        | canonical                                                             | canonical                                                                                         | the shared default signatures below                                                        | the shared default signatures below, `strict: true`                   |
 | `state`                           | `null`: no read-before-write. `memoryStore({ clock })` turns it on    | `null`, as `createFsTools()`                                                                      | `null`, as `createFsTools()`                                                               | `null`, as `createFsTools()`                                          |
 | `applyPatch`                      | off. `true` or an options object adds `apply_patch`                   | off, as `createFsTools()`                                                                         | off, as `createFsTools()`. The `pi.extensions` entry does not register it                  | off, as `createFsTools()`. When off, `tools` has no `apply_patch` key |
 | `digest`                          | `sha256Digest()`, plain JavaScript                                    | `nodeDigest()`                                                                                    | `nodeDigest()`                                                                             | `sha256Digest()`                                                      |
@@ -37,17 +39,33 @@ In every bundle, a shared key (`fs`, `state`, `digest`, `locks`, `clock`) inside
 
 ### Tool signatures
 
-A signature is the model-facing shape of a tool. The core and Node tools take the canonical input and have no signature. Pi and the AI SDK each default to the shape their models know.
+A signature is the model-facing shape of a tool. The core and Node tools take the canonical input and have no signature. Every integration (Pi, pi-agent-core, pi-durable, and the AI SDK) has the same default signatures. No integration sets a host's own prompt text or output schema by default.
 
-| Tool          | Canonical input (core, Node)                           | Pi default                                                                  | AI SDK default                                                                                |
-| ------------- | ------------------------------------------------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `read`        | `{ path, offset?, limit? }`                            | `defaultReadSignature({ name: "read" })`: `read({ path, offset?, limit? })` | `defaultReadSignature()`: `read({ path, offset?, limit? })`                                   |
-| `edit`        | `{ path, edits: [{ oldText, newText, replaceAll? }] }` | `multiEditSignature()`: `edit({ path, edits: [{ oldText, newText }] })`     | `defaultEditSignature()`: `edit({ path, old_string, new_string, replace_all? })`              |
-| `write`       | `{ path, content }`                                    | `defaultWriteSignature()`: `write({ path, content })`                       | `defaultWriteSignature()`: `write({ path, content })`                                         |
-| `apply_patch` | `{ patch }`                                            | `freeformPatchSignature()`: `apply_patch({ patch })` plus the Codex grammar | `defaultPatchSignature()`: `apply_patch({ patch })` as JSON                                   |
-| `bash`        | `{ command, timeoutMs?, cwd? }`                        | `createPiBashTool()`: `bash({ command, timeout? })`, seconds, no `cwd`      | `defaultBashSignature({ runner, limits })`: `bash({ command, timeout?, cwd? })`, milliseconds |
+| Tool          | Canonical input (core, Node)                           | Default signature in every integration                                                        |
+| ------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `read`        | `{ path, offset?, limit? }`                            | `defaultReadSignature()`: `read({ path, offset?, limit? })`                                   |
+| `edit`        | `{ path, edits: [{ oldText, newText, replaceAll? }] }` | `defaultEditSignature()`: `edit({ path, old_string, new_string, replace_all? })`              |
+| `write`       | `{ path, content }`                                    | `defaultWriteSignature()`: `write({ path, content })`                                         |
+| `apply_patch` | `{ patch }`                                            | `defaultPatchSignature()`: `apply_patch({ patch })` as JSON                                   |
+| `bash`        | `{ command, timeoutMs?, cwd? }`                        | `defaultBashSignature({ runner, limits })`: `bash({ command, timeout?, cwd? })`, milliseconds |
 
-Every preset takes `name`, `description`, `describe`, and `names`. `names` renames a parameter, keyed by the preset's own parameter names.
+To give a model another shape, pass a preset as the tool's `signature`. For example, `multiEditSignature()` gives `edit({ path, edits: [{ oldText, newText }] })`, `freeformPatchSignature()` adds the Codex patch grammar, and `defaultBashSignature({ timeoutUnit: "s", cwd: false })` gives `bash({ command, timeout? })` in seconds. Every preset takes `name`, `description`, `describe`, and `names`. `names` renames a parameter, keyed by the preset's own parameter names.
+
+### Where integrations differ
+
+An integration keeps a default of its own only for a technical need of its host.
+
+| Integration                           | Setting                             | Default                                                   | Reason                                                                                                                                                        |
+| ------------------------------------- | ----------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pi                                    | `locks`                             | `piMutationQueueLocks()`                                  | Pi's own tools and other extensions change files through Pi's per-file queue. Without it, two changes to one file can overlap.                                |
+| Pi                                    | `promptSnippet`, `promptGuidelines` | the first sentence of the signature description, and `[]` | Pi lists a tool under "Available tools" only when it has a snippet. The text comes from the shared signature.                                                 |
+| Pi                                    | renderers                           | `piToolRenderers()` in the extension entry                | Pi draws a tool named `read`, `edit`, `write`, or `bash` with its built-in renderer, which reads Pi's argument names. The resolver maps the shared arguments. |
+| Pi, Node                              | `digest`                            | `nodeDigest()`                                            | The runtime is Node. In a Worker, `sha256Digest()` gives the same hash.                                                                                       |
+| Pi, pi-durable                        | `fs`, `cwd`, `allowedRoots`         | the call's working directory                              | The host gives the working directory on each call. pi-durable takes `allowedRoots`, `denyRoots`, and `symlinks` relative to it.                               |
+| pi-durable                            | `outputLimits`                      | 128 KiB and 4,000 lines                                   | The Harness cuts tool output again. These limits are above the `read` view, so the output is not cut twice.                                                   |
+| pi-durable                            | bash `runner`, `env`                | the environment's `exec()`, with its own variables        | Commands run in the call's execution environment, which can be remote.                                                                                        |
+| pi-durable                            | `name`, `state: "document"`         | `"better-fs-tools"`, and `state` stays `null`             | Durable extensions have names. `"document"` is an extra `state` value that keeps read records in the conversation.                                            |
+| Pi, pi-agent-core, pi-durable, AI SDK | `read.converters`                   | `[imageConverter()]`                                      | Open decision: images are on in the integrations and off in the core and Node.                                                                                |
 
 ### Single-tool factories
 

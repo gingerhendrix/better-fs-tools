@@ -56,7 +56,7 @@ Each call starts a new shell. A `cd` or an `export` does not carry to the next c
 | --------------- | ---------------------------- | -------------------------------------------------------------------------------------- |
 | Node or Bun     | `@better-fs-tools/node`      | `createNodeBashTool()`, `nodeCommandRunner()`, and `createNodeFsTools({ bash: true })` |
 | AI SDK 7        | `@better-fs-tools/ai-sdk`    | `createAiSdkBashTool({ runner, env })`                                                 |
-| Pi coding agent | `@better-fs-tools/pi`        | `createPiBashTool()`, with Pi's own shape: `{ command, timeout }` in seconds           |
+| Pi coding agent | `@better-fs-tools/pi`        | `createPiBashTool()`, with the shared default signature, as every integration          |
 | just-bash       | `@better-fs-tools/just-bash` | `justBashCommandRunner(bash)`, an emulated shell with no process                       |
 
 ## Results
