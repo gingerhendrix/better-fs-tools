@@ -1,6 +1,7 @@
 import type { SignatureDocs } from "@better-fs-tools/read";
 
 import type { ApplyPatchInput } from "../contract/input.ts";
+import { CODEX_PATCH_GRAMMAR } from "../patch/grammar.ts";
 import type { PatchSignature } from "./contract.ts";
 import {
   checkDocs,
@@ -37,11 +38,18 @@ const patchDescription = (patch: string): string =>
 
 /**
  * apply_patch({ patch }) as JSON, with a short example in the description. For
- * a host with grammar tools, add `grammar: { lark: CODEX_PATCH_GRAMMAR }` from
- * the `./patch` subpath to the signature.
+ * a host with grammar tools, use freeformPatchSignature().
  */
 export function defaultPatchSignature(options: SignatureDocs<"patch"> = {}): PatchSignature {
   return patchSignature(options, "defaultPatchSignature");
+}
+
+/** defaultPatchSignature plus the Codex Lark grammar, for hosts with grammar tools. */
+export function freeformPatchSignature(options: SignatureDocs<"patch"> = {}): PatchSignature {
+  return Object.freeze<PatchSignature>({
+    ...patchSignature(options, "freeformPatchSignature"),
+    grammar: Object.freeze({ lark: CODEX_PATCH_GRAMMAR }),
+  });
 }
 
 // One required string property, so Pi can use it as a grammar tool.

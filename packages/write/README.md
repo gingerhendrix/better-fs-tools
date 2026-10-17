@@ -305,15 +305,15 @@ console.log(textOf(await write({ path: "/repo/run.sh", content: "#!/bin/sh\necho
 
 A signature is what the model sees: a name, a description, and a JSON Schema. `toInput` checks model input and maps it to the core's canonical input, and `param(name)` gives the host name of a canonical parameter for messages. Every write signature is a `ToolSignature` from `@better-fs-tools/read`, the base that the read and bash signatures share. The host adapters take a `signature` option.
 
-`defaultEditSignature()`, `defaultWriteSignature()`, and `defaultPatchSignature()` build the signatures. Each takes the shared `SignatureDocs` options: `name`, `description`, `describe`, and `names`. `describe` and `names` use the signature's own parameter names as keys, so `defaultEditSignature` takes `old_string`. For another input shape, write your own `EditSignature`, `WriteSignature`, or `PatchSignature`.
+`defaultEditSignature()`, `defaultWriteSignature()`, and `defaultPatchSignature()` build the signatures. Each takes the shared `SignatureDocs` options: `name`, `description`, `describe`, and `names`. `describe` and `names` use the signature's own parameter names as keys, so `defaultEditSignature` takes `old_string`. Two presets give another shape. `multiEditSignature()` gives `edit({ path, edits: [{ oldText, newText }] })`, so the model can send many replacements in one call, up to `limits.maxEdits`. It has no replace-all parameter, so no message suggests one. `freeformPatchSignature()` is `defaultPatchSignature()` with the Codex patch grammar. For any other shape, write your own `EditSignature`, `WriteSignature`, or `PatchSignature`.
 
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { createEditTool } from "@better-fs-tools/write";
-import { CODEX_PATCH_GRAMMAR } from "@better-fs-tools/write/patch";
 import {
   defaultEditSignature,
-  defaultPatchSignature,
+  freeformPatchSignature,
+  multiEditSignature,
   writeSignatureMessages,
 } from "@better-fs-tools/write/signature";
 
@@ -348,11 +348,14 @@ export const renamed = defaultEditSignature({
   names: { path: "file", old_string: "find", new_string: "replace" },
 }); // edit({ file, find, replace, replace_all? })
 
-// A host with grammar tools can add the Codex patch grammar to the patch signature.
-export const grammarPatch = { ...defaultPatchSignature(), grammar: { lark: CODEX_PATCH_GRAMMAR } };
+// Two presets give a shape that names alone cannot give.
+export const presets = [
+  multiEditSignature(), // edit({ path, edits: [{ oldText, newText }] }), many replacements in one call
+  freeformPatchSignature(), // apply_patch({ patch }) plus the Codex Lark grammar for grammar-tool hosts
+];
 ```
 
-A signature with `grammar.lark`, such as `grammarPatch` above, gives the Codex patch grammar. The Pi adapters send it as a grammar tool to models that support one. The AI SDK adapter ignores it and sends the JSON schema.
+`freeformPatchSignature()` adds `grammar.lark`, the Codex patch grammar. The Pi and pi-agent-core adapters send it as a grammar tool to models that support one. The AI SDK adapter ignores it and sends the JSON schema.
 
 ## The result
 
@@ -417,7 +420,7 @@ Without compare-and-swap, the core checks the version with a fresh `stat` just b
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@better-fs-tools/write`           | `textOf` (the same function as in read and shell, re-exported for convenience), `createFsTools`, `createWriteTool`, `createEditTool`, `createApplyPatchTool`, the matchers, the guards, `defaultGuards` (empty) and `recommendedGuards`, the mutation core's types, `utf8Codec`, `memoryLocks`, `askBeforeWrite`, `writeAuthorizers`, `protectPaths`, `executableShebang`, `verifyWrite`, `defaultWriteFormatter`, `createInvalidator` |
 | `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, `CODEX_PATCH_GRAMMAR`, and the patch types. The only home of these                                                                                                                                                                                                                                                                                                                                   |
-| `@better-fs-tools/write/signature` | `defaultEditSignature`, `defaultWriteSignature`, `defaultPatchSignature`, and `writeSignatureMessages`                                                                                                                                                                                                                                                                                                                                 |
+| `@better-fs-tools/write/signature` | `defaultEditSignature`, `multiEditSignature`, `defaultWriteSignature`, `defaultPatchSignature`, `freeformPatchSignature`, and `writeSignatureMessages`                                                                                                                                                                                                                                                                                 |
 
 The package builds on the tool-neutral base types in `@better-fs-tools/read`, such as `ToolCallContext`, `PathResolver`, and `ToolAuthorizer`. An authorizer or resolver typed on them works for the read tool and for the write tools:
 

@@ -12,6 +12,8 @@ import { nodeCommandRunner, nodeFileSystem } from "@better-fs-tools/node";
 import { memoryStore } from "@better-fs-tools/read";
 import type { JsonObject } from "@better-fs-tools/read";
 import { shellEnv } from "@better-fs-tools/shell";
+import { CODEX_PATCH_GRAMMAR } from "@better-fs-tools/write/patch";
+import { freeformPatchSignature } from "@better-fs-tools/write/signature";
 
 import {
   createAgentCoreApplyPatchTool,
@@ -134,6 +136,17 @@ describe("createAgentCoreFsTools", () => {
     expect(outcome.isError).toBe(false);
     const read = await callTool(tools.tools, "read", { path: "/src/a.ts" });
     expect(read.result.content).toEqual([{ type: "text", text: "1|export const a = 2;" }]);
+  });
+
+  test("the freeformPatchSignature preset sets an openai_lark grammar", () => {
+    const tools = createAgentCoreFsTools({
+      fs: memoryFileSystem(),
+      applyPatch: { signature: freeformPatchSignature() },
+    });
+    expect(tools.applyPatch?.constrainedSampling).toEqual({
+      type: "grammar",
+      variants: { openai_lark: CODEX_PATCH_GRAMMAR },
+    });
   });
 
   test("bash has the shared default signature; a nonzero exit is an error", async () => {

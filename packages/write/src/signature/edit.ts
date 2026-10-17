@@ -129,3 +129,93 @@ function singleEditSignature(
     param: (name) => params[name] ?? name,
   });
 }
+
+/**
+ * edit({ path, edits: [{ oldText, newText }] }). Pi and Cloudflare Computer.
+ * Has no replaceAll parameter, so no message suggests one.
+ */
+export function multiEditSignature(
+  options: SignatureDocs<"path" | "edits" | "oldText" | "newText"> & MatcherOption = {},
+): EditSignature {
+  const { describe, names } = checkDocs(options, "multiEditSignature", [
+    "path",
+    "edits",
+    "oldText",
+    "newText",
+  ]);
+  const keys = [names.path, names.edits];
+  const pairKeys = [names.oldText, names.newText];
+  const matchers = checkMatchers(options.matchers);
+  const pair = objectSchema(
+    [
+      [
+        names.oldText,
+        stringSchema(
+          describe.oldText ??
+            "Text for one replacement. It must match one place in the original file and must not overlap another edit.",
+          true,
+        ),
+      ],
+      [
+        names.newText,
+        stringSchema(
+          describe.newText ?? `Replacement text. Send an empty string to delete ${names.oldText}.`,
+        ),
+      ],
+    ],
+    pairKeys,
+  );
+  const schema = deepFreeze(
+    objectSchema(
+      [
+        [names.path, pathSchema(describe.path ?? PATH_TEXT)],
+        [
+          names.edits,
+          {
+            type: "array",
+            minItems: 1,
+            items: pair,
+            description:
+              describe.edits ??
+              "One or more replacements. Each is matched against the original file, not after earlier edits. Merge nearby changes into one edit.",
+          },
+        ],
+      ],
+      keys,
+    ),
+  );
+  const old = `${names.edits}[].${names.oldText}`;
+
+  return Object.freeze<EditSignature>({
+    name: options.name ?? NAME,
+    description:
+      options.description ??
+      `Edit a text file with one or more replacements in one call. Each \`${old}\` ` +
+        "must match exactly one place in the original file. Edits must not overlap or nest: " +
+        `merge nearby changes into one edit. ${matchingSentence(matchers, old)} ` +
+        `${NO_PREFIX} ${READ_FIRST} After an edit, the same file can be edited again without ` +
+        `another read. ${USE_WRITE}`,
+    schema,
+    toInput(input): EditInput {
+      const record = readObject(input, "edit input", keys, keys);
+      const path = readPath(record[names.path], names.path);
+      const edits = record[names.edits];
+      if (!Array.isArray(edits) || edits.length === 0) {
+        throw new TypeError(`${names.edits} must be a non-empty array`);
+      }
+      return {
+        path,
+        edits: edits.map((entry, index) => {
+          const label = `${names.edits}[${index}]`;
+          const item = readObject(entry, label, pairKeys, pairKeys, `${label}.`);
+          return {
+            oldText: readString(item[names.oldText], `${label}.${names.oldText}`, true),
+            newText: readString(item[names.newText], `${label}.${names.newText}`),
+          };
+        }),
+      };
+    },
+    param: (name) =>
+      name === "replaceAll" ? "" : ((names as Readonly<Record<string, string>>)[name] ?? name),
+  });
+}

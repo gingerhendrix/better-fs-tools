@@ -78,7 +78,7 @@ export async function change(model: LanguageModel, prompt: string): Promise<stri
 - The default signatures are the shared defaults of every integration: `defaultEditSignature()` (`edit` with `path`, `old_string`, `new_string`, and `replace_all`), `defaultWriteSignature()` (`write` with `path` and `content`), and `defaultPatchSignature()` (`apply_patch` with `patch`). Error texts use the signature's names.
 - The tools are `strict: true`. The schema's `validate` hook runs `signature.toInput` and the core input check.
 - `execute` passes the `ToolExecutionOptions` object as `ctx.call.host`, and returns the whole `MutationResult`. `toModelOutput` gives the model the formatter's text.
-- AI SDK tools take JSON only. A signature with a grammar still works, but the grammar is not sent.
+- AI SDK tools take JSON only. A signature with a grammar, such as `freeformPatchSignature()`, still works, but the grammar is not sent.
 
 ## Strict provider schema
 

@@ -17,7 +17,7 @@ export type {
   WriteToolDefinition,
   WriteToolDefinitionOptions,
 } from "./definition.ts";
-export { defaultEditSignature } from "./edit.ts";
+export { defaultEditSignature, multiEditSignature } from "./edit.ts";
 export { writeSignatureMessages } from "./messages.ts";
-export { defaultPatchSignature } from "./patch.ts";
+export { defaultPatchSignature, freeformPatchSignature } from "./patch.ts";
 export { defaultWriteSignature } from "./write.ts";

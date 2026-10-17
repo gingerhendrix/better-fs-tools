@@ -6,6 +6,8 @@ import {
   defaultEditSignature,
   defaultPatchSignature,
   defaultWriteSignature,
+  freeformPatchSignature,
+  multiEditSignature,
   writeSignatureMessages,
 } from "../../src/signature/index.ts";
 import type { MutationSignature } from "../../src/signature/index.ts";
@@ -36,13 +38,28 @@ async function run(
   return texts;
 }
 
-describe("golden output for each default signature", () => {
+describe("golden output for each signature preset", () => {
   test("defaultEditSignature", async () => {
     expect(
       await run(defaultEditSignature(), "edit", [
         { path: "/a.txt", old_string: "alpha", new_string: "ALPHA" },
         { path: "/a.txt", old_string: "alpha", new_string: "ALPHA", replace_all: true },
         { path: "/a.txt", old_string: "delta", new_string: "DELTA" },
+      ]),
+    ).toMatchSnapshot();
+  });
+
+  test("multiEditSignature", async () => {
+    expect(
+      await run(multiEditSignature(), "edit", [
+        { path: "/a.txt", edits: [{ oldText: "alpha", newText: "ALPHA" }] },
+        {
+          path: "/a.txt",
+          edits: [
+            { oldText: "beta", newText: "BETA" },
+            { oldText: "gamma", newText: "GAMMA" },
+          ],
+        },
       ]),
     ).toMatchSnapshot();
   });
@@ -56,12 +73,17 @@ describe("golden output for each default signature", () => {
     ).toMatchSnapshot();
   });
 
-  test("defaultPatchSignature", async () => {
-    expect(
-      await run(defaultPatchSignature(), "applyPatch", [
-        { patch: patchText("*** Update File: /a.txt", "@@", " alpha", "-gamma", "+GAMMA") },
-        { patch: patchText("*** Update File: /a.txt", "@@", "-delta", "+DELTA") },
-      ]),
-    ).toMatchSnapshot();
-  });
+  for (const [label, build] of [
+    ["defaultPatchSignature", defaultPatchSignature],
+    ["freeformPatchSignature", freeformPatchSignature],
+  ] as const) {
+    test(label, async () => {
+      expect(
+        await run(build(), "applyPatch", [
+          { patch: patchText("*** Update File: /a.txt", "@@", " alpha", "-gamma", "+GAMMA") },
+          { patch: patchText("*** Update File: /a.txt", "@@", "-delta", "+DELTA") },
+        ]),
+      ).toMatchSnapshot();
+    });
+  }
 });

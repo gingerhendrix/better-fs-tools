@@ -4,7 +4,7 @@ import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { JsonObject } from "@better-fs-tools/read";
 import { askBeforeWrite, defaultWriteFormatter, protectPaths } from "@better-fs-tools/write";
 import type { Guard, MutationResult, WriteFormatter } from "@better-fs-tools/write";
-import { defaultEditSignature, defaultPatchSignature } from "@better-fs-tools/write/signature";
+import { freeformPatchSignature, multiEditSignature } from "@better-fs-tools/write/signature";
 
 import {
   createAiSdkApplyPatchTool,
@@ -38,7 +38,7 @@ export const typed = createAiSdkEditTool<{ user: string }>({
     void user;
     return fs;
   },
-  signature: defaultEditSignature({ names: { path: "file_path" } }),
+  signature: multiEditSignature(),
 });
 createAiSdkWriteTool<{ user: string }>({
   // @ts-expect-error the context has no session field
@@ -49,7 +49,7 @@ declare const hostGuard: Guard<ToolExecutionOptions<{ user: string }>>;
 declare const hostFormatter: WriteFormatter<ToolExecutionOptions<{ user: string }>>;
 export const helpers = createAiSdkApplyPatchTool<{ user: string }>({
   fs,
-  signature: defaultPatchSignature({ name: "patch" }),
+  signature: freeformPatchSignature(),
   authorize: protectPaths(),
   guards: [hostGuard],
   formatter: hostFormatter,

@@ -171,10 +171,10 @@ The model sees a tool name, a description, a parameter schema, and parameter des
 - `param(name)` gives the host name of a canonical parameter, or `""` when the signature has none.
 - `fromInput(retry)` maps a canonical retry back to the model's names. Notes use it when they tell the model how to continue. Only the read signature has it.
 
-`defaultReadSignature()` builds the signature. It takes the shared `SignatureDocs` options: `name`, `description`, `describe`, and `names`. `describe` and `names` use the canonical parameter names `path`, `offset`, and `limit` as keys.
+Two builders make the signature. `defaultReadSignature()` gives `read({ path, offset?, limit? })`. `lineRangeSignature()` gives `read({ path, start?, end? })`, with one-based and inclusive lines. Both take the shared `SignatureDocs` options: `name`, `description`, `describe`, and `names`. `describe` and `names` use the builder's own parameter names as keys.
 
 ```ts
-import { defaultReadSignature } from "@better-fs-tools/read/signature";
+import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
 
 // The default schema, with your own descriptions.
 export const documented = defaultReadSignature({
@@ -187,9 +187,15 @@ export const renamed = defaultReadSignature({
   name: "read_file",
   names: { path: "file_path", offset: "start", limit: "max_lines" },
 });
+
+// Inclusive start_line and end_line in place of offset and limit.
+export const lineRange = lineRangeSignature({
+  name: "read_file",
+  names: { path: "file_path", start: "start_line", end: "end_line" },
+});
 ```
 
-With `renamed`, a truncated read tells the model to continue with `{"file_path":"src/a.ts","start":101,"max_lines":100}`. The structured result stays canonical: `result.continuation.next` is still `{ path, offset, limit }`.
+With `renamed`, a truncated read tells the model to continue with `{"file_path":"src/a.ts","start":101,"max_lines":100}`. With `lineRange`, it says `{"file_path":"src/a.ts","start_line":101,"end_line":200}`. The structured result stays canonical: `result.continuation.next` is still `{ path, offset, limit }`.
 
 For another input shape, write your own `ReadSignature`. It needs `name`, `description`, `schema`, `toInput`, `param`, and `fromInput`.
 
@@ -737,7 +743,7 @@ Cloudflare Agents hosts use `@better-fs-tools/ai-sdk` with `cloudflareShellFileS
 | Entry                             | Contents                                                                                                                                                                                  |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@better-fs-tools/read`           | `createReadTool`, `textOf`, `parseReadInput`, `memoryStore`, limits, messages, classifiers, resolvers, suggestions, authorizers, converters, hooks, the budget, formatters, and the types |
-| `@better-fs-tools/read/signature` | `defaultReadSignature`, `readSignatureMessages`, and the read signature types                                                                                                             |
+| `@better-fs-tools/read/signature` | `defaultReadSignature`, `lineRangeSignature`, `readSignatureMessages`, and the read signature types                                                                                       |
 | `@better-fs-tools/read/formats`   | `opencodeFormat`, `deepAgentsFormat`, `hashlineFormat`, `hermesFormat`                                                                                                                    |
 
 The package has no peers and imports no `node:` module, so it runs in Node, Bun, browsers, and Cloudflare Workers. It does not re-export the `fs` types. Import `FileSystem` and the other filesystem types from `@better-fs-tools/fs`. `ReadStateStore` and `ReadRecord` come from `@better-fs-tools/read`.

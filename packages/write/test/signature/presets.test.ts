@@ -14,6 +14,8 @@ import {
   defaultEditSignature,
   defaultPatchSignature,
   defaultWriteSignature,
+  freeformPatchSignature,
+  multiEditSignature,
 } from "../../src/signature/index.ts";
 import type { MutationSignature } from "../../src/signature/index.ts";
 import { generatedInputs } from "./generated.ts";
@@ -57,11 +59,18 @@ const PRESETS: readonly Preset[] = [
     keys: ["path", "old_string", "new_string", "replace_all"],
   },
   {
+    label: "multiEditSignature",
+    build: () => multiEditSignature(),
+    keys: ["path", "edits"],
+    nested: { edits: ["oldText", "newText"] },
+  },
+  {
     label: "defaultWriteSignature",
     build: () => defaultWriteSignature(),
     keys: ["path", "content"],
   },
   { label: "defaultPatchSignature", build: () => defaultPatchSignature(), keys: ["patch"] },
+  { label: "freeformPatchSignature", build: () => freeformPatchSignature(), keys: ["patch"] },
 ];
 
 function schemaAccepts(signature: MutationSignature<unknown>, input: unknown): boolean {
@@ -78,7 +87,7 @@ function toInputAccepts(signature: MutationSignature<unknown>, input: unknown): 
   }
 }
 
-describe("default signatures", () => {
+describe("signature presets", () => {
   for (const preset of PRESETS) {
     test(`${preset.label}: schema and description snapshot`, () => {
       const signature = preset.build();
@@ -120,23 +129,109 @@ describe("default signatures", () => {
 
   test("only the optional flags are optional", () => {
     expect(defaultEditSignature().schema.required).toEqual(["path", "old_string", "new_string"]);
+    expect(multiEditSignature().schema.required).toEqual(["path", "edits"]);
     expect(defaultWriteSignature().schema.required).toEqual(["path", "content"]);
   });
 
   test("the patch schema has exactly one required string property, for Pi grammar tools", () => {
-    const signature = defaultPatchSignature();
-    const properties = signature.schema.properties as Record<string, { type: string }>;
-    expect(signature.schema.type).toBe("object");
-    expect(signature.schema.required).toEqual(["patch"]);
-    expect(Object.keys(properties)).toEqual(["patch"]);
-    expect(properties.patch?.type).toBe("string");
+    for (const signature of [defaultPatchSignature(), freeformPatchSignature()]) {
+      const properties = signature.schema.properties as Record<string, { type: string }>;
+      expect(signature.schema.type).toBe("object");
+      expect(signature.schema.required).toEqual(["patch"]);
+      expect(Object.keys(properties)).toEqual(["patch"]);
+      expect(properties.patch?.type).toBe("string");
+    }
   });
 
-  test("no signature has a grammar; the Codex grammar is on ./patch for hosts that add one", () => {
+  test("only freeformPatchSignature has a grammar, and it is the Codex grammar", () => {
+    expect(freeformPatchSignature().grammar).toEqual({ lark: CODEX_PATCH_GRAMMAR });
+    expect(Object.isFrozen(freeformPatchSignature().grammar)).toBe(true);
     expect(defaultPatchSignature().grammar).toBeUndefined();
-    expect(defaultPatchSignature().description).not.toMatch(/json/iu);
+    expect(freeformPatchSignature().description).toBe(defaultPatchSignature().description);
+    expect(freeformPatchSignature().description).not.toMatch(/json/iu);
     expect(CODEX_PATCH_GRAMMAR).toStartWith("start: begin_patch hunk+ end_patch\n");
     expect(CODEX_PATCH_GRAMMAR).toContain('"*** Move to: " filename LF');
+  });
+});
+
+describe("multiEditSignature", () => {
+  test("maps many pairs to canonical input in order", () => {
+    const edits = [
+      { oldText: "a", newText: "b" },
+      { oldText: "c", newText: "d" },
+    ];
+    expect(multiEditSignature().toInput({ path: "a.ts", edits })).toEqual({ path: "a.ts", edits });
+  });
+
+  test("errors name the host parameters, with the pair index", () => {
+    const cases: [unknown, RegExp][] = [
+      [{ path: "a", edits: [] }, /^edits must be a non-empty array$/u],
+      [{ path: "a", edits: "x" }, /^edits must be a non-empty array$/u],
+      [{ path: "a", edits: [{ oldText: "x" }] }, /edits\[0\]\.newText/u],
+      [{ path: "a", edits: [{ oldText: "", newText: "y" }] }, /^edits\[0\]\.oldText must/u],
+      [{ path: "a", edits: [{ oldText: "x", newText: "y", replaceAll: true }] }, /replaceAll/u],
+    ];
+    for (const [input, message] of cases) {
+      expect(() => multiEditSignature().toInput(input)).toThrow(message);
+    }
+  });
+
+  test('has no replace-all parameter, so param("replaceAll") is empty', () => {
+    const multi = multiEditSignature();
+    expect(multi.param("oldText")).toBe("oldText");
+    expect(multi.param("replaceAll")).toBe("");
+    expect(Object.keys(multi.schema.properties as object)).toEqual(["path", "edits"]);
+  });
+
+  test("names rename the array and the pair keys in param, errors, and descriptions", () => {
+    const multi = multiEditSignature({
+      names: { edits: "changes", oldText: "from", newText: "to" },
+    });
+    expect(multi.toInput({ path: "a.ts", changes: [{ from: "x", to: "y" }] })).toEqual({
+      path: "a.ts",
+      edits: [{ oldText: "x", newText: "y" }],
+    });
+    expect(multi.param("oldText")).toBe("from");
+    expect(multi.param("edits")).toBe("changes");
+    expect(multi.param("replaceAll")).toBe("");
+    expect(multi.description).toContain("`changes[].from`");
+    expect(() => multi.toInput({ path: "a", changes: [{ from: 1, to: "y" }] })).toThrow(
+      "changes[0].from must be a string",
+    );
+  });
+
+  test("a renamed multi-edit signature accepts exactly what its schema accepts", () => {
+    const signature = multiEditSignature({ names: { edits: "changes", newText: "to" } });
+    for (const input of generatedInputs(["path", "changes"], 1000, {
+      changes: ["oldText", "to"],
+    })) {
+      const bySchema = schemaAccepts(signature, input);
+      if (toInputAccepts(signature, input) !== bySchema) {
+        throw new Error(`schema ${bySchema}, toInput ${!bySchema}: ${JSON.stringify(input)}`);
+      }
+    }
+  });
+
+  test("checks its options and describes the matcher chain", () => {
+    expect(() => multiEditSignature({ names: [] as never })).toThrow(
+      "multiEditSignature names must be an object",
+    );
+    expect(() => multiEditSignature({ matchers: [] })).toThrow(/non-empty array/u);
+    const trimmed = multiEditSignature({ matchers: [exactMatcher(), lineTrimmedMatcher()] });
+    expect(trimmed.description).toContain(
+      "A close match may differ in: leading and trailing whitespace on each line.",
+    );
+  });
+});
+
+describe("freeformPatchSignature", () => {
+  test("takes the same docs and names as defaultPatchSignature, and keeps the grammar", () => {
+    const patch = freeformPatchSignature({ name: "patch", names: { patch: "input" } });
+    expect(patch.name).toBe("patch");
+    expect(patch.toInput({ input: "*** Begin Patch" })).toEqual({ patch: "*** Begin Patch" });
+    expect(patch.param("patch")).toBe("input");
+    expect(patch.grammar).toEqual({ lark: CODEX_PATCH_GRAMMAR });
+    expect(() => freeformPatchSignature({ name: " " })).toThrow(TypeError);
   });
 });
 

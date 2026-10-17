@@ -1,9 +1,9 @@
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { createEditTool } from "@better-fs-tools/write";
-import { CODEX_PATCH_GRAMMAR } from "@better-fs-tools/write/patch";
 import {
   defaultEditSignature,
-  defaultPatchSignature,
+  freeformPatchSignature,
+  multiEditSignature,
   writeSignatureMessages,
 } from "@better-fs-tools/write/signature";
 
@@ -38,5 +38,8 @@ export const renamed = defaultEditSignature({
   names: { path: "file", old_string: "find", new_string: "replace" },
 }); // edit({ file, find, replace, replace_all? })
 
-// A host with grammar tools can add the Codex patch grammar to the patch signature.
-export const grammarPatch = { ...defaultPatchSignature(), grammar: { lark: CODEX_PATCH_GRAMMAR } };
+// Two presets give a shape that names alone cannot give.
+export const presets = [
+  multiEditSignature(), // edit({ path, edits: [{ oldText, newText }] }), many replacements in one call
+  freeformPatchSignature(), // apply_patch({ patch }) plus the Codex Lark grammar for grammar-tool hosts
+];

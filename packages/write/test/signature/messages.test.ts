@@ -6,6 +6,7 @@ import {
   defaultEditSignature,
   defaultPatchSignature,
   defaultWriteSignature,
+  multiEditSignature,
   writeSignatureMessages,
 } from "../../src/signature/index.ts";
 import { errorOf, harness } from "../helpers.ts";
@@ -67,6 +68,7 @@ describe("writeSignatureMessages", () => {
       replaceAll: "replaceAll",
     });
     expect(names(noReplaceAll)).toMatchObject({ oldText: "old_string", replaceAll: "" });
+    expect(names(multiEditSignature())).toMatchObject({ oldText: "oldText", replaceAll: "" });
     expect(names(defaultWriteSignature({ names: { path: "file_path" } }))).toMatchObject({
       path: "file_path",
     });
@@ -108,6 +110,17 @@ describe("messages use the host parameter names", () => {
       new_string: "1",
     });
     expect(errorOf(result)?.code).toBe("AMBIGUOUS_MATCH");
+    expect(textOf(result)).toContain("Add surrounding lines to make it unique.");
+    expect(textOf(result)).not.toContain("replace");
+  });
+
+  test("multiEditSignature: an ambiguous match does not suggest a flag it lacks", async () => {
+    const result = await editWith(multiEditSignature(), {
+      path: "/a.txt",
+      edits: [{ oldText: "one", newText: "1" }],
+    });
+    expect(errorOf(result)?.code).toBe("AMBIGUOUS_MATCH");
+    expect(textOf(result)).toContain("Edit 1: the oldText matches 2 places");
     expect(textOf(result)).toContain("Add surrounding lines to make it unique.");
     expect(textOf(result)).not.toContain("replace");
   });

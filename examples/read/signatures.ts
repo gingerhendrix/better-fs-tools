@@ -1,4 +1,4 @@
-import { defaultReadSignature } from "@better-fs-tools/read/signature";
+import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
 
 // The default schema, with your own descriptions.
 export const documented = defaultReadSignature({
@@ -10,4 +10,10 @@ export const documented = defaultReadSignature({
 export const renamed = defaultReadSignature({
   name: "read_file",
   names: { path: "file_path", offset: "start", limit: "max_lines" },
+});
+
+// Inclusive start_line and end_line in place of offset and limit.
+export const lineRange = lineRangeSignature({
+  name: "read_file",
+  names: { path: "file_path", start: "start_line", end: "end_line" },
 });

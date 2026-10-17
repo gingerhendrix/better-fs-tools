@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 
 import type { ToolRenderers } from "@earendil-works/pi-coding-agent";
 
+import { multiEditSignature } from "@better-fs-tools/write/signature";
+
 import {
   createPiApplyPatchTool,
   createPiBashTool,
@@ -63,6 +65,18 @@ describe("piToolRenderers", () => {
       replace_all: true,
     });
     expect(spy.calls).toEqual([{ args: { path: "a.txt" }, contextArgs: { path: "a.txt" } }]);
+  });
+
+  test("the multiEditSignature preset keeps Pi's own arguments", () => {
+    const args = { path: "a.txt", edits: [{ oldText: "one", newText: "two" }] };
+    const spy = draw(
+      piToolRenderers([
+        createPiEditTool({ fs: piCwdFileSystem(), signature: multiEditSignature() }),
+      ]),
+      "edit",
+      args,
+    );
+    expect(spy.calls).toEqual([{ args, contextArgs: args }]);
   });
 
   test("gives Pi's bash renderer the timeout in seconds", () => {

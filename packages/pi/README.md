@@ -145,7 +145,7 @@ These choices suit Pi. They are options, not defaults:
 - Image parts become Pi `image` parts. Other media becomes a text part that says what was left out.
 - `read` gives `details.truncation` as Pi's own read tool does for line and byte stops. Its `content` comes from the formatter in `"view"` mode. For other results, or a formatter that returns parts, `details` is `{}`. `toPiReadDetails()` builds the details for your own tool.
 - `edit` and `apply_patch` return `details` in the shape of Pi's `EditToolDetails` (`diff`, `patch`, `firstChangedLine`), so Pi's edit renderer draws the diff. `toPiMutationDetails()` builds them for your own tool. `write` returns no details, as Pi's own `write` does.
-- A signature with a `grammar`, such as `defaultPatchSignature()` with `CODEX_PATCH_GRAMMAR` from `@better-fs-tools/write/patch` added, sets `constrainedSampling` for models with grammar-tool support.
+- A signature with a `grammar` sets `constrainedSampling` for models with grammar-tool support. For the Codex patch grammar, pass `applyPatch: { signature: freeformPatchSignature() }`. To give a model Pi's own edit input, `edits: [{ oldText, newText }]`, pass `edit: { signature: multiEditSignature() }`. Both presets come from `@better-fs-tools/write/signature`.
 - A tool error becomes Pi content text with `isError: true`. The tool does not throw for a tool error. Pi shows the text as an error, and `tool_result` handlers see `isError: true`. Bad model input rejects with `TypeError`.
 
 ## Renderers

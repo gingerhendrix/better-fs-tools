@@ -21,7 +21,7 @@ import {
   hermesFormat,
   opencodeFormat,
 } from "@better-fs-tools/read/formats";
-import { defaultReadSignature } from "@better-fs-tools/read/signature";
+import { lineRangeSignature } from "@better-fs-tools/read/signature";
 
 import readToolExtension from "../../src/extension.ts";
 import { createPiReadTool } from "../../src/index.ts";
@@ -39,7 +39,7 @@ api.registerTool(tool);
 const stores = new Map<string, ReadStateStore>();
 export const typed = createPiReadTool({
   fs: piCwdFileSystem(),
-  signature: defaultReadSignature({ name: "view" }),
+  signature: lineRangeSignature(),
   state: (call) => stores.get(call.host.sessionManager.getSessionId()) ?? null,
 });
 createPiReadTool({

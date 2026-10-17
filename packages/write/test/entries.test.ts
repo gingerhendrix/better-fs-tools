@@ -30,7 +30,7 @@ describe("./patch", () => {
 });
 
 describe("./signature", () => {
-  test("exports the default signatures, the messages helper, and the definition helpers", async () => {
+  test("exports the default signatures, the presets, the messages helper, and the definition helpers", async () => {
     const signature = await import("@better-fs-tools/write/signature");
     expect(Object.keys(signature).sort()).toEqual([
       "applyPatchToolDefinition",
@@ -38,7 +38,9 @@ describe("./signature", () => {
       "defaultPatchSignature",
       "defaultWriteSignature",
       "editToolDefinition",
+      "freeformPatchSignature",
       "fsToolDefinitions",
+      "multiEditSignature",
       "writeSignatureMessages",
       "writeToolDefinition",
     ]);
