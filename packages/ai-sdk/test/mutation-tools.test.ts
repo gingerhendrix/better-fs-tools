@@ -13,9 +13,6 @@ import {
   defaultEditSignature,
   defaultPatchSignature,
   defaultWriteSignature,
-  freeformPatchSignature,
-  multiEditSignature,
-  snakeCaseWriteSignature,
 } from "@better-fs-tools/write/signature";
 
 import {
@@ -25,7 +22,13 @@ import {
 } from "../src/index.ts";
 import type { AiSdkMutationTool } from "../src/index.ts";
 import { toStrictSchema } from "../src/strict.ts";
-import { errorOf, CLOCK, executeOptions } from "./helpers.ts";
+import {
+  errorOf,
+  CLOCK,
+  executeOptions,
+  grammarPatchFixture,
+  multiEditFixture,
+} from "./helpers.ts";
 
 type Host = ToolExecutionOptions<Record<string, unknown>>;
 
@@ -92,8 +95,8 @@ describe("ai sdk mutation tools: schema", () => {
     expect(tool.description).not.toContain("close match");
   });
 
-  test("a freeform signature keeps its JSON schema and has no grammar field", async () => {
-    const signature = freeformPatchSignature();
+  test("a signature with a grammar keeps its JSON schema and has no grammar field", async () => {
+    const signature = grammarPatchFixture();
     const tool = createAiSdkApplyPatchTool({ fs: memoryFileSystem(), signature });
     expect(await tool.inputSchema.jsonSchema).toEqual(
       toStrictSchema(signature.schema, signature.name) as JSONSchema7,
@@ -141,7 +144,7 @@ describe("ai sdk mutation tools: schema", () => {
   test("the validator runs the core parse with the tool's limits", async () => {
     const edit = createAiSdkEditTool({
       fs: memoryFileSystem(),
-      signature: multiEditSignature(),
+      signature: multiEditFixture(),
       limits: { maxEdits: 1 },
     });
     const pair = { oldText: "x", newText: "y" };
@@ -240,7 +243,7 @@ describe("ai sdk mutation tools: execute", () => {
 
     const snake = createAiSdkWriteTool({
       fs: memoryFileSystem(),
-      signature: snakeCaseWriteSignature(),
+      signature: defaultWriteSignature({ name: "write_file", names: { path: "file_path" } }),
     });
     const refused = await snake
       .execute({ file_path: "", content: "" }, executeOptions())

@@ -11,13 +11,9 @@ import {
 } from "../../src/index.ts";
 import { CODEX_PATCH_GRAMMAR } from "../../src/patch/index.ts";
 import {
-  camelCaseEditSignature,
   defaultEditSignature,
   defaultPatchSignature,
   defaultWriteSignature,
-  freeformPatchSignature,
-  multiEditSignature,
-  snakeCaseWriteSignature,
 } from "../../src/signature/index.ts";
 import type { MutationSignature } from "../../src/signature/index.ts";
 import { generatedInputs } from "./generated.ts";
@@ -61,28 +57,11 @@ const PRESETS: readonly Preset[] = [
     keys: ["path", "old_string", "new_string", "replace_all"],
   },
   {
-    label: "multiEditSignature",
-    build: () => multiEditSignature(),
-    keys: ["path", "edits"],
-    nested: { edits: ["oldText", "newText"] },
-  },
-  {
-    label: "camelCaseEditSignature",
-    build: () => camelCaseEditSignature(),
-    keys: ["filePath", "oldString", "newString", "replaceAll"],
-  },
-  {
     label: "defaultWriteSignature",
     build: () => defaultWriteSignature(),
     keys: ["path", "content"],
   },
-  {
-    label: "snakeCaseWriteSignature",
-    build: () => snakeCaseWriteSignature(),
-    keys: ["file_path", "content"],
-  },
   { label: "defaultPatchSignature", build: () => defaultPatchSignature(), keys: ["patch"] },
-  { label: "freeformPatchSignature", build: () => freeformPatchSignature(), keys: ["patch"] },
 ];
 
 function schemaAccepts(signature: MutationSignature<unknown>, input: unknown): boolean {
@@ -99,7 +78,7 @@ function toInputAccepts(signature: MutationSignature<unknown>, input: unknown): 
   }
 }
 
-describe("signature presets", () => {
+describe("default signatures", () => {
   for (const preset of PRESETS) {
     test(`${preset.label}: schema and description snapshot`, () => {
       const signature = preset.build();
@@ -141,65 +120,47 @@ describe("signature presets", () => {
 
   test("only the optional flags are optional", () => {
     expect(defaultEditSignature().schema.required).toEqual(["path", "old_string", "new_string"]);
-    expect(camelCaseEditSignature().schema.required).toEqual([
-      "filePath",
-      "oldString",
-      "newString",
-    ]);
-    expect(multiEditSignature().schema.required).toEqual(["path", "edits"]);
     expect(defaultWriteSignature().schema.required).toEqual(["path", "content"]);
-    expect(snakeCaseWriteSignature().schema.required).toEqual(["file_path", "content"]);
   });
 
   test("the patch schema has exactly one required string property, for Pi grammar tools", () => {
-    for (const signature of [defaultPatchSignature(), freeformPatchSignature()]) {
-      const properties = signature.schema.properties as Record<string, { type: string }>;
-      expect(signature.schema.type).toBe("object");
-      expect(signature.schema.required).toEqual(["patch"]);
-      expect(Object.keys(properties)).toEqual(["patch"]);
-      expect(properties.patch?.type).toBe("string");
-    }
+    const signature = defaultPatchSignature();
+    const properties = signature.schema.properties as Record<string, { type: string }>;
+    expect(signature.schema.type).toBe("object");
+    expect(signature.schema.required).toEqual(["patch"]);
+    expect(Object.keys(properties)).toEqual(["patch"]);
+    expect(properties.patch?.type).toBe("string");
   });
 
-  test("only freeformPatchSignature has a grammar, and it is the Codex grammar", () => {
-    expect(freeformPatchSignature().grammar).toEqual({ lark: CODEX_PATCH_GRAMMAR });
+  test("no signature has a grammar; the Codex grammar is on ./patch for hosts that add one", () => {
     expect(defaultPatchSignature().grammar).toBeUndefined();
-    expect(freeformPatchSignature().description).not.toMatch(/json/iu);
+    expect(defaultPatchSignature().description).not.toMatch(/json/iu);
     expect(CODEX_PATCH_GRAMMAR).toStartWith("start: begin_patch hunk+ end_patch\n");
     expect(CODEX_PATCH_GRAMMAR).toContain('"*** Move to: " filename LF');
   });
 });
 
 describe("toInput", () => {
-  test("maps each edit preset to canonical input", () => {
+  test("maps the edit signature to canonical input", () => {
     expect(
       defaultEditSignature().toInput({ path: "a.ts", old_string: "x", new_string: "y" }),
     ).toEqual({ path: "a.ts", edits: [{ oldText: "x", newText: "y" }] });
     expect(
-      camelCaseEditSignature().toInput({
-        filePath: "a.ts",
-        oldString: "x",
-        newString: "",
-        replaceAll: true,
+      defaultEditSignature().toInput({
+        path: "a.ts",
+        old_string: "x",
+        new_string: "",
+        replace_all: true,
       }),
     ).toEqual({ path: "a.ts", edits: [{ oldText: "x", newText: "", replaceAll: true }] });
-    const edits = [
-      { oldText: "a", newText: "b" },
-      { oldText: "c", newText: "d" },
-    ];
-    expect(multiEditSignature().toInput({ path: "a.ts", edits })).toEqual({ path: "a.ts", edits });
   });
 
-  test("maps the write and patch presets to canonical input", () => {
-    expect(snakeCaseWriteSignature().toInput({ file_path: "a.md", content: "" })).toEqual({
-      path: "a.md",
-      content: "",
-    });
+  test("maps the write and patch signatures to canonical input", () => {
     expect(defaultWriteSignature().toInput({ path: "a.md", content: "x" })).toEqual({
       path: "a.md",
       content: "x",
     });
-    expect(freeformPatchSignature().toInput({ patch: "*** Begin Patch" })).toEqual({
+    expect(defaultPatchSignature().toInput({ patch: "*** Begin Patch" })).toEqual({
       patch: "*** Begin Patch",
     });
   });
@@ -214,11 +175,9 @@ describe("toInput", () => {
         { path: "a", old_string: "x", new_string: "y", replace_all: "yes" },
         /^replace_all must be a boolean$/u,
       ],
-      [camelCaseEditSignature(), { filePath: " ", oldString: "x", newString: "" }, /^filePath/u],
-      [multiEditSignature(), { path: "a", edits: [] }, /^edits must be a non-empty array$/u],
-      [multiEditSignature(), { path: "a", edits: [{ oldText: "x" }] }, /edits\[0\]\.newText/u],
-      [snakeCaseWriteSignature(), { path: "a", content: "" }, /Unknown write input key: path/u],
-      [snakeCaseWriteSignature(), { content: "" }, /^file_path is required$/u],
+      [defaultEditSignature(), { path: " ", old_string: "x", new_string: "" }, /^path/u],
+      [defaultWriteSignature(), { file: "a", content: "" }, /Unknown write input key: file/u],
+      [defaultWriteSignature(), { content: "" }, /^path is required$/u],
       [defaultPatchSignature(), { patch: " \n" }, /^patch must be a non-blank string$/u],
     ];
     for (const [signature, input, message] of cases) {
@@ -229,18 +188,18 @@ describe("toInput", () => {
 
 describe("signature options", () => {
   test("docs replace the name, the description, and each parameter description", () => {
-    const signature = snakeCaseWriteSignature({
+    const signature = defaultWriteSignature({
       name: "create_file",
       description: "Write one file.",
-      describe: { file_path: "Where." },
+      describe: { path: "Where." },
     });
     const properties = signature.schema.properties as Record<string, { description: string }>;
     expect(signature.name).toBe("create_file");
     expect(signature.description).toBe("Write one file.");
-    expect(properties.file_path?.description).toBe("Where.");
+    expect(properties.path?.description).toBe("Where.");
   });
 
-  test("every preset takes names, keyed by its own parameter names", () => {
+  test("every default signature takes names, keyed by its own parameter names", () => {
     const cases: [MutationSignature<unknown>, unknown, unknown][] = [
       [
         defaultEditSignature({ names: { old_string: "find", new_string: "replace" } }),
@@ -248,14 +207,9 @@ describe("signature options", () => {
         { path: "a.ts", edits: [{ oldText: "x", newText: "y" }] },
       ],
       [
-        camelCaseEditSignature({ names: { filePath: "file" } }),
-        { file: "a.ts", oldString: "x", newString: "y", replaceAll: true },
+        defaultEditSignature({ names: { path: "file", replace_all: "all" } }),
+        { file: "a.ts", old_string: "x", new_string: "y", all: true },
         { path: "a.ts", edits: [{ oldText: "x", newText: "y", replaceAll: true }] },
-      ],
-      [
-        multiEditSignature({ names: { edits: "changes", oldText: "from", newText: "to" } }),
-        { path: "a.ts", changes: [{ from: "x", to: "y" }] },
-        { path: "a.ts", edits: [{ oldText: "x", newText: "y" }] },
       ],
       [
         defaultWriteSignature({ names: { path: "file", content: "text" } }),
@@ -263,12 +217,7 @@ describe("signature options", () => {
         { path: "a.ts", content: "x" },
       ],
       [
-        snakeCaseWriteSignature({ names: { file_path: "target" } }),
-        { target: "a.ts", content: "x" },
-        { path: "a.ts", content: "x" },
-      ],
-      [
-        freeformPatchSignature({ names: { patch: "input" } }),
+        defaultPatchSignature({ names: { patch: "input" } }),
         { input: "*** Begin Patch" },
         { patch: "*** Begin Patch" },
       ],
@@ -281,7 +230,7 @@ describe("signature options", () => {
     }
   });
 
-  test("renamed presets name the host parameters in param, errors, and descriptions", () => {
+  test("renamed signatures name the host parameters in param, errors, and descriptions", () => {
     const edit = defaultEditSignature({
       names: { old_string: "find", replace_all: "all" },
       describe: { old_string: "What to find." },
@@ -296,30 +245,17 @@ describe("signature options", () => {
       "find must not be empty",
     );
 
-    const multi = multiEditSignature({ names: { edits: "changes", oldText: "from" } });
-    expect(multi.param("oldText")).toBe("from");
-    expect(multi.param("edits")).toBe("changes");
-    expect(multi.param("replaceAll")).toBe("");
-    expect(() => multi.toInput({ path: "a", changes: [{ from: 1, newText: "y" }] })).toThrow(
-      "changes[0].from must be a string",
-    );
-
     const patch = defaultPatchSignature({ names: { patch: "diff" } });
     expect(patch.param("patch")).toBe("diff");
     expect(patch.description).toContain("(the `diff` parameter)");
     expect(patch.schema.required).toEqual(["diff"]);
   });
 
-  test("renamed presets accept exactly what their schema accepts", () => {
+  test("renamed signatures accept exactly what their schema accepts", () => {
     const cases: [MutationSignature<unknown>, readonly string[], NestedKeys?][] = [
       [
         defaultEditSignature({ names: { path: "file", old_string: "find" } }),
         ["file", "find", "new_string", "replace_all"],
-      ],
-      [
-        multiEditSignature({ names: { edits: "changes", newText: "to" } }),
-        ["path", "changes"],
-        { changes: ["oldText", "to"] },
       ],
       [defaultWriteSignature({ names: { content: "text" } }), ["path", "text"]],
     ];
@@ -346,8 +282,8 @@ describe("signature options", () => {
     expect(() => defaultPatchSignature({ names: { patch: 1 } } as never)).toThrow(
       "names.patch must be a string",
     );
-    expect(() => multiEditSignature({ names: [] as never })).toThrow(
-      "multiEditSignature names must be an object",
+    expect(() => defaultEditSignature({ names: [] as never })).toThrow(
+      "defaultEditSignature names must be an object",
     );
   });
 
@@ -357,7 +293,7 @@ describe("signature options", () => {
     );
     expect(() => defaultPatchSignature({ name: " " })).toThrow(TypeError);
     expect(() => defaultEditSignature(null as never)).toThrow(TypeError);
-    expect(() => multiEditSignature({ matchers: [] })).toThrow(/non-empty array/u);
+    expect(() => defaultEditSignature({ matchers: [] })).toThrow(/non-empty array/u);
   });
 
   test("the edit description follows the matcher chain", () => {
@@ -365,7 +301,7 @@ describe("signature options", () => {
     expect(exactOnly).toContain("`old_string` must match the file exactly");
     expect(exactOnly).not.toContain("close match");
 
-    const trimmed = multiEditSignature({ matchers: [exactMatcher(), lineTrimmedMatcher()] });
+    const trimmed = defaultEditSignature({ matchers: [exactMatcher(), lineTrimmedMatcher()] });
     expect(trimmed.description).toContain(
       "A close match may differ in: leading and trailing whitespace on each line.",
     );

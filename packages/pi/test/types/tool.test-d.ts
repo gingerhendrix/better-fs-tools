@@ -21,7 +21,7 @@ import {
   hermesFormat,
   opencodeFormat,
 } from "@better-fs-tools/read/formats";
-import { lineRangeSignature } from "@better-fs-tools/read/signature";
+import { defaultReadSignature } from "@better-fs-tools/read/signature";
 
 import readToolExtension from "../../src/extension.ts";
 import { createPiReadTool } from "../../src/index.ts";
@@ -37,7 +37,7 @@ api.registerTool(tool);
 // The host is Pi's ExtensionContext.
 const stores = new Map<string, ReadStateStore>();
 export const typed = createPiReadTool({
-  signature: lineRangeSignature(),
+  signature: defaultReadSignature({ name: "view" }),
   state: (call) => stores.get(call.host.sessionManager.getSessionId()) ?? null,
 });
 createPiReadTool({

@@ -17,8 +17,6 @@ import {
   defaultEditSignature,
   defaultPatchSignature,
   defaultWriteSignature,
-  freeformPatchSignature,
-  multiEditSignature,
 } from "@better-fs-tools/write/signature";
 
 import { createPiApplyPatchTool, createPiEditTool, createPiWriteTool } from "../src/index.ts";
@@ -69,9 +67,10 @@ describe("pi write tool shapes", () => {
     expect(Object.hasOwn(tool, "constrainedSampling")).toBe(false);
   });
 
-  test("the freeformPatchSignature preset sets an openai_lark grammar", () => {
-    const tool = createPiApplyPatchTool({ signature: freeformPatchSignature() });
-    expect(tool.description).toBe(freeformPatchSignature().description);
+  test("a signature with a grammar sets an openai_lark grammar", () => {
+    const signature = { ...defaultPatchSignature(), grammar: { lark: CODEX_PATCH_GRAMMAR } };
+    const tool = createPiApplyPatchTool({ signature });
+    expect(tool.description).toBe(signature.description);
     expect(tool.constrainedSampling).toEqual({
       type: "grammar",
       variants: { openai_lark: CODEX_PATCH_GRAMMAR },
@@ -85,14 +84,6 @@ describe("pi write tool shapes", () => {
     expect(parameters.type).toBe("object");
     expect(parameters.required).toEqual(["patch"]);
     expect(parameters.properties[parameters.required[0] as string]?.type).toBe("string");
-  });
-
-  test("the multiEditSignature preset gives Pi's own edit keys", () => {
-    const tool = createPiEditTool({ signature: multiEditSignature() });
-    const builtIn = createBuiltInPiEditTool(process.cwd());
-    expect(Object.keys((tool.parameters as { properties: object }).properties)).toEqual(
-      Object.keys((builtIn.parameters as { properties: object }).properties),
-    );
   });
 
   test("the default edit signature describes the tool's matchers", () => {
@@ -236,18 +227,6 @@ describe("pi write tools: execute", () => {
     );
     expect(result.details).toBeUndefined();
     expect(result.isError).toBe(true);
-  });
-
-  test("the multiEditSignature preset does not suggest a replaceAll it lacks", async () => {
-    const cwd = await fixture({ "a.txt": "a\na\n" });
-    const result = await run(
-      createPiEditTool({ signature: multiEditSignature() }),
-      { path: "a.txt", edits: [{ oldText: "a", newText: "b" }] },
-      cwd,
-    );
-    expect(textOf(result)).toBe(
-      "[edit:ambiguous-match] Edit 1: the oldText matches 2 places in a.txt (lines 1, 2). Add surrounding lines to make it unique.",
-    );
   });
 
   test("invalid model input throws TypeError that names the parameter", async () => {

@@ -30,16 +30,12 @@ describe("./patch", () => {
 });
 
 describe("./signature", () => {
-  test("exports the presets and the messages helper", async () => {
+  test("exports the default signatures and the messages helper", async () => {
     const signature = await import("@better-fs-tools/write/signature");
     expect(Object.keys(signature).sort()).toEqual([
-      "camelCaseEditSignature",
       "defaultEditSignature",
       "defaultPatchSignature",
       "defaultWriteSignature",
-      "freeformPatchSignature",
-      "multiEditSignature",
-      "snakeCaseWriteSignature",
       "writeSignatureMessages",
     ]);
   });

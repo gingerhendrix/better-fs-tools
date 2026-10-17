@@ -2,15 +2,15 @@ import { generateText, isStepCount } from "ai";
 import type { LanguageModel } from "ai";
 import { createAiSdkReadTool } from "@better-fs-tools/ai-sdk";
 import { nodeDigest, nodeFileSystem } from "@better-fs-tools/node";
-import { lineRangeSignature } from "@better-fs-tools/read/signature";
+import { defaultReadSignature } from "@better-fs-tools/read/signature";
 
 const cwd = process.cwd();
 const read = createAiSdkReadTool({
   fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
   digest: nodeDigest(),
-  signature: lineRangeSignature({
+  signature: defaultReadSignature({
     name: "read_file",
-    names: { path: "file_path", start: "start_line", end: "end_line" },
+    names: { path: "file_path", offset: "start_line", limit: "max_lines" },
   }),
 });
 

@@ -301,21 +301,28 @@ console.log(textOf(await write({ path: "/repo/run.sh", content: "#!/bin/sh\necho
 
 A signature is what the model sees: a name, a description, and a JSON Schema. `toInput` checks model input and maps it to the core's canonical input, and `param(name)` gives the host name of a canonical parameter for messages. Every write signature is a `ToolSignature` from `@better-fs-tools/read`, the base that the read and bash signatures share. The host adapters take a `signature` option.
 
-Every preset takes the shared `SignatureDocs` options: `name`, `description`, `describe`, and `names`. `describe` and `names` use the preset's own parameter names as keys, so `camelCaseEditSignature` takes `oldString` and `defaultEditSignature` takes `old_string`. `camelCaseEditSignature` and `snakeCaseWriteSignature` are the default presets with the names two popular hosts use.
+`defaultEditSignature()`, `defaultWriteSignature()`, and `defaultPatchSignature()` build the signatures. Each takes the shared `SignatureDocs` options: `name`, `description`, `describe`, and `names`. `describe` and `names` use the signature's own parameter names as keys, so `defaultEditSignature` takes `old_string`. For another input shape, write your own `EditSignature`, `WriteSignature`, or `PatchSignature`.
 
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { createEditTool } from "@better-fs-tools/write";
+import { CODEX_PATCH_GRAMMAR } from "@better-fs-tools/write/patch";
 import {
-  camelCaseEditSignature,
   defaultEditSignature,
-  freeformPatchSignature,
-  multiEditSignature,
+  defaultPatchSignature,
   writeSignatureMessages,
 } from "@better-fs-tools/write/signature";
 
 // What the model sees: a name, a description, and a JSON Schema.
-const signature = camelCaseEditSignature({ name: "edit_file" });
+const signature = defaultEditSignature({
+  name: "edit_file",
+  names: {
+    path: "filePath",
+    old_string: "oldString",
+    new_string: "newString",
+    replace_all: "replaceAll",
+  },
+});
 console.log(signature.name, Object.keys(signature.schema.properties ?? {}));
 // edit_file [ "filePath", "oldString", "newString", "replaceAll" ]
 
@@ -332,20 +339,16 @@ export async function run(input: unknown) {
   return edit(signature.toInput(input));
 }
 
-// The other presets.
-export const presets = [
-  defaultEditSignature(), // edit({ path, old_string, new_string, replace_all? })
-  multiEditSignature(), // edit({ path, edits: [{ oldText, newText }] }), Pi's shape
-  freeformPatchSignature(), // apply_patch({ patch }) plus a Lark grammar for grammar-tool hosts
-];
-
-// Every preset takes names. The keys are the preset's own parameter names.
+// The names keys are the default signature's own parameter names.
 export const renamed = defaultEditSignature({
   names: { path: "file", old_string: "find", new_string: "replace" },
 }); // edit({ file, find, replace, replace_all? })
+
+// A host with grammar tools can add the Codex patch grammar to the patch signature.
+export const grammarPatch = { ...defaultPatchSignature(), grammar: { lark: CODEX_PATCH_GRAMMAR } };
 ```
 
-`freeformPatchSignature()` adds `grammar.lark`, the Codex patch grammar. The Pi adapter sends it as a grammar tool to models that support one. The AI SDK adapter ignores it and sends the JSON schema.
+A signature with `grammar.lark`, such as `grammarPatch` above, gives the Codex patch grammar. The Pi adapters send it as a grammar tool to models that support one. The AI SDK adapter ignores it and sends the JSON schema.
 
 ## The result
 
@@ -410,7 +413,7 @@ Without compare-and-swap, the core checks the version with a fresh `stat` just b
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@better-fs-tools/write`           | `textOf` (the same function as in read and shell, re-exported for convenience), `createFsTools`, `createWriteTool`, `createEditTool`, `createApplyPatchTool`, the matchers, the guards, `defaultGuards` (empty) and `recommendedGuards`, the mutation core's types, `utf8Codec`, `memoryLocks`, `askBeforeWrite`, `writeAuthorizers`, `protectPaths`, `executableShebang`, `verifyWrite`, `defaultWriteFormatter`, `createInvalidator` |
 | `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, `CODEX_PATCH_GRAMMAR`, and the patch types. The only home of these                                                                                                                                                                                                                                                                                                                                   |
-| `@better-fs-tools/write/signature` | `defaultEditSignature`, `multiEditSignature`, `camelCaseEditSignature`, `defaultWriteSignature`, `snakeCaseWriteSignature`, `defaultPatchSignature`, `freeformPatchSignature`, and `writeSignatureMessages`                                                                                                                                                                                                                            |
+| `@better-fs-tools/write/signature` | `defaultEditSignature`, `defaultWriteSignature`, `defaultPatchSignature`, and `writeSignatureMessages`                                                                                                                                                                                                                                                                                                                                 |
 
 The package builds on the tool-neutral base types in `@better-fs-tools/read`, such as `ToolCallContext`, `PathResolver`, and `ToolAuthorizer`. An authorizer or resolver typed on them works for the read tool and for the write tools:
 

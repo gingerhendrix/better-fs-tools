@@ -14,21 +14,11 @@ import {
   stringSchema,
 } from "./schema.ts";
 
-/** write({ path, content }). */
+/** write({ path, content }). Name "write". `names` renames either parameter. */
 export function defaultWriteSignature(
   options: SignatureDocs<"path" | "content"> = {},
 ): WriteSignature {
   return writeSignature(options, "defaultWriteSignature", "write", "path");
-}
-
-/**
- * write_file({ file_path, content }). Claude Code. The same as
- * defaultWriteSignature with another tool name and path name.
- */
-export function snakeCaseWriteSignature(
-  options: SignatureDocs<"file_path" | "content"> = {},
-): WriteSignature {
-  return writeSignature(options, "snakeCaseWriteSignature", "write_file", "file_path");
 }
 
 function writeSignature(

@@ -49,7 +49,7 @@ A signature is the model-facing shape of a tool. The core and Node tools take th
 | `apply_patch` | `{ patch }`                                            | `defaultPatchSignature()`: `apply_patch({ patch })` as JSON                                   |
 | `bash`        | `{ command, timeoutMs?, cwd? }`                        | `defaultBashSignature({ runner, limits })`: `bash({ command, timeout?, cwd? })`, milliseconds |
 
-To give a model another shape, pass a preset as the tool's `signature`. For example, `multiEditSignature()` gives `edit({ path, edits: [{ oldText, newText }] })`, `freeformPatchSignature()` adds the Codex patch grammar, and `defaultBashSignature({ timeoutUnit: "s", cwd: false })` gives `bash({ command, timeout? })` in seconds. Every preset takes `name`, `description`, `describe`, and `names`. `names` renames a parameter, keyed by the preset's own parameter names.
+To give a model other names, pass a default signature with options as the tool's `signature`. For example, `defaultBashSignature({ timeoutUnit: "s", cwd: false })` gives `bash({ command, timeout? })` in seconds. Every default signature takes `name`, `description`, `describe`, and `names`. `names` renames a parameter, keyed by the signature's own parameter names. For another shape, write your own signature.
 
 ### Where integrations differ
 

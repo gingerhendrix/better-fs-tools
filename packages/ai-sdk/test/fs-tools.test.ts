@@ -6,8 +6,8 @@ import { MockLanguageModelV4 } from "ai/test";
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { memoryStore, sha256Digest } from "@better-fs-tools/read";
 import type { Digest } from "@better-fs-tools/read";
-import { lineRangeSignature } from "@better-fs-tools/read/signature";
-import { freeformPatchSignature } from "@better-fs-tools/write/signature";
+import { defaultReadSignature } from "@better-fs-tools/read/signature";
+import { defaultPatchSignature } from "@better-fs-tools/write/signature";
 import { shellEnv } from "@better-fs-tools/shell";
 import type { CommandRunner, RunExit } from "@better-fs-tools/shell";
 import { memoryLocks } from "@better-fs-tools/write";
@@ -90,13 +90,13 @@ describe("createAiSdkFsTools", () => {
     const tools = createAiSdkFsTools({
       fs: memoryFileSystem({ files: { "/a.txt": "one\ntwo\n" } }),
       read: {
-        signature: lineRangeSignature({ name: "read_file", names: { path: "file_path" } }),
+        signature: defaultReadSignature({ name: "read_file", names: { path: "file_path" } }),
       },
     });
     expect(tools.read.name).toBe("read_file");
     expect(Object.keys(tools.tools)).toEqual(["read_file", "edit", "write"]);
     const result = await tools.read.execute(
-      { file_path: "/a.txt", start: 2, end: null },
+      { file_path: "/a.txt", offset: 2, limit: null },
       executeOptions(),
     );
     expect(result.status).toBe("ok");
@@ -111,7 +111,7 @@ describe("createAiSdkFsTools", () => {
     expect((await on.applyPatch.execute({ patch }, executeOptions())).status).toBe("ok");
     const named = createAiSdkFsTools({
       fs,
-      applyPatch: { signature: freeformPatchSignature({ name: "patch" }) },
+      applyPatch: { signature: defaultPatchSignature({ name: "patch" }) },
     });
     expect(Object.keys(named.tools)).toEqual(["read", "edit", "write", "patch"]);
     expect(createAiSdkFsTools({ fs, applyPatch: false }).applyPatch).toBeNull();
@@ -277,7 +277,7 @@ describe("createAiSdkFsTools", () => {
     );
     expect(() => createAiSdkFsTools({ fs, bash: { runner } } as never)).toThrow("env is required");
     expect(() =>
-      createAiSdkFsTools({ fs, read: { signature: lineRangeSignature({ name: "edit" }) } }),
+      createAiSdkFsTools({ fs, read: { signature: defaultReadSignature({ name: "edit" }) } }),
     ).toThrow("createAiSdkFsTools has two tools named edit");
   });
 });

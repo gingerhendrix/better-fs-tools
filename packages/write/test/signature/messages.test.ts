@@ -3,17 +3,29 @@ import { describe, expect, test } from "bun:test";
 import { recommendedGuards, resolveWriteMessages, textOf } from "../../src/index.ts";
 import type { MutationSignature } from "../../src/signature/index.ts";
 import {
-  camelCaseEditSignature,
   defaultEditSignature,
   defaultPatchSignature,
   defaultWriteSignature,
-  multiEditSignature,
-  snakeCaseWriteSignature,
   writeSignatureMessages,
 } from "../../src/signature/index.ts";
 import { errorOf, harness } from "../helpers.ts";
 
 const FILE = "one\ntwo\none\nthree\n";
+
+const camelCase = defaultEditSignature({
+  names: {
+    path: "filePath",
+    old_string: "oldString",
+    new_string: "newString",
+    replace_all: "replaceAll",
+  },
+});
+
+/** A host signature with no replace-all parameter: param("replaceAll") is "". */
+const noReplaceAll: MutationSignature<unknown> = {
+  ...defaultEditSignature(),
+  param: (name) => (name === "replaceAll" ? "" : defaultEditSignature().param(name)),
+};
 
 async function editWith(signature: MutationSignature<unknown>, input: unknown) {
   const tools = harness({
@@ -33,7 +45,7 @@ describe("writeSignatureMessages", () => {
     expect(messages.param("patch")).toBe("patch");
   });
 
-  test("maps canonical names to each preset's host names", () => {
+  test("maps canonical names to the signature's host names", () => {
     const names = (signature: MutationSignature<unknown>) =>
       Object.fromEntries(
         (["path", "oldText", "newText", "replaceAll", "content", "patch"] as const).map((name) => [
@@ -49,13 +61,15 @@ describe("writeSignatureMessages", () => {
       content: "content",
       patch: "patch",
     });
-    expect(names(camelCaseEditSignature())).toMatchObject({
+    expect(names(camelCase)).toMatchObject({
       path: "filePath",
       oldText: "oldString",
       replaceAll: "replaceAll",
     });
-    expect(names(multiEditSignature())).toMatchObject({ oldText: "oldText", replaceAll: "" });
-    expect(names(snakeCaseWriteSignature())).toMatchObject({ path: "file_path" });
+    expect(names(noReplaceAll)).toMatchObject({ oldText: "old_string", replaceAll: "" });
+    expect(names(defaultWriteSignature({ names: { path: "file_path" } }))).toMatchObject({
+      path: "file_path",
+    });
     expect(names(defaultWriteSignature())).toMatchObject({ path: "path" });
     expect(names(defaultPatchSignature())).toMatchObject({ patch: "patch" });
   });
@@ -77,8 +91,8 @@ describe("messages use the host parameter names", () => {
     expect(textOf(result)).toContain("or set replace_all.");
   });
 
-  test("camelCaseEditSignature: a miss names oldString", async () => {
-    const result = await editWith(camelCaseEditSignature(), {
+  test("renamed parameters: a miss names oldString", async () => {
+    const result = await editWith(camelCase, {
       filePath: "/a.txt",
       oldString: "four",
       newString: "4",
@@ -87,10 +101,11 @@ describe("messages use the host parameter names", () => {
     expect(textOf(result)).toContain("Edit 1: the oldString was not found in /a.txt.");
   });
 
-  test("multiEditSignature: an ambiguous match does not suggest a flag it lacks", async () => {
-    const result = await editWith(multiEditSignature(), {
+  test("no replace-all parameter: an ambiguous match does not suggest a flag it lacks", async () => {
+    const result = await editWith(noReplaceAll, {
       path: "/a.txt",
-      edits: [{ oldText: "one", newText: "1" }],
+      old_string: "one",
+      new_string: "1",
     });
     expect(errorOf(result)?.code).toBe("AMBIGUOUS_MATCH");
     expect(textOf(result)).toContain("Add surrounding lines to make it unique.");

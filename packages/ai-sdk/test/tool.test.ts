@@ -7,7 +7,7 @@ import { MockLanguageModelV4 } from "ai/test";
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { denyPaths, lineNumberFormatter, redact, textOf } from "@better-fs-tools/read";
 import type { ReadFormatter, ReadContext, ReadResult } from "@better-fs-tools/read";
-import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
+import { defaultReadSignature } from "@better-fs-tools/read/signature";
 
 import { createAiSdkReadTool } from "../src/index.ts";
 import type { AiSdkReadTool } from "../src/index.ts";
@@ -89,11 +89,11 @@ describe("ai sdk input schema", () => {
     const fs = memoryFileSystem();
     const read = createAiSdkReadTool({
       fs,
-      signature: lineRangeSignature({ names: { start: "start_line", end: "end_line" } }),
+      signature: defaultReadSignature({ names: { offset: "start_line", limit: "max_lines" } }),
     });
-    const result = await validate(read, { path: "a.txt", start_line: 5, end_line: 2 });
+    const result = await validate(read, { path: "a.txt", start_line: 0, max_lines: 2 });
     if (result.success) throw new Error("expected a rejection");
-    expect(result.error.message).toBe("end_line (2) must not be less than start_line (5)");
+    expect(result.error.message).toBe("start_line must be a positive integer");
   });
 });
 
@@ -341,17 +341,17 @@ describe("ai sdk messages", () => {
     const fs = memoryFileSystem({ files: { "/a.txt": "one\ntwo\nthree\nfour\n" } });
     const read = createAiSdkReadTool({
       fs,
-      signature: lineRangeSignature({
-        names: { path: "file_path", start: "start_line", end: "end_line" },
+      signature: defaultReadSignature({
+        names: { path: "file_path", offset: "start_line", limit: "max_lines" },
       }),
     });
     const result = expectOk(
-      await read.execute({ file_path: "/a.txt", start_line: 1, end_line: 2 }, executeOptions()),
+      await read.execute({ file_path: "/a.txt", start_line: 1, max_lines: 2 }, executeOptions()),
     );
 
     expect(result.continuation.next).toEqual({ path: "/a.txt", offset: 3, limit: 2 });
     expect(textOf(result)).toContain(
-      'Continue with {"file_path":"/a.txt","start_line":3,"end_line":4}.',
+      'Continue with {"file_path":"/a.txt","start_line":3,"max_lines":2}.',
     );
     expect(textOf(result)).not.toContain('"offset"');
   });
@@ -447,7 +447,7 @@ describe("ai sdk composition", () => {
     const fs = memoryFileSystem({ files: { "/a.txt": "alpha\n" } });
     const read = createAiSdkReadTool({
       fs,
-      signature: lineRangeSignature({ names: { start: "start_line", end: "end_line" } }),
+      signature: defaultReadSignature({ names: { offset: "start_line", limit: "max_lines" } }),
     });
     const usage = {
       inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
@@ -461,7 +461,7 @@ describe("ai sdk composition", () => {
               type: "tool-call",
               toolCallId: "read-1",
               toolName: "read",
-              input: JSON.stringify({ path: "/a.txt", start_line: 3, end_line: 1 }),
+              input: JSON.stringify({ path: "/a.txt", start_line: 0, max_lines: 1 }),
             },
           ],
           finishReason: { unified: "tool-calls", raw: "tool-calls" },
@@ -486,7 +486,7 @@ describe("ai sdk composition", () => {
     const parts = generated.steps[0]?.content ?? [];
     const error = parts.find((part) => part.type === "tool-error");
     expect(String((error as { error?: unknown } | undefined)?.error)).toContain(
-      "end_line (1) must not be less than start_line (3)",
+      "start_line must be a positive integer",
     );
   });
 });

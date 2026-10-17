@@ -19,7 +19,7 @@ import type {
   ReadFormatContext,
   ReadFormatter,
 } from "@better-fs-tools/read";
-import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
+import { defaultReadSignature } from "@better-fs-tools/read/signature";
 
 import { createPiReadTool } from "../src/index.ts";
 import { execute, fixtures, piContext, textOf } from "./helpers.ts";
@@ -57,7 +57,7 @@ describe("pi tool shape", () => {
   });
 
   test("parameters are Type.Unsafe of the signature schema", () => {
-    const signature = lineRangeSignature({ name: "view_file", names: { path: "file_path" } });
+    const signature = defaultReadSignature({ name: "view_file", names: { path: "file_path" } });
     const tool = createPiReadTool({ signature });
 
     expect(tool.name).toBe("view_file");
@@ -133,23 +133,25 @@ describe("pi model-facing output", () => {
     await expect(execute(createPiReadTool(), { file_path: "a.txt" }, root)).rejects.toThrow(
       "Unknown read input key: file_path. Expected path, offset, limit",
     );
-    const range = createPiReadTool({ signature: lineRangeSignature() });
-    await expect(execute(range, { path: "a.txt", start: 3, end: 2 }, root)).rejects.toThrow(
-      "end (2) must not be less than start (3)",
+    const range = createPiReadTool({
+      signature: defaultReadSignature({ names: { offset: "start", limit: "count" } }),
+    });
+    await expect(execute(range, { path: "a.txt", start: 0 }, root)).rejects.toThrow(
+      "start must be a positive integer",
     );
   });
 
   test("continuation text uses host names; the retry note stays canonical", async () => {
     const root = await fixture({ "a.txt": "one\ntwo\nthree\nfour\n" });
     const tool = createPiReadTool({
-      signature: lineRangeSignature({
-        names: { path: "file_path", start: "start_line", end: "end_line" },
+      signature: defaultReadSignature({
+        names: { path: "file_path", offset: "start_line", limit: "max_lines" },
       }),
     });
-    const result = await execute(tool, { file_path: "a.txt", end_line: 2 }, root);
+    const result = await execute(tool, { file_path: "a.txt", max_lines: 2 }, root);
 
     expect(textOf(result)).toBe(
-      '1|one\n2|two\n\n[read:continue] Output stopped at the line limit. Continue with {"file_path":"a.txt","start_line":3,"end_line":4}.',
+      '1|one\n2|two\n\n[read:continue] Output stopped at the line limit. Continue with {"file_path":"a.txt","start_line":3,"max_lines":2}.',
     );
     expect(result.details.truncation?.maxLines).toBe(2);
   });

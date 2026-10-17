@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
-import { defaultReadSignature, lineRangeSignature } from "../../src/signature/index.ts";
+import { defaultReadSignature } from "../../src/signature/index.ts";
 import { generatedInputs } from "./generated.ts";
 
 const names = { path: "file_path", offset: "start_line", limit: "max_lines" } as const;
@@ -59,13 +59,6 @@ describe("defaultReadSignature with names", () => {
     expect(renamed.param("offset")).toBe("start_line");
     expect(renamed.param("limit")).toBe("max_lines");
     expect(defaultReadSignature().param("offset")).toBe("offset");
-    // A line range has no parameter that holds a line count.
-    const range = lineRangeSignature({ names: { path: "file", start: "from" } });
-    expect([range.param("path"), range.param("offset"), range.param("limit")]).toEqual([
-      "file",
-      "from",
-      "",
-    ]);
   });
 
   test("bad names are refused when the signature is built", () => {

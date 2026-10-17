@@ -10,7 +10,7 @@ import type { TSchema } from "typebox";
 import type { ReadStateStore, ToolCallContext } from "@better-fs-tools/read";
 import { askBeforeWrite, protectPaths, writeAuthorizers } from "@better-fs-tools/write";
 import type { Guard, WriteHook } from "@better-fs-tools/write";
-import { camelCaseEditSignature, defaultPatchSignature } from "@better-fs-tools/write/signature";
+import { defaultEditSignature, defaultPatchSignature } from "@better-fs-tools/write/signature";
 
 import {
   createPiApplyPatchTool,
@@ -40,7 +40,7 @@ export const fromPiDetails: PiMutationDetails = piDetails;
 // The host is Pi's ExtensionContext.
 const stores = new Map<string, ReadStateStore>();
 export const typed = createPiEditTool({
-  signature: camelCaseEditSignature(),
+  signature: defaultEditSignature({ names: { path: "filePath" } }),
   state: (call) => stores.get(call.host.sessionManager.getSessionId()) ?? null,
 });
 createPiWriteTool({

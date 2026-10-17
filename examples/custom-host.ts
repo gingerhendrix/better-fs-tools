@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createPiReadTool } from "@better-fs-tools/pi";
-import { lineRangeSignature } from "@better-fs-tools/read/signature";
+import { defaultReadSignature } from "@better-fs-tools/read/signature";
 import {
   askUser,
   denyPaths,
@@ -21,9 +21,8 @@ import {
 const stores = new Map<string, ReturnType<typeof memoryStore>>();
 
 export const read = createPiReadTool({
-  signature: lineRangeSignature({
-    name: "read",
-    names: { path: "file_path", start: "start_line", end: "end_line" },
+  signature: defaultReadSignature({
+    names: { path: "file_path", offset: "start_line", limit: "max_lines" },
   }),
   resolve: pathResolvers(stripPrefixes(), unicodeRepair({ note: false })),
   authorize: readAuthorizers(

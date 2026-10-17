@@ -13,8 +13,6 @@ export interface ReadSignature<TModel extends JsonObject = JsonObject> extends T
 
 /** The canonical read parameters, and the parameter names of `defaultReadSignature`. */
 export type ReadParam = "path" | "offset" | "limit";
-/** The parameter names of `lineRangeSignature`. */
-export type LineRangeParam = "path" | "start" | "end";
 
 /** The model input of `defaultReadSignature`. */
 // A type alias, not an interface, so it fits the JsonObject index signature.

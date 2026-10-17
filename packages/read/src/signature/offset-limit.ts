@@ -82,7 +82,7 @@ export function defaultReadSignature(options: SignatureDocs<ReadParam> = {}): Re
   });
 }
 
-export function canonical(path: string, offset?: number, limit?: number): ReadInput {
+function canonical(path: string, offset?: number, limit?: number): ReadInput {
   return {
     path,
     ...(offset === undefined ? {} : { offset }),

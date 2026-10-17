@@ -1,15 +1,22 @@
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import { createEditTool } from "@better-fs-tools/write";
+import { CODEX_PATCH_GRAMMAR } from "@better-fs-tools/write/patch";
 import {
-  camelCaseEditSignature,
   defaultEditSignature,
-  freeformPatchSignature,
-  multiEditSignature,
+  defaultPatchSignature,
   writeSignatureMessages,
 } from "@better-fs-tools/write/signature";
 
 // What the model sees: a name, a description, and a JSON Schema.
-const signature = camelCaseEditSignature({ name: "edit_file" });
+const signature = defaultEditSignature({
+  name: "edit_file",
+  names: {
+    path: "filePath",
+    old_string: "oldString",
+    new_string: "newString",
+    replace_all: "replaceAll",
+  },
+});
 console.log(signature.name, Object.keys(signature.schema.properties ?? {}));
 // edit_file [ "filePath", "oldString", "newString", "replaceAll" ]
 
@@ -26,14 +33,10 @@ export async function run(input: unknown) {
   return edit(signature.toInput(input));
 }
 
-// The other presets.
-export const presets = [
-  defaultEditSignature(), // edit({ path, old_string, new_string, replace_all? })
-  multiEditSignature(), // edit({ path, edits: [{ oldText, newText }] }), Pi's shape
-  freeformPatchSignature(), // apply_patch({ patch }) plus a Lark grammar for grammar-tool hosts
-];
-
-// Every preset takes names. The keys are the preset's own parameter names.
+// The names keys are the default signature's own parameter names.
 export const renamed = defaultEditSignature({
   names: { path: "file", old_string: "find", new_string: "replace" },
 }); // edit({ file, find, replace, replace_all? })
+
+// A host with grammar tools can add the Codex patch grammar to the patch signature.
+export const grammarPatch = { ...defaultPatchSignature(), grammar: { lark: CODEX_PATCH_GRAMMAR } };

@@ -110,7 +110,7 @@ export interface ToolSignature<TInput, TParam extends string = string> {
    * that names it.
    */
   param(name: TParam): string;
-  /** Set on freeform signatures. Hosts that support grammar tools use it. */
+  /** A Lark grammar for hosts with grammar tools. No preset sets it: add it by hand, such as CODEX_PATCH_GRAMMAR. */
   readonly grammar?: { readonly lark: string };
 }
 

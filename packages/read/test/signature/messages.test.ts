@@ -1,15 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
 import { textOf } from "../../src/index.ts";
-import {
-  defaultReadSignature,
-  lineRangeSignature,
-  readSignatureMessages,
-} from "../../src/signature/index.ts";
+import { defaultReadSignature, readSignatureMessages } from "../../src/signature/index.ts";
 import { expectOk, harness, note } from "../helpers.ts";
 
-const range = lineRangeSignature({
-  names: { path: "file_path", start: "start_line", end: "end_line" },
+const range = defaultReadSignature({
+  names: { path: "file_path", offset: "start_line", limit: "max_lines" },
 });
 
 describe("readSignatureMessages", () => {
@@ -17,7 +13,7 @@ describe("readSignatureMessages", () => {
     const messages = readSignatureMessages(range);
     expect(Object.keys(messages)).toEqual(["retry"]);
     expect(messages.retry({ path: "a.txt", offset: 3, limit: 2 })).toBe(
-      '{"file_path":"a.txt","start_line":3,"end_line":4}',
+      '{"file_path":"a.txt","start_line":3,"max_lines":2}',
     );
     expect(readSignatureMessages(defaultReadSignature()).retry({ path: "a.txt", offset: 3 })).toBe(
       '{"path":"a.txt","offset":3}',
@@ -33,13 +29,13 @@ describe("readSignatureMessages", () => {
       files: { "/a.txt": "one\ntwo\nthree\nfour\n" },
       deps: { messages: readSignatureMessages(range) },
     });
-    const result = expectOk(await read(range.toInput({ file_path: "/a.txt", end_line: 2 })));
+    const result = expectOk(await read(range.toInput({ file_path: "/a.txt", max_lines: 2 })));
 
     expect(result.continuation.next).toEqual({ path: "/a.txt", offset: 3, limit: 2 });
     expect(result.request).toMatchObject({ path: "/a.txt", offset: 1, limit: 2 });
     const continuation = note(result, "continue");
     expect(continuation?.retry).toEqual({ path: "/a.txt", offset: 3, limit: 2 });
-    expect(continuation?.message).toContain('{"file_path":"/a.txt","start_line":3,"end_line":4}');
+    expect(continuation?.message).toContain('{"file_path":"/a.txt","start_line":3,"max_lines":2}');
     expect(textOf(result)).not.toContain('"offset"');
   });
 

@@ -6,16 +6,11 @@ import { MockLanguageModelV4 } from "ai/test";
 
 import { memoryFileSystem } from "@better-fs-tools/fs";
 import type { JsonObject, ReadResult } from "@better-fs-tools/read";
-import { defaultReadSignature, lineRangeSignature } from "@better-fs-tools/read/signature";
+import { defaultReadSignature } from "@better-fs-tools/read/signature";
 import { shellEnv } from "@better-fs-tools/shell";
 import type { CommandRunner, RunExit } from "@better-fs-tools/shell";
 import { defaultBashSignature } from "@better-fs-tools/shell/signature";
-import {
-  camelCaseEditSignature,
-  freeformPatchSignature,
-  multiEditSignature,
-  snakeCaseWriteSignature,
-} from "@better-fs-tools/write/signature";
+import { defaultEditSignature, defaultWriteSignature } from "@better-fs-tools/write/signature";
 
 import {
   createAiSdkApplyPatchTool,
@@ -25,7 +20,7 @@ import {
   createAiSdkWriteTool,
 } from "../src/index.ts";
 import { fromStrictInput, toStrictSchema } from "../src/strict.ts";
-import { executeOptions } from "./helpers.ts";
+import { executeOptions, grammarPatchFixture, multiEditFixture } from "./helpers.ts";
 
 const usage = {
   inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
@@ -55,25 +50,29 @@ function allTools() {
       fs,
       signature: defaultReadSignature({ name: "read_renamed", names: { path: "file_path" } }),
     }),
-    read_range: createAiSdkReadTool({
-      fs,
-      signature: lineRangeSignature({ name: "read_range" }),
-    }),
     edit: createAiSdkEditTool({ fs }),
     edit_camel: createAiSdkEditTool({
       fs,
-      signature: camelCaseEditSignature({ name: "edit_camel" }),
+      signature: defaultEditSignature({
+        name: "edit_camel",
+        names: {
+          path: "filePath",
+          old_string: "oldString",
+          new_string: "newString",
+          replace_all: "replaceAll",
+        },
+      }),
     }),
-    edit_multi: createAiSdkEditTool({ fs, signature: multiEditSignature({ name: "edit_multi" }) }),
+    edit_multi: createAiSdkEditTool({ fs, signature: multiEditFixture("edit_multi") }),
     write: createAiSdkWriteTool({ fs }),
     write_snake: createAiSdkWriteTool({
       fs,
-      signature: snakeCaseWriteSignature({ name: "write_snake" }),
+      signature: defaultWriteSignature({ name: "write_snake", names: { path: "file_path" } }),
     }),
     apply_patch: createAiSdkApplyPatchTool({ fs }),
     apply_patch_freeform: createAiSdkApplyPatchTool({
       fs,
-      signature: freeformPatchSignature({ name: "apply_patch_freeform" }),
+      signature: grammarPatchFixture("apply_patch_freeform"),
     }),
     bash: createAiSdkBashTool({ runner, env: shellEnv() }),
     bash_seconds: createAiSdkBashTool({
@@ -480,7 +479,7 @@ describe("strict provider schema", () => {
   });
 
   test("fromStrictInput drops only the null of an optional property", () => {
-    const schema = multiEditSignature().schema;
+    const schema = multiEditFixture().schema;
     const input = { path: "a", edits: [{ oldText: "x", newText: "y" }] };
     expect(fromStrictInput(schema, input)).toEqual(input);
     const read = defaultReadSignature().schema;
