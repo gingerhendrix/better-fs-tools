@@ -7,37 +7,44 @@
 import { Type } from "typebox";
 import type { TSchema } from "typebox";
 
-import { imageConverter, lineNumberFormatter, resolveReadLimits } from "@better-fs-tools/read";
-import type { Clock, Digest, ReadToolOptions, ToolCallContext } from "@better-fs-tools/read";
-import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
-import type { ReadSignature } from "@better-fs-tools/read/signature";
-import type { ShellResult } from "@better-fs-tools/shell";
-import { bashSignatureMessages, defaultBashSignature } from "@better-fs-tools/shell/signature";
-import type { BashSignature } from "@better-fs-tools/shell/signature";
-import { createFsTools } from "@better-fs-tools/write";
+import type { Clock, Digest, ToolCallContext } from "@better-fs-tools/read";
+import { readToolDefinition } from "@better-fs-tools/read/signature";
 import type {
-  ApplyPatchToolOptions,
-  FsToolsOptions,
-  EditToolOptions,
+  ReadSignature,
+  ReadToolDefinition,
+  ReadToolDefinitionOptions,
+} from "@better-fs-tools/read/signature";
+import { bashToolDefinition } from "@better-fs-tools/shell/signature";
+import type {
+  BashSignature,
+  BashToolDefinition,
+  BashToolDefinitionOptions,
+} from "@better-fs-tools/shell/signature";
+import type {
+  FsToolsApplyPatchOptions,
   FsToolsBashOptions,
-  FsToolsSharedKey,
+  FsToolsEditOptions,
+  FsToolsOptions,
+  FsToolsReadOptions,
   FsToolsState,
+  FsToolsWriteOptions,
   InvalidateOutcome,
   LockManager,
-  MutationResult,
-  WriteToolOptions,
 } from "@better-fs-tools/write";
 import {
-  defaultEditSignature,
-  defaultPatchSignature,
-  defaultWriteSignature,
-  writeSignatureMessages,
+  applyPatchToolDefinition,
+  editToolDefinition,
+  fsToolDefinitions,
+  writeToolDefinition,
 } from "@better-fs-tools/write/signature";
 import type {
+  ApplyPatchToolDefinitionOptions,
   EditSignature,
-  MutationSignature,
+  EditToolDefinitionOptions,
+  MutationToolDefinition,
   PatchSignature,
   WriteSignature,
+  WriteToolDefinitionOptions,
 } from "@better-fs-tools/write/signature";
 
 import { toPiReadDetails, viewOf } from "./details.ts";
@@ -46,6 +53,7 @@ import { toPiMutationDetails } from "./mutation-details.ts";
 import type { PiMutationDetails } from "./mutation-details.ts";
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
+import { checkPiOptions } from "./prompt.ts";
 
 /** An AgentTool host has no context object, so each call's host is undefined. */
 type Host = undefined;
@@ -82,49 +90,45 @@ export type AgentCoreReadTool = AgentCoreTool<PiReadDetails>;
 export type AgentCoreMutationTool = AgentCoreTool<PiMutationDetails | undefined>;
 export type AgentCoreBashTool = AgentCoreTool<{ fullOutputPath?: string } | undefined>;
 
-/** Read options. converters defaults to [imageConverter()]; [] turns images off. */
-export type AgentCoreFsToolsReadOptions = Omit<Partial<ReadToolOptions<Host>>, FsToolsSharedKey> & {
-  /** Default defaultReadSignature(), as in every integration. */
+/** Options for createAgentCoreReadTool: the options of readToolDefinition(). `fs` is required. */
+export type AgentCoreReadToolOptions = ReadToolDefinitionOptions<Host>;
+/** Options for createAgentCoreEditTool: the options of editToolDefinition(). */
+export type AgentCoreEditToolOptions = EditToolDefinitionOptions<Host>;
+/** Options for createAgentCoreWriteTool: the options of writeToolDefinition(). */
+export type AgentCoreWriteToolOptions = WriteToolDefinitionOptions<Host>;
+/** Options for createAgentCoreApplyPatchTool: the options of applyPatchToolDefinition(). */
+export type AgentCoreApplyPatchToolOptions = ApplyPatchToolDefinitionOptions<Host>;
+/** Options for createAgentCoreBashTool: the options of bashToolDefinition(). `runner` and `env` are required. */
+export type AgentCoreBashToolOptions = BashToolDefinitionOptions<Host>;
+
+/** Read options of the bundle. Shared keys are set once at the top level. */
+export type AgentCoreFsToolsReadOptions = FsToolsReadOptions<Host> & {
+  /** Default defaultReadSignature(). */
   readonly signature?: ReadSignature;
 };
-export type AgentCoreFsToolsEditOptions = Omit<Partial<EditToolOptions<Host>>, FsToolsSharedKey> & {
-  /** Default defaultEditSignature({ matchers }): { path, old_string, new_string, replace_all? }. */
+export type AgentCoreFsToolsEditOptions = FsToolsEditOptions<Host> & {
+  /** Default defaultEditSignature({ matchers }). */
   readonly signature?: EditSignature;
 };
-export type AgentCoreFsToolsWriteOptions = Omit<
-  Partial<WriteToolOptions<Host>>,
-  FsToolsSharedKey
-> & {
+export type AgentCoreFsToolsWriteOptions = FsToolsWriteOptions<Host> & {
   /** Default defaultWriteSignature(). */
   readonly signature?: WriteSignature;
 };
-export type AgentCoreFsToolsApplyPatchOptions = Omit<
-  Partial<ApplyPatchToolOptions<Host>>,
-  FsToolsSharedKey
-> & {
-  /** Default defaultPatchSignature(): { patch } with the Codex patch format. */
+export type AgentCoreFsToolsApplyPatchOptions = FsToolsApplyPatchOptions<Host> & {
+  /** Default defaultPatchSignature(). */
   readonly signature?: PatchSignature;
 };
-/** bash options. `runner` and `env` are required. */
+/** bash options of the bundle. `runner` and `env` are required. */
 export type AgentCoreFsToolsBashOptions = FsToolsBashOptions<Host> & {
-  /** Default defaultBashSignature(): { command, timeout?, cwd? } with the timeout in milliseconds. */
+  /** Default defaultBashSignature() for the runner's id and the limits. */
   readonly signature?: BashSignature;
 };
 
-export interface AgentCoreFsToolsOptions {
-  /** Required. A writable backend, or a factory called once for each call. */
-  readonly fs: FsToolsOptions<Host>["fs"];
-  /**
-   * Default null: no read-before-write. A store, for example memoryStore(),
-   * turns it on. A factory gives each call its own store.
-   */
-  readonly state?: FsToolsState<Host>;
-  /** Default sha256Digest() from @better-fs-tools/read, which runs in a Worker. */
-  readonly digest?: Digest;
-  /** Default memoryLocks(). */
-  readonly locks?: LockManager;
-  /** Default () => new Date(). */
-  readonly clock?: Clock;
+/** The options of createFsTools(), with a `signature` in each tool's options. */
+export interface AgentCoreFsToolsOptions extends Omit<
+  FsToolsOptions<Host>,
+  "read" | "edit" | "write" | "applyPatch" | "bash"
+> {
   readonly read?: AgentCoreFsToolsReadOptions;
   readonly edit?: AgentCoreFsToolsEditOptions;
   readonly write?: AgentCoreFsToolsWriteOptions;
@@ -148,168 +152,117 @@ export interface AgentCoreFsTools {
   readonly digest: Digest;
   readonly locks: LockManager;
   readonly clock: Clock;
-  /** As createFsTools().invalidate. When fs is a factory, pass the call context. */
+  /** As createFsTools().invalidate. When fs or state is a factory, pass the call context. */
   invalidate(path: string, call?: ToolCallContext<Host>): Promise<InvalidateOutcome>;
 }
 
-const KNOWN: ReadonlySet<string> = new Set([
-  "fs",
-  "state",
-  "digest",
-  "locks",
-  "clock",
-  "read",
-  "edit",
-  "write",
-  "applyPatch",
-  "bash",
-]);
+/** The createAgentCoreFsTools result when `applyPatch` is true or an object: it is never null. */
+export interface AgentCoreFsToolsWithApplyPatch extends AgentCoreFsTools {
+  readonly applyPatch: AgentCoreMutationTool;
+}
+
+/** The createAgentCoreFsTools result when `bash` is set: it is never null. */
+export interface AgentCoreFsToolsWithBash extends AgentCoreFsTools {
+  readonly bash: AgentCoreBashTool;
+}
+
+/** Creates a read AgentTool with the options and defaults of createReadTool(). read is replay-safe. */
+export function createAgentCoreReadTool(options: AgentCoreReadToolOptions): AgentCoreReadTool {
+  checkPiOptions(options, "agent core read tool");
+  return adaptReadTool(readToolDefinition<Host>(options));
+}
+
+/** Creates an edit AgentTool with the options and defaults of createEditTool(). */
+export function createAgentCoreEditTool(options: AgentCoreEditToolOptions): AgentCoreMutationTool {
+  checkPiOptions(options, "agent core edit tool");
+  return adaptMutationTool("edit", editToolDefinition<Host>(options));
+}
+
+/** Creates a write AgentTool with the options and defaults of createWriteTool(). */
+export function createAgentCoreWriteTool(
+  options: AgentCoreWriteToolOptions,
+): AgentCoreMutationTool {
+  checkPiOptions(options, "agent core write tool");
+  return adaptMutationTool("write", writeToolDefinition<Host>(options));
+}
+
+/** Creates an apply_patch AgentTool with the options and defaults of createApplyPatchTool(). */
+export function createAgentCoreApplyPatchTool(
+  options: AgentCoreApplyPatchToolOptions,
+): AgentCoreMutationTool {
+  checkPiOptions(options, "agent core apply_patch tool");
+  return adaptMutationTool("apply_patch", applyPatchToolDefinition<Host>(options));
+}
+
+/** Creates a bash AgentTool with the options and defaults of createBashTool(). */
+export function createAgentCoreBashTool(options: AgentCoreBashToolOptions): AgentCoreBashTool {
+  checkPiOptions(options, "agent core bash tool");
+  return adaptBashTool(bashToolDefinition<Host>(options));
+}
 
 /**
  * Creates read, edit, and write AgentTools over one writable filesystem, with
- * one digest, lock manager, and clock, and the read store when `state` is
- * given. With `applyPatch`, also apply_patch. With `bash`, also bash. The
- * default signatures are the shared defaults of every integration.
+ * one digest, lock manager, and clock, and the read state when `state` is
+ * given. With `applyPatch`, also apply_patch. With `bash`, also bash. Every
+ * option and default is the one of createFsTools().
  *
  * A tool error is a result with `isError: true`, not a throw. Bad model input
- * throws TypeError. Throws TypeError on an unknown option key, and on what
- * createFsTools() refuses.
+ * throws TypeError. Throws TypeError where createFsTools() does, with
+ * createAgentCoreFsTools in the message.
  */
+export function createAgentCoreFsTools(
+  options: AgentCoreFsToolsOptions & {
+    readonly applyPatch: true | AgentCoreFsToolsApplyPatchOptions;
+    readonly bash: AgentCoreFsToolsBashOptions;
+  },
+): AgentCoreFsToolsWithApplyPatch & AgentCoreFsToolsWithBash;
+export function createAgentCoreFsTools(
+  options: AgentCoreFsToolsOptions & { readonly bash: AgentCoreFsToolsBashOptions },
+): AgentCoreFsToolsWithBash;
+export function createAgentCoreFsTools(
+  options: AgentCoreFsToolsOptions & {
+    readonly applyPatch: true | AgentCoreFsToolsApplyPatchOptions;
+  },
+): AgentCoreFsToolsWithApplyPatch;
+export function createAgentCoreFsTools(options: AgentCoreFsToolsOptions): AgentCoreFsTools;
 export function createAgentCoreFsTools(options: AgentCoreFsToolsOptions): AgentCoreFsTools {
-  if (options === null || typeof options !== "object" || Array.isArray(options)) {
-    throw new TypeError("createAgentCoreFsTools options must be an object");
-  }
-  for (const key of Object.keys(options)) {
-    if (!KNOWN.has(key)) throw new TypeError(`Unknown createAgentCoreFsTools option: ${key}`);
-  }
-  const { signature: readSignature = defaultReadSignature(), ...read } = options.read ?? {};
-  const { signature: editGiven, ...edit } = options.edit ?? {};
-  const editSignature =
-    editGiven ??
-    defaultEditSignature(edit.matchers === undefined ? {} : { matchers: edit.matchers });
-  const { signature: writeSignature = defaultWriteSignature(), ...write } = options.write ?? {};
-  const patchOptions =
-    options.applyPatch === true ? {} : options.applyPatch === false ? null : options.applyPatch;
-  const patch =
-    patchOptions === null || patchOptions === undefined ? null : splitPatchOptions(patchOptions);
-  const bashOptions = options.bash === undefined || options.bash === false ? null : options.bash;
-  const bash = bashOptions === null ? null : splitBashOptions(bashOptions);
-
-  const limits = resolveReadLimits(read.limits);
-  const formatter = read.formatter ?? lineNumberFormatter();
-  const core = createFsTools<Host>({
-    fs: options.fs,
-    ...(options.state === undefined ? {} : { state: options.state }),
-    ...(options.digest === undefined ? {} : { digest: options.digest }),
-    ...(options.locks === undefined ? {} : { locks: options.locks }),
-    ...(options.clock === undefined ? {} : { clock: options.clock }),
-    read: {
-      ...read,
-      limits,
-      formatter,
-      converters: read.converters ?? [imageConverter<Host>()],
-      messages: { ...readSignatureMessages(readSignature), ...read.messages },
-    },
-    edit: { ...edit, messages: { ...writeSignatureMessages(editSignature), ...edit.messages } },
-    write: {
-      ...write,
-      messages: { ...writeSignatureMessages(writeSignature), ...write.messages },
-    },
-    ...(patch === null
-      ? {}
-      : {
-          applyPatch: {
-            ...patch.deps,
-            messages: { ...writeSignatureMessages(patch.signature), ...patch.deps.messages },
-          },
-        }),
-    ...(bash === null
-      ? {}
-      : {
-          bash: {
-            ...bash.deps,
-            messages: { ...bashSignatureMessages(bash.signature), ...bash.deps.messages },
-          },
-        }),
-  });
-
-  const readTool: AgentCoreReadTool = Object.freeze<AgentCoreReadTool>({
-    ...declaration(readSignature),
-    replay: "safe",
-    async execute(toolCallId, params, signal) {
-      const call = callOf(toolCallId, signal);
-      const result = await core.read(readSignature.toInput(params), call);
-      const content = result.content.map((part) => toPiPart(part, "read"));
-      const view = viewOf(formatter, result, { digest: core.digest, limits, mode: "view", call });
-      const details = toPiReadDetails(result, view, limits.maxViewBytes);
-      return { content, details, isError: result.status === "error" };
-    },
-  });
+  checkPiOptions(options, "createAgentCoreFsTools");
+  const defs = fsToolDefinitions<Host>(options, "createAgentCoreFsTools");
   const adapted = {
-    read: readTool,
-    edit: mutationTool(editSignature, "edit", core.edit),
-    write: mutationTool(writeSignature, "write", core.write),
-    applyPatch:
-      patch === null || core.applyPatch === null
-        ? null
-        : mutationTool(patch.signature, "apply_patch", core.applyPatch),
-    bash: bash === null || core.bash === null ? null : bashTool(bash.signature, core.bash),
+    read: adaptReadTool(defs.read),
+    edit: adaptMutationTool("edit", defs.edit),
+    write: adaptMutationTool("write", defs.write),
+    applyPatch: defs.applyPatch === null ? null : adaptMutationTool("apply_patch", defs.applyPatch),
+    bash: defs.bash === null ? null : adaptBashTool(defs.bash),
   };
-  const tools = Object.values(adapted).filter((tool) => tool !== null);
-  const names = new Set<string>();
-  for (const tool of tools) {
-    if (names.has(tool.name)) {
-      throw new TypeError(`createAgentCoreFsTools has two tools named ${tool.name}`);
-    }
-    names.add(tool.name);
-  }
   return Object.freeze<AgentCoreFsTools>({
     ...adapted,
-    tools: Object.freeze(tools),
-    state: core.state,
-    digest: core.digest,
-    locks: core.locks,
-    clock: core.clock,
-    invalidate: core.invalidate,
+    tools: Object.freeze(Object.values(adapted).filter((tool) => tool !== null)),
+    state: defs.state,
+    digest: defs.digest,
+    locks: defs.locks,
+    clock: defs.clock,
+    invalidate: defs.invalidate,
   });
 }
 
-function splitPatchOptions(options: AgentCoreFsToolsApplyPatchOptions) {
-  const { signature = defaultPatchSignature(), ...deps } = options;
-  return { signature, deps };
-}
-
-function splitBashOptions(options: AgentCoreFsToolsBashOptions) {
-  const { signature, ...deps } = options;
-  const runnerId = typeof deps.runner === "function" ? undefined : deps.runner?.id;
-  return {
-    deps,
-    signature:
-      signature ??
-      defaultBashSignature({
-        ...(runnerId === undefined ? {} : { runner: runnerId }),
-        ...(deps.limits === undefined ? {} : { limits: deps.limits }),
-      }),
-  };
-}
-
-function declaration(signature: {
+function declaration(definition: {
   readonly name: string;
   readonly description: string;
-  readonly schema: object;
+  readonly inputSchema: object;
   readonly grammar?: { readonly lark: string };
 }) {
   return {
-    name: signature.name,
-    label: signature.name,
-    description: signature.description,
-    parameters: Type.Unsafe(signature.schema),
-    ...(signature.grammar === undefined
+    name: definition.name,
+    label: definition.name,
+    description: definition.description,
+    parameters: Type.Unsafe(definition.inputSchema),
+    ...(definition.grammar === undefined
       ? {}
       : {
           constrainedSampling: {
             type: "grammar" as const,
-            variants: { openai_lark: signature.grammar.lark },
+            variants: { openai_lark: definition.grammar.lark },
           },
         }),
   };
@@ -319,34 +272,45 @@ function callOf(toolCallId: string, signal: AbortSignal | undefined): ToolCallCo
   return { ...(signal === undefined ? {} : { signal }), callId: toolCallId, host: undefined };
 }
 
-type MutationCore = (input: never, call: ToolCallContext<Host>) => Promise<MutationResult>;
+function adaptReadTool(definition: ReadToolDefinition<Host>): AgentCoreReadTool {
+  const { limits, formatter, digest } = definition;
+  return Object.freeze<AgentCoreReadTool>({
+    ...declaration(definition),
+    replay: "safe",
+    async execute(toolCallId, params, signal) {
+      const call = callOf(toolCallId, signal);
+      const result = await definition.execute(params, call);
+      const content = result.content.map((part) => toPiPart(part, "read"));
+      const view = viewOf(formatter, result, { digest, limits, mode: "view", call });
+      const details = toPiReadDetails(result, view, limits.maxViewBytes);
+      return { content, details, isError: result.status === "error" };
+    },
+  });
+}
 
-function mutationTool(
-  signature: MutationSignature<unknown>,
-  tool: "edit" | "write" | "apply_patch",
-  run: MutationCore,
+function adaptMutationTool<TInput>(
+  kind: "edit" | "write" | "apply_patch",
+  definition: MutationToolDefinition<TInput, Host>,
 ): AgentCoreMutationTool {
   return Object.freeze<AgentCoreMutationTool>({
-    ...declaration(signature),
+    ...declaration(definition),
     async execute(toolCallId, params, signal) {
-      const result = await run(signature.toInput(params) as never, callOf(toolCallId, signal));
+      const result = await definition.execute(params, callOf(toolCallId, signal));
       return {
-        content: result.content.map((part) => toPiPart(part, tool)),
+        content: result.content.map((part) => toPiPart(part, kind)),
         // The coding agent's own write has no details.
-        details: tool === "write" ? undefined : toPiMutationDetails(result),
+        details: kind === "write" ? undefined : toPiMutationDetails(result),
         isError: result.status === "error",
       };
     },
   });
 }
 
-type BashCore = (input: never, call: ToolCallContext<Host>) => Promise<ShellResult>;
-
-function bashTool(signature: BashSignature, run: BashCore): AgentCoreBashTool {
+function adaptBashTool(definition: BashToolDefinition<Host>): AgentCoreBashTool {
   return Object.freeze<AgentCoreBashTool>({
-    ...declaration(signature),
+    ...declaration(definition),
     async execute(toolCallId, params, signal) {
-      const result = await run(signature.toInput(params) as never, callOf(toolCallId, signal));
+      const result = await definition.execute(params, callOf(toolCallId, signal));
       const spill = result.output?.spill ?? null;
       return {
         content: result.content.map((part) => toPiPart(part, "bash")),

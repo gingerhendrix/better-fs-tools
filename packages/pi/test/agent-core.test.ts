@@ -13,7 +13,14 @@ import { memoryStore } from "@better-fs-tools/read";
 import type { JsonObject } from "@better-fs-tools/read";
 import { shellEnv } from "@better-fs-tools/shell";
 
-import { createAgentCoreFsTools } from "../src/agent-core.ts";
+import {
+  createAgentCoreApplyPatchTool,
+  createAgentCoreBashTool,
+  createAgentCoreEditTool,
+  createAgentCoreFsTools,
+  createAgentCoreReadTool,
+  createAgentCoreWriteTool,
+} from "../src/agent-core.ts";
 import { fixtures } from "./helpers.ts";
 
 const fixture = fixtures();
@@ -180,5 +187,50 @@ describe("createAgentCoreFsTools", () => {
           name === "@better-fs-tools/node",
       ),
     ).toEqual([]);
+  });
+});
+
+describe("agent core single tools", () => {
+  test("each factory takes the core options and gives the bundle's tool shape", async () => {
+    const fs = memoryFileSystem({ files: { "/a.txt": "one\n" } });
+    const read = createAgentCoreReadTool({ fs });
+    const edit = createAgentCoreEditTool({ fs });
+    const write = createAgentCoreWriteTool({ fs });
+    const applyPatch = createAgentCoreApplyPatchTool({ fs });
+    const bash = createAgentCoreBashTool({
+      runner: nodeCommandRunner({ cwd: "/" }),
+      env: shellEnv(),
+    });
+    const bundle = createAgentCoreFsTools({ fs, applyPatch: true });
+    for (const [single, bundled] of [
+      [read, bundle.read],
+      [edit, bundle.edit],
+      [write, bundle.write],
+      [applyPatch, bundle.applyPatch],
+    ] as const) {
+      expect(single.name).toBe(bundled.name);
+      expect(single.description).toBe(bundled.description);
+      expect(single.parameters).toEqual(bundled.parameters);
+    }
+    expect(read.replay).toBe("safe");
+    expect(bash.name).toBe("bash");
+
+    const tools = [read, edit];
+    expect((await callTool(tools, "read", { path: "/a.txt" })).isError).toBe(false);
+    const changed = await callTool(tools, "edit", {
+      path: "/a.txt",
+      old_string: "one",
+      new_string: "two",
+    });
+    expect(changed.isError).toBe(false);
+  });
+
+  test("fs, runner, and env are required, as in the core tools", () => {
+    expect(() => createAgentCoreReadTool({} as never)).toThrow(TypeError);
+    expect(() => createAgentCoreEditTool({} as never)).toThrow(TypeError);
+    expect(() => createAgentCoreBashTool({ env: shellEnv() } as never)).toThrow(TypeError);
+    expect(() => createAgentCoreWriteTool(null as never)).toThrow(
+      "agent core write tool options must be an object",
+    );
   });
 });
