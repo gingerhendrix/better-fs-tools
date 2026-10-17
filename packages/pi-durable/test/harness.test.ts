@@ -22,7 +22,15 @@ import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeJsonlStorage } from "@earendil-works/pi-durable/storage/jsonl/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 
-import { createDurableFsTools, ReadStateDoc } from "../src/index.ts";
+import { shellEnv } from "@better-fs-tools/shell";
+
+import {
+  createDurableFsTools,
+  documentReadStore,
+  durableEnvFileSystem,
+  durableEnvRunner,
+  ReadStateDoc,
+} from "../src/index.ts";
 import { context, fixtures } from "./helpers.ts";
 
 const fixture = fixtures();
@@ -104,7 +112,7 @@ describe("createDurableFsTools in the Harness", () => {
         ["edit", { path: "a.txt", old_string: "one", new_string: "two" }],
         ["bash", { command: "cat a.txt" }],
       ],
-      [createDurableFsTools()],
+      [createDurableFsTools({ fs: durableEnvFileSystem() })],
     );
     try {
       const root = await run(harness, cwd, "change it");
@@ -129,7 +137,7 @@ describe("createDurableFsTools in the Harness", () => {
     const harness = await openHarness(
       new MemoryStorage(),
       [["edit", { path: "a.txt", old_string: "one", new_string: "two" }]],
-      [createDurableFsTools()],
+      [createDurableFsTools({ fs: durableEnvFileSystem() })],
     );
     try {
       const root = await run(harness, cwd, "change it");
@@ -140,7 +148,7 @@ describe("createDurableFsTools in the Harness", () => {
     }
   });
 
-  test("with state document, an edit before a read is an error result; the record is a document", async () => {
+  test("with documentReadStore(), an edit before a read is an error result; the record is a document", async () => {
     const cwd = await fixture({ "a.txt": "one\n" });
     const harness = await openHarness(
       new MemoryStorage(),
@@ -148,7 +156,7 @@ describe("createDurableFsTools in the Harness", () => {
         ["edit", { path: "a.txt", old_string: "one", new_string: "two" }],
         ["read", { path: "a.txt" }],
       ],
-      [createDurableFsTools({ state: "document" })],
+      [createDurableFsTools({ fs: durableEnvFileSystem(), state: documentReadStore() })],
     );
     try {
       const root = await run(harness, cwd, "change it");
@@ -175,7 +183,7 @@ describe("createDurableFsTools in the Harness", () => {
       const first = await openHarness(
         await openNodeJsonlStorage(directory, context),
         [["read", { path: "a.txt" }]],
-        [createDurableFsTools({ state: "document" })],
+        [createDurableFsTools({ fs: durableEnvFileSystem(), state: documentReadStore() })],
       );
       await run(first, cwd, "read it");
       await first.close(context);
@@ -183,7 +191,7 @@ describe("createDurableFsTools in the Harness", () => {
       const second = await openHarness(
         await openNodeJsonlStorage(directory, context),
         [["edit", { path: "a.txt", old_string: "one", new_string: "two" }]],
-        [createDurableFsTools({ state: "document" })],
+        [createDurableFsTools({ fs: durableEnvFileSystem(), state: documentReadStore() })],
       );
       try {
         const root = await run(second, cwd, "now change it");
@@ -203,7 +211,7 @@ describe("createDurableFsTools in the Harness", () => {
     const harness = await openHarness(
       new MemoryStorage(),
       [["read", { path: "a.txt" }]],
-      [createDurableFsTools({ state: "document" })],
+      [createDurableFsTools({ fs: durableEnvFileSystem(), state: documentReadStore() })],
     );
     try {
       const root = await run(harness, cwd, "read it");
@@ -235,7 +243,7 @@ describe("createDurableFsTools in the Harness", () => {
         ["read", { path: "../secret.txt" }],
         ["write", { path: "../made.txt", content: "x\n" }],
       ],
-      [createDurableFsTools({ state: null })],
+      [createDurableFsTools({ fs: durableEnvFileSystem(), state: null })],
     );
     try {
       const root = await run(harness, path.join(outer, "work"), "escape");
@@ -247,7 +255,7 @@ describe("createDurableFsTools in the Harness", () => {
     }
   });
 
-  test("bash: true adds bash over the environment, with the shared signature", async () => {
+  test("bash with durableEnvRunner() runs over the environment, with the shared signature", async () => {
     const cwd = await fixture({ "sub/b.txt": "b\n" });
     const harness = await openHarness(
       new MemoryStorage(),
@@ -256,7 +264,12 @@ describe("createDurableFsTools in the Harness", () => {
         ["bash", { command: "exit 4" }],
         ["bash", { command: "pwd", cwd: "sub", timeout: 5_000 }],
       ],
-      [createDurableFsTools({ bash: true })],
+      [
+        createDurableFsTools({
+          fs: durableEnvFileSystem(),
+          bash: { runner: durableEnvRunner(), env: shellEnv() },
+        }),
+      ],
     );
     try {
       const root = await run(harness, cwd, "run");
@@ -275,7 +288,7 @@ describe("createDurableFsTools in the Harness", () => {
 
   test("a call without an execution environment is an error result", async () => {
     const registry = createRegistry();
-    registry.install(createDurableFsTools());
+    registry.install(createDurableFsTools({ fs: durableEnvFileSystem() }));
     const harness = await Harness.open(
       new MemoryStorage(),
       { models: fauxModel([["read", { path: "a.txt" }]]), registry },
@@ -292,13 +305,32 @@ describe("createDurableFsTools in the Harness", () => {
     }
   });
 
-  test("checks its options", () => {
-    expect(() => createDurableFsTools({ cwd: "/" } as never)).toThrow(
+  test("checks its options as createFsTools() does", () => {
+    const fs = durableEnvFileSystem();
+    expect(() => createDurableFsTools({ fs, cwd: "/" } as never)).toThrow(
       "Unknown createDurableFsTools option: cwd",
     );
-    const names = createDurableFsTools({ applyPatch: true, bash: true }).tools?.map(
-      (tool) => tool.name,
+    expect(() => createDurableFsTools({} as never)).toThrow(TypeError);
+    expect(() => createDurableFsTools({ fs, bash: true } as never)).toThrow(
+      "createDurableFsTools bash must be an object with a runner and an env",
     );
+    expect(() => createDurableFsTools({ fs, allowedRoots: ["."] } as never)).toThrow(
+      "Unknown createDurableFsTools option: allowedRoots",
+    );
+    const names = createDurableFsTools({
+      fs,
+      applyPatch: true,
+      bash: { runner: durableEnvRunner(), env: shellEnv() },
+    }).tools?.map((tool) => tool.name);
     expect(names).toEqual(["read", "edit", "write", "apply_patch", "bash"]);
+  });
+
+  test("the helpers refuse a context in their options", () => {
+    expect(() => durableEnvFileSystem({ context } as never)).toThrow(
+      "durableEnvFileSystem options cannot set context",
+    );
+    expect(() => durableEnvRunner({ context } as never)).toThrow(
+      "durableEnvRunner options cannot set context",
+    );
   });
 });

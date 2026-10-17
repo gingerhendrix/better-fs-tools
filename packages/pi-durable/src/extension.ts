@@ -1,120 +1,75 @@
 import type { Context } from "@earendil-works/chord/context";
 import { defineExtension, defineTool } from "@earendil-works/pi-durable";
 import type { Extension, ToolExecutionApi, ToolRegistration } from "@earendil-works/pi-durable";
-import type { ExecutionEnv } from "@earendil-works/pi-durable/env";
 import { Type } from "typebox";
 
-import { imageConverter } from "@better-fs-tools/read";
-import type {
-  Clock,
-  ContentPart,
-  Digest,
-  ReadStateStore,
-  ReadToolOptions,
-  ToolCallContext,
-} from "@better-fs-tools/read";
-import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
+import type { ContentPart, ToolCallContext } from "@better-fs-tools/read";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
-import { shellEnv } from "@better-fs-tools/shell";
-import type { ShellResult, BashToolOptions } from "@better-fs-tools/shell";
-import { bashSignatureMessages, defaultBashSignature } from "@better-fs-tools/shell/signature";
+import type { ShellResult } from "@better-fs-tools/shell";
 import type { BashSignature } from "@better-fs-tools/shell/signature";
-import { createFsTools, memoryLocks } from "@better-fs-tools/write";
 import type {
-  ApplyPatchToolOptions,
-  EditToolOptions,
-  FsToolsSharedKey,
+  FsToolsApplyPatchOptions,
+  FsToolsBashOptions,
+  FsToolsEditOptions,
+  FsToolsOptions,
+  FsToolsReadOptions,
+  FsToolsWriteOptions,
   LockManager,
   MutationResult,
-  WriteToolOptions,
 } from "@better-fs-tools/write";
-import {
-  defaultEditSignature,
-  defaultPatchSignature,
-  defaultWriteSignature,
-  writeSignatureMessages,
-} from "@better-fs-tools/write/signature";
+import { fsToolDefinitions } from "@better-fs-tools/write/signature";
 import type {
   EditSignature,
-  MutationSignature,
+  FsToolDefinitions,
+  FsToolDefinitionsOptions,
   PatchSignature,
   WriteSignature,
 } from "@better-fs-tools/write/signature";
 
-import { executionEnvFileSystem } from "./filesystem.ts";
-import type { EnvSymlinkPolicy } from "./policy.ts";
-import { documentReadStore } from "./read-store.ts";
-import { executionEnvRunner } from "./runner.ts";
-
-/** The host of each call. Host functions, such as an authorizer, get it as ctx.call.host. */
-export interface DurableFsHost {
-  readonly api: ToolExecutionApi;
-  readonly env: ExecutionEnv;
-  readonly context: Context;
-}
+import type { DurableFsHost } from "./host.ts";
 
 type Host = DurableFsHost;
 type Content = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
 
+const LABEL = "createDurableFsTools";
+
 /** Above the default view of 2,000 lines and 50 KiB, so the Harness does not cut it again. */
 const DEFAULT_OUTPUT_LIMITS = Object.freeze({ maxBytes: 128 * 1024, maxLines: 4_000 });
 
-export type DurableFsToolsReadOptions = Omit<Partial<ReadToolOptions<Host>>, FsToolsSharedKey> & {
-  /** Default defaultReadSignature(), as in every integration. */
+export type DurableFsToolsReadOptions = FsToolsReadOptions<Host> & {
+  /** Default defaultReadSignature(). */
   readonly signature?: ReadSignature;
 };
-export type DurableFsToolsEditOptions = Omit<Partial<EditToolOptions<Host>>, FsToolsSharedKey> & {
-  /** Default defaultEditSignature({ matchers }): { path, old_string, new_string, replace_all? }. */
+export type DurableFsToolsEditOptions = FsToolsEditOptions<Host> & {
+  /** Default defaultEditSignature({ matchers }). */
   readonly signature?: EditSignature;
 };
-export type DurableFsToolsWriteOptions = Omit<Partial<WriteToolOptions<Host>>, FsToolsSharedKey> & {
+export type DurableFsToolsWriteOptions = FsToolsWriteOptions<Host> & {
   /** Default defaultWriteSignature(). */
   readonly signature?: WriteSignature;
 };
-export type DurableFsToolsApplyPatchOptions = Omit<
-  Partial<ApplyPatchToolOptions<Host>>,
-  FsToolsSharedKey
-> & {
+export type DurableFsToolsApplyPatchOptions = FsToolsApplyPatchOptions<Host> & {
   /** Default defaultPatchSignature(). */
   readonly signature?: PatchSignature;
 };
-export type DurableFsToolsBashOptions = Omit<
-  Partial<BashToolOptions<Host>>,
-  "runner" | "digest" | "clock"
-> & {
-  /** Default defaultBashSignature(): { command, timeout?, cwd? } with the timeout in milliseconds. */
+/** bash options. `runner` and `env` are required: durableEnvRunner() runs over the environment's exec(). */
+export type DurableFsToolsBashOptions = FsToolsBashOptions<Host> & {
+  /** Default defaultBashSignature() for the runner's id and the limits. */
   readonly signature?: BashSignature;
-  /** Default true: the command keeps the environment's own variables. See executionEnvRunner. */
-  readonly inheritEnv?: boolean;
 };
 
-export interface DurableFsToolsOptions {
+/**
+ * The options of createFsTools(), with the call's `{ api, env, context }` as
+ * host and a `signature` in each tool's options, plus the Harness settings
+ * `name` and `outputLimits`. `fs` is required: durableEnvFileSystem() reads
+ * and writes through the call's environment.
+ */
+export interface DurableFsToolsOptions extends Omit<
+  FsToolsOptions<Host>,
+  "read" | "edit" | "write" | "applyPatch" | "bash"
+> {
   /** The extension name. Default "better-fs-tools". */
   readonly name?: string;
-  /**
-   * Default null: no read-before-write, as in every integration. "document"
-   * keeps the read records in the conversation's ReadStateDoc documents, so
-   * they stay after a restart and follow a fork. A store is shared by every
-   * conversation.
-   */
-  readonly state?: "document" | ReadStateStore | null;
-  /** Default sha256Digest(). */
-  readonly digest?: Digest;
-  /**
-   * Default memoryLocks(), shared by every call of the extension. The keys
-   * get the environment id, so two environments never wait for each other.
-   */
-  readonly locks?: LockManager;
-  /** Default () => new Date(). */
-  readonly clock?: Clock;
-  /**
-   * The roots of each call's filesystem, relative to the environment's cwd.
-   * Default allowedRoots ["."]: only the working directory of the call.
-   */
-  readonly allowedRoots?: readonly string[];
-  readonly denyRoots?: readonly string[];
-  /** Default "follow-within-roots". */
-  readonly symlinks?: EnvSymlinkPolicy;
   /** The Harness output limits of read, edit, write, and apply_patch. Default 128 KiB and 4,000 lines. */
   readonly outputLimits?: ToolRegistration["outputLimits"];
   readonly read?: DurableFsToolsReadOptions;
@@ -123,201 +78,144 @@ export interface DurableFsToolsOptions {
   /** Off by default. `true` or an options object adds apply_patch. */
   readonly applyPatch?: boolean | DurableFsToolsApplyPatchOptions;
   /**
-   * Off by default, so the bash of CodingTools stays. `true` or an options
-   * object adds a bash tool over the environment's exec().
+   * Off by default, so the bash of CodingTools stays. An options object with a
+   * runner and an env adds a bash tool.
    */
-  readonly bash?: boolean | DurableFsToolsBashOptions;
+  readonly bash?: false | DurableFsToolsBashOptions;
 }
-
-const KNOWN: ReadonlySet<string> = new Set([
-  "name",
-  "state",
-  "digest",
-  "locks",
-  "clock",
-  "allowedRoots",
-  "denyRoots",
-  "symlinks",
-  "outputLimits",
-  "read",
-  "edit",
-  "write",
-  "applyPatch",
-  "bash",
-]);
 
 /**
  * A pi-durable extension with Better FS Tools read, edit, and write, and
  * optionally apply_patch and bash. Install it after CodingTools: a later
- * extension's tool with the same name replaces the earlier one.
+ * extension's tool with the same name replaces the earlier one. Every tool
+ * option and default is the one of createFsTools(). The lock keys get the
+ * environment id, so the same path in two environments does not wait.
  *
- * Each call reads and writes through the call's ExecutionEnv (api.env), so the
- * tools work on the local machine, over SSH with pi-env, and in a container.
  * read is replay-safe. edit, write, and apply_patch are not: after a crash the
  * model gets an interrupted result and reads the file again.
  *
- * Throws TypeError on an unknown option key. A call without an environment
- * fails with an error result.
+ * Throws TypeError where createFsTools() does, with createDurableFsTools in the
+ * message. A call without an environment fails with an error result.
  */
-export function createDurableFsTools(options: DurableFsToolsOptions = {}): Extension {
+export function createDurableFsTools(options: DurableFsToolsOptions): Extension {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
-    throw new TypeError("createDurableFsTools options must be an object");
+    throw new TypeError(`${LABEL} options must be an object`);
   }
-  for (const key of Object.keys(options)) {
-    if (!KNOWN.has(key)) throw new TypeError(`Unknown createDurableFsTools option: ${key}`);
-  }
-  const locks = options.locks ?? memoryLocks();
-  const outputLimits = options.outputLimits ?? DEFAULT_OUTPUT_LIMITS;
-  const { signature: readSignature = defaultReadSignature(), ...read } = options.read ?? {};
-  const { signature: editGiven, ...edit } = options.edit ?? {};
-  const editSignature =
-    editGiven ??
-    defaultEditSignature(edit.matchers === undefined ? {} : { matchers: edit.matchers });
-  const { signature: writeSignature = defaultWriteSignature(), ...write } = options.write ?? {};
-  const patchOptions =
-    options.applyPatch === true ? {} : options.applyPatch === false ? null : options.applyPatch;
-  const { signature: patchSignature = defaultPatchSignature(), ...patch } = patchOptions ?? {};
-  const bashOptions = options.bash === true ? {} : options.bash === false ? null : options.bash;
-  const { signature: bashGiven, inheritEnv, ...bash } = bashOptions ?? {};
-  const bashSignature =
-    bashGiven ?? defaultBashSignature(bash.limits === undefined ? {} : { limits: bash.limits });
+  const { name = "better-fs-tools", outputLimits = DEFAULT_OUTPUT_LIMITS, ...rest } = options;
+  // Built once to check the options and to declare the tools. Each call builds its own.
+  const declared = fsToolDefinitions<Host>(rest, LABEL);
+  const perCall = perCallOptions(rest, declared);
 
-  /** The core tools of one call, over the call's environment, store, and lock keys. */
-  const toolsFor = (api: ToolExecutionApi, context: Context) => {
+  /** The tool definitions and the call of one tool call, over the call's environment. */
+  const definitionsFor = (api: ToolExecutionApi, context: Context) => {
     const env = api.env;
     if (env === undefined) throw new Error("Better FS Tools needs an execution environment");
-    const fs = executionEnvFileSystem(env, {
-      context,
-      allowedRoots: options.allowedRoots ?? ["."],
-      ...(options.denyRoots === undefined ? {} : { denyRoots: options.denyRoots }),
-      ...(options.symlinks === undefined ? {} : { symlinks: options.symlinks }),
-    });
-    const state =
-      options.state === "document"
-        ? documentReadStore(api, env.id, context)
-        : (options.state ?? null);
-    const host: Host = { api, env, context };
-    const core = createFsTools<Host>({
-      fs,
-      state,
-      locks: keyedLocks(locks, env.id),
-      ...(options.digest === undefined ? {} : { digest: options.digest }),
-      ...(options.clock === undefined ? {} : { clock: options.clock }),
-      read: {
-        ...read,
-        converters: read.converters ?? [imageConverter<Host>()],
-        messages: { ...readSignatureMessages(readSignature), ...read.messages },
-      },
-      edit: { ...edit, messages: { ...writeSignatureMessages(editSignature), ...edit.messages } },
-      write: {
-        ...write,
-        messages: { ...writeSignatureMessages(writeSignature), ...write.messages },
-      },
-      ...(patchOptions === null || patchOptions === undefined
-        ? {}
-        : {
-            applyPatch: {
-              ...patch,
-              messages: { ...writeSignatureMessages(patchSignature), ...patch.messages },
-            },
-          }),
-      ...(bashOptions === null || bashOptions === undefined
-        ? {}
-        : {
-            bash: {
-              ...bash,
-              runner: executionEnvRunner(env, {
-                context,
-                ...(inheritEnv === undefined ? {} : { inheritEnv }),
-              }),
-              env: bash.env ?? shellEnv(),
-              messages: { ...bashSignatureMessages(bashSignature), ...bash.messages },
-            },
-          }),
-    });
+    const definitions = fsToolDefinitions<Host>(
+      { ...perCall, locks: keyedLocks(declared.locks, env.id) },
+      LABEL,
+    );
     const call: ToolCallContext<Host> = {
       ...(context.abortSignal === undefined ? {} : { signal: context.abortSignal }),
       callId: api.callId,
-      host,
+      host: { api, env, context },
     };
-    return { core, call };
+    return { definitions, call };
   };
 
   const tools: ToolRegistration[] = [
     defineTool({
-      ...declaration(readSignature),
+      ...declaration(declared.read),
       replay: "safe",
       outputLimits,
       async execute(args, api, context) {
-        const { core, call } = toolsFor(api, context);
-        const result = await core.read(readSignature.toInput(args), call);
+        const { definitions, call } = definitionsFor(api, context);
+        const result = await definitions.read.execute(args, call);
         return { output: toOutput(result.content), isError: result.status === "error" };
       },
     }),
-    mutationTool(editSignature, outputLimits, async (args, api, context) => {
-      const { core, call } = toolsFor(api, context);
-      return core.edit(editSignature.toInput(args), call);
-    }),
-    mutationTool(writeSignature, outputLimits, async (args, api, context) => {
-      const { core, call } = toolsFor(api, context);
-      return core.write(writeSignature.toInput(args), call);
-    }),
+    mutationTool(declared.edit, outputLimits, (d) => d.edit, definitionsFor),
+    mutationTool(declared.write, outputLimits, (d) => d.write, definitionsFor),
   ];
-  if (patchOptions !== null && patchOptions !== undefined) {
+  if (declared.applyPatch !== null) {
     tools.push(
-      mutationTool(patchSignature, outputLimits, async (args, api, context) => {
-        const { core, call } = toolsFor(api, context);
-        if (core.applyPatch === null) throw new Error("apply_patch is off");
-        return core.applyPatch(patchSignature.toInput(args), call);
-      }),
+      mutationTool(declared.applyPatch, outputLimits, (d) => d.applyPatch, definitionsFor),
     );
   }
-  if (bashOptions !== null && bashOptions !== undefined) {
+  if (declared.bash !== null) {
     tools.push(
       defineTool({
-        ...declaration(bashSignature),
+        ...declaration(declared.bash),
         outputLimits: { ...outputLimits, retain: "tail" },
         async execute(args, api, context) {
-          const { core, call } = toolsFor(api, context);
-          if (core.bash === null) throw new Error("bash is off");
-          const result = await core.bash(bashSignature.toInput(args), call);
-          return bashResult(result);
+          const { definitions, call } = definitionsFor(api, context);
+          if (definitions.bash === null) throw new Error("bash is off");
+          return bashResult(await definitions.bash.execute(args, call));
         },
       }),
     );
   }
-  const names = new Set<string>();
-  for (const tool of tools) {
-    if (names.has(tool.name)) {
-      throw new TypeError(`createDurableFsTools has two tools named ${tool.name}`);
-    }
-    names.add(tool.name);
-  }
-  return defineExtension({ name: options.name ?? "better-fs-tools", tools });
+  return defineExtension({ name, tools });
 }
 
-function declaration(signature: {
-  readonly name: string;
-  readonly description: string;
-  readonly schema: object;
-}) {
+/** The options of each call: the given options, with the signatures, digest, and clock of the declared tools. */
+function perCallOptions(
+  options: FsToolDefinitionsOptions<Host>,
+  declared: FsToolDefinitions<Host>,
+): FsToolDefinitionsOptions<Host> {
+  const applyPatch = options.applyPatch === true ? {} : options.applyPatch;
   return {
-    name: signature.name,
-    description: signature.description,
-    parameters: Type.Unsafe(signature.schema),
+    ...options,
+    digest: declared.digest,
+    clock: declared.clock,
+    read: { ...options.read, signature: declared.read.signature },
+    edit: { ...options.edit, signature: declared.edit.signature },
+    write: { ...options.write, signature: declared.write.signature },
+    ...(declared.applyPatch === null || applyPatch === false || applyPatch === undefined
+      ? {}
+      : { applyPatch: { ...applyPatch, signature: declared.applyPatch.signature } }),
+    ...(declared.bash === null || options.bash === false || options.bash === undefined
+      ? {}
+      : { bash: { ...options.bash, signature: declared.bash.signature } }),
   };
 }
 
+type DefinitionsFor = (
+  api: ToolExecutionApi,
+  context: Context,
+) => { readonly definitions: FsToolDefinitions<Host>; readonly call: ToolCallContext<Host> };
+
+interface Declared {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: object;
+}
+
+function declaration(definition: Declared) {
+  return {
+    name: definition.name,
+    description: definition.description,
+    parameters: Type.Unsafe(definition.inputSchema),
+  };
+}
+
+type MutationDefinition = {
+  execute(modelInput: unknown, call: ToolCallContext<Host>): Promise<MutationResult>;
+};
+
 function mutationTool(
-  signature: MutationSignature<unknown>,
+  declared: Declared,
   outputLimits: ToolRegistration["outputLimits"],
-  run: (args: unknown, api: ToolExecutionApi, context: Context) => Promise<MutationResult>,
+  pick: (definitions: FsToolDefinitions<Host>) => MutationDefinition | null,
+  definitionsFor: DefinitionsFor,
 ): ToolRegistration {
   return defineTool({
-    ...declaration(signature),
+    ...declaration(declared),
     ...(outputLimits === undefined ? {} : { outputLimits }),
     async execute(args, api, context) {
-      const result = await run(args, api, context);
+      const { definitions, call } = definitionsFor(api, context);
+      const definition = pick(definitions);
+      if (definition === null) throw new Error(`${declared.name} is off`);
+      const result = await definition.execute(args, call);
       return { output: toOutput(result.content), isError: result.status === "error" };
     },
   });

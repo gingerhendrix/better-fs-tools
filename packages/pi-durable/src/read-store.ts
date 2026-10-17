@@ -4,6 +4,8 @@ import type { ConversationId, JsonObject, ToolExecutionApi } from "@earendil-wor
 
 import type { ReadRecord, ReadStateStore } from "@better-fs-tools/read";
 
+import type { DurableCallFactory } from "./host.ts";
+
 /** One read record. `record` is null after a delete. A type alias, so it fits JsonObject. */
 export type ReadStateDocument = { record: JsonObject | null };
 
@@ -27,15 +29,17 @@ export const ReadStateDoc = defineDocFamily<ReadStateDocument, null>({
 export type ReadStoreApi = Pick<ToolExecutionApi, "commit" | "snapshot" | "conversationId">;
 
 /**
- * A read store in the conversation's ReadStateDoc documents, for one tool
- * call. It stays after a restart, so an edit after a crash needs no new read.
- * `envId` keeps the records of two environments apart.
+ * A per-call read store in the conversation's ReadStateDoc documents. Pass it
+ * as `state` to createDurableFsTools(). It stays after a restart, so an edit
+ * after a crash needs no new read. The environment id keeps the records of
+ * two environments apart.
  */
-export function documentReadStore(
-  api: ReadStoreApi,
-  envId: string,
-  context: Context,
-): ReadStateStore {
+export function documentReadStore(): DurableCallFactory<ReadStateStore> {
+  return (call) => readStoreOf(call.host.api, call.host.env.id, call.host.context);
+}
+
+/** The read store of one call, over the tool API of the call. */
+export function readStoreOf(api: ReadStoreApi, envId: string, context: Context): ReadStateStore {
   const conversationId: ConversationId = api.conversationId;
   const keyOf = (key: string): string => {
     if (typeof key !== "string" || key === "") {
