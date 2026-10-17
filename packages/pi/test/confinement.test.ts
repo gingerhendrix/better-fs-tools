@@ -6,6 +6,7 @@ import path from "node:path";
 
 import { createPiReadTool } from "../src/index.ts";
 import { execute, fixtures, textOf } from "./helpers.ts";
+import { piCwdFileSystem } from "../src/node.ts";
 
 const fixture = fixtures();
 
@@ -18,7 +19,7 @@ describe("pi working directory confinement", () => {
     });
     const first = path.join(parent, "first");
     const second = path.join(parent, "second");
-    const tool = createPiReadTool();
+    const tool = createPiReadTool({ fs: piCwdFileSystem() });
 
     expect(textOf(await execute(tool, { path: "same.txt" }, first))).toBe("1|first root");
     expect(textOf(await execute(tool, { path: "same.txt" }, second))).toBe("1|second root");
@@ -44,7 +45,7 @@ describe("pi working directory confinement", () => {
     const parent = await fixture({ "inside/keep.txt": "inside", "secret.txt": "outside" });
     const inside = path.join(parent, "inside");
     await symlink(path.join(parent, "secret.txt"), path.join(inside, "escape.txt"));
-    const tool = createPiReadTool();
+    const tool = createPiReadTool({ fs: piCwdFileSystem() });
 
     expect(textOf(await execute(tool, { path: "keep.txt" }, inside))).toBe("1|inside");
     expect(textOf(await execute(tool, { path: "escape.txt" }, inside))).toMatch(
@@ -56,22 +57,28 @@ describe("pi working directory confinement", () => {
     const root = await fixture({ "open.txt": "open", "closed/secret.txt": "closed" });
     await symlink(path.join(root, "open.txt"), path.join(root, "link.txt"));
 
-    const denied = createPiReadTool({ denyRoots: [path.join(root, "closed")] });
+    const denied = createPiReadTool({
+      fs: piCwdFileSystem({ denyRoots: [path.join(root, "closed")] }),
+    });
     expect(textOf(await execute(denied, { path: "open.txt" }, root))).toBe("1|open");
     expect(textOf(await execute(denied, { path: "closed/secret.txt" }, root))).toMatch(
       /^\[read:dangerous-path\]/u,
     );
 
-    const rejecting = createPiReadTool({ symlinks: "reject" });
+    const rejecting = createPiReadTool({ fs: piCwdFileSystem({ symlinks: "reject" }) });
     expect(textOf(await execute(rejecting, { path: "link.txt" }, root))).toMatch(
       /^\[read:denied\]/u,
     );
-    expect(textOf(await execute(createPiReadTool(), { path: "link.txt" }, root))).toBe("1|open");
+    expect(
+      textOf(
+        await execute(createPiReadTool({ fs: piCwdFileSystem() }), { path: "link.txt" }, root),
+      ),
+    ).toBe("1|open");
   });
 
   test("refuses a directory and a FIFO instead of hanging on them", async () => {
     const root = await fixture({ "dir/file.txt": "nested" });
-    const tool = createPiReadTool();
+    const tool = createPiReadTool({ fs: piCwdFileSystem() });
 
     expect(textOf(await execute(tool, { path: "dir" }, root))).toMatch(/^\[read:not-a-file\]/u);
 
@@ -93,7 +100,7 @@ describe("pi root cache", () => {
     const parent = await fixture({ "one/a.txt": "one", "two/a.txt": "two" });
     const link = path.join(parent, "cwd");
     await symlink(path.join(parent, "one"), link);
-    const tool = createPiReadTool();
+    const tool = createPiReadTool({ fs: piCwdFileSystem() });
 
     expect(textOf(await execute(tool, { path: "a.txt" }, link))).toBe("1|one");
     await unlink(link);
@@ -102,7 +109,9 @@ describe("pi root cache", () => {
     expect(textOf(await execute(tool, { path: "a.txt" }, link))).toMatch(
       /^\[read:outside-allowed-roots\]/u,
     );
-    expect(textOf(await execute(createPiReadTool(), { path: "a.txt" }, link))).toBe("1|two");
+    expect(
+      textOf(await execute(createPiReadTool({ fs: piCwdFileSystem() }), { path: "a.txt" }, link)),
+    ).toBe("1|two");
   });
 
   test("stays correct past the cache bound", async () => {
@@ -114,7 +123,7 @@ describe("pi root cache", () => {
       await writeFile(path.join(root, "a.txt"), `root ${index}`);
       roots.push(root);
     }
-    const tool = createPiReadTool();
+    const tool = createPiReadTool({ fs: piCwdFileSystem() });
 
     for (const [index, root] of roots.entries()) {
       expect(textOf(await execute(tool, { path: "a.txt" }, root))).toBe(`1|root ${index}`);
@@ -127,7 +136,7 @@ describe("pi root cache", () => {
 
   test("treats equivalent spellings of one directory as one root", async () => {
     const root = await fixture({ "a.txt": "same" });
-    const tool = createPiReadTool();
+    const tool = createPiReadTool({ fs: piCwdFileSystem() });
 
     for (const spelling of [root, `${root}/`, path.join(root, "."), `${root}/sub/..`]) {
       expect(textOf(await execute(tool, { path: "a.txt" }, spelling))).toBe("1|same");

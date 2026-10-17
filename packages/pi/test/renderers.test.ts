@@ -10,6 +10,8 @@ import {
   createPiWriteTool,
   piToolRenderers,
 } from "../src/index.ts";
+import { piCwdCommandRunner, piCwdFileSystem } from "../src/node.ts";
+import { shellEnv } from "@better-fs-tools/shell";
 
 type Call = NonNullable<ToolRenderers["renderCall"]>;
 type Result = NonNullable<ToolRenderers["renderResult"]>;
@@ -42,7 +44,7 @@ function draw(resolver: ReturnType<typeof piToolRenderers>, name: string, args: 
 
 describe("piToolRenderers", () => {
   test("gives Pi's edit renderer { path, edits } for the shared edit signature", () => {
-    const edit = createPiEditTool();
+    const edit = createPiEditTool({ fs: piCwdFileSystem() });
     const spy = draw(piToolRenderers([edit]), "edit", {
       path: "a.txt",
       old_string: "one",
@@ -54,7 +56,7 @@ describe("piToolRenderers", () => {
   });
 
   test("a replace-all edit gets only the path, so Pi shows the diff of the result", () => {
-    const spy = draw(piToolRenderers([createPiEditTool()]), "edit", {
+    const spy = draw(piToolRenderers([createPiEditTool({ fs: piCwdFileSystem() })]), "edit", {
       path: "a.txt",
       old_string: "a",
       new_string: "b",
@@ -64,18 +66,27 @@ describe("piToolRenderers", () => {
   });
 
   test("gives Pi's bash renderer the timeout in seconds", () => {
-    const spy = draw(piToolRenderers([createPiBashTool()]), "bash", {
-      command: "ls",
-      timeout: 1_500,
-      cwd: "sub",
-    });
+    const spy = draw(
+      piToolRenderers([
+        createPiBashTool({ runner: piCwdCommandRunner(), env: shellEnv(() => process.env) }),
+      ]),
+      "bash",
+      {
+        command: "ls",
+        timeout: 1_500,
+        cwd: "sub",
+      },
+    );
     expect(spy.calls).toEqual([
       { args: { command: "ls", timeout: 1.5 }, contextArgs: { command: "ls", timeout: 1.5 } },
     ]);
   });
 
   test("read and write get the canonical input, which has Pi's names", () => {
-    const resolver = piToolRenderers([createPiReadTool(), createPiWriteTool()]);
+    const resolver = piToolRenderers([
+      createPiReadTool({ fs: piCwdFileSystem() }),
+      createPiWriteTool({ fs: piCwdFileSystem() }),
+    ]);
     expect(draw(resolver, "read", { path: "a.txt", offset: 2 }).calls).toEqual([
       { args: { path: "a.txt", offset: 2 }, contextArgs: { path: "a.txt", offset: 2 } },
     ]);
@@ -86,12 +97,19 @@ describe("piToolRenderers", () => {
 
   test("arguments that do not parse yet go to the renderer as they are", () => {
     const partial = { path: "a.txt", old_string: "on" };
-    const spy = draw(piToolRenderers([createPiEditTool()]), "edit", partial);
+    const spy = draw(
+      piToolRenderers([createPiEditTool({ fs: piCwdFileSystem() })]),
+      "edit",
+      partial,
+    );
     expect(spy.calls).toEqual([{ args: partial, contextArgs: partial }]);
   });
 
   test("other tools, apply_patch, and tools without a renderer are left as they are", () => {
-    const resolver = piToolRenderers([createPiApplyPatchTool(), createPiEditTool()]);
+    const resolver = piToolRenderers([
+      createPiApplyPatchTool({ fs: piCwdFileSystem() }),
+      createPiEditTool({ fs: piCwdFileSystem() }),
+    ]);
     const base = spyRenderers().renderers;
     expect(resolver("apply_patch", () => base)).toBe(base);
     expect(resolver("grep", () => base)).toBe(base);

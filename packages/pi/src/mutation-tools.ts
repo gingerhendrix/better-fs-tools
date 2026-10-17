@@ -2,71 +2,42 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import type { TSchema } from "typebox";
 
-import { nodeDigest } from "@better-fs-tools/node";
-import type { JsonObject, StateNeedsDigest, ToolCallContext } from "@better-fs-tools/read";
-import { createApplyPatchTool, createEditTool, createWriteTool } from "@better-fs-tools/write";
-import type {
-  ApplyPatchToolOptions,
-  EditToolOptions,
-  MutationResult,
-  WriteMessageCatalog,
-  WriteToolOptions,
-} from "@better-fs-tools/write";
+import type { JsonObject, ToolCallContext } from "@better-fs-tools/read";
 import {
-  defaultEditSignature,
-  defaultPatchSignature,
-  defaultWriteSignature,
-  writeSignatureMessages,
+  applyPatchToolDefinition,
+  editToolDefinition,
+  writeToolDefinition,
 } from "@better-fs-tools/write/signature";
 import type {
-  EditSignature,
-  MutationSignature,
-  PatchSignature,
-  WriteSignature,
+  ApplyPatchToolDefinitionOptions,
+  EditToolDefinitionOptions,
+  MutationToolDefinition,
+  WriteToolDefinitionOptions,
 } from "@better-fs-tools/write/signature";
 
 import { toPiMutationDetails } from "./mutation-details.ts";
 import type { PiMutationDetails } from "./mutation-details.ts";
 import { toPiPart } from "./parts.ts";
 import type { PiContentPart } from "./parts.ts";
-import { signatureSnippet } from "./prompt.ts";
+import { checkPiOptions, piPrompt, splitPrompt } from "./prompt.ts";
+import type { PiPromptOptions } from "./prompt.ts";
 import { canonicalArgs, piEditArgs, setRenderArgs } from "./renderers.ts";
 import { PI_PATCH_ANNOTATIONS, PI_WRITE_ANNOTATIONS } from "./results.ts";
 import type { PiToolAnnotations } from "./results.ts";
-import { piMutationQueueLocks } from "./locks.ts";
-import { checkPiContext, checkPiOptions, piFileSystems } from "./roots.ts";
-import type { PiRootOptions } from "./roots.ts";
 
-/** Pi prompt options of the edit, write, and apply_patch tools. */
-export interface PiMutationOptions<TSignature> {
-  readonly signature?: TSignature;
-  /** Default the first sentence of the signature description. Pi lists the tool with it. */
-  readonly promptSnippet?: string;
-  /** Default []. */
-  readonly promptGuidelines?: readonly string[];
-}
+type Host = ExtensionContext;
 
 /**
- * Options for createPiEditTool. The default signature is
- * defaultEditSignature({ matchers }), as in every integration. digest defaults
- * to nodeDigest(); a state needs a digest that is not null.
+ * Options for createPiEditTool: the options of editToolDefinition(), with the
+ * Pi extension context as host, plus the Pi prompt options. `fs` is required.
  */
-export type PiEditToolOptions = Omit<EditToolOptions<ExtensionContext>, "fs"> &
-  StateNeedsDigest &
-  PiRootOptions &
-  PiMutationOptions<EditSignature>;
+export type PiEditToolOptions = EditToolDefinitionOptions<Host> & PiPromptOptions;
 
-/** As PiEditToolOptions, for write. The default signature is defaultWriteSignature(). */
-export type PiWriteToolOptions = Omit<WriteToolOptions<ExtensionContext>, "fs"> &
-  StateNeedsDigest &
-  PiRootOptions &
-  PiMutationOptions<WriteSignature>;
+/** As PiEditToolOptions, for write. */
+export type PiWriteToolOptions = WriteToolDefinitionOptions<Host> & PiPromptOptions;
 
-/** As PiEditToolOptions, for apply_patch. The default signature is defaultPatchSignature(). */
-export type PiApplyPatchToolOptions = Omit<ApplyPatchToolOptions<ExtensionContext>, "fs"> &
-  StateNeedsDigest &
-  PiRootOptions &
-  PiMutationOptions<PatchSignature>;
+/** As PiEditToolOptions, for apply_patch. */
+export type PiApplyPatchToolOptions = ApplyPatchToolDefinitionOptions<Host> & PiPromptOptions;
 
 export interface PiMutationToolResult {
   content: PiContentPart[];
@@ -97,177 +68,70 @@ export interface PiMutationTool {
   ): Promise<PiMutationToolResult>;
 }
 
-type Core = (input: never, ctx: ToolCallContext<ExtensionContext>) => Promise<MutationResult>;
+export type PiMutationKind = "edit" | "write" | "apply_patch";
 
-export interface PiMutationParts {
-  readonly tool: "edit" | "write" | "apply_patch";
-  readonly signature: MutationSignature<unknown>;
-  readonly promptSnippet: string;
-  readonly promptGuidelines: readonly string[];
-  readonly messages: Partial<WriteMessageCatalog>;
-}
-
-type PartsInput<TSignature> = PiMutationOptions<TSignature> & {
-  readonly messages?: Partial<WriteMessageCatalog>;
-};
-
-export function piEditParts(
-  options: PartsInput<EditSignature> & Pick<Partial<EditToolOptions>, "matchers">,
-): PiMutationParts {
-  const signature =
-    options.signature ??
-    defaultEditSignature(options.matchers === undefined ? {} : { matchers: options.matchers });
-  return parts("edit", signature, options);
-}
-
-export function piWriteParts(options: PartsInput<WriteSignature>): PiMutationParts {
-  const signature = options.signature ?? defaultWriteSignature();
-  return parts("write", signature, options);
-}
-
-export function piApplyPatchParts(options: PartsInput<PatchSignature>): PiMutationParts {
-  const signature = options.signature ?? defaultPatchSignature();
-  return parts("apply_patch", signature, options);
-}
-
-function parts(
-  tool: PiMutationParts["tool"],
-  signature: MutationSignature<unknown>,
-  options: PartsInput<unknown>,
-): PiMutationParts {
-  return {
-    tool,
-    signature,
-    promptSnippet: options.promptSnippet ?? signatureSnippet(signature.description),
-    promptGuidelines: options.promptGuidelines ?? [],
-    messages: { ...writeSignatureMessages(signature), ...options.messages },
-  };
+/** Creates a Pi edit tool with the options and defaults of createEditTool(). */
+export function createPiEditTool(options: PiEditToolOptions): PiMutationTool {
+  checkPiOptions(options, "Pi edit tool");
+  const { prompt, rest } = splitPrompt(options);
+  return adaptPiMutationTool("edit", editToolDefinition<Host>(rest), prompt);
 }
 
 /**
- * Creates a Pi edit tool rooted at each call's ctx.cwd. Throws TypeError when
- * options set fs, cwd, or allowedRoots. Read-before-write is off unless you
- * pass a `state`; use createPiFsTools({ state }) for a store shared with read.
+ * Creates a Pi write tool with the options and defaults of createWriteTool().
+ * `details` is always undefined, as for Pi's own write.
  */
-export function createPiEditTool(options: PiEditToolOptions = {}): PiMutationTool {
-  checkPiOptions(options, "edit");
-  const {
-    denyRoots,
-    symlinks,
-    hardLinks,
-    newFileMode,
-    newDirectoryMode,
-    signature: _signature,
-    promptSnippet: _snippet,
-    promptGuidelines: _lines,
-    ...deps
-  } = options;
-  const fs = piFileSystems({ denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode });
-  const made = piEditParts(options);
-  const { messages } = made;
-  const locks = deps.locks ?? piMutationQueueLocks();
-  // digest: null narrows the options to the branch without a state.
-  if (deps.digest === null) {
-    return adaptPiMutationTool(
-      made,
-      createEditTool({ ...deps, fs, locks, messages, digest: null }),
-    );
-  }
-  const digest = deps.digest ?? nodeDigest();
-  return adaptPiMutationTool(made, createEditTool({ ...deps, fs, locks, messages, digest }));
+export function createPiWriteTool(options: PiWriteToolOptions): PiMutationTool {
+  checkPiOptions(options, "Pi write tool");
+  const { prompt, rest } = splitPrompt(options);
+  return adaptPiMutationTool("write", writeToolDefinition<Host>(rest), prompt);
 }
 
-/** Creates a Pi write tool, as createPiEditTool. `details` is always undefined, as for Pi's own write. */
-export function createPiWriteTool(options: PiWriteToolOptions = {}): PiMutationTool {
-  checkPiOptions(options, "write");
-  const {
-    denyRoots,
-    symlinks,
-    hardLinks,
-    newFileMode,
-    newDirectoryMode,
-    signature: _signature,
-    promptSnippet: _snippet,
-    promptGuidelines: _lines,
-    ...deps
-  } = options;
-  const fs = piFileSystems({ denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode });
-  const made = piWriteParts(options);
-  const { messages } = made;
-  const locks = deps.locks ?? piMutationQueueLocks();
-  if (deps.digest === null) {
-    return adaptPiMutationTool(
-      made,
-      createWriteTool({ ...deps, fs, locks, messages, digest: null }),
-    );
-  }
-  const digest = deps.digest ?? nodeDigest();
-  return adaptPiMutationTool(made, createWriteTool({ ...deps, fs, locks, messages, digest }));
+/**
+ * Creates a Pi apply_patch tool with the options and defaults of
+ * createApplyPatchTool(). A signature with a grammar sets constrainedSampling.
+ */
+export function createPiApplyPatchTool(options: PiApplyPatchToolOptions): PiMutationTool {
+  checkPiOptions(options, "Pi apply_patch tool");
+  const { prompt, rest } = splitPrompt(options);
+  return adaptPiMutationTool("apply_patch", applyPatchToolDefinition<Host>(rest), prompt);
 }
 
-/** Creates a Pi apply_patch tool, as createPiEditTool. A grammar signature sets constrainedSampling. */
-export function createPiApplyPatchTool(options: PiApplyPatchToolOptions = {}): PiMutationTool {
-  checkPiOptions(options, "apply_patch");
-  const {
-    denyRoots,
-    symlinks,
-    hardLinks,
-    newFileMode,
-    newDirectoryMode,
-    signature: _signature,
-    promptSnippet: _snippet,
-    promptGuidelines: _lines,
-    ...deps
-  } = options;
-  const fs = piFileSystems({ denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode });
-  const made = piApplyPatchParts(options);
-  const { messages } = made;
-  const locks = deps.locks ?? piMutationQueueLocks();
-  if (deps.digest === null) {
-    return adaptPiMutationTool(
-      made,
-      createApplyPatchTool({ ...deps, fs, locks, messages, digest: null }),
-    );
-  }
-  const digest = deps.digest ?? nodeDigest();
-  return adaptPiMutationTool(made, createApplyPatchTool({ ...deps, fs, locks, messages, digest }));
-}
-
-export function adaptPiMutationTool(made: PiMutationParts, tool: Core): PiMutationTool {
-  const { signature, tool: toolName, promptSnippet, promptGuidelines } = made;
-  const withDetails = toolName !== "write";
-  const grammar = signature.grammar;
+export function adaptPiMutationTool<TInput>(
+  kind: PiMutationKind,
+  definition: MutationToolDefinition<TInput, Host>,
+  prompt: PiPromptOptions,
+): PiMutationTool {
+  const { grammar, signature } = definition;
   const adapted = Object.freeze<PiMutationTool>({
-    name: signature.name,
-    label: signature.name,
-    description: signature.description,
-    promptSnippet,
-    promptGuidelines: [...promptGuidelines],
-    parameters: Type.Unsafe(signature.schema),
-    annotations: { ...(toolName === "write" ? PI_WRITE_ANNOTATIONS : PI_PATCH_ANNOTATIONS) },
+    name: definition.name,
+    label: definition.name,
+    description: definition.description,
+    ...piPrompt(prompt, definition.description),
+    parameters: Type.Unsafe(definition.inputSchema),
+    annotations: { ...(kind === "write" ? PI_WRITE_ANNOTATIONS : PI_PATCH_ANNOTATIONS) },
     ...(grammar === undefined
       ? {}
       : {
           constrainedSampling: { type: "grammar", variants: { openai_lark: grammar.lark } },
         }),
     async execute(toolCallId, input, signal, _onUpdate, ctx) {
-      checkPiContext(ctx, toolName);
-      const call: ToolCallContext<ExtensionContext> = {
+      const call: ToolCallContext<Host> = {
         ...(signal === undefined ? {} : { signal }),
         callId: toolCallId,
         host: ctx,
       };
-      const result = await tool(signature.toInput(input) as never, call);
+      const result = await definition.execute(input, call);
       return {
-        content: result.content.map((part) => toPiPart(part, toolName)),
-        details: withDetails ? toPiMutationDetails(result) : undefined,
+        content: result.content.map((part) => toPiPart(part, kind)),
+        details: kind === "write" ? undefined : toPiMutationDetails(result),
         isError: result.status === "error",
       };
     },
   });
   // Pi has built-in renderers for edit and write. apply_patch has none.
-  if (toolName !== "apply_patch") {
-    const toPi = toolName === "edit" ? piEditArgs : canonicalArgs;
+  if (kind !== "apply_patch") {
+    const toPi = kind === "edit" ? piEditArgs : canonicalArgs;
     setRenderArgs(adapted, (args) => signature.toInput(args), toPi);
   }
   return adapted;

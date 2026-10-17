@@ -18,15 +18,20 @@ To choose your own options, register the tools from your own extension:
 
 ```ts
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createPiFsTools, piToolRenderers } from "@better-fs-tools/pi";
+import { createPiFsTools, piMutationQueueLocks, piToolRenderers } from "@better-fs-tools/pi";
+import { piCwdFileSystem } from "@better-fs-tools/pi/node";
+import { nodeDigest } from "@better-fs-tools/node";
 import { denyPaths, memoryStore, unicodeRepair } from "@better-fs-tools/read";
 import { hashlineFormat } from "@better-fs-tools/read/formats";
 import { protectPaths } from "@better-fs-tools/write";
 
 export default function fsToolsExtension(pi: ExtensionAPI): void {
-  // Four tools with one read store, so edit and write need a read first. The
-  // store and apply_patch are opt-in.
   const tools = createPiFsTools({
+    // The recommended Pi configuration, as in the package's extension entry.
+    fs: piCwdFileSystem(), // a Node filesystem rooted at ctx.cwd on each call
+    locks: piMutationQueueLocks(), // the per-file queue of Pi's own edit and write
+    digest: nodeDigest(), // faster on Node than the default sha256Digest()
+    // Opt-ins: one read store, so edit and write need a read first, and apply_patch.
     state: memoryStore(),
     read: {
       resolve: unicodeRepair({ note: false }),
@@ -51,6 +56,7 @@ To register only the read tool:
 ```ts
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createPiReadTool } from "@better-fs-tools/pi";
+import { piCwdFileSystem } from "@better-fs-tools/pi/node";
 import { denyPaths, unicodeRepair } from "@better-fs-tools/read";
 import { hashlineFormat } from "@better-fs-tools/read/formats";
 import { defaultReadSignature } from "@better-fs-tools/read/signature";
@@ -58,6 +64,7 @@ import { defaultReadSignature } from "@better-fs-tools/read/signature";
 export default function readExtension(pi: ExtensionAPI): void {
   pi.registerTool(
     createPiReadTool({
+      fs: piCwdFileSystem(),
       signature: defaultReadSignature({ name: "read", names: { path: "file_path" } }),
       resolve: unicodeRepair({ note: false }),
       authorize: denyPaths(["**/.env", "**/.env.*"]),
@@ -67,12 +74,42 @@ export default function readExtension(pi: ExtensionAPI): void {
 }
 ```
 
+## Use the Pi SDK
+
+The tools also work with `createAgentSession()` from the Pi SDK. Give them to `customTools`. A custom tool with the name of a built-in tool replaces it:
+
+```ts
+import { createAgentSession, SessionManager } from "@earendil-works/pi-coding-agent";
+import { createPiFsTools } from "@better-fs-tools/pi";
+import { piCwdFileSystem } from "@better-fs-tools/pi/node";
+import { memoryStore } from "@better-fs-tools/read";
+
+const cwd = "/work/repo";
+const tools = createPiFsTools({ fs: piCwdFileSystem(), state: memoryStore(), applyPatch: true });
+
+// read, edit, and write have the names of Pi's built-in tools, so they replace
+// them. Pi's own bash stays.
+const { session } = await createAgentSession({
+  cwd,
+  sessionManager: SessionManager.inMemory(cwd),
+  customTools: [tools.read, tools.edit, tools.write, tools.applyPatch],
+});
+
+try {
+  await session.prompt("Rename greet() to welcome() in src/greet.ts.");
+} finally {
+  session.dispose();
+}
+```
+
+The session's `cwd` is the root of every call. For `tools`, `noTools`, and inline extensions with hooks and guards, see [Use Pi from code (SDK)](https://better-fs-tools.gandrew.com/integrations/pi#use-pi-from-code-sdk). For `pi-agent-core`, use `createAgentCoreFsTools()`: see [Pi agent core](#pi-agent-core) below. For the experimental `pi-durable` harness, use [`@better-fs-tools/pi-durable`](https://www.npmjs.com/package/@better-fs-tools/pi-durable).
+
 ## What the read tool does
 
 - `createPiReadTool(options?)` takes every `createReadTool()` option except `fs`. It also takes `signature`, `promptSnippet`, `promptGuidelines`, `denyRoots`, and `symlinks`. `promptSnippet` and `promptGuidelines` are Pi fields. The snippet defaults to the first sentence of the signature description, because Pi lists a tool under "Available tools" only when it has a snippet. The guidelines default to `[]`.
 - `fs`, `cwd`, and `allowedRoots` throw `TypeError`. Each call reads through `nodeFileSystem` with Pi's `ctx.cwd` as the only allowed root. When the working directory changes between calls, the root changes too. The tool keeps the filesystems for the last 8 working directories.
 - Pi's `ExtensionContext` is the host type. Host functions get it as `ctx.call.host`, for example `ctx.call.host.ui.confirm(...)` in `askUser`, or `ctx.call.host.sessionManager.getSessionId()` in a `state` factory.
-- The default signature is `defaultReadSignature()`, as in every integration. Its schema has integer `offset` and `limit`, so a model that sends `2.5` gets Pi's validation error. `digest` defaults to `nodeDigest()`, as in `createNodeFsTools()`.
+- The default signature is `defaultReadSignature()`, as in every integration. Its schema has integer `offset` and `limit`, so a model that sends `2.5` gets Pi's validation error. `digest` defaults to `nodeDigest()`.
 - `converters` defaults to `[imageConverter()]`, as in the AI SDK integration. This holds for `createPiReadTool()`, `createPiFsTools()`, and the extension entry. A list you pass replaces the default, so `converters: []` turns images off, and a list without `imageConverter()` refuses images. In `createPiFsTools()` the option goes under `read`, for example `read: { converters: [] }`.
 - Image parts become Pi `image` parts. Other media becomes a text part that says what was left out.
 - `details.truncation` follows Pi's own read tool for line and byte stops. Its `content` comes from the formatter in `"view"` mode. For other results, or a formatter that returns parts, `details` is `{}`. `toPiReadDetails()` builds the details for your own tool.
@@ -114,11 +151,16 @@ Permission extensions read `annotations` from `pi.getAllTools()`. The hints are 
 ```ts
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { createPiBashTool, piToolRenderers } from "@better-fs-tools/pi";
+import { piCwdCommandRunner } from "@better-fs-tools/pi/node";
+import { shellEnv } from "@better-fs-tools/shell";
 
 // Replaces Pi's own bash with the shared signature: { command, timeout?, cwd? },
 // the timeout in milliseconds, run in ctx.cwd. Pi's bash renderer still draws it.
 export default function bashExtension(pi: ExtensionAPI): void {
-  const bash = createPiBashTool();
+  const bash = createPiBashTool({
+    runner: piCwdCommandRunner(), // a Node runner at ctx.cwd on each call
+    env: shellEnv(() => process.env),
+  });
   pi.registerTool(bash);
   pi.registerToolRenderer(piToolRenderers([bash]));
 }
@@ -132,31 +174,38 @@ With the file tools, a bash `afterRun` hook can make the next edit of a file nee
 
 ```ts
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createPiBashTool, createPiFsTools, piToolRenderers } from "@better-fs-tools/pi";
+import { createPiFsTools, piToolRenderers } from "@better-fs-tools/pi";
+import { piCwdCommandRunner, piCwdFileSystem } from "@better-fs-tools/pi/node";
 import { memoryStore } from "@better-fs-tools/read";
+import { shellEnv } from "@better-fs-tools/shell";
 
-// The file tools with a read store, and bash. After each command,
-// the next edit of package.json needs a read, since the command may have
-// changed it.
+// The file tools with a read store, and bash in the same bundle. After each
+// command, the next edit of package.json needs a read, since the command may
+// have changed it.
 export default function fsAndBashExtension(pi: ExtensionAPI): void {
-  const tools = createPiFsTools({ state: memoryStore() });
-  const bash = createPiBashTool({
-    afterRun: [
-      {
-        id: "invalidate-package-json",
-        afterRun: async (_outcome, ctx) => {
-          // ctx.call carries Pi's ctx, so the path resolves under its cwd.
-          await tools.invalidate("package.json", ctx.call);
-          return {};
+  const tools = createPiFsTools({
+    fs: piCwdFileSystem(),
+    state: memoryStore(),
+    bash: {
+      runner: piCwdCommandRunner(),
+      env: shellEnv(() => process.env),
+      afterRun: [
+        {
+          id: "invalidate-package-json",
+          afterRun: async (_outcome, ctx) => {
+            // ctx.call carries Pi's ctx, so the path resolves under its cwd.
+            await tools.invalidate("package.json", ctx.call);
+            return {};
+          },
         },
-      },
-    ],
+      ],
+    },
   });
   pi.registerTool(tools.read);
   pi.registerTool(tools.edit);
   pi.registerTool(tools.write);
-  pi.registerTool(bash);
-  pi.registerToolRenderer(piToolRenderers([tools.read, tools.edit, tools.write, bash]));
+  pi.registerTool(tools.bash);
+  pi.registerToolRenderer(piToolRenderers([tools.read, tools.edit, tools.write, tools.bash]));
 }
 ```
 
@@ -189,7 +238,7 @@ export function addFsTools(agent: Agent): void {
 
 ## Links
 
-- `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the defaults of every host and bundle, and what each backend can do
+- [Choose an integration](https://better-fs-tools.gandrew.com/integrations) and [Filesystems](https://better-fs-tools.gandrew.com/filesystems) on the docs site: the defaults of every host and bundle, and what each backend can do. `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has the same tables
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option, the signature builders, and the format presets. Its README has a full Pi host example.
 - [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): every write option, the guards, and the authorizers
 - [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node): the filesystem that each call uses

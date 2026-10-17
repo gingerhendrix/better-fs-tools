@@ -5,13 +5,18 @@ import type { CommandRunner } from "@better-fs-tools/shell";
 import { defaultBashSignature } from "@better-fs-tools/shell/signature";
 
 import { createPiBashTool } from "../src/index.ts";
-import { fixtures, piContext } from "./helpers.ts";
+import { fixtures, piContext, textOf } from "./helpers.ts";
+import { piCwdCommandRunner } from "../src/node.ts";
+import { shellEnv } from "@better-fs-tools/shell";
 
 const makeRoot = fixtures();
 
 describe("createPiBashTool", () => {
   test("has the shared default signature: command, timeout in milliseconds, and cwd", () => {
-    const tool = createPiBashTool();
+    const tool = createPiBashTool({
+      runner: piCwdCommandRunner(),
+      env: shellEnv(() => process.env),
+    });
     expect(tool.name).toBe("bash");
     expect(tool.label).toBe("bash");
     expect(tool.description).toBe(defaultBashSignature().description);
@@ -28,6 +33,8 @@ describe("createPiBashTool", () => {
 
   test("the timeoutUnit seconds preset gives Pi's own bash keys", () => {
     const tool = createPiBashTool({
+      runner: piCwdCommandRunner(),
+      env: shellEnv(() => process.env),
       signature: defaultBashSignature({ timeoutUnit: "s", cwd: false }),
     });
     expect(Object.keys((tool.parameters as { properties: object }).properties)).toEqual([
@@ -38,7 +45,10 @@ describe("createPiBashTool", () => {
 
   test("a cwd from the model is relative to ctx.cwd", async () => {
     const root = await makeRoot({ "sub/b.txt": "b" });
-    const tool = createPiBashTool();
+    const tool = createPiBashTool({
+      runner: piCwdCommandRunner(),
+      env: shellEnv(() => process.env),
+    });
     const result = await tool.execute(
       "c0",
       { command: "pwd", cwd: "sub" },
@@ -54,7 +64,10 @@ describe("createPiBashTool", () => {
   test("runs in ctx.cwd, one runner for each directory", async () => {
     const first = await makeRoot({ "a.txt": "a" });
     const second = await makeRoot({ "b.txt": "b" });
-    const tool = createPiBashTool();
+    const tool = createPiBashTool({
+      runner: piCwdCommandRunner(),
+      env: shellEnv(() => process.env),
+    });
     const one = await tool.execute(
       "c1",
       { command: "pwd; ls" },
@@ -80,7 +93,11 @@ describe("createPiBashTool", () => {
 
   test("the timeout is in milliseconds", async () => {
     const root = await makeRoot();
-    const tool = createPiBashTool({ limits: { killGraceMs: 100 } });
+    const tool = createPiBashTool({
+      runner: piCwdCommandRunner(),
+      env: shellEnv(() => process.env),
+      limits: { killGraceMs: 100 },
+    });
     const result = await tool.execute(
       "c3",
       { command: "sleep 5", timeout: 200 },
@@ -96,6 +113,8 @@ describe("createPiBashTool", () => {
   test("a spill reference becomes details.fullOutputPath", async () => {
     const root = await makeRoot();
     const tool = createPiBashTool({
+      runner: piCwdCommandRunner(),
+      env: shellEnv(() => process.env),
       spill: {
         id: "noop",
         open: async () => ({ write: async () => undefined, close: async () => "/tmp/full.log" }),
@@ -112,7 +131,11 @@ describe("createPiBashTool", () => {
   });
 
   test("the default description names the configured timeouts, in milliseconds", () => {
-    const tool = createPiBashTool({ limits: { defaultTimeoutMs: 1_000, maxTimeoutMs: 2_000 } });
+    const tool = createPiBashTool({
+      runner: piCwdCommandRunner(),
+      env: shellEnv(() => process.env),
+      limits: { defaultTimeoutMs: 1_000, maxTimeoutMs: 2_000 },
+    });
     const timeout = (tool.parameters as { properties: { timeout: { description: string } } })
       .properties.timeout.description;
     expect(timeout).toBe(
@@ -124,13 +147,17 @@ describe("createPiBashTool", () => {
 
   test("the default description names a given runner object", () => {
     const tool = createPiBashTool({
+      env: shellEnv(() => process.env),
       runner: { id: "sandbox", cwd: "/", run: () => ({ output: [], exit: new Promise(() => {}) }) },
     } as never);
     expect(tool.description).toContain("Commands run in: sandbox.");
-    expect(createPiBashTool().description).not.toContain("Commands run in:");
+    expect(
+      createPiBashTool({ runner: piCwdCommandRunner(), env: shellEnv(() => process.env) })
+        .description,
+    ).not.toContain("Commands run in:");
   });
 
-  test("a supplied runner runs in ctx.cwd, not in its own cwd", async () => {
+  test("a runner object runs in its own cwd unless the cwd option is set", async () => {
     const seen: string[] = [];
     const runner: CommandRunner = {
       id: "sandbox",
@@ -143,27 +170,46 @@ describe("createPiBashTool", () => {
         };
       },
     };
-    const tool = createPiBashTool({ runner });
+    const own = createPiBashTool({ env: shellEnv(() => process.env), runner });
+    await own.execute("c5", { command: "pwd" }, undefined, undefined, piContext("/context/one"));
+    const tool = createPiBashTool({
+      env: shellEnv(() => process.env),
+      runner,
+      cwd: (call) => call.host.cwd,
+    });
     for (const cwd of ["/context/one", "/context/two"]) {
       await tool.execute("c6", { command: "pwd" }, undefined, undefined, piContext(cwd));
     }
-    const made = createPiBashTool({ runner: () => runner });
+    const made = createPiBashTool({
+      env: shellEnv(() => process.env),
+      runner: () => runner,
+      cwd: (call) => call.host.cwd,
+    });
     await made.execute("c7", { command: "pwd" }, undefined, undefined, piContext("/context/three"));
-    expect(seen).toEqual(["/context/one", "/context/two", "/context/three"]);
+    expect(seen).toEqual(["/runner", "/context/one", "/context/two", "/context/three"]);
   });
 
-  test("refuses a relative ctx.cwd", async () => {
-    const tool = createPiBashTool();
-    await expect(
-      tool.execute("c8", { command: "true" }, undefined, undefined, piContext("relative")),
-    ).rejects.toThrow("Pi bash execution requires an absolute ctx.cwd");
+  test("piCwdCommandRunner() refuses a relative or missing ctx.cwd, and the call is an error result", async () => {
+    const runner = piCwdCommandRunner();
+    const tool = createPiBashTool({ runner, env: shellEnv(() => process.env) });
+    for (const ctx of [piContext("relative"), {} as never]) {
+      const result = await tool.execute("c8", { command: "true" }, undefined, undefined, ctx);
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toStartWith("[bash:extension-failed]");
+    }
+    expect(() => runner({ host: piContext("relative") })).toThrow(
+      "piCwdCommandRunner needs an absolute ctx.cwd",
+    );
+    expect(() => runner({ host: {} as never })).toThrow("piCwdCommandRunner needs ctx.cwd");
   });
 
-  test("refuses cwd in options and a context without cwd", async () => {
-    expect(() => createPiBashTool({ cwd: "/" } as never)).toThrow(TypeError);
-    const tool = createPiBashTool();
-    await expect(
-      tool.execute("c5", { command: "true" }, undefined, undefined, {} as never),
-    ).rejects.toThrow(TypeError);
+  test("piCwdCommandRunner() refuses cwd in its options; runner and env are required", () => {
+    expect(() => piCwdCommandRunner({ cwd: "/" } as never)).toThrow(
+      "piCwdCommandRunner options cannot set cwd",
+    );
+    expect(() => createPiBashTool({ env: shellEnv() } as never)).toThrow(TypeError);
+    expect(() => createPiBashTool({ runner: piCwdCommandRunner() } as never)).toThrow(
+      "env is required",
+    );
   });
 });

@@ -1,13 +1,18 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createPiFsTools, piToolRenderers } from "@better-fs-tools/pi";
+import { createPiFsTools, piMutationQueueLocks, piToolRenderers } from "@better-fs-tools/pi";
+import { piCwdFileSystem } from "@better-fs-tools/pi/node";
+import { nodeDigest } from "@better-fs-tools/node";
 import { denyPaths, memoryStore, unicodeRepair } from "@better-fs-tools/read";
 import { hashlineFormat } from "@better-fs-tools/read/formats";
 import { protectPaths } from "@better-fs-tools/write";
 
 export default function fsToolsExtension(pi: ExtensionAPI): void {
-  // Four tools with one read store, so edit and write need a read first. The
-  // store and apply_patch are opt-in.
   const tools = createPiFsTools({
+    // The recommended Pi configuration, as in the package's extension entry.
+    fs: piCwdFileSystem(), // a Node filesystem rooted at ctx.cwd on each call
+    locks: piMutationQueueLocks(), // the per-file queue of Pi's own edit and write
+    digest: nodeDigest(), // faster on Node than the default sha256Digest()
+    // Opt-ins: one read store, so edit and write need a read first, and apply_patch.
     state: memoryStore(),
     read: {
       resolve: unicodeRepair({ note: false }),

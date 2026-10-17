@@ -23,12 +23,13 @@ import { defaultReadSignature } from "@better-fs-tools/read/signature";
 
 import { createPiReadTool } from "../src/index.ts";
 import { execute, fixtures, piContext, textOf } from "./helpers.ts";
+import { piCwdFileSystem } from "../src/node.ts";
 
 const fixture = fixtures();
 
 describe("pi tool shape", () => {
   test("has the shared default signature, with the built-in read name and keys", () => {
-    const tool = createPiReadTool();
+    const tool = createPiReadTool({ fs: piCwdFileSystem() });
     const builtIn = createBuiltInPiReadTool(process.cwd());
 
     expect(tool.name).toBe("read");
@@ -58,7 +59,7 @@ describe("pi tool shape", () => {
 
   test("parameters are Type.Unsafe of the signature schema", () => {
     const signature = defaultReadSignature({ name: "view_file", names: { path: "file_path" } });
-    const tool = createPiReadTool({ signature });
+    const tool = createPiReadTool({ fs: piCwdFileSystem(), signature });
 
     expect(tool.name).toBe("view_file");
     expect(tool.label).toBe("view_file");
@@ -67,20 +68,27 @@ describe("pi tool shape", () => {
   });
 
   test("prompt options replace the defaults", () => {
-    const tool = createPiReadTool({ promptSnippet: "Read", promptGuidelines: ["Prefer read."] });
+    const tool = createPiReadTool({
+      fs: piCwdFileSystem(),
+      promptSnippet: "Read",
+      promptGuidelines: ["Prefer read."],
+    });
     expect(tool.promptSnippet).toBe("Read");
     expect(tool.promptGuidelines).toEqual(["Prefer read."]);
   });
 
-  test("rejects fs, cwd, and allowedRoots", () => {
-    for (const key of ["fs", "cwd", "allowedRoots"]) {
-      expect(() => createPiReadTool({ [key]: undefined } as never)).toThrow(
-        `Pi read tool options cannot set ${key}`,
+  test("fs is required, and cwd and allowedRoots are unknown options", () => {
+    expect(() => createPiReadTool({} as never)).toThrow(
+      "fs must be a FileSystem or a function that returns one",
+    );
+    for (const key of ["cwd", "allowedRoots"]) {
+      expect(() => createPiReadTool({ fs: piCwdFileSystem(), [key]: "/" } as never)).toThrow(
+        `Unknown read tool option: ${key}`,
       );
     }
     expect(() => createPiReadTool(null as never)).toThrow(TypeError);
     expect(() => createPiReadTool([] as never)).toThrow(TypeError);
-    expect(() => createPiReadTool({ input: {} } as never)).toThrow(
+    expect(() => createPiReadTool({ fs: piCwdFileSystem(), input: {} } as never)).toThrow(
       "Unknown read tool option: input",
     );
   });
@@ -90,7 +98,12 @@ describe("pi model-facing output", () => {
   test("forwards Pi's abort signal", async () => {
     const root = await fixture({ "large.txt": "alpha\n".repeat(400_000) });
     const controller = new AbortController();
-    const pending = execute(createPiReadTool(), { path: "large.txt" }, root, controller.signal);
+    const pending = execute(
+      createPiReadTool({ fs: piCwdFileSystem() }),
+      { path: "large.txt" },
+      root,
+      controller.signal,
+    );
     setImmediate(() => controller.abort());
 
     expect(textOf(await pending)).toMatch(/^\[read:aborted\]/u);
@@ -98,7 +111,9 @@ describe("pi model-facing output", () => {
 
   test("works when Pi supplies no signal", async () => {
     const root = await fixture({ "a.txt": "alpha" });
-    expect(textOf(await execute(createPiReadTool(), { path: "a.txt" }, root))).toBe("1|alpha");
+    expect(
+      textOf(await execute(createPiReadTool({ fs: piCwdFileSystem() }), { path: "a.txt" }, root)),
+    ).toBe("1|alpha");
   });
 
   test("content mirrors the core result for every status", async () => {
@@ -108,7 +123,7 @@ describe("pi model-facing output", () => {
       "binary.bin": new Uint8Array([0, 1, 2, 3, 0, 255]),
       "dir/file.txt": "nested",
     });
-    const tool = createPiReadTool();
+    const tool = createPiReadTool({ fs: piCwdFileSystem() });
     const read = createReadTool({ fs: nodeFileSystem({ cwd: root, allowedRoots: [root] }) });
 
     const statuses: string[] = [];
@@ -130,10 +145,11 @@ describe("pi model-facing output", () => {
 
   test("toInput refusals throw TypeError that names host parameters", async () => {
     const root = await fixture({ "a.txt": "alpha" });
-    await expect(execute(createPiReadTool(), { file_path: "a.txt" }, root)).rejects.toThrow(
-      "Unknown read input key: file_path. Expected path, offset, limit",
-    );
+    await expect(
+      execute(createPiReadTool({ fs: piCwdFileSystem() }), { file_path: "a.txt" }, root),
+    ).rejects.toThrow("Unknown read input key: file_path. Expected path, offset, limit");
     const range = createPiReadTool({
+      fs: piCwdFileSystem(),
       signature: defaultReadSignature({ names: { offset: "start", limit: "count" } }),
     });
     await expect(execute(range, { path: "a.txt", start: 0 }, root)).rejects.toThrow(
@@ -144,6 +160,7 @@ describe("pi model-facing output", () => {
   test("continuation text uses host names; the retry note stays canonical", async () => {
     const root = await fixture({ "a.txt": "one\ntwo\nthree\nfour\n" });
     const tool = createPiReadTool({
+      fs: piCwdFileSystem(),
       signature: defaultReadSignature({
         names: { path: "file_path", offset: "start_line", limit: "max_lines" },
       }),
@@ -160,7 +177,11 @@ describe("pi model-facing output", () => {
 describe("pi resolve and suggest", () => {
   test("a miss suggests real neighbours under ctx.cwd", async () => {
     const root = await fixture({ "src/index.ts": "x\n" });
-    const result = await execute(createPiReadTool(), { path: "src/index.tsx" }, root);
+    const result = await execute(
+      createPiReadTool({ fs: piCwdFileSystem() }),
+      { path: "src/index.tsx" },
+      root,
+    );
     expect(textOf(result)).toBe(
       '[read:not-found] src/index.tsx was not found. Nearby names: "index.ts".',
     );
@@ -168,7 +189,7 @@ describe("pi resolve and suggest", () => {
 
   test("a host-free unicodeRepair opens the real name and discloses it", async () => {
     const root = await fixture({ "report\u202f2026.txt": "q1\n" });
-    const tool = createPiReadTool({ resolve: unicodeRepair() });
+    const tool = createPiReadTool({ fs: piCwdFileSystem(), resolve: unicodeRepair() });
     const text = textOf(await execute(tool, { path: "report 2026.txt" }, root));
     expect(text).toStartWith("1|q1");
     expect(text).toContain("[read:path-repaired]");
@@ -190,6 +211,7 @@ describe("pi authorize", () => {
       },
     } as unknown as ExtensionContext;
     const tool = createPiReadTool({
+      fs: piCwdFileSystem(),
       authorize: askUser((target, hook) => hook.call.host.ui.confirm("Read", target.displayPath)),
     });
 
@@ -206,7 +228,10 @@ describe("pi authorize", () => {
 
   test("a host-free denyPaths also denies the suggestion listing", async () => {
     const root = await fixture({ "secrets/key.txt": "k\n" });
-    const tool = createPiReadTool({ authorize: denyPaths(["**/secrets", "**/secrets/**"]) });
+    const tool = createPiReadTool({
+      fs: piCwdFileSystem(),
+      authorize: denyPaths(["**/secrets", "**/secrets/**"]),
+    });
     expect(textOf(await execute(tool, { path: "secrets/key.txt" }, root))).toStartWith(
       "[read:denied]",
     );
@@ -228,7 +253,7 @@ describe("pi host context", () => {
         return base.format(outcome, ctx);
       },
     };
-    const tool = createPiReadTool({ formatter });
+    const tool = createPiReadTool({ fs: piCwdFileSystem(), formatter });
     const ctx = piContext(root);
     const signal = new AbortController().signal;
 
@@ -244,6 +269,7 @@ describe("pi host context", () => {
     const root = await fixture({ "a.txt": "one\n" });
     const hosts: ExtensionContext[] = [];
     const tool = createPiReadTool({
+      fs: piCwdFileSystem(),
       state: (call) => {
         hosts.push(call.host);
         return null;
@@ -259,6 +285,7 @@ describe("pi host context", () => {
     const root = await fixture({ "a.txt": "one\n" });
     const calls: ReadContext<ExtensionContext>[] = [];
     const tool = createPiReadTool({
+      fs: piCwdFileSystem(),
       resolve: {
         id: "spy",
         resolve(path, ctx) {
@@ -282,6 +309,7 @@ describe("pi host context", () => {
     const root = await fixture({ "a.txt": "one\n" });
     const calls: ReadContext<ExtensionContext>[] = [];
     const tool = createPiReadTool({
+      fs: piCwdFileSystem(),
       authorize: {
         id: "spy",
         authorize(_target, ctx) {
@@ -302,6 +330,7 @@ describe("pi host context", () => {
     const root = await fixture({ "a.txt": "one\n" });
     const calls: ReadContext<ExtensionContext>[] = [];
     const tool = createPiReadTool({
+      fs: piCwdFileSystem(),
       hooks: [
         {
           id: "spy",
@@ -320,12 +349,20 @@ describe("pi host context", () => {
     expect(calls[1]?.host).toBe(ctx);
   });
 
-  test("rejects an execution without a usable ctx.cwd", async () => {
-    const tool = createPiReadTool();
+  test("with piCwdFileSystem(), a call without a usable ctx.cwd is an error result", async () => {
+    const fs = piCwdFileSystem();
+    const tool = createPiReadTool({ fs });
     for (const ctx of [null, undefined, {}, { cwd: "" }, { cwd: 7 }]) {
-      await expect(
-        tool.execute("pi-read-call", { path: "a.txt" }, undefined, undefined, ctx as never),
-      ).rejects.toThrow("Pi read execution requires ctx.cwd");
+      const result = await tool.execute(
+        "pi-read-call",
+        { path: "a.txt" },
+        undefined,
+        undefined,
+        ctx as never,
+      );
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toStartWith("[read:extension-failed]");
+      expect(() => fs({ host: ctx as never })).toThrow("piCwdFileSystem needs ctx.cwd");
     }
   });
 });
@@ -339,7 +376,7 @@ describe("pi custom formatter", () => {
         `${ctx.mode}:${outcome.status === "ok" ? outcome.view.lines.map((line) => line.text).join(",") : ""}`,
     };
     const result = await execute(
-      createPiReadTool({ formatter }),
+      createPiReadTool({ fs: piCwdFileSystem(), formatter }),
       { path: "a.txt", limit: 2 },
       root,
     );
@@ -358,7 +395,7 @@ describe("pi custom formatter", () => {
       },
     };
     const result = await execute(
-      createPiReadTool({ formatter }),
+      createPiReadTool({ fs: piCwdFileSystem(), formatter }),
       { path: "a.txt", limit: 2 },
       root,
     );
@@ -374,7 +411,7 @@ describe("pi custom formatter", () => {
       format: (outcome): readonly ContentPart[] => [{ type: "text", text: outcome.status }],
     };
     const result = await execute(
-      createPiReadTool({ formatter }),
+      createPiReadTool({ fs: piCwdFileSystem(), formatter }),
       { path: "a.txt", limit: 2 },
       root,
     );
@@ -385,7 +422,7 @@ describe("pi custom formatter", () => {
 
   test("jsonFormatter details carry its view-mode JSON", async () => {
     const root = await fixture({ "a.txt": "one\ntwo\nthree\n" });
-    const tool = createPiReadTool({ formatter: jsonFormatter() });
+    const tool = createPiReadTool({ fs: piCwdFileSystem(), formatter: jsonFormatter() });
     const result = await execute(tool, { path: "a.txt", limit: 1 }, root);
     const view = result.details.truncation?.content ?? "";
 

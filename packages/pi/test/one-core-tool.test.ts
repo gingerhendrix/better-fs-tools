@@ -5,6 +5,7 @@ import path from "node:path";
 import * as read from "@better-fs-tools/read";
 
 import { execute, fixtures, textOf } from "./helpers.ts";
+import { piCwdFileSystem } from "../src/node.ts";
 
 const fixture = fixtures();
 
@@ -24,7 +25,7 @@ describe("pi core tool", () => {
   test("one core tool serves every working directory", async () => {
     const parent = await fixture({ "a/x.txt": "a", "b/x.txt": "b", "c/x.txt": "c" });
     built = 0;
-    const tool = createPiReadTool();
+    const tool = createPiReadTool({ fs: piCwdFileSystem() });
     expect(built).toBe(1);
 
     for (const name of ["a", "b", "c", "a"]) {

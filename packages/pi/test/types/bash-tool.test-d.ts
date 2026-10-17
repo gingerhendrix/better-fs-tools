@@ -3,18 +3,27 @@ import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 
 import { nodeCommandRunner } from "@better-fs-tools/node";
+import { shellEnv } from "@better-fs-tools/shell";
 
 import { createPiBashTool } from "../../src/index.ts";
 import type { PiBashToolOptions, PiBashDetails } from "../../src/index.ts";
+import { piCwdCommandRunner } from "../../src/node.ts";
 
-// @ts-expect-error cwd is not a Pi bash option
-createPiBashTool({ cwd: "/tmp" });
-// @ts-expect-error cwd is not a Pi bash option
-export const withCwd: PiBashToolOptions = { cwd: () => "/tmp" };
+// @ts-expect-error runner and env are required
+createPiBashTool({});
+// @ts-expect-error env is required
+export const withoutEnv: PiBashToolOptions = { runner: piCwdCommandRunner() };
 
-// A runner and limits still type-check.
-createPiBashTool({ runner: nodeCommandRunner(), limits: { maxTimeoutMs: 2_000 } });
+// The cwd option of createBashTool() type-checks, with the Pi context as host.
+createPiBashTool({
+  runner: nodeCommandRunner(),
+  env: shellEnv(() => process.env),
+  cwd: (call) => call.host.cwd,
+  limits: { maxTimeoutMs: 2_000 },
+});
 
-// PiBashTool is assignable to Pi's ToolDefinition, with its output schema and structured content.
-export const bashDefinition: ToolDefinition<TSchema, PiBashDetails | undefined> =
-  createPiBashTool();
+// PiBashTool is assignable to Pi's ToolDefinition.
+export const bashDefinition: ToolDefinition<TSchema, PiBashDetails | undefined> = createPiBashTool({
+  runner: piCwdCommandRunner(),
+  env: shellEnv(() => process.env),
+});

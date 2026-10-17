@@ -726,6 +726,7 @@ This Pi host sets most dimensions. You will usually need only a few of these opt
 ```ts
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createPiReadTool } from "@better-fs-tools/pi";
+import { piCwdFileSystem } from "@better-fs-tools/pi/node";
 import { defaultReadSignature } from "@better-fs-tools/read/signature";
 import {
   askUser,
@@ -747,6 +748,7 @@ import {
 const stores = new Map<string, ReturnType<typeof memoryStore>>();
 
 export const read = createPiReadTool({
+  fs: piCwdFileSystem(),
   signature: defaultReadSignature({
     names: { path: "file_path", offset: "start_line", limit: "max_lines" },
   }),

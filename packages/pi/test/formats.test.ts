@@ -9,6 +9,7 @@ import {
 
 import { createPiReadTool } from "../src/index.ts";
 import { execute, fixtures, textOf } from "./helpers.ts";
+import { piCwdFileSystem } from "../src/node.ts";
 
 const fixture = fixtures();
 
@@ -23,7 +24,7 @@ describe("pi with the ./formats presets", () => {
       hermesFormat(),
     ]) {
       const result = await execute(
-        createPiReadTool({ formatter }),
+        createPiReadTool({ fs: piCwdFileSystem(), formatter }),
         { path: "a.txt", limit: 2 },
         root,
       );
@@ -46,7 +47,7 @@ describe("pi with the ./formats presets", () => {
   test("hashline ids use Pi's default digest", async () => {
     const root = await fixture({ "a.txt": "one\n" });
     const result = await execute(
-      createPiReadTool({ formatter: hashlineFormat() }),
+      createPiReadTool({ fs: piCwdFileSystem(), formatter: hashlineFormat() }),
       { path: "a.txt" },
       root,
     );

@@ -1,66 +1,80 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
-import { nodeDigest } from "@better-fs-tools/node";
 import type { Clock, Digest, ToolCallContext } from "@better-fs-tools/read";
-import { createFsTools } from "@better-fs-tools/write";
+import type { ReadSignature } from "@better-fs-tools/read/signature";
+import type { BashSignature } from "@better-fs-tools/shell/signature";
 import type {
-  FsToolsSharedKey,
+  FsToolsApplyPatchOptions,
+  FsToolsBashOptions,
+  FsToolsEditOptions,
+  FsToolsOptions,
+  FsToolsReadOptions,
   FsToolsState,
+  FsToolsWriteOptions,
   InvalidateOutcome,
   LockManager,
 } from "@better-fs-tools/write";
-
-import {
-  adaptPiMutationTool,
-  piApplyPatchParts,
-  piEditParts,
-  piWriteParts,
-} from "./mutation-tools.ts";
+import { fsToolDefinitions } from "@better-fs-tools/write/signature";
 import type {
-  PiApplyPatchToolOptions,
-  PiEditToolOptions,
-  PiWriteToolOptions,
-  PiMutationOptions,
-  PiMutationTool,
-} from "./mutation-tools.ts";
-import { piMutationQueueLocks } from "./locks.ts";
-import { checkPiOptions, PI_ROOT_KEYS, piFileSystems } from "./roots.ts";
-import type { PiRootOptions } from "./roots.ts";
-import { adaptPiReadTool, piReadDeps, piReadParts } from "./tool.ts";
-import type { PiReadToolOptions, PiReadTool } from "./tool.ts";
+  EditSignature,
+  PatchSignature,
+  WriteSignature,
+} from "@better-fs-tools/write/signature";
 
-type BundleSharedKey = FsToolsSharedKey | keyof PiRootOptions;
+import { adaptPiBashTool } from "./bash-tool.ts";
+import type { PiBashTool } from "./bash-tool.ts";
+import { adaptPiMutationTool } from "./mutation-tools.ts";
+import type { PiMutationTool } from "./mutation-tools.ts";
+import { checkPiOptions, splitPrompt } from "./prompt.ts";
+import type { PiPromptOptions } from "./prompt.ts";
+import { adaptPiReadTool } from "./tool.ts";
+import type { PiReadTool } from "./tool.ts";
 
-const KNOWN_OPTIONS: ReadonlySet<string> = new Set([
-  "state",
-  "digest",
-  "locks",
-  "clock",
-  ...PI_ROOT_KEYS,
-  "read",
-  "edit",
-  "write",
-  "applyPatch",
-]);
-const BUNDLE_SHARED_KEYS = ["state", "digest", "locks", "clock", ...PI_ROOT_KEYS] as const;
+type Host = ExtensionContext;
 
-export interface PiFsToolsOptions extends PiRootOptions {
-  /**
-   * Default null: no read-before-write. A store, for example memoryStore(),
-   * turns it on. A factory gives each call its own store.
-   */
-  readonly state?: FsToolsState<ExtensionContext>;
-  /** Default nodeDigest(). */
-  readonly digest?: Digest;
-  /** Default piMutationQueueLocks(): Pi's own per-file queue, shared with Pi's edit and write. */
-  readonly locks?: LockManager;
-  /** Default () => new Date(). */
-  readonly clock?: Clock;
-  readonly read?: Omit<PiReadToolOptions, BundleSharedKey>;
-  readonly edit?: Omit<PiEditToolOptions, BundleSharedKey>;
-  readonly write?: Omit<PiWriteToolOptions, BundleSharedKey>;
+/** Read tool options for createPiFsTools. Shared keys are set once at the top level. */
+export type PiFsToolsReadOptions = FsToolsReadOptions<Host> &
+  PiPromptOptions & {
+    /** Default defaultReadSignature(). */
+    readonly signature?: ReadSignature;
+  };
+export type PiFsToolsEditOptions = FsToolsEditOptions<Host> &
+  PiPromptOptions & {
+    /** Default defaultEditSignature() for `matchers`. */
+    readonly signature?: EditSignature;
+  };
+export type PiFsToolsWriteOptions = FsToolsWriteOptions<Host> &
+  PiPromptOptions & {
+    /** Default defaultWriteSignature(). */
+    readonly signature?: WriteSignature;
+  };
+export type PiFsToolsApplyPatchOptions = FsToolsApplyPatchOptions<Host> &
+  PiPromptOptions & {
+    /** Default defaultPatchSignature(). */
+    readonly signature?: PatchSignature;
+  };
+/** Bash tool options for createPiFsTools. `runner` and `env` are required. */
+export type PiFsToolsBashOptions = FsToolsBashOptions<Host> &
+  PiPromptOptions & {
+    /** Default defaultBashSignature() for the runner's id and the limits. */
+    readonly signature?: BashSignature;
+  };
+
+/**
+ * The options of createFsTools(), with the Pi extension context as host, and
+ * a `signature` and the Pi prompt options in each tool's options.
+ */
+export interface PiFsToolsOptions extends Omit<
+  FsToolsOptions<Host>,
+  "read" | "edit" | "write" | "applyPatch" | "bash"
+> {
+  readonly read?: PiFsToolsReadOptions;
+  readonly edit?: PiFsToolsEditOptions;
+  readonly write?: PiFsToolsWriteOptions;
   /** Off by default. `true` or an options object adds an apply_patch tool. */
-  readonly applyPatch?: boolean | Omit<PiApplyPatchToolOptions, BundleSharedKey>;
+  readonly applyPatch?: boolean | PiFsToolsApplyPatchOptions;
+  /** Off by default. Give a runner and an env to add a bash tool. */
+  readonly bash?: false | PiFsToolsBashOptions;
 }
 
 export interface PiFsTools {
@@ -69,18 +83,18 @@ export interface PiFsTools {
   readonly write: PiMutationTool;
   /** null unless options.applyPatch is true or an object. */
   readonly applyPatch: PiMutationTool | null;
-  readonly state: FsToolsState<ExtensionContext>;
-  /** options.digest, or nodeDigest(). */
+  /** null unless options.bash is set. */
+  readonly bash: PiBashTool | null;
+  readonly state: FsToolsState<Host>;
   readonly digest: Digest;
   readonly locks: LockManager;
   readonly clock: Clock;
   /**
-   * Forgets the read record for a path under the call's ctx.cwd, so the next
-   * edit needs a read. Pass the call; in a bash afterRun hook it is ctx.call.
-   * Without it the outcome is { ok: false } with reason "unsupported". Never
-   * throws. With state null it reports recorded: false.
+   * Forgets the read record for a path, so the next edit needs a read. Pass the
+   * call when fs or state is a factory; in a bash afterRun hook it is ctx.call.
+   * Never throws.
    */
-  invalidate(path: string, call?: ToolCallContext<ExtensionContext>): Promise<InvalidateOutcome>;
+  invalidate(path: string, call?: ToolCallContext<Host>): Promise<InvalidateOutcome>;
 }
 
 /** The createPiFsTools result when `applyPatch` is true or an object: it is never null. */
@@ -88,131 +102,67 @@ export interface PiFsToolsWithApplyPatch extends PiFsTools {
   readonly applyPatch: PiMutationTool;
 }
 
+/** The createPiFsTools result when `bash` is set: it is never null. */
+export interface PiFsToolsWithBash extends PiFsTools {
+  readonly bash: PiBashTool;
+}
+
 /**
- * Creates Pi read, edit, and write tools rooted at each call's ctx.cwd, and
- * an apply_patch tool when `applyPatch` is true or an object. They share one
- * digest, lock manager, and clock, and the read store when `state` is given.
- * Throws TypeError on fs, cwd, or allowedRoots anywhere in the options, on an
- * unknown key, and on a shared option (state, digest, locks, clock, or a root
- * option) inside one tool's options. There is no bash: register
- * createPiBashTool() and call invalidate from its afterRun hook.
+ * Creates Pi read, edit, and write tools over one filesystem, sharing one
+ * digest, lock manager, and clock, and the read state when `state` is given.
+ * With `applyPatch`, also apply_patch. With `bash`, also bash, with the same
+ * digest and clock. Every option and default is the one of createFsTools().
+ * Throws TypeError where createFsTools() does, with createPiFsTools in the
+ * message.
  */
 export function createPiFsTools(
   options: PiFsToolsOptions & {
-    readonly applyPatch: true | Omit<PiApplyPatchToolOptions, BundleSharedKey>;
+    readonly applyPatch: true | PiFsToolsApplyPatchOptions;
+    readonly bash: PiFsToolsBashOptions;
   },
+): PiFsToolsWithApplyPatch & PiFsToolsWithBash;
+export function createPiFsTools(
+  options: PiFsToolsOptions & { readonly bash: PiFsToolsBashOptions },
+): PiFsToolsWithBash;
+export function createPiFsTools(
+  options: PiFsToolsOptions & { readonly applyPatch: true | PiFsToolsApplyPatchOptions },
 ): PiFsToolsWithApplyPatch;
-export function createPiFsTools(options?: PiFsToolsOptions): PiFsTools;
-export function createPiFsTools(options: PiFsToolsOptions = {}): PiFsTools {
-  checkPiOptions(options, "fs");
-  for (const key of Object.keys(options)) {
-    if (!KNOWN_OPTIONS.has(key)) throw new TypeError(`Unknown createPiFsTools option: ${key}`);
-  }
-  const state: unknown = (options as Record<string, unknown>).state;
-  if (
-    state !== undefined &&
-    state !== null &&
-    typeof state !== "function" &&
-    !isReadStateStore(state)
-  ) {
-    throw new TypeError(
-      "createPiFsTools state must be a read state store, a function that returns one, or null",
-    );
-  }
-  const given = {
-    read: options.read ?? {},
-    edit: options.edit ?? {},
-    write: options.write ?? {},
-    applyPatch:
-      options.applyPatch === true
-        ? {}
-        : options.applyPatch === false || options.applyPatch === undefined
-          ? null
-          : options.applyPatch,
-  };
-  for (const [key, value] of Object.entries(given)) {
-    if (value === null) continue;
-    checkPiOptions(value, key);
-    for (const shared of BUNDLE_SHARED_KEYS) {
-      if (Object.hasOwn(value, shared)) {
-        throw new TypeError(
-          `createPiFsTools ${key} options cannot set ${shared}: set it once at the top level`,
-        );
-      }
-    }
-  }
-
-  const { denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode } = options;
-  const fs = piFileSystems({ denyRoots, symlinks, hardLinks, newFileMode, newDirectoryMode });
-  const {
-    signature: _readSignature,
-    promptSnippet: _readSnippet,
-    promptGuidelines: _readLines,
-    ...read
-  } = given.read;
-  const {
-    signature: _editSignature,
-    promptSnippet: _editSnippet,
-    promptGuidelines: _editLines,
-    ...edit
-  } = given.edit;
-  const {
-    signature: _writeSignature,
-    promptSnippet: _writeSnippet,
-    promptGuidelines: _writeLines,
-    ...write
-  } = given.write;
-  const parts = {
-    read: piReadParts(given.read),
-    edit: piEditParts(given.edit),
-    write: piWriteParts(given.write),
-  };
-  let patch: {
-    readonly deps: Omit<
-      PiApplyPatchToolOptions,
-      BundleSharedKey | keyof PiMutationOptions<unknown>
-    >;
-    readonly parts: ReturnType<typeof piApplyPatchParts>;
-  } | null = null;
-  if (given.applyPatch !== null) {
-    const {
-      signature: _patchSignature,
-      promptSnippet: _patchSnippet,
-      promptGuidelines: _patchLines,
-      ...deps
-    } = given.applyPatch;
-    patch = { deps, parts: piApplyPatchParts(given.applyPatch) };
-  }
-
-  const core = createFsTools<ExtensionContext>({
-    fs,
-    digest: options.digest ?? nodeDigest(),
-    ...(options.state === undefined ? {} : { state: options.state }),
-    locks: options.locks ?? piMutationQueueLocks(),
-    ...(options.clock === undefined ? {} : { clock: options.clock }),
-    read: { ...read, ...piReadDeps(parts.read) },
-    edit: { ...edit, messages: parts.edit.messages },
-    write: { ...write, messages: parts.write.messages },
-    ...(patch === null ? {} : { applyPatch: { ...patch.deps, messages: patch.parts.messages } }),
-  });
+export function createPiFsTools(options: PiFsToolsOptions): PiFsTools;
+export function createPiFsTools(options: PiFsToolsOptions): PiFsTools {
+  checkPiOptions(options, "createPiFsTools");
+  const read = splitPrompt(options.read ?? {});
+  const edit = splitPrompt(options.edit ?? {});
+  const write = splitPrompt(options.write ?? {});
+  const applyPatch = isObject(options.applyPatch) ? splitPrompt(options.applyPatch) : null;
+  const bash = isObject(options.bash) ? splitPrompt(options.bash) : null;
+  const defs = fsToolDefinitions<Host>(
+    {
+      ...options,
+      ...(options.read === undefined ? {} : { read: read.rest }),
+      ...(options.edit === undefined ? {} : { edit: edit.rest }),
+      ...(options.write === undefined ? {} : { write: write.rest }),
+      ...(applyPatch === null ? {} : { applyPatch: applyPatch.rest }),
+      ...(bash === null ? {} : { bash: bash.rest }),
+    },
+    "createPiFsTools",
+  );
   return Object.freeze<PiFsTools>({
-    read: adaptPiReadTool(parts.read, core.read, core.digest),
-    edit: adaptPiMutationTool(parts.edit, core.edit),
-    write: adaptPiMutationTool(parts.write, core.write),
+    read: adaptPiReadTool(defs.read, read.prompt),
+    edit: adaptPiMutationTool("edit", defs.edit, edit.prompt),
+    write: adaptPiMutationTool("write", defs.write, write.prompt),
     applyPatch:
-      patch === null || core.applyPatch === null
+      defs.applyPatch === null
         ? null
-        : adaptPiMutationTool(patch.parts, core.applyPatch),
-    state: core.state,
-    digest: core.digest,
-    locks: core.locks,
-    clock: core.clock,
-    invalidate: (path, call) => core.invalidate(path, call),
+        : adaptPiMutationTool("apply_patch", defs.applyPatch, applyPatch?.prompt ?? {}),
+    bash: defs.bash === null ? null : adaptPiBashTool(defs.bash, bash?.prompt ?? {}),
+    state: defs.state,
+    digest: defs.digest,
+    locks: defs.locks,
+    clock: defs.clock,
+    invalidate: defs.invalidate,
   });
 }
 
-function isReadStateStore(value: unknown): boolean {
-  if (value === null || typeof value !== "object") return false;
-  const store = value as Record<string, unknown>;
-  return ["get", "put", "delete"].every((key) => typeof store[key] === "function");
+function isObject<T>(value: T | boolean | undefined): value is T & object {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

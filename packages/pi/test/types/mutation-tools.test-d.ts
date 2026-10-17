@@ -19,13 +19,14 @@ import {
   createPiWriteTool,
 } from "../../src/index.ts";
 import type { PiMutationDetails, PiMutationTool } from "../../src/index.ts";
+import { piCwdFileSystem } from "../../src/node.ts";
 
 // PiMutationTool is assignable to Pi's ToolDefinition, and Pi's API registers it.
 declare const tool: PiMutationTool;
 export const definition: ToolDefinition<TSchema, PiMutationDetails | undefined> = tool;
 declare const api: ExtensionAPI;
 api.registerTool(tool);
-const tools = createPiFsTools({ applyPatch: true });
+const tools = createPiFsTools({ fs: piCwdFileSystem(), applyPatch: true });
 api.registerTool(tools.read);
 api.registerTool(tools.edit);
 api.registerTool(tools.write);
@@ -40,10 +41,12 @@ export const fromPiDetails: PiMutationDetails = piDetails;
 // The host is Pi's ExtensionContext.
 const stores = new Map<string, ReadStateStore>();
 export const typed = createPiEditTool({
+  fs: piCwdFileSystem(),
   signature: defaultEditSignature({ names: { path: "filePath" } }),
   state: (call) => stores.get(call.host.sessionManager.getSessionId()) ?? null,
 });
 createPiWriteTool({
+  fs: piCwdFileSystem(),
   // @ts-expect-error ExtensionContext has no session field
   state: (call) => stores.get(call.host.session) ?? null,
 });
@@ -52,6 +55,7 @@ createPiWriteTool({
 declare const hostGuard: Guard<ExtensionContext>;
 declare const hostHook: WriteHook<ExtensionContext>;
 export const composed = createPiApplyPatchTool({
+  fs: piCwdFileSystem(),
   signature: defaultPatchSignature(),
   authorize: writeAuthorizers(
     protectPaths(),
@@ -61,19 +65,20 @@ export const composed = createPiApplyPatchTool({
   hooks: [hostHook],
 });
 export const unknownState = createPiWriteTool({
+  fs: piCwdFileSystem(),
   state: (_call: ToolCallContext<unknown>) => null,
 });
 
-// @ts-expect-error fs is not an option: the root is ctx.cwd
-createPiEditTool({ fs: null });
+// @ts-expect-error fs is required
+createPiEditTool({});
 // @ts-expect-error cwd is not an option either
-createPiFsTools({ cwd: "/" });
+createPiFsTools({ fs: piCwdFileSystem(), cwd: "/" });
 // @ts-expect-error the shared store is set once, at the top level
-createPiFsTools({ edit: { state: null } });
+createPiFsTools({ fs: piCwdFileSystem(), edit: { state: null } });
 
 // The state and digest pairing is in the options types (StateNeedsDigest).
 declare const store: ReadStateStore;
-export const pairedEdit = createPiEditTool({ state: store });
+export const pairedEdit = createPiEditTool({ fs: piCwdFileSystem(), state: store });
 // @ts-expect-error: a state needs a digest that is not null.
-createPiEditTool({ state: store, digest: null });
-export const bareEdit = createPiEditTool({ digest: null });
+createPiEditTool({ fs: piCwdFileSystem(), state: store, digest: null });
+export const bareEdit = createPiEditTool({ fs: piCwdFileSystem(), digest: null });

@@ -126,8 +126,9 @@ const renderers = [];
 expect("pi extension", tools.map((tool) => tool.name).join(), "read,edit,write");
 expect("pi extension renderers", renderers.length, 1);
 const { createPiFsTools } = await import("${SCOPE}/pi");
-expect("pi apply_patch off by default", createPiFsTools().applyPatch, null);
-expect("pi bundle apply_patch", createPiFsTools({ applyPatch: true }).applyPatch?.name, "apply_patch");
+const { piCwdFileSystem } = await import("${SCOPE}/pi/node");
+expect("pi apply_patch off by default", createPiFsTools({ fs: piCwdFileSystem() }).applyPatch, null);
+expect("pi bundle apply_patch", createPiFsTools({ fs: piCwdFileSystem(), applyPatch: true }).applyPatch?.name, "apply_patch");
 `;
   const run = spawnSync("node", ["--input-type=module", "-e", source], {
     cwd: consumer,

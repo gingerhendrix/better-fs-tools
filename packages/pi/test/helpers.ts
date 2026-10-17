@@ -9,6 +9,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { JsonObject } from "@better-fs-tools/read";
 
 import type {
+  PiBashToolResult,
   PiMutationTool,
   PiMutationToolResult,
   PiReadTool,
@@ -55,6 +56,6 @@ export function run(
   return tool.execute(`pi-${tool.name}-call`, input, signal, undefined, piContext(cwd));
 }
 
-export function textOf(result: PiReadToolResult | PiMutationToolResult): string {
+export function textOf(result: PiReadToolResult | PiMutationToolResult | PiBashToolResult): string {
   return result.content.map((part) => (part.type === "text" ? part.text : "")).join("\n");
 }

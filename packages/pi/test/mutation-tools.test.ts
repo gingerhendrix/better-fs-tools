@@ -21,6 +21,7 @@ import {
 
 import { createPiApplyPatchTool, createPiEditTool, createPiWriteTool } from "../src/index.ts";
 import { fixtures, piContext, run, textOf } from "./helpers.ts";
+import { piCwdFileSystem } from "../src/node.ts";
 
 const fixture = fixtures();
 
@@ -28,7 +29,7 @@ const PATCH = (...lines: string[]) => ["*** Begin Patch", ...lines, "*** End Pat
 
 describe("pi write tool shapes", () => {
   test("edit has the shared default signature, with the built-in edit name", () => {
-    const tool = createPiEditTool();
+    const tool = createPiEditTool({ fs: piCwdFileSystem() });
     const builtIn = createBuiltInPiEditTool(process.cwd());
 
     expect(tool.name).toBe(builtIn.name);
@@ -47,7 +48,7 @@ describe("pi write tool shapes", () => {
   });
 
   test("write has the shared default signature, with the built-in write name and keys", () => {
-    const tool = createPiWriteTool();
+    const tool = createPiWriteTool({ fs: piCwdFileSystem() });
     const builtIn = createBuiltInPiWriteTool(process.cwd());
 
     expect(tool.name).toBe(builtIn.name);
@@ -60,7 +61,7 @@ describe("pi write tool shapes", () => {
   });
 
   test("apply_patch defaults to the JSON patch signature, with no constrainedSampling", () => {
-    const tool = createPiApplyPatchTool();
+    const tool = createPiApplyPatchTool({ fs: piCwdFileSystem() });
     expect(tool.name).toBe("apply_patch");
     expect(tool.description).toBe(defaultPatchSignature().description);
     expect(tool.parameters).toEqual(defaultPatchSignature().schema as never);
@@ -69,7 +70,7 @@ describe("pi write tool shapes", () => {
 
   test("a signature with a grammar sets an openai_lark grammar", () => {
     const signature = { ...defaultPatchSignature(), grammar: { lark: CODEX_PATCH_GRAMMAR } };
-    const tool = createPiApplyPatchTool({ signature });
+    const tool = createPiApplyPatchTool({ fs: piCwdFileSystem(), signature });
     expect(tool.description).toBe(signature.description);
     expect(tool.constrainedSampling).toEqual({
       type: "grammar",
@@ -87,22 +88,27 @@ describe("pi write tool shapes", () => {
   });
 
   test("the default edit signature describes the tool's matchers", () => {
-    const tool = createPiEditTool({ matchers: [exactMatcher()] });
+    const tool = createPiEditTool({ fs: piCwdFileSystem(), matchers: [exactMatcher()] });
     expect(tool.description).toBe(defaultEditSignature({ matchers: [exactMatcher()] }).description);
   });
 
   test("prompt options replace the defaults, and the tools are frozen", () => {
-    const tool = createPiWriteTool({ promptSnippet: "Write", promptGuidelines: ["One."] });
+    const tool = createPiWriteTool({
+      fs: piCwdFileSystem(),
+      promptSnippet: "Write",
+      promptGuidelines: ["One."],
+    });
     expect(tool.promptSnippet).toBe("Write");
     expect(tool.promptGuidelines).toEqual(["One."]);
     expect(Object.isFrozen(tool)).toBe(true);
   });
 
-  test("fs, cwd, and allowedRoots are refused, as for read", () => {
+  test("fs is required, and cwd and allowedRoots are unknown options, as for read", () => {
     for (const create of [createPiEditTool, createPiWriteTool, createPiApplyPatchTool]) {
-      for (const key of ["fs", "cwd", "allowedRoots"]) {
-        expect(() => create({ [key]: "/" } as never)).toThrow(
-          new RegExp(`options cannot set ${key}: the root is bound to ctx.cwd`, "u"),
+      expect(() => create({} as never)).toThrow("fs must be a WritableFileSystem");
+      for (const key of ["cwd", "allowedRoots"]) {
+        expect(() => create({ fs: piCwdFileSystem(), [key]: "/" } as never)).toThrow(
+          new RegExp(`Unknown [a-z_]+ tool option: ${key}`, "u"),
         );
       }
       expect(() => create(null as never)).toThrow(TypeError);
@@ -113,12 +119,16 @@ describe("pi write tool shapes", () => {
 describe("pi write tools: execute", () => {
   test("write creates and edit changes a file under ctx.cwd, with Pi details", async () => {
     const cwd = await fixture();
-    const write = await run(createPiWriteTool(), { path: "a.txt", content: "one\ntwo\n" }, cwd);
+    const write = await run(
+      createPiWriteTool({ fs: piCwdFileSystem() }),
+      { path: "a.txt", content: "one\ntwo\n" },
+      cwd,
+    );
     expect(textOf(write)).toBe("Created a.txt (2 lines).");
     expect(write.details).toBeUndefined();
 
     const edit = await run(
-      createPiEditTool(),
+      createPiEditTool({ fs: piCwdFileSystem() }),
       { path: "a.txt", old_string: "two", new_string: "TWO" },
       cwd,
     );
@@ -134,7 +144,7 @@ describe("pi write tools: execute", () => {
   test("apply_patch adds and updates files under ctx.cwd", async () => {
     const cwd = await fixture({ "a.txt": "a\n" });
     const result = await run(
-      createPiApplyPatchTool(),
+      createPiApplyPatchTool({ fs: piCwdFileSystem() }),
       { patch: PATCH("*** Update File: a.txt", "@@", "-a", "+A", "*** Add File: b.txt", "+b") },
       cwd,
     );
@@ -148,19 +158,19 @@ describe("pi write tools: execute", () => {
     const inside = path.join(parent, "inside");
     await symlink(path.join(parent, "secret.txt"), path.join(inside, "escape.txt"));
 
-    const write = createPiWriteTool();
+    const write = createPiWriteTool({ fs: piCwdFileSystem() });
     for (const target of ["../made.txt", path.join(parent, "made.txt")]) {
       const result = await run(write, { path: target, content: "x\n" }, inside);
       expect(textOf(result)).toMatch(/^\[write:outside-allowed-roots\]/u);
     }
     const patch = await run(
-      createPiApplyPatchTool(),
+      createPiApplyPatchTool({ fs: piCwdFileSystem() }),
       { patch: PATCH("*** Add File: ../made.txt", "+x") },
       inside,
     );
     expect(textOf(patch)).toMatch(/^\[apply_patch:outside-allowed-roots\]/u);
     const edit = await run(
-      createPiEditTool(),
+      createPiEditTool({ fs: piCwdFileSystem() }),
       { path: "escape.txt", old_string: "secret", new_string: "gone" },
       inside,
     );
@@ -171,7 +181,7 @@ describe("pi write tools: execute", () => {
 
   test("the root follows each call's ctx.cwd", async () => {
     const parent = await fixture({ "a/x.txt": "a\n", "b/x.txt": "b\n" });
-    const write = createPiWriteTool();
+    const write = createPiWriteTool({ fs: piCwdFileSystem() });
     await run(write, { path: "x.txt", content: "A\n" }, path.join(parent, "a"));
     await run(write, { path: "x.txt", content: "B\n" }, path.join(parent, "b"));
     expect(await readFile(path.join(parent, "a", "x.txt"), "utf8")).toBe("A\n");
@@ -180,7 +190,9 @@ describe("pi write tools: execute", () => {
 
   test("newFileMode and newDirectoryMode reach the filesystem of each root", async () => {
     const cwd = await fixture();
-    const write = createPiWriteTool({ newFileMode: 0o600, newDirectoryMode: 0o700 });
+    const write = createPiWriteTool({
+      fs: piCwdFileSystem({ newFileMode: 0o600, newDirectoryMode: 0o700 }),
+    });
     await run(write, { path: "d/x.txt", content: "x\n" }, cwd);
     expect((await stat(path.join(cwd, "d"))).mode & 0o7777).toBe(0o700);
     expect((await stat(path.join(cwd, "d", "x.txt"))).mode & 0o7777).toBe(0o600);
@@ -198,9 +210,15 @@ describe("pi write tools: execute", () => {
     };
     const controller = new AbortController();
     for (const [tool, input] of [
-      [createPiWriteTool({ authorize }), { path: "a.txt", content: "y\n" }],
-      [createPiEditTool({ authorize }), { path: "a.txt", old_string: "y", new_string: "z" }],
-      [createPiApplyPatchTool({ authorize }), { patch: PATCH("*** Add File: b.txt", "+b") }],
+      [createPiWriteTool({ fs: piCwdFileSystem(), authorize }), { path: "a.txt", content: "y\n" }],
+      [
+        createPiEditTool({ fs: piCwdFileSystem(), authorize }),
+        { path: "a.txt", old_string: "y", new_string: "z" },
+      ],
+      [
+        createPiApplyPatchTool({ fs: piCwdFileSystem(), authorize }),
+        { patch: PATCH("*** Add File: b.txt", "+b") },
+      ],
     ] as const) {
       seen.length = 0;
       const ctx = piContext(cwd);
@@ -218,7 +236,7 @@ describe("pi write tools: execute", () => {
   test("a tool error is content text with isError and no details, not a throw", async () => {
     const cwd = await fixture({ "a.txt": "a\na\n" });
     const result = await run(
-      createPiEditTool(),
+      createPiEditTool({ fs: piCwdFileSystem() }),
       { path: "a.txt", old_string: "a", new_string: "b" },
       cwd,
     );
@@ -232,20 +250,30 @@ describe("pi write tools: execute", () => {
   test("invalid model input throws TypeError that names the parameter", async () => {
     const cwd = await fixture();
     await expect(
-      run(createPiEditTool(), { path: "a.txt", old_string: 1, new_string: "b" }, cwd),
+      run(
+        createPiEditTool({ fs: piCwdFileSystem() }),
+        { path: "a.txt", old_string: 1, new_string: "b" },
+        cwd,
+      ),
     ).rejects.toThrow("old_string must be a string");
   });
 
-  test("a missing ctx.cwd throws TypeError", async () => {
-    const tool = createPiWriteTool();
-    await expect(
-      tool.execute("x", { path: "a", content: "" }, undefined, undefined, {} as ExtensionContext),
-    ).rejects.toThrow("Pi write execution requires ctx.cwd");
+  test("with piCwdFileSystem(), a missing ctx.cwd is an extension-failed error result", async () => {
+    const tool = createPiWriteTool({ fs: piCwdFileSystem() });
+    const result = await tool.execute(
+      "x",
+      { path: "a", content: "" },
+      undefined,
+      undefined,
+      {} as ExtensionContext,
+    );
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toStartWith("[write:extension-failed]");
   });
 
   test("a given store turns read-before-write on", async () => {
     const cwd = await fixture({ "a.txt": "x\n" });
-    const edit = createPiEditTool({ state: memoryStore() });
+    const edit = createPiEditTool({ fs: piCwdFileSystem(), state: memoryStore() });
     const result = await run(edit, { path: "a.txt", old_string: "x", new_string: "y" }, cwd);
     expect(textOf(result)).toBe(
       "[edit:not-read] Read a.txt with the read tool before changing it.",

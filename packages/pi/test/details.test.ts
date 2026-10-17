@@ -12,6 +12,7 @@ import type { ReadLimits, ReadOk, ReadResult } from "@better-fs-tools/read";
 import { createPiReadTool, toPiReadDetails } from "../src/index.ts";
 import type { PiReadDetails } from "../src/index.ts";
 import { execute, fixtures, textOf } from "./helpers.ts";
+import { piCwdFileSystem } from "../src/node.ts";
 
 const fixture = fixtures();
 
@@ -26,7 +27,8 @@ async function detailsFor(
   limits?: Partial<ReadLimits>,
 ): Promise<{ result: ReadResult; details: PiReadDetails }> {
   const root = await fixture({ [input.path]: text });
-  const tool = createPiReadTool(limits === undefined ? {} : { limits });
+  const fs = piCwdFileSystem();
+  const tool = createPiReadTool(limits === undefined ? { fs } : { fs, limits });
   const executed = await execute(tool, input, root);
   const read = createReadTool({
     fs: nodeFileSystem({ cwd: root, allowedRoots: [root] }),
@@ -134,7 +136,11 @@ describe("pi details mapping", () => {
   test("omits details for a view-budget stop", async () => {
     const root = await fixture({ "budget.txt": "aaaa\nbbbb\ncccc\n" });
     const budget = charsPerToken({ ratio: 4, max: 4 });
-    const executed = await execute(createPiReadTool({ budget }), { path: "budget.txt" }, root);
+    const executed = await execute(
+      createPiReadTool({ fs: piCwdFileSystem(), budget }),
+      { path: "budget.txt" },
+      root,
+    );
     const read = createReadTool({
       fs: nodeFileSystem({ cwd: root, allowedRoots: [root] }),
       budget,
@@ -166,7 +172,7 @@ describe("pi details mapping", () => {
     expect(empty.details).toEqual({});
 
     const root = await fixture({ "binary.bin": new Uint8Array([0, 1, 2, 3, 0, 255]) });
-    const tool = createPiReadTool();
+    const tool = createPiReadTool({ fs: piCwdFileSystem() });
     expect((await execute(tool, { path: "binary.bin" }, root)).details).toEqual({});
     expect((await execute(tool, { path: "missing.txt" }, root)).details).toEqual({});
   });

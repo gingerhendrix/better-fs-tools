@@ -5,8 +5,11 @@ import path from "node:path";
 
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 
+import fsToolsExtension from "../src/extension.ts";
 import { createPiEditTool, createPiFsTools, piMutationQueueLocks } from "../src/index.ts";
+import type { PiMutationTool, PiReadTool } from "../src/index.ts";
 import { fixtures, run } from "./helpers.ts";
+import { piCwdFileSystem } from "../src/node.ts";
 
 const fixture = fixtures();
 
@@ -41,7 +44,7 @@ describe("piMutationQueueLocks", () => {
 
     let finished = false;
     const edit = run(
-      createPiEditTool(),
+      createPiEditTool({ fs: piCwdFileSystem(), locks: piMutationQueueLocks() }),
       { path: "a.txt", old_string: "one", new_string: "two" },
       cwd,
     ).then((result) => {
@@ -128,7 +131,33 @@ describe("piMutationQueueLocks", () => {
     expect(() => piMutationQueueLocks(null as never)).toThrow(TypeError);
   });
 
-  test("is the default lock manager of createPiFsTools()", () => {
-    expect(createPiFsTools().locks.id).toBe("pi-file-mutation-queue");
+  test("the extension entry uses it, so its edit waits while Pi's queue holds the file", async () => {
+    const registered: (PiReadTool | PiMutationTool)[] = [];
+    fsToolsExtension({
+      registerTool: (tool: PiReadTool | PiMutationTool) => registered.push(tool),
+      registerToolRenderer: () => {},
+    });
+    const edit = registered[1] as PiMutationTool;
+    const cwd = await fixture({ "a.txt": "one\n" });
+    const file = path.join(cwd, "a.txt");
+    const freePi = await holdPiQueue(file);
+    let finished = false;
+    const pending = run(edit, { path: "a.txt", old_string: "one", new_string: "two" }, cwd).then(
+      (result) => {
+        finished = true;
+        return result;
+      },
+    );
+    await tick();
+    expect(finished).toBe(false);
+    await freePi();
+    expect((await pending).isError).toBe(false);
+    expect(await readFile(file, "utf8")).toBe("two\n");
+  });
+
+  test("is opt-in: the default lock manager is memoryLocks(), as in every bundle", () => {
+    expect(createPiFsTools({ fs: piCwdFileSystem() }).locks.id).toBe("memory");
+    const locks = piMutationQueueLocks();
+    expect(createPiFsTools({ fs: piCwdFileSystem(), locks }).locks).toBe(locks);
   });
 });
