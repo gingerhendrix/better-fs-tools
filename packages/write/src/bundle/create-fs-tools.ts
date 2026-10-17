@@ -21,6 +21,12 @@ import { memoryLocks } from "../locks/index.ts";
 import { createInvalidator } from "../state/invalidate.ts";
 import type { InvalidateOutcome } from "../state/invalidate.ts";
 
+/** A read state store, a factory of the call, or null. */
+export type FsToolsState<THost = undefined> =
+  | ReadStateStore
+  | ((call: ToolCallContext<THost>) => ReadStateStore | null)
+  | null;
+
 /** Options set once for the whole bundle. A tool's own options cannot set them. */
 export type FsToolsSharedKey = "fs" | "state" | "digest" | "locks" | "clock";
 
@@ -41,9 +47,11 @@ export interface FsToolsOptions<THost = undefined> {
   readonly fs: WritableFileSystem | ((call: ToolCallContext<THost>) => WritableFileSystem);
   /**
    * Default null: no read-before-write. A store, for example
-   * memoryStore({ clock }), turns it on for edit, write, and apply_patch.
+   * memoryStore({ clock }), turns it on for edit, write, and apply_patch. A
+   * factory gives each call its own store: every tool calls it at most once
+   * for each call.
    */
-  readonly state?: ReadStateStore | null;
+  readonly state?: FsToolsState<THost>;
   /** Default sha256Digest(). */
   readonly digest?: Digest;
   /** Default memoryLocks(), shared by edit, write, and apply_patch. */
@@ -74,14 +82,14 @@ export interface FsTools<THost = undefined> {
   /** null unless options.bash is set. It does not share the read state: see invalidate. */
   readonly bash: BashTool<THost> | null;
   readonly fs: FsToolsOptions<THost>["fs"];
-  readonly state: ReadStateStore | null;
+  readonly state: FsToolsState<THost>;
   readonly digest: Digest;
   readonly locks: LockManager;
   readonly clock: Clock;
   /**
    * Deletes the read record for a path, so the next edit or write needs a
-   * fresh read. Never throws. When fs is a factory, pass the call context (a
-   * hook has it as ctx.call), or the outcome is ok: false.
+   * fresh read. Never throws. When fs or state is a factory, pass the call
+   * context (a hook has it as ctx.call), or the outcome is ok: false.
    */
   invalidate(path: string, call?: ToolCallContext<THost>): Promise<InvalidateOutcome>;
 }
@@ -181,7 +189,7 @@ export function createFsTools<THost = undefined>(options: FsToolsOptions<THost>)
     digest,
     locks,
     clock,
-    invalidate: invalidator(fs, state ?? EMPTY_STATE_STORE),
+    invalidate: invalidator(fs, state),
   });
 }
 
@@ -198,9 +206,9 @@ function checkFsToolsOptions(
     if (!known.has(key)) throw new TypeError(`Unknown ${label} option: ${key}`);
   }
   const state: unknown = (options as Record<string, unknown>).state;
-  if (state !== undefined && state !== null && !isStore(state)) {
+  if (state !== undefined && state !== null && typeof state !== "function" && !isStore(state)) {
     throw new TypeError(
-      `${label} state must be a read state store or null: a bundle takes one store, not a per-call factory`,
+      `${label} state must be a read state store, a function that returns one, or null`,
     );
   }
   for (const [tool, keys] of Object.entries(sharedKeys)) {
@@ -222,26 +230,28 @@ function checkFsToolsOptions(
 
 function invalidator<THost>(
   fs: FsToolsOptions<THost>["fs"],
-  state: ReadStateStore,
+  state: FsToolsState<THost>,
 ): FsTools<THost>["invalidate"] {
-  if (typeof fs !== "function") {
-    const fixed = createInvalidator({ fs, state });
+  if (typeof fs !== "function" && typeof state !== "function") {
+    const fixed = createInvalidator({ fs, state: state ?? EMPTY_STATE_STORE });
     return (path) => fixed(path);
   }
   return async (path, call) => {
     if (call === undefined) {
+      const factory = typeof fs === "function" ? "fs" : "state";
       return {
         ok: false,
         phase: "stat",
         error: {
           reason: "unsupported",
-          detail: "fs is a factory: pass the call context to invalidate(path, call)",
+          detail: `${factory} is a factory: pass the call context to invalidate(path, call)`,
         },
       };
     }
     let backend: unknown;
+    let store: ReadStateStore | null;
     try {
-      backend = fs(call);
+      backend = typeof fs === "function" ? fs(call) : fs;
     } catch (error) {
       return { ok: false, phase: "stat", error: { reason: "io", detail: messageOf(error) } };
     }
@@ -255,7 +265,19 @@ function invalidator<THost>(
         },
       };
     }
-    return createInvalidator({ fs: backend, state })(path);
+    try {
+      store = typeof state === "function" ? state(call) : state;
+    } catch (error) {
+      return { ok: false, phase: "state", detail: messageOf(error) };
+    }
+    if (store !== null && !isStore(store)) {
+      return {
+        ok: false,
+        phase: "state",
+        detail: "the state factory did not return a read state store or null",
+      };
+    }
+    return createInvalidator({ fs: backend, state: store ?? EMPTY_STATE_STORE })(path);
   };
 }
 

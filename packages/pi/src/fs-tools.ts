@@ -1,9 +1,14 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { nodeDigest } from "@better-fs-tools/node";
-import type { Clock, Digest, ReadStateStore, ToolCallContext } from "@better-fs-tools/read";
+import type { Clock, Digest, ToolCallContext } from "@better-fs-tools/read";
 import { createFsTools } from "@better-fs-tools/write";
-import type { FsToolsSharedKey, InvalidateOutcome, LockManager } from "@better-fs-tools/write";
+import type {
+  FsToolsSharedKey,
+  FsToolsState,
+  InvalidateOutcome,
+  LockManager,
+} from "@better-fs-tools/write";
 
 import {
   adaptPiMutationTool,
@@ -40,8 +45,11 @@ const KNOWN_OPTIONS: ReadonlySet<string> = new Set([
 const BUNDLE_SHARED_KEYS = ["state", "digest", "locks", "clock", ...PI_ROOT_KEYS] as const;
 
 export interface PiFsToolsOptions extends PiRootOptions {
-  /** Default null: no read-before-write. A store, for example memoryStore(), turns it on. */
-  readonly state?: ReadStateStore | null;
+  /**
+   * Default null: no read-before-write. A store, for example memoryStore(),
+   * turns it on. A factory gives each call its own store.
+   */
+  readonly state?: FsToolsState<ExtensionContext>;
   /** Default nodeDigest(). */
   readonly digest?: Digest;
   /** Default piMutationQueueLocks(): Pi's own per-file queue, shared with Pi's edit and write. */
@@ -61,7 +69,7 @@ export interface PiFsTools {
   readonly write: PiMutationTool;
   /** null unless options.applyPatch is true or an object. */
   readonly applyPatch: PiMutationTool | null;
-  readonly state: ReadStateStore | null;
+  readonly state: FsToolsState<ExtensionContext>;
   /** options.digest, or nodeDigest(). */
   readonly digest: Digest;
   readonly locks: LockManager;
@@ -101,9 +109,14 @@ export function createPiFsTools(options: PiFsToolsOptions = {}): PiFsTools {
     if (!KNOWN_OPTIONS.has(key)) throw new TypeError(`Unknown createPiFsTools option: ${key}`);
   }
   const state: unknown = (options as Record<string, unknown>).state;
-  if (state !== undefined && state !== null && !isReadStateStore(state)) {
+  if (
+    state !== undefined &&
+    state !== null &&
+    typeof state !== "function" &&
+    !isReadStateStore(state)
+  ) {
     throw new TypeError(
-      `createPiFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory`,
+      "createPiFsTools state must be a read state store, a function that returns one, or null",
     );
   }
   const given = {

@@ -26,10 +26,10 @@ createAiSdkFsTools({ fs, bash: true });
 // The bundle has a default digest, so a state needs no digest here.
 export const withState = createAiSdkFsTools({ fs, state: memoryStore() });
 
-// @ts-expect-error: a state needs a digest.
-createAiSdkReadTool({ fs, state: memoryStore() });
-// @ts-expect-error: a state needs a digest.
-createAiSdkEditTool({ fs, state: memoryStore() });
+// A state takes the default digest.
+export const readWithState = createAiSdkReadTool({ fs, state: memoryStore() });
+// @ts-expect-error: a state needs a digest that is not null.
+createAiSdkEditTool({ fs, state: memoryStore(), digest: null });
 
 // A typed context reaches the AI SDK types, so generateText takes a matching toolsContext.
 declare const model: LanguageModel;

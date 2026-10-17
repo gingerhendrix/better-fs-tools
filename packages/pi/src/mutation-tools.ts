@@ -3,7 +3,7 @@ import { Type } from "typebox";
 import type { TSchema } from "typebox";
 
 import { nodeDigest } from "@better-fs-tools/node";
-import type { JsonObject, StateNeedsDigestOrDefault, ToolCallContext } from "@better-fs-tools/read";
+import type { JsonObject, StateNeedsDigest, ToolCallContext } from "@better-fs-tools/read";
 import { createApplyPatchTool, createEditTool, createWriteTool } from "@better-fs-tools/write";
 import type {
   ApplyPatchToolOptions,
@@ -52,19 +52,19 @@ export interface PiMutationOptions<TSignature> {
  * to nodeDigest(); a state needs a digest that is not null.
  */
 export type PiEditToolOptions = Omit<EditToolOptions<ExtensionContext>, "fs"> &
-  StateNeedsDigestOrDefault &
+  StateNeedsDigest &
   PiRootOptions &
   PiMutationOptions<EditSignature>;
 
 /** As PiEditToolOptions, for write. The default signature is defaultWriteSignature(). */
 export type PiWriteToolOptions = Omit<WriteToolOptions<ExtensionContext>, "fs"> &
-  StateNeedsDigestOrDefault &
+  StateNeedsDigest &
   PiRootOptions &
   PiMutationOptions<WriteSignature>;
 
 /** As PiEditToolOptions, for apply_patch. The default signature is defaultPatchSignature(). */
 export type PiApplyPatchToolOptions = Omit<ApplyPatchToolOptions<ExtensionContext>, "fs"> &
-  StateNeedsDigestOrDefault &
+  StateNeedsDigest &
   PiRootOptions &
   PiMutationOptions<PatchSignature>;
 

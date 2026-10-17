@@ -65,6 +65,7 @@ describe("hashlineGutter", () => {
     const read = createReadTool({
       fs: memoryFileSystem({ files: { "/a.txt": "one\ntwo\n" } }),
       formatter,
+      digest: null,
     });
     expect(textOf(await read({ path: "/a.txt" }))).toBe("1|one\n2|two");
   });

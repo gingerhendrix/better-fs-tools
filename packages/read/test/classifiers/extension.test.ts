@@ -60,7 +60,7 @@ describe("extensionClassifier", () => {
   test("placed before the default chain it decides first", async () => {
     const { read } = harness({
       files: { "/a.png": "not really an image\n", "/b.log": "a\u0000b\n" },
-      deps: { classifiers: [classifier, ...defaultClassifiers()] },
+      deps: { classifiers: [classifier, ...defaultClassifiers()], converters: [] },
     });
     const refused = expectUnsupported(await read({ path: "/a.png" }), "IMAGE");
     expect(refused.classification.classifier).toBe("extension");

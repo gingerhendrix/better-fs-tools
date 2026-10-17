@@ -12,8 +12,10 @@ import { runBash } from "./pipeline.ts";
  * or env, or a malformed option. `limits` and `messages` merge key by key.
  * Every other option replaces its default.
  */
-export function createBashTool<THost = undefined>(deps: BashToolOptions<THost>): BashTool<THost> {
-  const resolved = resolveShellDependencies(deps);
+export function createBashTool<THost = undefined>(
+  options: BashToolOptions<THost>,
+): BashTool<THost> {
+  const resolved = resolveShellDependencies(options);
   const bash = async (input: unknown, ctx?: ToolCallContext<THost>): Promise<ShellResult> => {
     if (ctx !== undefined && !isRecord(ctx)) throw new TypeError("bash context must be an object");
     const call = ctx ?? ({} as ToolCallContext<THost>);

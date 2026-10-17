@@ -53,6 +53,7 @@ describe("verifyWrite", () => {
     const run = async (content: string) => {
       const write = createWriteTool({
         fs,
+        digest: null,
         hooks: [hookThatSilentlyRewritesFile(content), verifyWrite()],
       });
       return codes(await write({ path: `/${content.length}.txt`, content: "b\n" }));

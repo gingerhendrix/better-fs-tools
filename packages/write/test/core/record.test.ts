@@ -82,7 +82,7 @@ describe("record", () => {
 
   test("without a store nothing is recorded, and without a digest contentId is null", async () => {
     const { fs } = harness();
-    const write = createWriteTool({ fs });
+    const write = createWriteTool({ fs, digest: null });
     const result = await write({ path: "/a.txt", content: "x" });
     expect(result.changes[0]?.after?.contentId).toBeNull();
   });

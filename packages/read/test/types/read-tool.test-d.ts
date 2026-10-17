@@ -74,9 +74,8 @@ export const sharedState = createReadTool<{ id: string }>({
   state: memoryStore(),
 });
 
-// A state needs a digest.
-// @ts-expect-error a state without a digest
-createReadTool({ fs, state: memoryStore() });
+// A state needs a digest. Without one it takes the default sha256Digest().
+export const defaultDigest = createReadTool({ fs, state: memoryStore() });
 // @ts-expect-error a state with a null digest
 createReadTool({ fs, state: memoryStore(), digest: null });
 export const noState = createReadTool({ fs, state: null, digest: null });

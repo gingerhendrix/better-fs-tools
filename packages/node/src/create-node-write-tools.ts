@@ -8,7 +8,7 @@ import type {
   WriteToolOptions,
 } from "@better-fs-tools/write";
 
-import type { StateNeedsDigestOrDefault } from "@better-fs-tools/read";
+import type { StateNeedsDigest } from "@better-fs-tools/read";
 
 import { nodeDigest } from "./digest.ts";
 import { nodeFileSystem } from "./filesystem.ts";
@@ -16,15 +16,15 @@ import type { NodeFileSystem } from "./filesystem.ts";
 
 /** Options for createNodeEditTool, all optional. A `state` needs a digest that is not null. */
 export type CreateNodeEditToolOptions<THost = undefined> = Partial<EditToolOptions<THost>> &
-  StateNeedsDigestOrDefault;
+  StateNeedsDigest;
 /** As CreateNodeEditToolOptions, for write. */
 export type CreateNodeWriteToolOptions<THost = undefined> = Partial<WriteToolOptions<THost>> &
-  StateNeedsDigestOrDefault;
+  StateNeedsDigest;
 /** As CreateNodeEditToolOptions, for apply_patch. */
 export type CreateNodeApplyPatchToolOptions<THost = undefined> = Partial<
   ApplyPatchToolOptions<THost>
 > &
-  StateNeedsDigestOrDefault;
+  StateNeedsDigest;
 
 /**
  * Creates an edit tool for local files. `fs` defaults to nodeFileSystem rooted

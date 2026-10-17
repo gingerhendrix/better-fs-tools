@@ -354,6 +354,7 @@ describe("view edits", () => {
     const read = createReadTool({
       fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
       hooks: [hook("shout", upper)],
+      digest: null,
     });
     const result = expectOk(await read({ path: "/a.txt" }));
     expect(result.observation).toBeNull();

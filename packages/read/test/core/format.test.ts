@@ -25,7 +25,7 @@ describe("formatter call", () => {
     expect(textOf(result)).toBe("a\nb");
   });
 
-  test("runs in model mode with the call object, digest, and limits", async () => {
+  test("runs in model mode with the call object, the default digest, and limits", async () => {
     const seen: ReadFormatContext<unknown>[] = [];
     const spy: ReadFormatter<unknown> = {
       id: "spy",
@@ -40,7 +40,7 @@ describe("formatter call", () => {
     expect(seen).toHaveLength(1);
     expect(seen[0]?.mode).toBe("model");
     expect(seen[0]?.call === call).toBe(true);
-    expect(seen[0]?.digest).toBeNull();
+    expect(seen[0]?.digest?.id).toBe("sha256");
     expect(seen[0]?.limits.maxLines).toBe(7);
   });
 

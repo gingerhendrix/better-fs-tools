@@ -8,10 +8,13 @@ describe("observations", () => {
     expect(expectOk(await read({ path: "/a.txt" })).observation).toBeNull();
   });
 
-  test("the default has no digest", async () => {
+  test("the default digest is sha256Digest(), and digest: null turns observations off", async () => {
     const { fs } = harness({ files: { "/a.txt": "one\n" } });
     const { createReadTool } = await import("../../src/index.ts");
-    expect(expectOk(await createReadTool({ fs })({ path: "/a.txt" })).observation).toBeNull();
+    const observed = expectOk(await createReadTool({ fs })({ path: "/a.txt" })).observation;
+    expect(observed?.contentId).toStartWith("sha256:");
+    const off = createReadTool({ fs, digest: null });
+    expect(expectOk(await off({ path: "/a.txt" })).observation).toBeNull();
   });
 
   test("ids are deterministic with a fixed digest and clock", async () => {

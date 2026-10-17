@@ -585,7 +585,7 @@ describe("hooks", () => {
     expect(formatted).toBe(digest);
   });
 
-  test("the default digest is null and the default clock is the time now", async () => {
+  test("the default digest is sha256Digest() and the default clock is the time now", async () => {
     let ctx: ShellHookContext | null = null;
     await bashTool({
       runner: scriptedRunner(),
@@ -599,7 +599,7 @@ describe("hooks", () => {
         },
       ],
     })({ command: "x" });
-    expect((ctx as ShellHookContext | null)?.digest).toBeNull();
+    expect((ctx as ShellHookContext | null)?.digest?.id).toBe("sha256");
     expect((ctx as ShellHookContext | null)?.clock()).toBeInstanceOf(Date);
   });
 

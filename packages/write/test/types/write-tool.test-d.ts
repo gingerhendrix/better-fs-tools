@@ -110,6 +110,6 @@ export const notWrite: WriteAuthorizer<Host> = readOnly;
 declare const pairedFs: WritableFileSystem;
 declare const pairedStore: ReadStateStore;
 declare const pairedDigest: Digest;
-// @ts-expect-error a state without a digest
-createWriteTool({ fs: pairedFs, state: pairedStore });
+// @ts-expect-error a state with a null digest
+createWriteTool({ fs: pairedFs, state: pairedStore, digest: null });
 export const paired = createWriteTool({ fs: pairedFs, state: pairedStore, digest: pairedDigest });

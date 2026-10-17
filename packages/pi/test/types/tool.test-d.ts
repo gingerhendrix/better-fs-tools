@@ -83,7 +83,7 @@ export const presets: PiReadTool[] = [
 ].map((formatter) => createPiReadTool({ formatter }));
 export const presetAsPiFormatter: ReadFormatter<ExtensionContext> = hashlineFormat();
 
-// The state and digest pairing is in the options type (StateNeedsDigestOrDefault).
+// The state and digest pairing is in the options type (StateNeedsDigest).
 declare const pairedStore: ReadStateStore;
 export const pairedRead = createPiReadTool({ state: pairedStore });
 // @ts-expect-error: a state needs a digest that is not null.

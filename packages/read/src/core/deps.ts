@@ -2,8 +2,11 @@ import type { FileSystem } from "@better-fs-tools/fs";
 
 import { defaultClassifiers } from "../classifiers/index.ts";
 import type { ReadDependencies, ReadToolOptions } from "../contract/deps.ts";
+import type { Digest } from "../contract/digest.ts";
 import type { Converter, ReadHook, ViewBudget } from "../contract/extensions.ts";
 import type { ReadStateStore } from "../contract/state.ts";
+import { imageConverter } from "../converters/index.ts";
+import { sha256Digest } from "../digest/sha256.ts";
 import { lineNumberFormatter } from "../formatters/index.ts";
 import { defaultSuggest } from "../suggest/index.ts";
 import { isRecord } from "./input.ts";
@@ -57,7 +60,7 @@ export function resolveDependencies<THost>(deps: ReadToolOptions<THost>): ReadDe
   if (authorize !== null && (!isRecord(authorize) || typeof authorize.authorize !== "function")) {
     throw new TypeError("authorize must be an authorizer or null");
   }
-  const converters = deps.converters === undefined ? [] : deps.converters;
+  const converters = deps.converters === undefined ? [imageConverter<THost>()] : deps.converters;
   if (!Array.isArray(converters) || !converters.every(isConverter)) {
     throw new TypeError("converters must be an array of file and directory converters");
   }
@@ -77,7 +80,10 @@ export function resolveDependencies<THost>(deps: ReadToolOptions<THost>): ReadDe
   if (state !== null && typeof state !== "function" && !isStateStore(state)) {
     throw new TypeError("state must be a store, a function that returns one, or null");
   }
-  const digest = deps.digest ?? null;
+  const digest = deps.digest === undefined ? sha256Digest() : deps.digest;
+  if (digest !== null && !isDigest(digest)) {
+    throw new TypeError("digest must have an id, create, and hash, or be null");
+  }
   if (state !== null && digest === null) {
     throw new TypeError("state needs a digest: records name the digest that made them");
   }
@@ -125,6 +131,15 @@ function isViewBudget(value: unknown): value is ViewBudget {
 
 function isHook(value: unknown): value is ReadHook<unknown> {
   return isRecord(value) && typeof value.id === "string" && typeof value.afterRead === "function";
+}
+
+function isDigest(value: unknown): value is Digest {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.create === "function" &&
+    typeof value.hash === "function"
+  );
 }
 
 export function isStateStore(value: unknown): value is ReadStateStore {

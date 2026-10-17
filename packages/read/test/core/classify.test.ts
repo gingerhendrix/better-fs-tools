@@ -7,7 +7,7 @@ import { expectFailure, expectOk, expectUnsupported, harness } from "../helpers.
 describe("classification through the tool", () => {
   test("an unsupported file returns its classifier's note and code", async () => {
     const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9]);
-    const { read } = harness({ files: { "/logo.png": png } });
+    const { read } = harness({ files: { "/logo.png": png }, deps: { converters: [] } });
     const result = expectUnsupported(await read({ path: "/logo.png" }), "IMAGE");
     expect(result.classification.classifier).toBe("image");
     expect(result.classification.code).toBe("IMAGE");

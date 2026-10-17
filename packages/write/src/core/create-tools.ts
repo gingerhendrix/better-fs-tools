@@ -21,9 +21,9 @@ import { runEdit, runWrite } from "./pipeline.ts";
  * TypeError on invalid options.
  */
 export function createEditTool<THost = undefined>(
-  deps: EditToolOptions<THost> & StateNeedsDigest,
+  options: EditToolOptions<THost> & StateNeedsDigest,
 ): EditTool<THost> {
-  const resolved = resolveEditDependencies(deps);
+  const resolved = resolveEditDependencies(options);
   const misses = new MissCounter();
   const edit = async (input: unknown, ctx?: ToolCallContext<THost>): Promise<MutationResult> => {
     if (ctx !== undefined && !isRecord(ctx)) throw new TypeError("edit context must be an object");
@@ -40,9 +40,9 @@ export function createEditTool<THost = undefined>(
  * the defaults key by key. Every other option replaces its default.
  */
 export function createWriteTool<THost = undefined>(
-  deps: WriteToolOptions<THost> & StateNeedsDigest,
+  options: WriteToolOptions<THost> & StateNeedsDigest,
 ): WriteTool<THost> {
-  const resolved = resolveWriteDependencies(deps, "write");
+  const resolved = resolveWriteDependencies(options, "write");
   const write = async (input: unknown, ctx?: ToolCallContext<THost>): Promise<MutationResult> => {
     if (ctx !== undefined && !isRecord(ctx)) throw new TypeError("write context must be an object");
     const call = ctx ?? ({} as ToolCallContext<THost>);
@@ -58,9 +58,9 @@ export function createWriteTool<THost = undefined>(
  * Throws TypeError on invalid options.
  */
 export function createApplyPatchTool<THost = undefined>(
-  deps: ApplyPatchToolOptions<THost> & StateNeedsDigest,
+  options: ApplyPatchToolOptions<THost> & StateNeedsDigest,
 ): ApplyPatchTool<THost> {
-  const resolved = resolveApplyPatchDependencies(deps);
+  const resolved = resolveApplyPatchDependencies(options);
   const applyPatch = async (
     input: unknown,
     ctx?: ToolCallContext<THost>,

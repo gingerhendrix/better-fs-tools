@@ -150,6 +150,7 @@ describe("state(call)", () => {
           built += 1;
           return memoryStore();
         },
+        digest: null,
       } as never),
     ).toThrow("state needs a digest");
     expect(built).toBe(0);
@@ -220,13 +221,13 @@ describe("state dependency", () => {
     ).toThrow(TypeError);
   });
 
-  test("a state without a digest throws TypeError, as in the write tools", () => {
+  test("a state with digest null throws TypeError, as in the write tools", () => {
     const fs = memoryFileSystem({ files: {} });
     const state = memoryStore();
-    expect(() => createReadTool({ fs, state } as never)).toThrow(
+    expect(() => createReadTool({ fs, state, digest: null } as never)).toThrow(
       "state needs a digest: records name the digest that made them",
     );
-    expect(() => createReadTool({ fs, state, digest: null } as never)).toThrow(TypeError);
+    expect(() => createReadTool({ fs, state })).not.toThrow();
     expect(() => createReadTool({ fs, state: null })).not.toThrow();
     expect(() => createReadTool({ fs, digest: testDigest() })).not.toThrow();
   });

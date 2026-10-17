@@ -10,9 +10,9 @@ import { runRead } from "./pipeline.ts";
  * a missing `fs`, an empty `classifiers` list, or a `state` without a `digest`.
  */
 export function createReadTool<THost = undefined>(
-  deps: ReadToolOptions<THost> & StateNeedsDigest,
+  options: ReadToolOptions<THost> & StateNeedsDigest,
 ): ReadTool<THost> {
-  const resolved = resolveDependencies(deps);
+  const resolved = resolveDependencies(options);
   const read = async (input: unknown, ctx?: ReadContext<THost>): Promise<ReadResult> => {
     if (ctx !== undefined && !isRecord(ctx)) {
       throw new TypeError("read context must be an object");

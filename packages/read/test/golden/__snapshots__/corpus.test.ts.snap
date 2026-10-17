@@ -559,45 +559,33 @@ exports[`golden corpus, default formatter file nul.bin 1`] = `
 
 exports[`golden corpus, default formatter file image.png 1`] = `
 {
-  "code": "IMAGE",
-  "notes": [
-    "unsupported-image",
-  ],
-  "status": "unsupported",
-  "text": "[read:unsupported-image] This content is not supported as UTF-8 text. Use an image or vision tool.",
+  "notes": [],
+  "status": "media",
+  "text": "",
 }
 `;
 
 exports[`golden corpus, default formatter file image.jpg 1`] = `
 {
-  "code": "IMAGE",
-  "notes": [
-    "unsupported-image",
-  ],
-  "status": "unsupported",
-  "text": "[read:unsupported-image] This content is not supported as UTF-8 text. Use an image or vision tool.",
+  "notes": [],
+  "status": "media",
+  "text": "",
 }
 `;
 
 exports[`golden corpus, default formatter file image.gif 1`] = `
 {
-  "code": "IMAGE",
-  "notes": [
-    "unsupported-image",
-  ],
-  "status": "unsupported",
-  "text": "[read:unsupported-image] This content is not supported as UTF-8 text. Use an image or vision tool.",
+  "notes": [],
+  "status": "media",
+  "text": "",
 }
 `;
 
 exports[`golden corpus, default formatter file image.webp 1`] = `
 {
-  "code": "IMAGE",
-  "notes": [
-    "unsupported-image",
-  ],
-  "status": "unsupported",
-  "text": "[read:unsupported-image] This content is not supported as UTF-8 text. Use an image or vision tool.",
+  "notes": [],
+  "status": "media",
+  "text": "",
 }
 `;
 

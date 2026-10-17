@@ -1,3 +1,5 @@
+import { sha256Digest } from "@better-fs-tools/read";
+
 import type { ShellDependencies, BashToolOptions } from "../contract/deps.ts";
 import type { AfterRunHook, BeforeRunHook } from "../contract/extensions.ts";
 import type { CommandRunner } from "../contract/runner.ts";
@@ -69,7 +71,7 @@ export function resolveShellDependencies<THost>(
   if (!isRecord(formatter) || typeof formatter.format !== "function") {
     throw new TypeError("formatter must have a format function");
   }
-  const digest = deps.digest ?? null;
+  const digest = deps.digest === undefined ? sha256Digest() : deps.digest;
   if (
     digest !== null &&
     (!isRecord(digest) || typeof digest.create !== "function" || typeof digest.hash !== "function")

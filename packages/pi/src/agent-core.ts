@@ -8,13 +8,7 @@ import { Type } from "typebox";
 import type { TSchema } from "typebox";
 
 import { imageConverter, lineNumberFormatter, resolveReadLimits } from "@better-fs-tools/read";
-import type {
-  Clock,
-  Digest,
-  ReadStateStore,
-  ReadToolOptions,
-  ToolCallContext,
-} from "@better-fs-tools/read";
+import type { Clock, Digest, ReadToolOptions, ToolCallContext } from "@better-fs-tools/read";
 import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
 import type { ShellResult } from "@better-fs-tools/shell";
@@ -27,6 +21,7 @@ import type {
   EditToolOptions,
   FsToolsBashOptions,
   FsToolsSharedKey,
+  FsToolsState,
   InvalidateOutcome,
   LockManager,
   MutationResult,
@@ -119,8 +114,11 @@ export type AgentCoreFsToolsBashOptions = FsToolsBashOptions<Host> & {
 export interface AgentCoreFsToolsOptions {
   /** Required. A writable backend, or a factory called once for each call. */
   readonly fs: FsToolsOptions<Host>["fs"];
-  /** Default null: no read-before-write. A store, for example memoryStore(), turns it on. */
-  readonly state?: ReadStateStore | null;
+  /**
+   * Default null: no read-before-write. A store, for example memoryStore(),
+   * turns it on. A factory gives each call its own store.
+   */
+  readonly state?: FsToolsState<Host>;
   /** Default sha256Digest() from @better-fs-tools/read, which runs in a Worker. */
   readonly digest?: Digest;
   /** Default memoryLocks(). */
@@ -146,7 +144,7 @@ export interface AgentCoreFsTools {
   readonly bash: AgentCoreBashTool | null;
   /** Every tool of the bundle, for agent.state.tools or an agentLoop() context. */
   readonly tools: readonly (AgentCoreReadTool | AgentCoreMutationTool | AgentCoreBashTool)[];
-  readonly state: ReadStateStore | null;
+  readonly state: FsToolsState<Host>;
   readonly digest: Digest;
   readonly locks: LockManager;
   readonly clock: Clock;

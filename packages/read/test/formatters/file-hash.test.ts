@@ -49,6 +49,7 @@ describe("fileHashHeader", () => {
     const read = createReadTool({
       fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
       formatter,
+      digest: null,
     });
     expect(textOf(await read({ path: "/a.txt" }))).toBe("1|one");
   });

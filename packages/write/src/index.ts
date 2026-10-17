@@ -93,6 +93,7 @@ export type {
   FsToolsApplyPatchOptions,
   FsToolsBashOptions,
   FsToolsSharedKey,
+  FsToolsState,
   FsToolsWithApplyPatch,
   FsToolsWithBash,
 } from "./bundle/create-fs-tools.ts";

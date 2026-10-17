@@ -1,12 +1,6 @@
 import type { FlexibleSchema, ToolExecutionOptions } from "ai";
 
-import type {
-  Clock,
-  Digest,
-  ReadStateStore,
-  ReadToolOptions,
-  ToolCallContext,
-} from "@better-fs-tools/read";
+import type { Clock, Digest, ReadToolOptions, ToolCallContext } from "@better-fs-tools/read";
 import { readSignatureMessages, defaultReadSignature } from "@better-fs-tools/read/signature";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
 import { bashSignatureMessages } from "@better-fs-tools/shell/signature";
@@ -23,6 +17,7 @@ import type {
   EditToolOptions,
   FsToolsBashOptions,
   FsToolsSharedKey,
+  FsToolsState,
   InvalidateOutcome,
   LockManager,
   WriteToolOptions,
@@ -89,8 +84,11 @@ export type AiSdkFsToolsBashOptions<C = unknown> = FsToolsBashOptions<Host<C>> &
 export interface AiSdkFsToolsOptions<C = unknown> {
   /** Required. A backend, or a factory called once for each tool call with the AI SDK options as host. */
   readonly fs: FsToolsOptions<Host<C>>["fs"];
-  /** Defaults to null: no read-before-write. A store, for example memoryStore(), turns it on. */
-  readonly state?: ReadStateStore | null;
+  /**
+   * Defaults to null: no read-before-write. A store, for example memoryStore(),
+   * turns it on. A factory gives each call its own store.
+   */
+  readonly state?: FsToolsState<Host<C>>;
   /** Defaults to sha256Digest() from @better-fs-tools/read, which runs in a Worker. */
   readonly digest?: Digest;
   /** Defaults to memoryLocks(). */
@@ -123,7 +121,7 @@ export interface AiSdkFsTools<C = unknown> {
   readonly tools: Readonly<
     Record<string, AiSdkReadTool<C> | AiSdkMutationTool<C> | AiSdkBashTool<C>>
   >;
-  readonly state: ReadStateStore | null;
+  readonly state: FsToolsState<Host<C>>;
   readonly digest: Digest;
   readonly locks: LockManager;
   readonly clock: Clock;
@@ -302,9 +300,9 @@ function checkOptions(options: unknown): void {
     if (!KNOWN.has(key)) throw new TypeError(`Unknown createAiSdkFsTools option: ${key}`);
   }
   const state: unknown = (options as Record<string, unknown>).state;
-  if (state !== undefined && state !== null && !isStore(state)) {
+  if (state !== undefined && state !== null && typeof state !== "function" && !isStore(state)) {
     throw new TypeError(
-      `createAiSdkFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory`,
+      "createAiSdkFsTools state must be a read state store, a function that returns one, or null",
     );
   }
   for (const [tool, keys] of Object.entries(SHARED_KEYS)) {

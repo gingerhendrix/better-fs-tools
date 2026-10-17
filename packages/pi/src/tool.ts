@@ -20,7 +20,7 @@ import type {
   ReadMessageCatalog,
   ReadTool,
   ReadToolOptions,
-  StateNeedsDigestOrDefault,
+  StateNeedsDigest,
 } from "@better-fs-tools/read";
 import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
@@ -53,7 +53,7 @@ export interface PiReadOptions {
  * the AI SDK integration. A list you pass replaces it: [] turns images off.
  */
 export type PiReadToolOptions = Omit<ReadToolOptions<ExtensionContext>, "fs"> &
-  StateNeedsDigestOrDefault &
+  StateNeedsDigest &
   PiReadOptions & {
     /** Added to /dev, /proc, /sys. */
     readonly denyRoots?: readonly string[];

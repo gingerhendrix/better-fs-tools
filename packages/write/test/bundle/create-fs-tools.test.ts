@@ -73,12 +73,13 @@ describe("createFsTools", () => {
   });
 
   test("a given store records reads with the default sha256Digest()", async () => {
+    const store = memoryStore();
     const tools = createFsTools({
       fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
-      state: memoryStore(),
+      state: store,
     });
     await tools.read({ path: "/a.txt" });
-    const record = await tools.state?.get("/a.txt");
+    const record = await store.get("/a.txt");
     expect(record?.contentId).toBe(sha256Digest().hash("one\n"));
     expect(Object.isFrozen(tools)).toBe(true);
   });
@@ -99,15 +100,16 @@ describe("createFsTools", () => {
   test("a memoryStore on the bundle clock expires records", async () => {
     let now = Date.parse("2026-09-29T00:00:00.000Z");
     const clock = () => new Date(now);
+    const store = memoryStore({ clock });
     const tools = createFsTools({
       fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
-      state: memoryStore({ clock }),
+      state: store,
       clock,
     });
     await tools.read({ path: "/a.txt" });
-    expect(await tools.state?.get("/a.txt")).not.toBeNull();
+    expect(await store.get("/a.txt")).not.toBeNull();
     now += 31 * 60 * 1_000;
-    expect(await tools.state?.get("/a.txt")).toBeNull();
+    expect(await store.get("/a.txt")).toBeNull();
   });
 
   test("one host denial note gives the same error note in read, write, and bash", async () => {
@@ -166,10 +168,47 @@ describe("createFsTools", () => {
     }
   });
 
-  test("a per-call state factory throws TypeError that names createFsTools", () => {
-    const factory = () => memoryStore();
-    expect(() => createFsTools({ fs: memoryFileSystem(), state: factory } as never)).toThrow(
-      "createFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory",
+  test("a per-call state factory gives each host its own records", async () => {
+    const stores = new Map([
+      ["s1", memoryStore()],
+      ["s2", memoryStore()],
+    ]);
+    const tools = createFsTools<{ session: string }>({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      state: (call) => stores.get(call.host.session) ?? null,
+    });
+    const s1 = { host: { session: "s1" } };
+    const s2 = { host: { session: "s2" } };
+    await tools.read({ path: "/a.txt" }, s1);
+    const edit = { path: "/a.txt", edits: [{ oldText: "one", newText: "two" }] };
+    expect(errorOf(await tools.edit(edit, s2))?.code).toBe("NOT_READ");
+    expect((await tools.edit(edit, s1)).status).toBe("ok");
+    expect(await stores.get("s2")?.get("/a.txt")).toBeNull();
+  });
+
+  test("with a state factory, invalidate needs the call", async () => {
+    const store = memoryStore();
+    const tools = createFsTools<{ session: string }>({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      state: () => store,
+    });
+    const call = { host: { session: "s1" } };
+    await tools.read({ path: "/a.txt" }, call);
+    expect(await tools.invalidate("/a.txt")).toMatchObject({
+      ok: false,
+      error: { reason: "unsupported" },
+    });
+    expect(await tools.invalidate("/a.txt", call)).toEqual({
+      ok: true,
+      resolvedPath: "/a.txt",
+      recorded: true,
+    });
+    expect(await store.get("/a.txt")).toBeNull();
+  });
+
+  test("a state that is not a store or a function throws TypeError that names createFsTools", () => {
+    expect(() => createFsTools({ fs: memoryFileSystem(), state: {} } as never)).toThrow(
+      "createFsTools state must be a read state store, a function that returns one, or null",
     );
   });
 

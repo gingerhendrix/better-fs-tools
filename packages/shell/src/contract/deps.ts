@@ -34,7 +34,7 @@ export interface ShellDependencies<THost = undefined> {
   readonly spill: SpillSink<THost> | null;
   readonly afterRun: readonly AfterRunHook<THost>[];
   readonly formatter: ShellFormatter<THost>;
-  /** Given to host functions as ctx.digest. Default null. */
+  /** Given to host functions as ctx.digest. Default sha256Digest(). */
   readonly digest: Digest | null;
   /** Given to host functions as ctx.clock. Default () => new Date(). */
   readonly clock: Clock;

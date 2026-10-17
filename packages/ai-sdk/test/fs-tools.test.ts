@@ -61,21 +61,28 @@ describe("createAiSdkFsTools", () => {
 
   test("a memoryStore on the bundle clock expires records", async () => {
     let now = Date.parse("2026-09-29T00:00:00.000Z");
+    const store = memoryStore({ clock: () => new Date(now) });
     const tools = createAiSdkFsTools({
       fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
-      state: memoryStore({ clock: () => new Date(now) }),
+      state: store,
       clock: () => new Date(now),
     });
     await tools.read.execute({ path: "/a.txt", offset: null, limit: null }, executeOptions());
-    expect(await tools.state?.get("/a.txt")).not.toBeNull();
+    expect(await store.get("/a.txt")).not.toBeNull();
     now += 31 * 60 * 1_000;
-    expect(await tools.state?.get("/a.txt")).toBeNull();
+    expect(await store.get("/a.txt")).toBeNull();
   });
 
-  test("a per-call state factory throws TypeError that names createAiSdkFsTools", () => {
-    const factory = () => memoryStore();
-    expect(() => createAiSdkFsTools({ fs: memoryFileSystem(), state: factory } as never)).toThrow(
-      "createAiSdkFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory",
+  test("a per-call state factory turns read-before-write on", async () => {
+    const store = memoryStore();
+    const tools = createAiSdkFsTools({
+      fs: memoryFileSystem({ files: { "/a.txt": "one\n" } }),
+      state: () => store,
+    });
+    await tools.read.execute({ path: "/a.txt", offset: null, limit: null }, executeOptions());
+    expect(await store.get("/a.txt")).not.toBeNull();
+    expect(() => createAiSdkFsTools({ fs: memoryFileSystem(), state: {} } as never)).toThrow(
+      "createAiSdkFsTools state must be a read state store, a function that returns one, or null",
     );
   });
 

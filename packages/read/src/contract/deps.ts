@@ -29,7 +29,10 @@ export interface ReadDependencies<THost = undefined> {
   readonly suggest: Suggest<THost> | null;
   /** Host access policy for the opened file ("read") and before every listing ("list"). null allows everything. */
   readonly authorize: ReadAuthorizer<THost> | null;
-  /** File converters in order: the first that accepts runs. The first directory converter lists directories. */
+  /**
+   * File converters in order: the first that accepts runs. The first directory
+   * converter lists directories. Default [imageConverter()]. [] turns images off.
+   */
   readonly converters: readonly Converter<THost>[];
   /** Stops the view early, at a line boundary, when the next line would pass `max`. null has no budget. */
   readonly budget: ViewBudget | null;
@@ -37,6 +40,7 @@ export interface ReadDependencies<THost = undefined> {
   readonly hooks: readonly ReadHook<THost>[];
   /** A store, or a factory called at most once for each read, and only when needed. Needs `digest`. */
   readonly state: ReadStateStore | ((call: ReadContext<THost>) => ReadStateStore | null) | null;
+  /** Names content for the read state and the observations. Default sha256Digest(). null turns both off. */
   readonly digest: Digest | null;
   readonly clock: Clock;
   readonly formatter: ReadFormatter<THost>;
@@ -44,17 +48,11 @@ export interface ReadDependencies<THost = undefined> {
 
 /**
  * `state` needs a `digest`, because a stored record names the digest that made
- * it. `state` without `digest` does not type-check, and throws TypeError at run
- * time.
+ * it. Leave `digest` out to get sha256Digest(). `digest: null` turns it off,
+ * and then `state` must be left out or null. A `state` with `digest: null`
+ * does not type-check, and throws TypeError at run time.
  */
-export type StateNeedsDigest = { readonly state?: null } | { readonly digest: Digest };
-
-/**
- * The same pairing for a factory with its own default digest, such as the
- * Node and Pi factories. Leave `digest` out to get the default. `digest: null`
- * turns it off, and then `state` must be left out or null.
- */
-export type StateNeedsDigestOrDefault =
+export type StateNeedsDigest =
   | { readonly state?: null; readonly digest: null }
   | { readonly digest?: Digest };
 

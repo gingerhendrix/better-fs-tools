@@ -35,12 +35,8 @@ describe("write tool dependencies", () => {
       partialRead: "edit-only",
       onStale: "reject",
     });
-    expect([deps.resolve, deps.authorize, deps.state, deps.digest]).toEqual([
-      null,
-      null,
-      null,
-      null,
-    ]);
+    expect([deps.resolve, deps.authorize, deps.state]).toEqual([null, null, null]);
+    expect(deps.digest?.id).toBe("sha256");
     expect(deps.locks.id).toBe("memory");
     expect(deps.classifiers.length).toBeGreaterThan(0);
     expect(deps.codecs.map((codec) => codec.id)).toEqual(["utf-8"]);
@@ -75,7 +71,7 @@ describe("write tool dependencies", () => {
     ["an unknown key", { fs, matchers: [] }, "Unknown write tool option: matchers"],
     ["a missing fs", {}, "fs must be"],
     ["a read-only fs", { fs: { id: "ro", open: async () => ({}) } }, "fs has no write methods"],
-    ["state without a digest", { fs, state: memoryStore() }, "state needs a digest"],
+    ["state with digest null", { fs, state: memoryStore(), digest: null }, "state needs a digest"],
     ["an empty classifier list", { fs, classifiers: [] }, "classifiers"],
     ["an empty codec list", { fs, codecs: [] }, "codecs"],
     ["a malformed codec", { fs, codecs: [{ id: "x" }] }, "codecs"],
@@ -119,7 +115,7 @@ describe("write tool dependencies", () => {
     ["a malformed matcher", { fs, matchers: [{ id: "m", find: () => [] }] }, "matchers"],
     ["a bad adapt", { fs, matchers: [{ ...exactMatcher(), adapt: 1 }] }, "matchers"],
     ["an unknown key", { fs, patchParser: {} }, "Unknown edit tool option: patchParser"],
-    ["a shared rule", { fs, state: memoryStore() }, "state needs a digest"],
+    ["a shared rule", { fs, state: memoryStore(), digest: null }, "state needs a digest"],
   ])("edit rejects %s", (_name, deps, message) => {
     expect(() => createEditTool(deps as never)).toThrow(message);
   });

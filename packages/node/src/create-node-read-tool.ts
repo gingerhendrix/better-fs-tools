@@ -1,12 +1,12 @@
 import { createReadTool } from "@better-fs-tools/read";
-import type { ReadTool, ReadToolOptions, StateNeedsDigestOrDefault } from "@better-fs-tools/read";
+import type { ReadTool, ReadToolOptions, StateNeedsDigest } from "@better-fs-tools/read";
 
 import { nodeDigest } from "./digest.ts";
 import { nodeFileSystem } from "./filesystem.ts";
 
 /** Options for createNodeReadTool, all optional. A `state` needs a digest that is not null. */
 export type CreateNodeReadToolOptions<THost = undefined> = Partial<ReadToolOptions<THost>> &
-  StateNeedsDigestOrDefault;
+  StateNeedsDigest;
 
 /**
  * Creates a read tool for local files. `fs` defaults to nodeFileSystem rooted

@@ -29,12 +29,10 @@ describe("shell workspace through the read tool", () => {
 
   test("refuses binary content, escapes, and missing files", async () => {
     const { read } = readFor({
-      "/workspace/logo.png": new Uint8Array([
-        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13,
-      ]),
+      "/workspace/blob.bin": new Uint8Array([0x00, 0x01, 0x02, 0x00, 0xff]),
     });
 
-    expect((await read({ path: "logo.png" })).status).toBe("unsupported");
+    expect((await read({ path: "blob.bin" })).status).toBe("unsupported");
     expectFailure(await read({ path: "/etc/passwd" }), "OUTSIDE_ALLOWED_ROOTS");
     expectFailure(await read({ path: "missing.md" }), "NOT_FOUND");
   });

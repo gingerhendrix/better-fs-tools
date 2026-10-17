@@ -1,6 +1,6 @@
 import { isWritableFileSystem } from "@better-fs-tools/fs";
 import type { WritableFileSystem } from "@better-fs-tools/fs";
-import { defaultClassifiers } from "@better-fs-tools/read";
+import { defaultClassifiers, sha256Digest } from "@better-fs-tools/read";
 import type { Digest, ReadStateStore } from "@better-fs-tools/read";
 
 import { utf8Codec } from "../codecs/utf8.ts";
@@ -75,7 +75,7 @@ export function resolveWriteDependencies<THost>(
   if (state !== null && typeof state !== "function" && !isStateStore(state)) {
     throw new TypeError("state must be a store, a function that returns one, or null");
   }
-  const digest = deps.digest ?? null;
+  const digest = deps.digest === undefined ? sha256Digest() : deps.digest;
   if (digest !== null && !isDigest(digest)) {
     throw new TypeError("digest must have an id, create, and hash, or be null");
   }

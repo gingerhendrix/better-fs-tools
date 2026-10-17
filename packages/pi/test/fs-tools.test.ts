@@ -63,14 +63,15 @@ describe("createPiFsTools", () => {
   test("a memoryStore on the bundle clock expires records", async () => {
     const cwd = await fixture({ "a.txt": "one\n" });
     let now = Date.parse("2026-09-29T00:00:00.000Z");
+    const store = memoryStore({ clock: () => new Date(now) });
     const tools = createPiFsTools({
-      state: memoryStore({ clock: () => new Date(now) }),
+      state: store,
       clock: () => new Date(now),
     });
     await execute(tools.read, { path: "a.txt" }, cwd);
-    expect(await tools.state?.get(path.join(cwd, "a.txt"))).not.toBeNull();
+    expect(await store.get(path.join(cwd, "a.txt"))).not.toBeNull();
     now += 31 * 60 * 1_000;
-    expect(await tools.state?.get(path.join(cwd, "a.txt"))).toBeNull();
+    expect(await store.get(path.join(cwd, "a.txt"))).toBeNull();
   });
 
   test("takes a digest; the default is nodeDigest()", async () => {
@@ -86,10 +87,14 @@ describe("createPiFsTools", () => {
     );
   });
 
-  test("a per-call state factory throws TypeError that names createPiFsTools", () => {
-    const factory = () => memoryStore();
-    expect(() => createPiFsTools({ state: factory } as never)).toThrow(
-      "createPiFsTools state must be a read state store or null: a bundle takes one store, not a per-call factory",
+  test("a per-call state factory turns read-before-write on", async () => {
+    const cwd = await fixture({ "a.txt": "one\n" });
+    const store = memoryStore();
+    const tools = createPiFsTools({ state: () => store });
+    await execute(tools.read, { path: "a.txt" }, cwd);
+    expect(await store.get(path.join(cwd, "a.txt"))).not.toBeNull();
+    expect(() => createPiFsTools({ state: {} } as never)).toThrow(
+      "createPiFsTools state must be a read state store, a function that returns one, or null",
     );
   });
 
