@@ -1,7 +1,8 @@
-import { createNodeReadTool } from "@better-fs-tools/node";
-import { defaultClassifiers, extensionClassifier } from "@better-fs-tools/read";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool, defaultClassifiers, extensionClassifier } from "@better-fs-tools/read";
 
-export const read = createNodeReadTool({
+export const read = createReadTool({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
   // A list dependency replaces the default. Include the default to add to it.
   classifiers: [
     extensionClassifier({ unsupported: { ".parquet": { code: "BINARY" } } }),

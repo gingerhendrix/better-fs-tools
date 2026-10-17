@@ -4,8 +4,18 @@ import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
-import { createNodeBashTool, nodeCommandRunner, nodeFileSystem } from "@better-fs-tools/node";
-import { textOf } from "@better-fs-tools/shell";
+import { nodeCommandRunner, nodeFileSystem } from "@better-fs-tools/node";
+import { createBashTool, shellEnv, textOf } from "@better-fs-tools/shell";
+import type { BashToolOptions } from "@better-fs-tools/shell";
+
+/** createBashTool() over nodeCommandRunner() and process.env, as the README recommends for Node. */
+function nodeBash(options: Partial<BashToolOptions> = {}) {
+  return createBashTool({
+    runner: nodeCommandRunner(),
+    env: shellEnv(() => process.env),
+    ...options,
+  });
+}
 
 async function workdir(): Promise<string> {
   return realpath(await mkdtemp(join(tmpdir(), "bash-tool-")));
@@ -25,10 +35,10 @@ async function waitUntil(check: () => boolean, ms: number): Promise<boolean> {
   return check();
 }
 
-describe("createNodeBashTool", () => {
+describe("createBashTool over nodeCommandRunner()", () => {
   test("runs a command in the runner cwd and reports the exit code", async () => {
     const cwd = await workdir();
-    const bash = createNodeBashTool({ runner: nodeCommandRunner({ cwd }) });
+    const bash = nodeBash({ runner: nodeCommandRunner({ cwd }) });
     const result = await bash({ command: "pwd; echo err >&2; exit 3" });
     expect(result.status).toBe("failed");
     expect(result.run?.exitCode).toBe(3);
@@ -38,7 +48,7 @@ describe("createNodeBashTool", () => {
 
   test("a timeout kills a grandchild: no process is left", async () => {
     const marker = `sleep 97.${process.pid}`;
-    const bash = createNodeBashTool({ limits: { killGraceMs: 200 } });
+    const bash = nodeBash({ limits: { killGraceMs: 200 } });
     const result = await bash({ command: `${marker} & ${marker}`, timeoutMs: 300 });
     expect(result.status).toBe("timeout");
     expect(await waitUntil(() => !isProcessWithMarkerRunning(marker), 2_000)).toBe(true);
@@ -46,7 +56,7 @@ describe("createNodeBashTool", () => {
 
   test("a SIGTERM trap does not save the tree: SIGKILL follows the grace time", async () => {
     const marker = `sleep 96.${process.pid}`;
-    const bash = createNodeBashTool({ limits: { killGraceMs: 200 } });
+    const bash = nodeBash({ limits: { killGraceMs: 200 } });
     const command = `trap '' TERM; (trap '' TERM; ${marker}) & ${marker}`;
     const result = await bash({ command, timeoutMs: 300 });
     expect(result.status).toBe("timeout");
@@ -56,7 +66,7 @@ describe("createNodeBashTool", () => {
   test("abort during a run stops the tree and returns the output so far", async () => {
     const marker = `sleep 95.${process.pid}`;
     const controller = new AbortController();
-    const bash = createNodeBashTool();
+    const bash = nodeBash();
     const pending = bash({ command: `echo started; ${marker}` }, { signal: controller.signal });
     setTimeout(() => controller.abort(), 300);
     const result = await pending;
@@ -66,7 +76,7 @@ describe("createNodeBashTool", () => {
   });
 
   test("a command that reads stdin gets end of file", async () => {
-    const result = await createNodeBashTool()({
+    const result = await nodeBash()({
       command: "cat; read x || echo eof",
       timeoutMs: 5_000,
     });
@@ -77,7 +87,7 @@ describe("createNodeBashTool", () => {
   test("a background child does not hold the call open after the shell exits", async () => {
     const marker = `sleep 94.${process.pid}`;
     const started = Date.now();
-    const result = await createNodeBashTool()({ command: `${marker} & echo done` });
+    const result = await nodeBash()({ command: `${marker} & echo done` });
     expect(result.status).toBe("ok");
     expect(result.output?.head).toBe("done");
     expect(Date.now() - started).toBeLessThan(3_000);
@@ -85,7 +95,7 @@ describe("createNodeBashTool", () => {
   });
 
   test("large output keeps the head, the tail, and the count", async () => {
-    const result = await createNodeBashTool()({ command: "seq 1 200000" });
+    const result = await nodeBash()({ command: "seq 1 200000" });
     expect(result.output?.totalLines).toBe(200_000);
     expect(result.output?.head.split("\n")[0]).toBe("1");
     expect(result.output?.tail?.split("\n").at(-1)).toBe("200000");
@@ -94,17 +104,17 @@ describe("createNodeBashTool", () => {
 
   test("the default env turns pagers and colour off and keeps process.env", async () => {
     process.env.BASH_TOOL_TEST = "yes";
-    const result = await createNodeBashTool()({
+    const result = await nodeBash()({
       command: 'echo "$PAGER $GIT_PAGER $NO_COLOR $TERM $BASH_TOOL_TEST"',
     });
     delete process.env.BASH_TOOL_TEST;
     expect(result.output?.head).toBe("cat cat 1 dumb yes");
   });
 
-  test("a relative cwd resolves against process.cwd(), as nodeCommandRunner does", async () => {
+  test("a relative runner cwd resolves against process.cwd()", async () => {
     const cwd = await realpath(await workdir());
     const rel = relative(process.cwd(), cwd);
-    const bash = createNodeBashTool({ cwd: rel });
+    const bash = nodeBash({ runner: nodeCommandRunner({ cwd: rel }) });
     const result = await bash({ command: "pwd" });
     expect(result.status).toBe("ok");
     expect(result.run?.cwd).toBe(cwd);
@@ -113,7 +123,7 @@ describe("createNodeBashTool", () => {
   test("a missing cwd is CWD_NOT_FOUND and a file cwd is CWD_NOT_A_DIRECTORY", async () => {
     const cwd = await workdir();
     await writeFile(join(cwd, "file.txt"), "x");
-    const bash = createNodeBashTool({ runner: nodeCommandRunner({ cwd }) });
+    const bash = nodeBash({ runner: nodeCommandRunner({ cwd }) });
     expect(errorOf(await bash({ command: "ls", cwd: "missing" }))?.code).toBe("CWD_NOT_FOUND");
     expect(errorOf(await bash({ command: "ls", cwd: "file.txt" }))?.code).toBe(
       "CWD_NOT_A_DIRECTORY",
@@ -137,16 +147,16 @@ describe("createNodeBashTool", () => {
     expect(() => nodeCommandRunner({ cwd: "a\0b" })).toThrow(TypeError);
   });
 
-  test("a cwd in the dependencies wins over the runner cwd", async () => {
+  test("a cwd option wins over the runner cwd", async () => {
     const cwd = await workdir();
     const other = await workdir();
-    const bash = createNodeBashTool({ runner: nodeCommandRunner({ cwd }), cwd: other });
+    const bash = nodeBash({ runner: nodeCommandRunner({ cwd }), cwd: other });
     expect((await bash({ command: "pwd" })).output?.head).toBe(other);
   });
 
   test("a missing shell is SPAWN_FAILED", async () => {
     const runner = nodeCommandRunner({ shell: "/no/such/shell" });
-    const result = await createNodeBashTool({ runner })({ command: "true" });
+    const result = await nodeBash({ runner })({ command: "true" });
     expect(errorOf(result)?.code).toBe("SPAWN_FAILED");
   });
 });

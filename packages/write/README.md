@@ -18,7 +18,7 @@ The package has no peers and imports no `node:` module. It depends on `@better-f
 
 ## Quick start
 
-`createFsTools({ fs })` builds `read`, `edit`, and `write` over any `WritableFileSystem`. On Node, `createNodeFsTools()` from [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node) does the same with a Node filesystem and `nodeDigest()`:
+`createFsTools({ fs })` builds `read`, `edit`, and `write` over any `WritableFileSystem`. On Node, pass `nodeFileSystem()` from [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node) as `fs`:
 
 ```ts
 import { memoryFileSystem } from "@better-fs-tools/fs";
@@ -56,19 +56,19 @@ Bash is off unless you ask. `bash: { runner, env, ... }` adds a bash tool from [
 
 The result also has `applyPatch` (`null` unless asked for), `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, which deletes the record for a path so the next edit needs a read. It returns an `InvalidateOutcome`. When `fs` is a factory, pass the call context, for example `ctx.call` in a bash `afterRun` hook.
 
-An unknown option key, a shared key (`fs`, `state`, `digest`, `locks`, or `clock`) inside a tool's options, or `bash: true` throws `TypeError`. `createNodeFsTools()`, `createPiFsTools()`, and `createAiSdkFsTools()` wrap it.
+An unknown option key, a shared key (`fs`, `state`, `digest`, `locks`, or `clock`) inside a tool's options, or `bash: true` throws `TypeError`. `createPiFsTools()` and `createAiSdkFsTools()` wrap it.
 
 ## Hosts
 
 | Host                                  | Package                                                                                                   | Factories                                                                                                      |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Any                                   | this package                                                                                              | `createFsTools({ fs })`, `createEditTool()`, `createWriteTool()`, `createApplyPatchTool()`                     |
-| Node or Bun                           | [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node)                            | `createNodeFsTools()`, `createNodeEditTool()`, `createNodeWriteTool()`, `createNodeApplyPatchTool()`           |
+| Node or Bun                           | [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node)                            | `nodeFileSystem()` as the `fs` of any tool or bundle                                                           |
 | AI SDK 7                              | [`@better-fs-tools/ai-sdk`](https://www.npmjs.com/package/@better-fs-tools/ai-sdk)                        | `createAiSdkFsTools({ fs })`, `createAiSdkEditTool()`, `createAiSdkWriteTool()`, `createAiSdkApplyPatchTool()` |
 | Pi coding agent                       | [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)                                | `createPiFsTools()`, one factory for each tool, and a `pi.extensions` entry                                    |
 | Cloudflare Shell, Computer, just-bash | `@better-fs-tools/cloudflare-shell`, `@better-fs-tools/cloudflare-computer`, `@better-fs-tools/just-bash` | Writable filesystems for `createFsTools()`, `createAiSdkFsTools()`, or the single factories                    |
 
-The bundles and the standalone factories (`createNodeEditTool()`, `createAiSdkEditTool()`, `createPiEditTool()`, and the others) all default to `state: null`. The tools then change files that the model has not read, and nothing tells the model. The tool descriptions still ask the model to read first. For the check, pass `state: memoryStore()` to a bundle (`createFsTools()`, `createNodeFsTools()`, `createPiFsTools()`, or `createAiSdkFsTools()`), or pass the same `state`, `digest`, and `locks` to the read tool and the write tools.
+The bundles and the single-tool factories (`createEditTool()`, `createAiSdkEditTool()`, `createPiEditTool()`, and the others) all default to `state: null`. The tools then change files that the model has not read, and nothing tells the model. The tool descriptions still ask the model to read first. For the check, pass `state: memoryStore()` to a bundle (`createFsTools()`, `createPiFsTools()`, or `createAiSdkFsTools()`), or pass the same `state`, `digest`, and `locks` to the read tool and the write tools.
 
 [docs/hosts.md](docs/hosts.md) lists the defaults of every bundle and single factory, the default signature of each tool in each host, and what each backend can do.
 
@@ -183,9 +183,9 @@ Every dependency except `fs` has a default. Pass them to `createEditTool()`, `cr
 | `maxListedMatches` | 10      | Line numbers listed for an ambiguous match                                                                    |
 | `maxPatchProblems` | 20      | Problems listed for a failed patch verify                                                                     |
 
-A `sampleBytes` that you set above `maxFileBytes` throws `TypeError`. When you set only `maxFileBytes` below 8 192, the default `sampleBytes` is lowered to it. The same limits rule holds in read, write, and bash. A per-call value over its ceiling is clamped, with a `clamped` info note. Two limits that you set and that conflict throw `TypeError` when the tool is built. A default that is over a ceiling you set is lowered to that ceiling.
+A `sampleBytes` that you set above `maxFileBytes` throws `TypeError`. When you set only `maxFileBytes` below 8 192, the default `sampleBytes` is lowered to it. The same limits rule holds in read, write, and bash. In read and bash, a per-call value over its ceiling is clamped, with a `clamped` info note. The write tools clamp nothing: an input over a write limit, such as too many edits, gives `INVALID_INPUT`. Two limits that you set and that conflict throw `TypeError` when the tool is built. A default that is over a ceiling you set is lowered to that ceiling.
 
-Every tool has one parse helper with the same pattern: `parseReadInput`, `parseEditInput`, `parseWriteInput`, `parseApplyPatchInput`, and `parseBashInput`. Each takes the canonical input and the resolved limits, returns the request, and throws `TypeError` for input it refuses. The tool turns that throw into `INVALID_INPUT`. A clamp is not an error: the helper returns the clamped value, and the tool adds the `clamped` note.
+Every tool has one parse helper with the same pattern: `parseReadInput`, `parseEditInput`, `parseWriteInput`, `parseApplyPatchInput`, and `parseBashInput`. Each takes the canonical input and the resolved limits, returns the request, and throws `TypeError` for input it refuses. The tool turns that throw into `INVALID_INPUT`. In read and bash, a clamp is not an error: the helper returns the clamped value, and the tool adds the `clamped` note.
 
 ## Authorize
 
@@ -443,8 +443,8 @@ export const noGenerated: ToolAuthorizer<unknown> = {
 ## More
 
 - [docs/architecture.md](docs/architecture.md): the pipeline, the stages, and why they are fixed
-- [docs/result-schema.md](docs/result-schema.md): every field of the result, every error code, and every note, plus one table of the statuses and error codes of all five tools
-- [docs/hosts.md](docs/hosts.md): the defaults of every host and bundle, and what each backend can do
+- [docs/result-schema.md](docs/result-schema.md): every field of the result, every error code, and every note, plus one table of the statuses and error codes of all five tools. The [write reference](https://better-fs-tools.gandrew.com/reference/write) on the docs site has the same facts
+- [docs/hosts.md](docs/hosts.md): the defaults of every host and bundle, and what each backend can do. [Choose an integration](https://better-fs-tools.gandrew.com/integrations) and [Filesystems](https://better-fs-tools.gandrew.com/filesystems) on the docs site have the same tables
 - [`@better-fs-tools/fs`](https://www.npmjs.com/package/@better-fs-tools/fs): the `WritableFileSystem` contract and its conformance suite
 
 ## License

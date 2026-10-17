@@ -1,6 +1,7 @@
-import { createNodeBashTool } from "@better-fs-tools/node";
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { createBashTool, shellEnv } from "@better-fs-tools/shell";
 
-const bash = createNodeBashTool();
+const bash = createBashTool({ runner: nodeCommandRunner(), env: shellEnv(() => process.env) });
 const result = await bash({ command: "ls" });
 
 if (result.status === "error") {

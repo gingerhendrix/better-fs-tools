@@ -4,9 +4,15 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { expandHome, pathResolvers, textOf, unicodeRepair } from "@better-fs-tools/read";
+import {
+  createReadTool,
+  expandHome,
+  pathResolvers,
+  textOf,
+  unicodeRepair,
+} from "@better-fs-tools/read";
 
-import { createNodeReadTool, nodeFileSystem } from "../src/index.ts";
+import { nodeFileSystem } from "../src/index.ts";
 
 const root = await realpath(await mkdtemp(join(tmpdir(), "better-fs-tools-resolve-")));
 const outside = await realpath(await mkdtemp(join(tmpdir(), "better-fs-tools-resolve-outside-")));
@@ -22,7 +28,7 @@ afterAll(async () => {
 });
 
 function toolWithHome(home: string) {
-  return createNodeReadTool({
+  return createReadTool({
     fs: nodeFileSystem({ cwd: root, allowedRoots: [root] }),
     resolve: expandHome({ home }),
   });
@@ -46,7 +52,7 @@ describe("resolvers on the node filesystem", () => {
   });
 
   test("unicodeRepair lists through the node adapter and opens the real name", async () => {
-    const read = createNodeReadTool({
+    const read = createReadTool({
       fs: nodeFileSystem({ cwd: root, allowedRoots: [root] }),
       resolve: pathResolvers(expandHome({ home: root }), unicodeRepair()),
     });
@@ -57,7 +63,7 @@ describe("resolvers on the node filesystem", () => {
   });
 
   test("a U+202F miss with no resolver suggests the real name", async () => {
-    const read = createNodeReadTool({ fs: nodeFileSystem({ cwd: root, allowedRoots: [root] }) });
+    const read = createReadTool({ fs: nodeFileSystem({ cwd: root, allowedRoots: [root] }) });
     const result = await read({ path: "report 2026.txt" });
     if (result.status !== "error") throw new Error(`expected error, got ${result.status}`);
     expect(result.error.code).toBe("NOT_FOUND");

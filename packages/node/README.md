@@ -1,6 +1,6 @@
 # @better-fs-tools/node
 
-The Node filesystem for Better FS Tools, a SHA-256 digest, a local command runner, and zero-config local tools. `nodeFileSystem()` gives the tools the files on the local disk. Pass it to `createFsTools()` from `@better-fs-tools/write` for a set of tools over one filesystem. It works on Node 24 or later, and on Bun.
+The Node backends for Better FS Tools: the local filesystem, a SHA-256 digest on `node:crypto`, and a local command runner. Pass `nodeFileSystem()` as `fs` to any tool or bundle, such as `createReadTool()` or `createFsTools()`, and `nodeCommandRunner()` as the bash `runner`. It works on Node 24 or later, and on Bun.
 
 ## Install
 
@@ -13,15 +13,20 @@ The package has no peers. It needs Node 24 or later (`engines.node` is `>=24`), 
 ## Example
 
 ```ts
-import { createNodeReadTool, nodeFileSystem } from "@better-fs-tools/node";
-import { textOf } from "@better-fs-tools/read";
+import { nodeDigest, nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool, textOf } from "@better-fs-tools/read";
 
-// Zero config: rooted at process.cwd(), with SHA-256 observations.
-const read = createNodeReadTool();
+// The local filesystem, rooted at process.cwd(). nodeDigest() is optional: it
+// gives the same values as the default sha256Digest(), faster, on node:crypto.
+const cwd = process.cwd();
+const read = createReadTool({
+  fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
+  digest: nodeDigest(),
+});
 console.log(textOf(await read({ path: "package.json", limit: 1 }))); // "1|{" and a continue note
 
 // Your own roots and policy.
-export const docsOnly = createNodeReadTool({
+export const docsOnly = createReadTool({
   fs: nodeFileSystem({
     cwd: "/srv/app",
     allowedRoots: ["/srv/app/docs"],
@@ -65,14 +70,11 @@ export async function afterShell(path: string): Promise<boolean> {
 
 ## Contents
 
-| Export                                                                                       | Use                                                                                                                                                                                                                                                      |
-| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `createNodeReadTool(options?)`                                                               | `createReadTool()` from `@better-fs-tools/read` with Node defaults. `fs` defaults to `nodeFileSystem` rooted at `process.cwd()`. `digest` defaults to `nodeDigest()`. Pass `digest: null` to turn observations off. Every other option goes to the core. |
-| `createNodeEditTool(deps?)`, `createNodeWriteTool(deps?)`, `createNodeApplyPatchTool(deps?)` | One write tool each. `fs` defaults to `nodeFileSystem` rooted at `process.cwd()`, `digest` to `nodeDigest()`. `state` stays `null`, so read-before-write is off                                                                                          |
-| `createNodeBashTool(deps?)`                                                                  | The local `bash` tool. See [Bash tool](#bash-tool)                                                                                                                                                                                                       |
-| `nodeCommandRunner(options?)`                                                                | The command runner that `createNodeBashTool()` uses: `bash -c` in its own process group. POSIX only                                                                                                                                                      |
-| `nodeFileSystem(options)`                                                                    | A `WritableFileSystem` over Node file descriptors                                                                                                                                                                                                        |
-| `nodeDigest()`                                                                               | SHA-256 over `node:crypto`. Values look like `sha256:<hex>`, the same as `sha256Digest()` from `@better-fs-tools/read`.                                                                                                                                  |
+| Export                        | Use                                                                                                                                                                                          |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nodeFileSystem(options)`     | A `WritableFileSystem` over Node file descriptors                                                                                                                                            |
+| `nodeCommandRunner(options?)` | A bash `CommandRunner`: `bash -c` in its own process group. POSIX only. See [Bash tool](#bash-tool)                                                                                          |
+| `nodeDigest()`                | SHA-256 over `node:crypto`. Values look like `sha256:<hex>`, the same as the default `sha256Digest()` from `@better-fs-tools/read`, so records made with one are valid for the other. Faster |
 
 `nodeFileSystem` options. The first six are the shared `FileSystemRootOptions` from `@better-fs-tools/fs`. The filesystem also exposes the resolved `cwd`, `allowedRoots`, `denyRoots`, `symlinks`, and `identity`:
 
@@ -107,9 +109,7 @@ A write goes to a `0o600` temp file next to the target. The bytes are written an
 
 ## Bash tool
 
-`createNodeBashTool()` is the zero-config local `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell). It uses `nodeCommandRunner()`: `bash -c` in its own process group, stdin on `/dev/null`, SIGTERM to the group on a stop, and SIGKILL after the grace time. The environment is `process.env`, read on each call, with the pager and colour defaults over it. `nodeCommandRunner({ cwd })` resolves a relative `cwd` against `process.cwd()`, as `nodeFileSystem` does. So does the `cwd` dependency of `createNodeBashTool({ cwd })`. The portable core keeps its absolute rule.
-
-To add a local `bash` to `createFsTools()`, pass a `bash` object with `runner: nodeCommandRunner()` and an `env`. `createFsTools()` has no Node defaults, so it needs both. `shellEnv(() => process.env)` gives the same environment as `createNodeBashTool()`. Pass a smaller `env` to narrow it, for example `shellEnv({ PATH: process.env.PATH })`. The bash tool gets the digest and clock of the set.
+`nodeCommandRunner()` runs `bash -c` in its own process group, with stdin on `/dev/null`. A stop sends SIGTERM to the group, and SIGKILL after the grace time. `nodeCommandRunner({ cwd })` resolves a relative `cwd` against `process.cwd()`, as `nodeFileSystem` does. Give it to `createBashTool()` from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell), or to the `bash` options of a bundle, with an `env`. `shellEnv(() => process.env)` passes `process.env`, read on each call, with the pager and colour defaults over it. Pass a smaller `env` to narrow it, for example `shellEnv({ PATH: process.env.PATH })`. In a bundle, the bash tool gets the digest and clock of the set.
 
 ```ts
 import { nodeCommandRunner, nodeFileSystem } from "@better-fs-tools/node";
@@ -156,4 +156,4 @@ The allowed roots do not limit what a command touches. The runner is POSIX only.
 
 - `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the defaults of every host and bundle, and what each backend can do
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option
-- [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi): the Pi tool, which builds on `nodeFileSystem`
+- [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi): `piCwdFileSystem()` and `piCwdCommandRunner()` on its `./node` subpath build on these backends

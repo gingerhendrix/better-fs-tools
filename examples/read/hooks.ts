@@ -1,8 +1,9 @@
-import { createNodeReadTool } from "@better-fs-tools/node";
-import { memoryStore, redact, repeatReadGuard } from "@better-fs-tools/read";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool, memoryStore, redact, repeatReadGuard } from "@better-fs-tools/read";
 
-// createNodeReadTool sets digest to nodeDigest(), which repeatReadGuard needs.
-export const read = createNodeReadTool({
+// repeatReadGuard needs a digest: the default sha256Digest() is one.
+export const read = createReadTool({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
   state: memoryStore(),
   hooks: [repeatReadGuard(), redact({ patterns: [/AKIA[0-9A-Z]{16}/g] })],
 });

@@ -7,9 +7,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { FileSystemError, ListOutcome, OpenOutcome } from "@better-fs-tools/fs";
-import { textOf } from "@better-fs-tools/read";
+import { createReadTool, textOf } from "@better-fs-tools/read";
 
-import { createNodeReadTool, nodeFileSystem } from "../src/index.ts";
+import { nodeFileSystem } from "../src/index.ts";
 import type { NodeFileSystemOptions } from "../src/index.ts";
 
 const root = await realpath(await mkdtemp(join(tmpdir(), "better-fs-tools-node-")));
@@ -26,7 +26,7 @@ afterAll(async () => {
 });
 
 function toolFor(options: NodeFileSystemOptions = { cwd: root, allowedRoots: [root] }) {
-  return createNodeReadTool({ fs: nodeFileSystem(options) });
+  return createReadTool({ fs: nodeFileSystem(options) });
 }
 
 function expectFsError(

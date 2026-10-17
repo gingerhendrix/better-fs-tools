@@ -242,7 +242,7 @@ The AI SDK adapter passes `ToolExecutionOptions` as `host`. The Pi adapter passe
 ## Deliberate omissions
 
 - **No alias repair.** The core accepts `path`, `offset`, and `limit` only. Other names belong to a signature.
-- **No Node defaults in the core.** `fs` is required and `digest` defaults to `null`. `createNodeReadTool()` in `@better-fs-tools/node` gives the local defaults. A Workers build cannot pull in `node:fs` by mistake.
+- **No Node defaults in the core.** `fs` is required, and `digest` defaults to `sha256Digest()`, which is plain JavaScript. The integrations keep the same defaults. A Workers build cannot pull in `node:fs` by mistake.
 - **No converter path access.** A converter gets the capped stream, never the path.
 - **No nested reads from hooks.** A hook that needs another file reads it with host code.
 - **No write guard.** The precondition check belongs with the write tool that uses the record.

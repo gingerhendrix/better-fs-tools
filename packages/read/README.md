@@ -18,7 +18,7 @@ Most hosts also install one adapter package. Each adapter lists its own peers:
 | -------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
 | `@better-fs-tools/read`                | The core, the helpers, and the `./signature` and `./formats` subpaths    | `npm install @better-fs-tools/read`                                                             |
 | `@better-fs-tools/fs`                  | The `FileSystem` contract, `memoryFileSystem`, and the conformance suite | `npm install @better-fs-tools/fs`                                                               |
-| `@better-fs-tools/node`                | Local reads on Node 24 or Bun, and `createNodeReadTool()`                | `npm install @better-fs-tools/node @better-fs-tools/read`                                       |
+| `@better-fs-tools/node`                | The local filesystem on Node 24 or Bun, and `nodeDigest()`               | `npm install @better-fs-tools/node @better-fs-tools/read`                                       |
 | `@better-fs-tools/ai-sdk`              | An AI SDK 7 tool                                                         | `npm install @better-fs-tools/ai-sdk @better-fs-tools/read ai`                                  |
 | `@better-fs-tools/pi`                  | A Pi tool and a Pi extension                                             | `npm install @better-fs-tools/pi @better-fs-tools/read @earendil-works/pi-coding-agent typebox` |
 | `@better-fs-tools/cloudflare-shell`    | A filesystem over a Cloudflare Shell Workspace                           | `npm install @better-fs-tools/cloudflare-shell @better-fs-tools/read`                           |
@@ -29,14 +29,14 @@ All packages have the same version. Install matching versions.
 
 ## Quick start
 
-On Node or Bun, `createNodeReadTool()` gives a working local reader with no options:
+On Node or Bun, give `createReadTool()` a `nodeFileSystem()`:
 
 ```ts
-import { createNodeReadTool } from "@better-fs-tools/node";
-import { textOf } from "@better-fs-tools/read";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool, textOf } from "@better-fs-tools/read";
 
 // Rooted at process.cwd(), with SHA-256 observations.
-const read = createNodeReadTool();
+const read = createReadTool({ fs: nodeFileSystem({ allowedRoots: [process.cwd()] }) });
 
 const result = await read({ path: "package.json", limit: 2 });
 console.log(result.status); // "ok"
@@ -46,8 +46,6 @@ console.log(textOf(result));
 //
 // [read:continue] Output stopped at the line limit. Continue with {"path":"package.json","offset":3,"limit":2}.
 ```
-
-`createNodeReadTool()` uses `nodeFileSystem` rooted at `process.cwd()`, and `nodeDigest()` for content hashes. It passes every other option to `createReadTool()`.
 
 `createReadTool()` is the core. It needs a filesystem, and it works with any `FileSystem`:
 
@@ -122,33 +120,34 @@ You cannot remove the input validation, the scan, the limits, the type check, or
 
 ## What you can change
 
-Pass dependencies to `createReadTool()`, `createNodeReadTool()`, or an adapter factory (`createAiSdkReadTool()`, `createPiReadTool()`). The adapter passes them to the core.
+Pass options to `createReadTool()`, `readToolDefinition()`, or an integration factory (`createAiSdkReadTool()`, `createPiReadTool()`, `createAgentCoreReadTool()`). Every integration takes the same options with the same defaults, and passes them to the core.
 
-| Dimension                                              | Dependency                  | Default                                                                                           |
-| ------------------------------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------- |
-| Tool name, parameters, range model, descriptions       | `signature` (adapters only) | `defaultReadSignature()`: `read` with `path`, `offset`, `limit`                                   |
-| Filesystem, allowed roots, deny roots, symlinks        | `fs`                        | Required. `createNodeReadTool()` uses `nodeFileSystem` over `process.cwd()`                       |
-| Path rewrites (`~`, `file://`, `@`, Unicode repair)    | `resolve`                   | `null` (the path is used as given)                                                                |
-| Names to suggest when a file is missing                | `suggest`                   | `defaultSuggest()`                                                                                |
-| Per-path policy, size ceiling, user approval           | `authorize`                 | `null` (allow)                                                                                    |
-| Binary and format detection                            | `classifiers`               | `defaultClassifiers()`                                                                            |
-| File conversion, images, directories                   | `converters`                | `[]`                                                                                              |
-| Line, byte, scan, conversion, and media limits         | `limits`                    | `defaultReadLimits`                                                                               |
-| Token limit                                            | `budget`                    | `null`                                                                                            |
-| Redaction, repeat-read guard, your own after-read code | `hooks`                     | `[]`                                                                                              |
-| Output text or content parts                           | `formatter`                 | `lineNumberFormatter()`                                                                           |
-| Note and message wording                               | `messages`                  | `defaultReadMessages`                                                                             |
-| Read records for later tools                           | `state`                     | `null`                                                                                            |
-| Content hashes and observations                        | `digest`                    | `null`. `createNodeReadTool()` and the Pi tool use `nodeDigest()`. `sha256Digest()` runs anywhere |
-| Timestamps                                             | `clock`                     | `() => new Date()`                                                                                |
+| Dimension                                              | Dependency                  | Default                                                                                      |
+| ------------------------------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------- |
+| Tool name, parameters, range model, descriptions       | `signature` (adapters only) | `defaultReadSignature()`: `read` with `path`, `offset`, `limit`                              |
+| Filesystem, allowed roots, deny roots, symlinks        | `fs`                        | Required. `nodeFileSystem()` from `@better-fs-tools/node` reads the local disk               |
+| Path rewrites (`~`, `file://`, `@`, Unicode repair)    | `resolve`                   | `null` (the path is used as given)                                                           |
+| Names to suggest when a file is missing                | `suggest`                   | `defaultSuggest()`                                                                           |
+| Per-path policy, size ceiling, user approval           | `authorize`                 | `null` (allow)                                                                               |
+| Binary and format detection                            | `classifiers`               | `defaultClassifiers()`                                                                       |
+| File conversion, images, directories                   | `converters`                | `[imageConverter()]`: an image becomes a media part. `[]` turns images off                   |
+| Line, byte, scan, conversion, and media limits         | `limits`                    | `defaultReadLimits`                                                                          |
+| Token limit                                            | `budget`                    | `null`                                                                                       |
+| Redaction, repeat-read guard, your own after-read code | `hooks`                     | `[]`                                                                                         |
+| Output text or content parts                           | `formatter`                 | `lineNumberFormatter()`                                                                      |
+| Note and message wording                               | `messages`                  | `defaultReadMessages`                                                                        |
+| Read records for later tools                           | `state`                     | `null`                                                                                       |
+| Content hashes and observations                        | `digest`                    | `sha256Digest()`, which runs anywhere. `nodeDigest()` is faster on Node. `null` turns it off |
+| Timestamps                                             | `clock`                     | `() => new Date()`                                                                           |
 
 `limits` and `messages` merge over their defaults key by key. Every other dependency replaces its default. To add to a list, include the default yourself:
 
 ```ts
-import { createNodeReadTool } from "@better-fs-tools/node";
-import { defaultClassifiers, extensionClassifier } from "@better-fs-tools/read";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool, defaultClassifiers, extensionClassifier } from "@better-fs-tools/read";
 
-export const read = createNodeReadTool({
+export const read = createReadTool({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
   // A list dependency replaces the default. Include the default to add to it.
   classifiers: [
     extensionClassifier({ unsupported: { ".parquet": { code: "BINARY" } } }),
@@ -206,13 +205,19 @@ The tool reads one path for each call. For multi-file reads or globs, call the c
 
 ```ts
 import { homedir } from "node:os";
-import { createNodeReadTool, nodeFileSystem } from "@better-fs-tools/node";
-import { expandHome, pathResolvers, stripPrefixes, unicodeRepair } from "@better-fs-tools/read";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import {
+  createReadTool,
+  expandHome,
+  pathResolvers,
+  stripPrefixes,
+  unicodeRepair,
+} from "@better-fs-tools/read";
 
 const cwd = process.cwd();
 const home = homedir();
 
-export const read = createNodeReadTool({
+export const read = createReadTool({
   fs: nodeFileSystem({ cwd, allowedRoots: [cwd, `${home}/.config/app`] }),
   resolve: pathResolvers(
     stripPrefixes(), // "file:///x" and "@src/x"
@@ -281,13 +286,20 @@ The filesystem owns the root policy: allowed roots, deny roots, and symlinks. `a
 What `open()` has fetched before `authorize` runs depends on the backend. `@better-fs-tools/cloudflare-shell` and `@better-fs-tools/just-bash` buffer the whole file inside `open()`, so those bytes have left the backend. `@better-fs-tools/cloudflare-computer` does not buffer: its `open()` starts a `readFile` stream, so the request reaches the backend, but it reads no chunk before `authorize`. `nodeFileSystem` streams, and `memoryFileSystem` already holds the bytes. In every case the core passes no byte to a classifier, a converter, or the model until `authorize` allows it. If a denied read must not reach the backend, refuse the path in the filesystem with a deny root, or leave it out of the allowed roots.
 
 ```ts
-import { createNodeReadTool } from "@better-fs-tools/node";
-import { askUser, readAuthorizers, denyPaths, sizeCeiling } from "@better-fs-tools/read";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import {
+  askUser,
+  createReadTool,
+  denyPaths,
+  readAuthorizers,
+  sizeCeiling,
+} from "@better-fs-tools/read";
 
 // Your own prompt, for example a dialog in your UI.
 declare function confirmInUi(question: string): Promise<boolean>;
 
-export const read = createNodeReadTool({
+export const read = createReadTool({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
   authorize: readAuthorizers(
     denyPaths(["**/.env", "**/.env.*", "**/*.pem"]),
     sizeCeiling({ maxBytes: 256 * 1024, unrangedOnly: true }),
@@ -371,8 +383,9 @@ A classifier only decides what a file is. A converter changes the content.
 `converters` is a list. It runs after classification. The first file converter whose `accepts` returns `true` handles the file. The first directory converter handles directories. With no converters, text is read, other formats are `unsupported`, and a directory gives `NOT_A_FILE`. The core has no converters by default. The Pi and AI SDK hosts add `imageConverter()` when you pass no `converters`.
 
 ```ts
-import { createNodeReadTool } from "@better-fs-tools/node";
+import { nodeFileSystem } from "@better-fs-tools/node";
 import {
+  createReadTool,
   defaultClassifiers,
   directoryListing,
   imageConverter,
@@ -384,7 +397,8 @@ import {
 // Your own PDF extraction, for example a pdftotext process that reads stdin.
 declare function pdfToText(source: AsyncIterable<Uint8Array>): AsyncIterable<string>;
 
-export const read = createNodeReadTool({
+export const read = createReadTool({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
   // The default chain reads a notebook as JSON text. notebookClassifier()
   // marks it NOTEBOOK, so notebookConverter() can take it.
   classifiers: [notebookClassifier(), ...defaultClassifiers()],
@@ -449,10 +463,11 @@ Every tool has one parse helper with the same pattern: `parseReadInput`, `parseE
 For a token limit, set `budget`. The scanner stops at the last whole line that fits, and the result has a normal continuation. The truncation reason is `"budget"`.
 
 ```ts
-import { createNodeReadTool } from "@better-fs-tools/node";
-import { charsPerToken } from "@better-fs-tools/read";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { charsPerToken, createReadTool } from "@better-fs-tools/read";
 
-export const read = createNodeReadTool({
+export const read = createReadTool({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
   limits: { maxLines: 1_000, maxViewBytes: 64 * 1024 },
   budget: charsPerToken({ ratio: 4, max: 25_000 }),
 });
@@ -467,11 +482,12 @@ For a size ceiling that refuses a whole file, use the `sizeCeiling` authorizer.
 `hooks` is an ordered list of `afterRead` functions. They run after the scan and change detection, and before the result is recorded and formatted.
 
 ```ts
-import { createNodeReadTool } from "@better-fs-tools/node";
-import { memoryStore, redact, repeatReadGuard } from "@better-fs-tools/read";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool, memoryStore, redact, repeatReadGuard } from "@better-fs-tools/read";
 
-// createNodeReadTool sets digest to nodeDigest(), which repeatReadGuard needs.
-export const read = createNodeReadTool({
+// repeatReadGuard needs a digest: the default sha256Digest() is one.
+export const read = createReadTool({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
   state: memoryStore(),
   hooks: [repeatReadGuard(), redact({ patterns: [/AKIA[0-9A-Z]{16}/g] })],
 });
@@ -538,15 +554,17 @@ Its options:
 Helpers for common formats:
 
 ```ts
-import { createNodeReadTool } from "@better-fs-tools/node";
+import { nodeFileSystem } from "@better-fs-tools/node";
 import {
+  createReadTool,
   eofFooter,
   fileHashHeader,
   hashlineGutter,
   lineNumberFormatter,
 } from "@better-fs-tools/read";
 
-export const read = createNodeReadTool({
+export const read = createReadTool({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
   formatter: lineNumberFormatter({
     gutter: hashlineGutter({ width: 2 }), // "12:a3|text"
     header: fileHashHeader(), // "file-hash: sha256:..."
@@ -565,10 +583,14 @@ export const read = createNodeReadTool({
 Presets that copy the read output of other harnesses are in `@better-fs-tools/read/formats`: `opencodeFormat()`, `deepAgentsFormat()`, `hashlineFormat()`, and `hermesFormat()`. They take no options.
 
 ```ts
-import { createNodeReadTool } from "@better-fs-tools/node";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool } from "@better-fs-tools/read";
 import { opencodeFormat } from "@better-fs-tools/read/formats";
 
-export const read = createNodeReadTool({ formatter: opencodeFormat() });
+export const read = createReadTool({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
+  formatter: opencodeFormat(),
+});
 ```
 
 A custom formatter implements `format(outcome, ctx)`. It is synchronous and pure over the outcome. `ctx` has the `digest`, the `limits`, the `call`, and a `mode`. The mode is `"model"` for model output and `"view"` for the body only, with no notes, header, or footer. The Pi adapter uses `"view"` for its truncation details. If your formatter returns parts in `"view"` mode, Pi leaves those details out. A formatter sees only the finished outcome. It cannot read the file. If the formatter throws or returns neither a string nor an array, the call still succeeds: the core formats the result with `lineNumberFormatter()` and adds no note.
@@ -672,7 +694,7 @@ await read({ path: "/a.txt" }, { host: session, callId: "call-1" });
 
 - `fs` can be a function of the call. It runs once for each read, before `resolve`. Use it to choose a backend for each call.
 - `sha256Digest()` is SHA-256 in plain JavaScript. It is synchronous and needs no Node module, so it works in a Cloudflare Worker. Its id and its values (`sha256:<hex>`) are the same as `nodeDigest()`, so records from either one match.
-- `state` needs a `digest`, because a record names the digest that made it. `createReadTool` throws `TypeError` for a `state` without a `digest`, and the dependency type (`StateNeedsDigest`) refuses it at compile time. `StateNeedsDigestOrDefault` is the same rule for a factory with its own default digest, such as the Node and Pi factories: leave `digest` out for the default, or pass `digest: null` with no `state`. The bundles (`createFsTools()` and the host bundles that wrap it) always have a digest, so they need neither.
+- `state` needs a `digest`, because a record names the digest that made it. `digest` defaults to `sha256Digest()`, so a `state` alone works. `createReadTool` throws `TypeError` for a `state` with `digest: null`, and the options type (`StateNeedsDigest`) refuses it at compile time.
 - `state` can be a function of the call. It runs at most once for each read, and only when the core needs the store. Return `null` for no store. A factory that throws gives `EXTENSION_FAILED`. A store whose `get` or `put` fails never fails the read.
 - The record key is `file.resolvedPath`. A read stores a `ReadRecord` with `schema: 2` and `origin: "read"`. It holds the backend `version`, the `digest` id, the content and view ids, and the read range. The write tools store records with `origin: "write"` and `request: null` after a commit. A record of another schema counts as absent.
 - `result.file.version` is the backend's change token from `open()`, or `null`. It is kept when the backend has no identity capability.
@@ -693,15 +715,18 @@ Your dependencies can narrow access. They cannot widen it.
 - A hook cannot turn a failure into a success. A hook that changes the view marks the observation as partial.
 - A `DENIED` result does not show the file behind the path.
 
-## Host adapters
+## Integrations
 
-Each adapter owns the signature, abort forwarding, and the mapping from `result.content` to the framework's content types. The adapters accept every core dependency and pass it through.
+Each integration takes the options of `readToolDefinition()`: every core option, with the same default, plus `signature`. `fs` is required in every one. The integration owns abort forwarding and the mapping from `result.content` to the framework's content types.
 
-| Package                                                                            | Factory                        | Notes                                                                                                                                                  |
-| ---------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`@better-fs-tools/ai-sdk`](https://www.npmjs.com/package/@better-fs-tools/ai-sdk) | `createAiSdkReadTool(options)` | `execute` returns the whole `ReadResult`. `toModelOutput` maps media parts to AI SDK `file` parts. You pass `fs`.                                      |
-| [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)         | `createPiReadTool(options)`    | Each call is confined to Pi's `ctx.cwd`. `fs`, `cwd`, and `allowedRoots` are refused. The `pi.extensions` entry registers `read`, `edit`, and `write`. |
-| [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node)     | `createNodeReadTool(options?)` | The core with Node defaults, for your own tool.                                                                                                        |
+| Package                                                                                    | Factory                                                | Notes                                                                                                              |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| [`@better-fs-tools/ai-sdk`](https://www.npmjs.com/package/@better-fs-tools/ai-sdk)         | `createAiSdkReadTool(options)`                         | `execute` returns the whole `ReadResult`. `toModelOutput` maps media parts to AI SDK `file` parts.                 |
+| [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)                 | `createPiReadTool(options)`                            | Adds the Pi prompt options. `piCwdFileSystem()` from `@better-fs-tools/pi/node` roots each call at Pi's `ctx.cwd`. |
+| [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)                 | `createAgentCoreReadTool(options)` from `./agent-core` | An `AgentTool` for `@earendil-works/pi-agent-core`.                                                                |
+| [`@better-fs-tools/pi-durable`](https://www.npmjs.com/package/@better-fs-tools/pi-durable) | `createDurableFsTools(options)`                        | A bundle only: the tools register inside a pi-durable extension.                                                   |
+
+For your own framework, call `readToolDefinition()` from `./signature`. It returns the name, description, and JSON Schema to declare, a `validate` for model input, and an `execute` that maps model input and runs the tool.
 
 Cloudflare Agents hosts use `@better-fs-tools/ai-sdk` with `cloudflareShellFileSystem` from [`@better-fs-tools/cloudflare-shell`](https://www.npmjs.com/package/@better-fs-tools/cloudflare-shell). [`@better-fs-tools/cloudflare-computer`](https://www.npmjs.com/package/@better-fs-tools/cloudflare-computer) and [`@better-fs-tools/just-bash`](https://www.npmjs.com/package/@better-fs-tools/just-bash) are filesystems. Use them with `createReadTool()` or with an adapter.
 

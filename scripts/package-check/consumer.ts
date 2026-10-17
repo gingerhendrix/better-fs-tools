@@ -46,7 +46,7 @@ for (const specifier of ${JSON.stringify(imports)}) {
 }
 const { memoryFileSystem, readOnlyFileSystem } = await import("${SCOPE}/fs");
 const { createReadTool, memoryStore, textOf } = await import("${SCOPE}/read");
-const { createNodeReadTool, nodeCommandRunner, nodeDigest, nodeFileSystem } = await import("${SCOPE}/node");
+const { nodeCommandRunner, nodeDigest, nodeFileSystem } = await import("${SCOPE}/node");
 const { createAiSdkReadTool } = await import("${SCOPE}/ai-sdk");
 const { justBashFileSystem } = await import("${SCOPE}/just-bash");
 const { createEditTool } = await import("${SCOPE}/write");
@@ -56,7 +56,8 @@ const expect = (label, actual, wanted) => {
   if (actual !== wanted) throw new Error(label + ": " + JSON.stringify(actual));
 };
 
-expect("node", textOf(await createNodeReadTool()({ path: "fixture.txt" })), "1|alpha\\n2|beta");
+const localRead = createReadTool({ fs: nodeFileSystem({ allowedRoots: [process.cwd()] }) });
+expect("node", textOf(await localRead({ path: "fixture.txt" })), "1|alpha\\n2|beta");
 const memory = memoryFileSystem({ files: { "/a.txt": "one\\ntwo\\n" } });
 expect("memory", textOf(await createReadTool({ fs: memory })({ path: "/a.txt", offset: 2 })), "2|two");
 const aiSdk = createAiSdkReadTool({ fs: memory });

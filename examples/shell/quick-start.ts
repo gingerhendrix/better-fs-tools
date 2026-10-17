@@ -1,9 +1,9 @@
-import { createNodeBashTool } from "@better-fs-tools/node";
-import { textOf } from "@better-fs-tools/shell";
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { createBashTool, shellEnv, textOf } from "@better-fs-tools/shell";
 
 // bash -c in process.cwd(), with process.env, a 2 minute timeout, and a
 // 30 000 byte view of the output.
-const bash = createNodeBashTool();
+const bash = createBashTool({ runner: nodeCommandRunner(), env: shellEnv(() => process.env) });
 
 const listed = await bash({ command: "ls package.json" });
 console.log(textOf(listed));

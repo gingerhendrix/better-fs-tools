@@ -1,8 +1,8 @@
-import { createNodeReadTool } from "@better-fs-tools/node";
-import { textOf } from "@better-fs-tools/read";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { createReadTool, textOf } from "@better-fs-tools/read";
 
 // Rooted at process.cwd(), with SHA-256 observations.
-const read = createNodeReadTool();
+const read = createReadTool({ fs: nodeFileSystem({ allowedRoots: [process.cwd()] }) });
 
 const result = await read({ path: "package.json", limit: 2 });
 console.log(result.status); // "ok"

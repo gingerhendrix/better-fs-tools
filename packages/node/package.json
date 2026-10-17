@@ -1,7 +1,7 @@
 {
   "name": "@better-fs-tools/node",
   "version": "0.2.0",
-  "description": "The Node filesystem, a SHA-256 digest, a bash runner, and the zero-config read, edit, write, apply_patch, and bash tools for Node and Bun.",
+  "description": "The Node filesystem, a SHA-256 digest on node:crypto, and a bash runner for Node and Bun.",
   "license": "MIT",
   "repository": {
     "type": "git",

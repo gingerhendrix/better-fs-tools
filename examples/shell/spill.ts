@@ -2,7 +2,8 @@ import { open } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createNodeBashTool } from "@better-fs-tools/node";
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { createBashTool, shellEnv } from "@better-fs-tools/shell";
 import type { SpillSink } from "@better-fs-tools/shell";
 
 // Save every byte to a file. The truncation line names it, so the model can
@@ -24,5 +25,9 @@ const fileSpill: SpillSink = {
   },
 };
 
-export const bash = createNodeBashTool({ spill: fileSpill });
+export const bash = createBashTool({
+  runner: nodeCommandRunner(),
+  env: shellEnv(() => process.env),
+  spill: fileSpill,
+});
 // [… 196 000 lines (1.2 MB) not shown] Full output: /tmp/bash-….log

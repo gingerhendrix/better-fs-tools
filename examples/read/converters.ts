@@ -1,5 +1,6 @@
-import { createNodeReadTool } from "@better-fs-tools/node";
+import { nodeFileSystem } from "@better-fs-tools/node";
 import {
+  createReadTool,
   defaultClassifiers,
   directoryListing,
   imageConverter,
@@ -11,7 +12,8 @@ import {
 // Your own PDF extraction, for example a pdftotext process that reads stdin.
 declare function pdfToText(source: AsyncIterable<Uint8Array>): AsyncIterable<string>;
 
-export const read = createNodeReadTool({
+export const read = createReadTool({
+  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
   // The default chain reads a notebook as JSON text. notebookClassifier()
   // marks it NOTEBOOK, so notebookConverter() can take it.
   classifiers: [notebookClassifier(), ...defaultClassifiers()],

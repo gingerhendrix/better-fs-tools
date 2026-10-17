@@ -23,12 +23,12 @@ The package has no peers and imports no `node:` module. It starts no process by 
 ## Quick start
 
 ```ts
-import { createNodeBashTool } from "@better-fs-tools/node";
-import { textOf } from "@better-fs-tools/shell";
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { createBashTool, shellEnv, textOf } from "@better-fs-tools/shell";
 
 // bash -c in process.cwd(), with process.env, a 2 minute timeout, and a
 // 30 000 byte view of the output.
-const bash = createNodeBashTool();
+const bash = createBashTool({ runner: nodeCommandRunner(), env: shellEnv(() => process.env) });
 
 const listed = await bash({ command: "ls package.json" });
 console.log(textOf(listed));
@@ -52,12 +52,16 @@ Each call starts a new shell. A `cd` or an `export` does not carry to the next c
 
 ## Hosts
 
-| Host            | Package                      | Factories                                                                              |
-| --------------- | ---------------------------- | -------------------------------------------------------------------------------------- |
-| Node or Bun     | `@better-fs-tools/node`      | `createNodeBashTool()`, `nodeCommandRunner()`, and `createNodeFsTools({ bash: true })` |
-| AI SDK 7        | `@better-fs-tools/ai-sdk`    | `createAiSdkBashTool({ runner, env })`                                                 |
-| Pi coding agent | `@better-fs-tools/pi`        | `createPiBashTool()`, with the shared default signature, as every integration          |
-| just-bash       | `@better-fs-tools/just-bash` | `justBashCommandRunner(bash)`, an emulated shell with no process                       |
+Every integration takes the options of `createBashTool()`, with `runner` and `env` required, plus `signature`.
+
+| Host or runner     | Package                       | Factories                                                                                   |
+| ------------------ | ----------------------------- | ------------------------------------------------------------------------------------------- |
+| Node or Bun        | `@better-fs-tools/node`       | `nodeCommandRunner()`, a runner for `createBashTool()` or a bundle                          |
+| AI SDK 7           | `@better-fs-tools/ai-sdk`     | `createAiSdkBashTool({ runner, env })`                                                      |
+| Pi coding agent    | `@better-fs-tools/pi`         | `createPiBashTool({ runner, env })`. `piCwdCommandRunner()` from `./node` runs in `ctx.cwd` |
+| Pi agent core      | `@better-fs-tools/pi`         | `createAgentCoreBashTool({ runner, env })` from `./agent-core`                              |
+| Pi durable harness | `@better-fs-tools/pi-durable` | the `bash` option of `createDurableFsTools()`, with `durableEnvRunner()`                    |
+| just-bash          | `@better-fs-tools/just-bash`  | `justBashCommandRunner(bash)`, an emulated shell with no process                            |
 
 ## Results
 
@@ -73,9 +77,10 @@ The error codes are `INVALID_INPUT`, `CWD_NOT_FOUND`, `CWD_NOT_A_DIRECTORY`, `DE
 The result is a union on `status`. Every result has `tool: "bash"`, `status`, `request`, `run` (command as run, cwd, exit code, signal, duration, and what stopped it), `output` (the view, byte and line counts, and the spill reference), `notes`, and `content` for the model. Only the `error` variant has `error: { code, phase, message, data? }`, the same shape as the read and write errors. For `ok`, `failed`, and `timeout`, `run` and `output` are never null. For `error` they are set only when the command started: an abort during the run, `OUTPUT_CAP`, or a failed `afterRun` hook.
 
 ```ts
-import { createNodeBashTool } from "@better-fs-tools/node";
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { createBashTool, shellEnv } from "@better-fs-tools/shell";
 
-const bash = createNodeBashTool();
+const bash = createBashTool({ runner: nodeCommandRunner(), env: shellEnv(() => process.env) });
 const result = await bash({ command: "ls" });
 
 if (result.status === "error") {
@@ -117,7 +122,7 @@ A `defaultTimeoutMs` that you set above `maxTimeoutMs`, or a `headPercent` over 
 
 stdout and stderr are merged in arrival order. The core decodes UTF-8 with replacement characters and removes ANSI escape codes. It changes nothing else.
 
-`createBashTool` has no default environment: `env` is required, so the host chooses once what a command sees. `shellEnv(() => process.env)` passes the host environment, `shellEnv({ PATH, HOME })` passes an allow list, and `shellEnv()` passes `defaultShellEnv` alone. Every `shellEnv()` puts `defaultShellEnv` over its base: `PAGER=cat`, `GIT_PAGER=cat`, `GIT_TERMINAL_PROMPT=0`, `NO_COLOR=1`, and `TERM=dumb`. `createNodeBashTool()`, `createPiBashTool()`, and `createNodeFsTools({ bash: true })` default `env` to `shellEnv(() => process.env)`. `createAiSdkBashTool()` and `createFsTools()` require it, like the core.
+`createBashTool` has no default environment: `env` is required, so the host chooses once what a command sees. `shellEnv(() => process.env)` passes the host environment, `shellEnv({ PATH, HOME })` passes an allow list, and `shellEnv()` passes `defaultShellEnv` alone. Every `shellEnv()` puts `defaultShellEnv` over its base: `PAGER=cat`, `GIT_PAGER=cat`, `GIT_TERMINAL_PROMPT=0`, `NO_COLOR=1`, and `TERM=dumb`. Every integration and bundle requires it, like the core.
 
 ## Hooks
 
@@ -143,9 +148,9 @@ The stages run in this order: input, cwd, `beforeRun`, `authorize`, `env`, the r
 A `beforeRun` hook returns `{ allow: true, command?, notes? }` or `{ allow: false, note? }`, the same `{ allow }` shape as an authorize decision. A refusal without a note gets a default `refused` note. A refusal note becomes the `refused` error note with the hook's own code in `data.source`, as for an authorizer note. An `afterRun` hook returns `{ output?, notes? }`: only the parts the core keeps. A field left out keeps its value.
 
 ```ts
-import { createNodeBashTool } from "@better-fs-tools/node";
+import { nodeCommandRunner } from "@better-fs-tools/node";
 import type { AfterRunHook, BeforeRunHook, ShellAuthorizer } from "@better-fs-tools/shell";
-import { defaultShellEnv } from "@better-fs-tools/shell";
+import { createBashTool, defaultShellEnv } from "@better-fs-tools/shell";
 
 // Host policy: allow a short list of command prefixes.
 const allowPrefixes: ShellAuthorizer = {
@@ -184,7 +189,8 @@ const maskTokens: AfterRunHook = {
   }),
 };
 
-export const bash = createNodeBashTool({
+export const bash = createBashTool({
+  runner: nodeCommandRunner(),
   authorize: allowPrefixes,
   beforeRun: [noInteractive],
   afterRun: [maskTokens],
@@ -204,7 +210,8 @@ import { open } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createNodeBashTool } from "@better-fs-tools/node";
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { createBashTool, shellEnv } from "@better-fs-tools/shell";
 import type { SpillSink } from "@better-fs-tools/shell";
 
 // Save every byte to a file. The truncation line names it, so the model can
@@ -226,7 +233,11 @@ const fileSpill: SpillSink = {
   },
 };
 
-export const bash = createNodeBashTool({ spill: fileSpill });
+export const bash = createBashTool({
+  runner: nodeCommandRunner(),
+  env: shellEnv(() => process.env),
+  spill: fileSpill,
+});
 // [… 196 000 lines (1.2 MB) not shown] Full output: /tmp/bash-….log
 ```
 
@@ -265,5 +276,5 @@ Every tool has one parse helper with the same pattern: `parseReadInput`, `parseE
 ## More
 
 - [docs/architecture.md](docs/architecture.md): the stages, their order, and why
-- [docs/result-schema.md](docs/result-schema.md): every field of the result, every error code with its phase, and every note
-- `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the bash defaults of every host, next to the file tools
+- [docs/result-schema.md](docs/result-schema.md): every field of the result, every error code with its phase, and every note. The [bash reference](https://better-fs-tools.gandrew.com/reference/bash) on the docs site has the same facts
+- [Choose an integration](https://better-fs-tools.gandrew.com/integrations) on the docs site, or `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the bash defaults of every host, next to the file tools

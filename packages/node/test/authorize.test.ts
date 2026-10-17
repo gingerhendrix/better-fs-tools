@@ -4,9 +4,9 @@ import { mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { askUser, denyPaths, textOf } from "@better-fs-tools/read";
+import { askUser, createReadTool, denyPaths, textOf } from "@better-fs-tools/read";
 
-import { createNodeReadTool, nodeFileSystem } from "../src/index.ts";
+import { nodeFileSystem } from "../src/index.ts";
 
 const root = await realpath(await mkdtemp(join(tmpdir(), "better-fs-tools-authorize-")));
 
@@ -25,7 +25,7 @@ function fs() {
 describe("authorize on the node filesystem", () => {
   test("a symlink config -> .env is denied by its realpath", async () => {
     const targets: string[] = [];
-    const read = createNodeReadTool({
+    const read = createReadTool({
       fs: fs(),
       authorize: {
         id: "spy+deny",
@@ -48,7 +48,7 @@ describe("authorize on the node filesystem", () => {
 
   test("a file that changes while the user decides gives CHANGED_DURING_READ", async () => {
     const path = join(root, "notes.txt");
-    const read = createNodeReadTool({
+    const read = createReadTool({
       fs: fs(),
       authorize: askUser(async () => {
         await writeFile(path, "one\ntwo, written during approval\n");

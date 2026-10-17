@@ -1,6 +1,6 @@
-import { createNodeBashTool } from "@better-fs-tools/node";
+import { nodeCommandRunner } from "@better-fs-tools/node";
 import type { AfterRunHook, BeforeRunHook, ShellAuthorizer } from "@better-fs-tools/shell";
-import { defaultShellEnv } from "@better-fs-tools/shell";
+import { createBashTool, defaultShellEnv } from "@better-fs-tools/shell";
 
 // Host policy: allow a short list of command prefixes.
 const allowPrefixes: ShellAuthorizer = {
@@ -39,7 +39,8 @@ const maskTokens: AfterRunHook = {
   }),
 };
 
-export const bash = createNodeBashTool({
+export const bash = createBashTool({
+  runner: nodeCommandRunner(),
   authorize: allowPrefixes,
   beforeRun: [noInteractive],
   afterRun: [maskTokens],
