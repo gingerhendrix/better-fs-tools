@@ -355,7 +355,7 @@ export const presets = [
 ];
 ```
 
-`freeformPatchSignature()` adds `grammar.lark`, the Codex patch grammar. The Pi and pi-agent-core adapters send it as a grammar tool to models that support one. The AI SDK adapter ignores it and sends the JSON schema.
+`freeformPatchSignature()` adds `grammar.lark`, the Codex patch grammar. The Pi, pi-agent-core, and pi-durable adapters send it as a grammar tool to models that support one. The AI SDK adapter ignores it and sends the JSON schema.
 
 ## The result
 

@@ -65,6 +65,7 @@ Give the registry to `Harness.open()` with an `env` option, as for `CodingTools`
 - The host of each call is `{ api, env, context }`: the tool API, the `ExecutionEnv` of the call, and its Chord context. Host functions, such as an authorizer, get it as `ctx.call.host`. A factory `fs`, `state`, or `runner` gets the call. A call without an environment fails with an error result.
 - `read` is `replay: "safe"`, so the Harness runs it again after a crash. `edit`, `write`, and `apply_patch` keep the default `"unsafe"`: after a crash the model gets an interrupted result and reads the file again.
 - `outputLimits` defaults to 128 KiB and 4,000 lines, above the 2,000-line and 50 KiB view of `read`, so the Harness does not cut the output a second time. `name` defaults to `"better-fs-tools"`.
+- A signature with a `grammar` sets `constrainedSampling`, as in the Pi integrations. For the Codex patch grammar, pass `applyPatch: { signature: freeformPatchSignature() }`. `edit: { signature: multiEditSignature() }` gives the `edits: [{ oldText, newText }]` input of Durable's own `edit`.
 - A tool error is a result with `isError: true`. A nonzero bash exit, a timeout, and an error are error results too. No tool declares a `structuredOutputSchema`, so programs get the text.
 - `locks` defaults to one `memoryLocks()` for every call of the extension. The keys get the environment id, so the same path in two environments does not wait. The tools do not share the queue of the `CodingTools` `edit` and `write`: pi-durable does not export it.
 

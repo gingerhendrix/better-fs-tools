@@ -23,6 +23,8 @@ import { openNodeJsonlStorage } from "@earendil-works/pi-durable/storage/jsonl/n
 import { CodingTools } from "@earendil-works/pi-durable/tools";
 
 import { shellEnv } from "@better-fs-tools/shell";
+import { CODEX_PATCH_GRAMMAR } from "@better-fs-tools/write/patch";
+import { freeformPatchSignature } from "@better-fs-tools/write/signature";
 
 import {
   createDurableFsTools,
@@ -281,6 +283,51 @@ describe("createDurableFsTools in the Harness", () => {
       ]);
       expect(results[0]?.text).toMatch(/^Exit code 0 · [\d.]+ s\nhi$/u);
       expect(results[2]?.text).toContain(path.join(cwd, "sub"));
+    } finally {
+      await harness.close(context);
+    }
+  });
+
+  test("a signature with a grammar reaches the model as constrainedSampling", async () => {
+    const cwd = await fixture();
+    const faux = fauxProvider();
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const seen: Record<string, unknown> = {};
+    faux.setResponses([
+      (request) => {
+        for (const message of request.messages) {
+          if (message.role !== "system") continue;
+          for (const tool of message.toolsAdded ?? []) seen[tool.name] = tool.constrainedSampling;
+        }
+        return fauxAssistantMessage("done");
+      },
+    ]);
+    const registry = createRegistry();
+    registry.install(CodingTools);
+    registry.install(
+      createDurableFsTools({
+        fs: durableEnvFileSystem(),
+        applyPatch: { signature: freeformPatchSignature() },
+      }),
+    );
+    const harness = await Harness.open(
+      new MemoryStorage(),
+      {
+        models,
+        registry,
+        env: ({ cwd: dir }) => new NodeExecutionEnv({ cwd: dir ?? process.cwd() }),
+      },
+      context,
+    );
+    try {
+      await run(harness, cwd, "patch it");
+      expect(seen.apply_patch).toEqual({
+        type: "grammar",
+        variants: { openai_lark: CODEX_PATCH_GRAMMAR },
+      });
+      // Tools with no grammar keep the Harness default.
+      expect(seen.edit).toBeUndefined();
     } finally {
       await harness.close(context);
     }

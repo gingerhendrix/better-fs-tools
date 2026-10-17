@@ -188,13 +188,23 @@ interface Declared {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: object;
+  readonly grammar?: { readonly lark: string };
 }
 
+/** A signature with a grammar sets constrainedSampling, as in the Pi integrations. */
 function declaration(definition: Declared) {
   return {
     name: definition.name,
     description: definition.description,
     parameters: Type.Unsafe(definition.inputSchema),
+    ...(definition.grammar === undefined
+      ? {}
+      : {
+          constrainedSampling: {
+            type: "grammar" as const,
+            variants: { openai_lark: definition.grammar.lark },
+          },
+        }),
   };
 }
 
