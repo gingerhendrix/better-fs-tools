@@ -5,6 +5,18 @@ export type {
   PatchSignature,
   WriteSignature,
 } from "./contract.ts";
+export { fsToolDefinitions } from "../bundle/definitions.ts";
+export type { FsToolDefinitions, FsToolDefinitionsOptions } from "../bundle/definitions.ts";
+export { applyPatchToolDefinition, editToolDefinition, writeToolDefinition } from "./definition.ts";
+export type {
+  ApplyPatchToolDefinition,
+  ApplyPatchToolDefinitionOptions,
+  EditToolDefinition,
+  EditToolDefinitionOptions,
+  MutationToolDefinition,
+  WriteToolDefinition,
+  WriteToolDefinitionOptions,
+} from "./definition.ts";
 export { defaultEditSignature } from "./edit.ts";
 export { writeSignatureMessages } from "./messages.ts";
 export { defaultPatchSignature } from "./patch.ts";

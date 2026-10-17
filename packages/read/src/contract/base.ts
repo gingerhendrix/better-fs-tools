@@ -115,9 +115,41 @@ export interface ToolSignature<TInput, TParam extends string = string> {
 }
 
 /**
- * The options every signature preset takes. `TParam` is the preset's own
+ * A core tool bound to a signature: what a framework adapter needs to declare
+ * the tool and run it. The xxxToolDefinition() helpers in each `./signature`
+ * subpath build one, and every integration uses them.
+ */
+export interface ToolDefinition<
+  TInput,
+  TResult,
+  THost = undefined,
+  TParam extends string = string,
+> {
+  /** The tool name the model sees: `signature.name`. */
+  readonly name: string;
+  readonly description: string;
+  /** Plain JSON Schema of the model input: `signature.schema`. */
+  readonly inputSchema: JsonObject;
+  /** Set when the signature has a grammar. */
+  readonly grammar?: { readonly lark: string };
+  readonly signature: ToolSignature<TInput, TParam>;
+  /**
+   * Checks model input with the signature and with the core input check at the
+   * tool's limits, and returns the canonical input. Throws TypeError that names
+   * the signature's parameters.
+   */
+  validate(modelInput: unknown): TInput;
+  /**
+   * Maps model input with `signature.toInput` and runs the core tool. Bad input
+   * rejects with TypeError. A tool error is a result, not a rejection.
+   */
+  execute(modelInput: unknown, ctx: ToolCallContext<THost>): Promise<TResult>;
+}
+
+/**
+ * The options every default signature takes. `TParam` is the signature's own
  * parameter names. `names` gives a parameter another name in the schema, and
- * `describe` replaces its description. Both are keyed by the preset's names.
+ * `describe` replaces its description. Both are keyed by the signature's names.
  */
 export interface SignatureDocs<TParam extends string> {
   /** The tool name. */

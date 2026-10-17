@@ -1,122 +1,34 @@
-import { jsonSchema } from "ai";
-import type { FlexibleSchema, JSONSchema7, Schema, ToolExecutionOptions } from "ai";
+import type { FlexibleSchema, ToolExecutionOptions } from "ai";
 
-import {
-  createReadTool,
-  imageConverter,
-  parseReadInput,
-  resolveReadLimits,
-} from "@better-fs-tools/read";
-import type {
-  Converter,
-  JsonObject,
-  ReadContext,
-  ReadLimits,
-  ReadResult,
-  ReadTool,
-  ReadToolOptions,
-  StateNeedsDigest,
-} from "@better-fs-tools/read";
-import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
-import type { ReadSignature } from "@better-fs-tools/read/signature";
+import type { ReadResult } from "@better-fs-tools/read";
+import { readToolDefinition } from "@better-fs-tools/read/signature";
+import type { ReadToolDefinitionOptions } from "@better-fs-tools/read/signature";
 
-import { toAiSdkOutput } from "./output.ts";
-import type { AiSdkToolOutput } from "./output.ts";
-import { fromStrictInput, toStrictSchema } from "./strict.ts";
+import { adaptAiSdkTool, checkOptions } from "./adapt.ts";
+import type { AiSdkTool } from "./adapt.ts";
 
 /**
- * Options for createAiSdkReadTool. A state store requires a digest.
- * converters defaults to [imageConverter()]. A list you pass replaces it:
- * [] turns images off.
+ * Options for createAiSdkReadTool: the options of readToolDefinition(), with
+ * the AI SDK execution options as host, plus `contextSchema`.
  */
-export type AiSdkReadToolOptions<C = unknown> = ReadToolOptions<ToolExecutionOptions<C>> &
-  StateNeedsDigest & {
-    /** Defaults to defaultReadSignature(). */
-    readonly signature?: ReadSignature;
-    /** Checks the `toolsContext` entry of this tool. The AI SDK validates the context with it before `execute`. */
-    readonly contextSchema?: FlexibleSchema<C>;
-  };
+export type AiSdkReadToolOptions<C = unknown> = ReadToolDefinitionOptions<
+  ToolExecutionOptions<C>
+> & {
+  /** Checks the `toolsContext` entry of this tool. The AI SDK validates the context with it before `execute`. */
+  readonly contextSchema?: FlexibleSchema<C>;
+};
 
 /** An AI SDK read tool, assignable to `Tool<JsonObject, ReadResult, C>` from ai 7.0.77. */
-export interface AiSdkReadTool<C = unknown> {
-  readonly name: string;
-  readonly description: string;
-  readonly strict: true;
-  /** The strict input schema. A `null` for an optional parameter means absent. */
-  readonly inputSchema: Schema<JsonObject>;
-  /**
-   * The schema of the context that AI SDK passes from `toolsContext`, if set.
-   * The field also lets the AI SDK types accept a `toolsContext` entry of type `C`.
-   */
-  readonly contextSchema?: FlexibleSchema<C>;
-  /** Runs the read. The AI SDK execution options are the call's host. */
-  execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ReadResult>;
-  toModelOutput(options: { output: ReadResult }): AiSdkToolOutput;
-}
+export type AiSdkReadTool<C = unknown> = AiSdkTool<ReadResult, C>;
 
 /**
- * Creates an AI SDK read tool. `options.messages` override the signature's
- * messages. An image becomes a file part unless `options.converters` leaves
- * imageConverter() out.
+ * Creates an AI SDK read tool. It takes every option of createReadTool() with
+ * the same defaults, plus `signature` and `contextSchema`.
  */
 export function createAiSdkReadTool<C = unknown>(
   options: AiSdkReadToolOptions<C>,
 ): AiSdkReadTool<C> {
-  if (options === null || typeof options !== "object" || Array.isArray(options)) {
-    throw new TypeError("AI SDK read tool options must be an object");
-  }
-  const { signature = defaultReadSignature(), contextSchema, ...deps } = options;
-  const read = createReadTool<ToolExecutionOptions<C>>({
-    ...deps,
-    converters: aiSdkConverters(deps.converters),
-    messages: { ...readSignatureMessages(signature), ...deps.messages },
-  });
-  return adaptReadTool(signature, read, deps.limits, contextSchema);
-}
-
-/** The host's converters, or [imageConverter()] when it passes none. */
-export function aiSdkConverters<THost>(
-  converters: readonly Converter<THost>[] | undefined,
-): readonly Converter<THost>[] {
-  return converters ?? [imageConverter<THost>()];
-}
-
-export function adaptReadTool<C>(
-  signature: ReadSignature,
-  read: ReadTool<ToolExecutionOptions<C>>,
-  limitOverrides: Partial<ReadLimits> | undefined,
-  contextSchema?: FlexibleSchema<C>,
-): AiSdkReadTool<C> {
-  const limits = resolveReadLimits(limitOverrides);
-  const strict = toStrictSchema(signature.schema, signature.name);
-
-  return Object.freeze<AiSdkReadTool<C>>({
-    name: signature.name,
-    description: signature.description,
-    strict: true,
-    inputSchema: jsonSchema<JsonObject>(strict as JSONSchema7, {
-      validate(model) {
-        try {
-          const value = fromStrictInput(signature.schema, model);
-          parseReadInput(signature.toInput(value), limits);
-          return { success: true, value: value as JsonObject };
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error : new Error(String(error)),
-          };
-        }
-      },
-    }),
-    async execute(input, execution) {
-      const call: ReadContext<ToolExecutionOptions<C>> = {
-        ...(execution.abortSignal === undefined ? {} : { signal: execution.abortSignal }),
-        callId: execution.toolCallId,
-        host: execution,
-      };
-      return read(signature.toInput(fromStrictInput(signature.schema, input)), call);
-    },
-    toModelOutput: ({ output }) => toAiSdkOutput(output),
-    ...(contextSchema === undefined ? {} : { contextSchema }),
-  });
+  checkOptions(options, "AI SDK read tool");
+  const { contextSchema, ...rest } = options;
+  return adaptAiSdkTool(readToolDefinition<ToolExecutionOptions<C>>(rest), contextSchema);
 }

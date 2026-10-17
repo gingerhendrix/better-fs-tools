@@ -1,3 +1,4 @@
+export type { AiSdkTool } from "./adapt.ts";
 export { createAiSdkBashTool } from "./bash-tool.ts";
 export type { AiSdkBashTool, AiSdkBashToolOptions } from "./bash-tool.ts";
 export { createAiSdkFsTools } from "./fs-tools.ts";
@@ -6,11 +7,11 @@ export type {
   AiSdkFsToolsApplyPatchOptions,
   AiSdkFsToolsBashOptions,
   AiSdkFsToolsEditOptions,
+  AiSdkFsToolsOptions,
   AiSdkFsToolsReadOptions,
   AiSdkFsToolsWithApplyPatch,
   AiSdkFsToolsWithBash,
   AiSdkFsToolsWriteOptions,
-  AiSdkFsToolsOptions,
 } from "./fs-tools.ts";
 export {
   createAiSdkApplyPatchTool,
@@ -18,9 +19,9 @@ export {
   createAiSdkWriteTool,
 } from "./mutation-tools.ts";
 export type {
-  AiSdkMutationTool,
   AiSdkApplyPatchToolOptions,
   AiSdkEditToolOptions,
+  AiSdkMutationTool,
   AiSdkWriteToolOptions,
 } from "./mutation-tools.ts";
 export { toAiSdkOutput } from "./output.ts";

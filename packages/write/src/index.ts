@@ -92,10 +92,13 @@ export type {
   FsTools,
   FsToolsApplyPatchOptions,
   FsToolsBashOptions,
+  FsToolsEditOptions,
+  FsToolsReadOptions,
   FsToolsSharedKey,
   FsToolsState,
   FsToolsWithApplyPatch,
   FsToolsWithBash,
+  FsToolsWriteOptions,
 } from "./bundle/create-fs-tools.ts";
 export { createInvalidator } from "./state/index.ts";
 export type { Invalidate, InvalidateOutcome } from "./state/index.ts";

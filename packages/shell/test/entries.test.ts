@@ -7,10 +7,11 @@ describe("package entries", () => {
     }
   });
 
-  test("./signature exports the preset and the messages helper", async () => {
+  test("./signature exports the default signature, the messages helper, and the definition helper", async () => {
     const signature = await import("@better-fs-tools/shell/signature");
     expect(Object.keys(signature).sort()).toEqual([
       "bashSignatureMessages",
+      "bashToolDefinition",
       "defaultBashSignature",
     ]);
   });

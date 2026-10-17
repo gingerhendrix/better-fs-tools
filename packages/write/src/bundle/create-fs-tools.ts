@@ -36,6 +36,24 @@ export type FsToolsBashOptions<THost = undefined> = Omit<
   "digest" | "clock"
 >;
 
+/** The read tool's options, without the options that the bundle shares. */
+export type FsToolsReadOptions<THost = undefined> = Omit<
+  Partial<ReadToolOptions<THost>>,
+  FsToolsSharedKey
+>;
+
+/** The edit tool's options, without the options that the bundle shares. */
+export type FsToolsEditOptions<THost = undefined> = Omit<
+  Partial<EditToolOptions<THost>>,
+  FsToolsSharedKey
+>;
+
+/** The write tool's options, without the options that the bundle shares. */
+export type FsToolsWriteOptions<THost = undefined> = Omit<
+  Partial<WriteToolOptions<THost>>,
+  FsToolsSharedKey
+>;
+
 /** The apply_patch tool's options, without the options that the bundle shares. */
 export type FsToolsApplyPatchOptions<THost = undefined> = Omit<
   Partial<ApplyPatchToolOptions<THost>>,
@@ -58,9 +76,9 @@ export interface FsToolsOptions<THost = undefined> {
   readonly locks?: LockManager;
   /** Default () => new Date(). */
   readonly clock?: Clock;
-  readonly read?: Omit<Partial<ReadToolOptions<THost>>, FsToolsSharedKey>;
-  readonly edit?: Omit<Partial<EditToolOptions<THost>>, FsToolsSharedKey>;
-  readonly write?: Omit<Partial<WriteToolOptions<THost>>, FsToolsSharedKey>;
+  readonly read?: FsToolsReadOptions<THost>;
+  readonly edit?: FsToolsEditOptions<THost>;
+  readonly write?: FsToolsWriteOptions<THost>;
   /**
    * Off by default. `true` or an options object adds an apply_patch tool.
    * `false` is the same as leaving it out.
@@ -160,37 +178,86 @@ export function createFsTools<THost = undefined>(
 ): FsToolsWithApplyPatch<THost>;
 export function createFsTools<THost = undefined>(options: FsToolsOptions<THost>): FsTools<THost>;
 export function createFsTools<THost = undefined>(options: FsToolsOptions<THost>): FsTools<THost> {
-  checkFsToolsOptions("createFsTools", options, KNOWN_OPTION_KEYS, SHARED_KEYS_BY_TOOL);
-  const { fs } = options;
-  const clock = options.clock ?? (() => new Date());
-  const state = options.state ?? null;
-  const digest = options.digest ?? sha256Digest();
-  const locks = options.locks ?? memoryLocks();
+  const bundle = resolveBundle("createFsTools", options);
+  const { fs, state, digest, locks, clock } = bundle;
   const shared = { fs, state, digest, clock };
-  const applyPatch = options.applyPatch === true ? {} : (options.applyPatch ?? false);
-  const bash = options.bash === undefined || options.bash === false ? null : options.bash;
-  if ((bash as unknown) === true) {
-    throw new TypeError(
-      "createFsTools bash must be an object with a runner and an env: the portable bundle has no default runner",
-    );
-  }
 
   return Object.freeze<FsTools<THost>>({
     read: createReadTool<THost>({ ...options.read, ...shared }),
     edit: createEditTool<THost>({ ...options.edit, ...shared, locks }),
     write: createWriteTool<THost>({ ...options.write, ...shared, locks }),
     applyPatch:
-      applyPatch === false
+      bundle.applyPatch === null
         ? null
-        : createApplyPatchTool<THost>({ ...applyPatch, ...shared, locks }),
-    bash: bash === null ? null : createBashTool<THost>({ ...bash, digest, clock }),
+        : createApplyPatchTool<THost>({ ...bundle.applyPatch, ...shared, locks }),
+    bash: bundle.bash === null ? null : createBashTool<THost>({ ...bundle.bash, digest, clock }),
     fs,
     state,
     digest,
     locks,
     clock,
-    invalidate: invalidator(fs, state),
+    invalidate: bundle.invalidate,
   });
+}
+
+/** The option shape that createFsTools() and fsToolDefinitions() share. */
+interface BundleOptions<THost, TApplyPatch, TBash> {
+  readonly fs: FsToolsOptions<THost>["fs"];
+  readonly state?: FsToolsState<THost>;
+  readonly digest?: Digest;
+  readonly locks?: LockManager;
+  readonly clock?: Clock;
+  readonly applyPatch?: boolean | TApplyPatch;
+  readonly bash?: false | TBash;
+}
+
+/** A bundle's shared parts, after the option checks. */
+export interface ResolvedBundle<THost, TApplyPatch, TBash> {
+  readonly fs: FsToolsOptions<THost>["fs"];
+  readonly state: FsToolsState<THost>;
+  readonly digest: Digest;
+  readonly locks: LockManager;
+  readonly clock: Clock;
+  /** The apply_patch options, or null when it is off. */
+  readonly applyPatch: Partial<TApplyPatch> | null;
+  /** The bash options, or null when it is off. */
+  readonly bash: TBash | null;
+  readonly invalidate: FsTools<THost>["invalidate"];
+}
+
+/**
+ * Checks the bundle options and resolves the shared defaults. Throws TypeError
+ * that names `label` on an unknown key, a shared key inside a tool's options,
+ * a malformed state, and bash: true.
+ */
+export function resolveBundle<THost, TApplyPatch extends object, TBash extends object>(
+  label: string,
+  options: BundleOptions<THost, TApplyPatch, TBash>,
+): ResolvedBundle<THost, TApplyPatch, TBash> {
+  checkFsToolsOptions(label, options, KNOWN_OPTION_KEYS, SHARED_KEYS_BY_TOOL);
+  const { fs } = options;
+  const state = options.state ?? null;
+  const bash = options.bash === undefined || options.bash === false ? null : options.bash;
+  if ((bash as unknown) === true) {
+    throw new TypeError(
+      `${label} bash must be an object with a runner and an env: the portable bundle has no default runner`,
+    );
+  }
+  return {
+    fs,
+    state,
+    digest: options.digest ?? sha256Digest(),
+    locks: options.locks ?? memoryLocks(),
+    clock: options.clock ?? (() => new Date()),
+    applyPatch:
+      options.applyPatch === true
+        ? {}
+        : options.applyPatch === false || options.applyPatch === undefined
+          ? null
+          : options.applyPatch,
+    bash,
+    invalidate: invalidator(fs, state),
+  };
 }
 
 function checkFsToolsOptions(

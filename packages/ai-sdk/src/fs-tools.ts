@@ -1,77 +1,49 @@
 import type { FlexibleSchema, ToolExecutionOptions } from "ai";
 
-import type { Clock, Digest, ReadToolOptions, ToolCallContext } from "@better-fs-tools/read";
-import { readSignatureMessages, defaultReadSignature } from "@better-fs-tools/read/signature";
+import type { Clock, Digest, ReadResult, ToolCallContext } from "@better-fs-tools/read";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
-import { bashSignatureMessages } from "@better-fs-tools/shell/signature";
+import type { ShellResult } from "@better-fs-tools/shell";
 import type { BashSignature } from "@better-fs-tools/shell/signature";
-import {
-  createFsTools,
-  parseApplyPatchInput,
-  parseEditInput,
-  parseWriteInput,
-} from "@better-fs-tools/write";
 import type {
-  ApplyPatchToolOptions,
-  FsToolsOptions,
-  EditToolOptions,
+  FsToolsApplyPatchOptions,
   FsToolsBashOptions,
-  FsToolsSharedKey,
+  FsToolsEditOptions,
+  FsToolsOptions,
+  FsToolsReadOptions,
   FsToolsState,
+  FsToolsWriteOptions,
   InvalidateOutcome,
   LockManager,
-  WriteToolOptions,
+  MutationResult,
 } from "@better-fs-tools/write";
-import {
-  defaultEditSignature,
-  defaultPatchSignature,
-  defaultWriteSignature,
-  writeSignatureMessages,
-} from "@better-fs-tools/write/signature";
+import { fsToolDefinitions } from "@better-fs-tools/write/signature";
 import type {
   EditSignature,
   PatchSignature,
   WriteSignature,
 } from "@better-fs-tools/write/signature";
 
-import { adaptBashTool, defaultAiSdkBashSignature } from "./bash-tool.ts";
+import { adaptAiSdkTool } from "./adapt.ts";
 import type { AiSdkBashTool } from "./bash-tool.ts";
-import { adaptMutationTool, matchersOf } from "./mutation-tools.ts";
 import type { AiSdkMutationTool } from "./mutation-tools.ts";
-import { adaptReadTool, aiSdkConverters } from "./tool.ts";
 import type { AiSdkReadTool } from "./tool.ts";
 
 type Host<C> = ToolExecutionOptions<C>;
 
-/**
- * Read tool options for createAiSdkFsTools. Shared keys are set once at the
- * top level. converters defaults to [imageConverter()]; [] turns images off.
- */
-export type AiSdkFsToolsReadOptions<C = unknown> = Omit<
-  Partial<ReadToolOptions<Host<C>>>,
-  FsToolsSharedKey
-> & {
+/** Read tool options for createAiSdkFsTools. Shared keys are set once at the top level. */
+export type AiSdkFsToolsReadOptions<C = unknown> = FsToolsReadOptions<Host<C>> & {
   /** Defaults to defaultReadSignature(). */
   readonly signature?: ReadSignature;
 };
-export type AiSdkFsToolsEditOptions<C = unknown> = Omit<
-  Partial<EditToolOptions<Host<C>>>,
-  FsToolsSharedKey
-> & {
+export type AiSdkFsToolsEditOptions<C = unknown> = FsToolsEditOptions<Host<C>> & {
   /** Defaults to defaultEditSignature() for `matchers`. */
   readonly signature?: EditSignature;
 };
-export type AiSdkFsToolsWriteOptions<C = unknown> = Omit<
-  Partial<WriteToolOptions<Host<C>>>,
-  FsToolsSharedKey
-> & {
+export type AiSdkFsToolsWriteOptions<C = unknown> = FsToolsWriteOptions<Host<C>> & {
   /** Defaults to defaultWriteSignature(). */
   readonly signature?: WriteSignature;
 };
-export type AiSdkFsToolsApplyPatchOptions<C = unknown> = Omit<
-  Partial<ApplyPatchToolOptions<Host<C>>>,
-  FsToolsSharedKey
-> & {
+export type AiSdkFsToolsApplyPatchOptions<C = unknown> = FsToolsApplyPatchOptions<Host<C>> & {
   /** Defaults to defaultPatchSignature(). */
   readonly signature?: PatchSignature;
 };
@@ -81,20 +53,11 @@ export type AiSdkFsToolsBashOptions<C = unknown> = FsToolsBashOptions<Host<C>> &
   readonly signature?: BashSignature;
 };
 
-export interface AiSdkFsToolsOptions<C = unknown> {
-  /** Required. A backend, or a factory called once for each tool call with the AI SDK options as host. */
-  readonly fs: FsToolsOptions<Host<C>>["fs"];
-  /**
-   * Defaults to null: no read-before-write. A store, for example memoryStore(),
-   * turns it on. A factory gives each call its own store.
-   */
-  readonly state?: FsToolsState<Host<C>>;
-  /** Defaults to sha256Digest() from @better-fs-tools/read, which runs in a Worker. */
-  readonly digest?: Digest;
-  /** Defaults to memoryLocks(). */
-  readonly locks?: LockManager;
-  /** Defaults to () => new Date(). */
-  readonly clock?: Clock;
+/** The options of createFsTools(), with a `signature` in each tool's options, plus `contextSchema`. */
+export interface AiSdkFsToolsOptions<C = unknown> extends Omit<
+  FsToolsOptions<Host<C>>,
+  "read" | "edit" | "write" | "applyPatch" | "bash"
+> {
   /**
    * Checks the `toolsContext` entry of each tool. The AI SDK validates the
    * context with it before `execute`. Every tool of the bundle gets the same schema.
@@ -125,7 +88,7 @@ export interface AiSdkFsTools<C = unknown> {
   readonly digest: Digest;
   readonly locks: LockManager;
   readonly clock: Clock;
-  /** Same as createFsTools().invalidate. When fs is a factory, pass the call context. */
+  /** Same as createFsTools().invalidate. When fs or state is a factory, pass the call context. */
   invalidate(path: string, call?: ToolCallContext<Host<C>>): Promise<InvalidateOutcome>;
 }
 
@@ -189,89 +152,17 @@ export function createAiSdkFsTools<C = unknown>(
 export function createAiSdkFsTools<C = unknown>(options: AiSdkFsToolsOptions<C>): AiSdkFsTools<C>;
 export function createAiSdkFsTools<C = unknown>(options: AiSdkFsToolsOptions<C>): AiSdkFsTools<C> {
   checkOptions(options);
-  const { contextSchema } = options;
-  const { signature: readSignature = defaultReadSignature(), ...read } = options.read ?? {};
-  const { signature: editGiven, ...edit } = options.edit ?? {};
-  const editSignature = editGiven ?? defaultEditSignature(matchersOf(edit.matchers));
-  const { signature: writeSignature = defaultWriteSignature(), ...write } = options.write ?? {};
-  const patchOptions =
-    options.applyPatch === true ? {} : options.applyPatch === false ? null : options.applyPatch;
-  let patch: {
-    readonly deps: Omit<AiSdkFsToolsApplyPatchOptions<C>, "signature">;
-    readonly signature: PatchSignature;
-  } | null = null;
-  if (patchOptions !== null && patchOptions !== undefined) {
-    const { signature = defaultPatchSignature(), ...deps } = patchOptions;
-    patch = { deps, signature };
-  }
-  const bashOptions = options.bash === undefined || options.bash === false ? null : options.bash;
-  let bash: {
-    readonly deps: FsToolsBashOptions<Host<C>>;
-    readonly signature: BashSignature;
-  } | null = null;
-  if (bashOptions !== null) {
-    const { signature, ...deps } = bashOptions;
-    bash = { deps, signature: signature ?? defaultAiSdkBashSignature(deps) };
-  }
-
-  const core = createFsTools<Host<C>>({
-    fs: options.fs,
-    ...(options.state === undefined ? {} : { state: options.state }),
-    ...(options.digest === undefined ? {} : { digest: options.digest }),
-    ...(options.locks === undefined ? {} : { locks: options.locks }),
-    ...(options.clock === undefined ? {} : { clock: options.clock }),
-    read: {
-      ...read,
-      converters: aiSdkConverters(read.converters),
-      messages: { ...readSignatureMessages(readSignature), ...read.messages },
-    },
-    edit: { ...edit, messages: { ...writeSignatureMessages(editSignature), ...edit.messages } },
-    write: {
-      ...write,
-      messages: { ...writeSignatureMessages(writeSignature), ...write.messages },
-    },
-    ...(patch === null
-      ? {}
-      : {
-          applyPatch: {
-            ...patch.deps,
-            messages: { ...writeSignatureMessages(patch.signature), ...patch.deps.messages },
-          },
-        }),
-    ...(bash === null
-      ? {}
-      : {
-          bash: {
-            ...bash.deps,
-            messages: { ...bashSignatureMessages(bash.signature), ...bash.deps.messages },
-          },
-        }),
-  });
-
+  const { contextSchema, ...rest } = options;
+  const defs = fsToolDefinitions<Host<C>>(rest);
   const adapted = {
-    read: adaptReadTool<C>(readSignature, core.read, read.limits, contextSchema),
-    edit: adaptMutationTool(editSignature, core.edit, parseEditInput, edit.limits, contextSchema),
-    write: adaptMutationTool(
-      writeSignature,
-      core.write,
-      parseWriteInput,
-      write.limits,
-      contextSchema,
-    ),
+    read: adaptAiSdkTool<ReadResult, C>(defs.read, contextSchema),
+    edit: adaptAiSdkTool<MutationResult, C>(defs.edit, contextSchema),
+    write: adaptAiSdkTool<MutationResult, C>(defs.write, contextSchema),
     applyPatch:
-      patch === null || core.applyPatch === null
+      defs.applyPatch === null
         ? null
-        : adaptMutationTool(
-            patch.signature,
-            core.applyPatch,
-            parseApplyPatchInput,
-            patch.deps.limits,
-            contextSchema,
-          ),
-    bash:
-      bash === null || core.bash === null
-        ? null
-        : adaptBashTool<C>(bash.signature, core.bash, bash.deps.limits, contextSchema),
+        : adaptAiSdkTool<MutationResult, C>(defs.applyPatch, contextSchema),
+    bash: defs.bash === null ? null : adaptAiSdkTool<ShellResult, C>(defs.bash, contextSchema),
   };
   const tools: Record<string, AiSdkReadTool<C> | AiSdkMutationTool<C> | AiSdkBashTool<C>> = {};
   for (const tool of Object.values(adapted)) {
@@ -284,11 +175,11 @@ export function createAiSdkFsTools<C = unknown>(options: AiSdkFsToolsOptions<C>)
   return Object.freeze<AiSdkFsTools<C>>({
     ...adapted,
     tools: Object.freeze(tools),
-    state: core.state,
-    digest: core.digest,
-    locks: core.locks,
-    clock: core.clock,
-    invalidate: core.invalidate,
+    state: defs.state,
+    digest: defs.digest,
+    locks: defs.locks,
+    clock: defs.clock,
+    invalidate: defs.invalidate,
   });
 }
 

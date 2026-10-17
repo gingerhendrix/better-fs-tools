@@ -14,6 +14,7 @@ export type {
   SignatureDocs,
   ToolAuthorizer,
   ToolCallContext,
+  ToolDefinition,
   ToolError,
   ToolHookContext,
   ToolMessages,

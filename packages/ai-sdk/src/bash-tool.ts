@@ -1,109 +1,34 @@
-import { jsonSchema } from "ai";
-import type { FlexibleSchema, JSONSchema7, Schema, ToolExecutionOptions } from "ai";
+import type { FlexibleSchema, ToolExecutionOptions } from "ai";
 
-import type { JsonObject, ToolCallContext } from "@better-fs-tools/read";
-import { createBashTool, parseBashInput, resolveShellLimits } from "@better-fs-tools/shell";
-import type { BashTool, ShellLimits, ShellResult, BashToolOptions } from "@better-fs-tools/shell";
-import { bashSignatureMessages, defaultBashSignature } from "@better-fs-tools/shell/signature";
-import type { BashSignature } from "@better-fs-tools/shell/signature";
+import type { ShellResult } from "@better-fs-tools/shell";
+import { bashToolDefinition } from "@better-fs-tools/shell/signature";
+import type { BashToolDefinitionOptions } from "@better-fs-tools/shell/signature";
 
-import { toAiSdkOutput } from "./output.ts";
-import type { AiSdkToolOutput } from "./output.ts";
-import { fromStrictInput, toStrictSchema } from "./strict.ts";
+import { adaptAiSdkTool, checkOptions } from "./adapt.ts";
+import type { AiSdkTool } from "./adapt.ts";
 
-export type AiSdkBashToolOptions<C = unknown> = BashToolOptions<ToolExecutionOptions<C>> & {
-  /** Defaults to defaultBashSignature() for the runner's id and the limits. */
-  readonly signature?: BashSignature;
+/** Options for createAiSdkBashTool: the options of bashToolDefinition(), plus `contextSchema`. */
+export type AiSdkBashToolOptions<C = unknown> = BashToolDefinitionOptions<
+  ToolExecutionOptions<C>
+> & {
   /** Checks the `toolsContext` entry of this tool. The AI SDK validates the context with it before `execute`. */
   readonly contextSchema?: FlexibleSchema<C>;
 };
 
 /** An AI SDK bash tool, assignable to `Tool<JsonObject, ShellResult, C>` from ai 7.0.77. */
-export interface AiSdkBashTool<C = unknown> {
-  readonly name: string;
-  readonly description: string;
-  readonly strict: true;
-  /** The strict input schema. A `null` for an optional parameter means absent. */
-  readonly inputSchema: Schema<JsonObject>;
-  /**
-   * The schema of the context that AI SDK passes from `toolsContext`, if set.
-   * The field also lets the AI SDK types accept a `toolsContext` entry of type `C`.
-   */
-  readonly contextSchema?: FlexibleSchema<C>;
-  /** Runs the command. The AI SDK execution options are the call's host. */
-  execute(input: JsonObject, options: ToolExecutionOptions<C>): Promise<ShellResult>;
-  toModelOutput(options: { output: ShellResult }): AiSdkToolOutput;
-}
+export type AiSdkBashTool<C = unknown> = AiSdkTool<ShellResult, C>;
 
 /**
- * Creates an AI SDK bash tool. `options.messages` override the signature's
- * messages. The runner and env are required: this package starts no process
- * and does not read process.env. Use nodeCommandRunner() from
+ * Creates an AI SDK bash tool with the options and defaults of
+ * createBashTool(). The runner and env are required: this package starts no
+ * process and does not read process.env. Use nodeCommandRunner() from
  * @better-fs-tools/node or justBashCommandRunner() from
  * @better-fs-tools/just-bash, and shellEnv() from @better-fs-tools/shell.
  */
 export function createAiSdkBashTool<C = unknown>(
   options: AiSdkBashToolOptions<C>,
 ): AiSdkBashTool<C> {
-  if (options === null || typeof options !== "object" || Array.isArray(options)) {
-    throw new TypeError("AI SDK bash tool options must be an object");
-  }
-  const { signature: given, contextSchema, ...deps } = options;
-  const signature = given ?? defaultAiSdkBashSignature(deps);
-  const bash = createBashTool<ToolExecutionOptions<C>>({
-    ...deps,
-    messages: { ...bashSignatureMessages(signature), ...deps.messages },
-  });
-  return adaptBashTool(signature, bash, deps.limits, contextSchema);
-}
-
-export function defaultAiSdkBashSignature(deps: {
-  readonly runner?: BashToolOptions<never>["runner"];
-  readonly limits?: Partial<ShellLimits>;
-}): BashSignature {
-  const runnerId = typeof deps.runner === "function" ? undefined : deps.runner?.id;
-  return defaultBashSignature({
-    ...(runnerId === undefined ? {} : { runner: runnerId }),
-    ...(deps.limits === undefined ? {} : { limits: deps.limits }),
-  });
-}
-
-export function adaptBashTool<C>(
-  signature: BashSignature,
-  bash: BashTool<ToolExecutionOptions<C>>,
-  limitOverrides: Partial<ShellLimits> | undefined,
-  contextSchema?: FlexibleSchema<C>,
-): AiSdkBashTool<C> {
-  const limits = resolveShellLimits(limitOverrides);
-  const strict = toStrictSchema(signature.schema, signature.name);
-
-  return Object.freeze<AiSdkBashTool<C>>({
-    name: signature.name,
-    description: signature.description,
-    strict: true,
-    inputSchema: jsonSchema<JsonObject>(strict as JSONSchema7, {
-      validate(model) {
-        try {
-          const value = fromStrictInput(signature.schema, model);
-          parseBashInput(signature.toInput(value), limits);
-          return { success: true, value: value as JsonObject };
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error : new Error(String(error)),
-          };
-        }
-      },
-    }),
-    async execute(input, execution) {
-      const call: ToolCallContext<ToolExecutionOptions<C>> = {
-        ...(execution.abortSignal === undefined ? {} : { signal: execution.abortSignal }),
-        callId: execution.toolCallId,
-        host: execution,
-      };
-      return bash(signature.toInput(fromStrictInput(signature.schema, input)), call);
-    },
-    toModelOutput: ({ output }) => toAiSdkOutput(output),
-    ...(contextSchema === undefined ? {} : { contextSchema }),
-  });
+  checkOptions(options, "AI SDK bash tool");
+  const { contextSchema, ...rest } = options;
+  return adaptAiSdkTool(bashToolDefinition<ToolExecutionOptions<C>>(rest), contextSchema);
 }
