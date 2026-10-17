@@ -12,7 +12,7 @@ The documentation site is deployed at [better-fs-tools.gandrew.com](https://bett
 | [`@better-fs-tools/write`](packages/write)                             | The `edit`, `write`, and `apply_patch` tools on one mutation core, and `createFsTools()` |
 | [`@better-fs-tools/shell`](packages/shell)                             | The `bash` tool: a small run core with hooks and defaults                                |
 | [`@better-fs-tools/fs`](packages/fs)                                   | The read and write filesystem contract, a memory filesystem, and suites                  |
-| [`@better-fs-tools/node`](packages/node)                               | The Node filesystem, a SHA-256 digest, a bash runner, and `createNodeFsTools()`          |
+| [`@better-fs-tools/node`](packages/node)                               | The Node filesystem, a SHA-256 digest on `node:crypto`, and a bash runner                |
 | [`@better-fs-tools/ai-sdk`](packages/ai-sdk)                           | The read, write, and bash tools for AI SDK 7                                             |
 | [`@better-fs-tools/pi`](packages/pi)                                   | The read, write, and bash tools and extension for the Pi coding agent and pi-agent-core  |
 | [`@better-fs-tools/pi-durable`](packages/pi-durable)                   | The read, write, and bash tools for the Pi durable harness (experimental)                |
@@ -44,7 +44,7 @@ bun run tegami
 
 `bun run check` verifies formatting, lint rules, TypeScript, and tests, then runs `bun run check:packages`. It is the same set of checks that CI runs, so run it before a commit. `bun run build` builds the documentation site.
 
-`bun run build:packages` builds every package to `dist/` (JavaScript and declarations) with `tsc -b tsconfig.build.json`. `bun run check:packages` builds, packs each package with `bun pm pack`, and checks each tarball: its exports, files, dependency ranges, peers, the Pi extension entry, and every relative Markdown link. It then installs the tarballs into a throwaway project, runs them under Node, creates and edits a file and runs a command there with `createNodeFsTools()`, and type-checks their declarations. Pass `--out <dir>` to keep the tarballs.
+`bun run build:packages` builds every package to `dist/` (JavaScript and declarations) with `tsc -b tsconfig.build.json`. `bun run check:packages` builds, packs each package with `bun pm pack`, and checks each tarball: its exports, files, dependency ranges, peers, the Pi extension entry, and every relative Markdown link. It then installs the tarballs into a throwaway project, runs them under Node, creates and edits a file and runs a command there with `createFsTools()` over `nodeFileSystem()`, and type-checks their declarations. Pass `--out <dir>` to keep the tarballs.
 
 Bun does not apply `publishConfig` when it packs. `scripts/check-packages.ts` and the release both apply `publishConfig.exports` and `publishConfig.pi` for the length of the pack, with the same code in `scripts/release/publish-manifest.ts`.
 

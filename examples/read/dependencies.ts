@@ -3,7 +3,7 @@ import { createReadTool, defaultClassifiers, extensionClassifier } from "@better
 
 export const read = createReadTool({
   fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
-  // A list dependency replaces the default. Include the default to add to it.
+  // A list option replaces the default. Include the default to add to it.
   classifiers: [
     extensionClassifier({ unsupported: { ".parquet": { code: "BINARY" } } }),
     ...defaultClassifiers(),

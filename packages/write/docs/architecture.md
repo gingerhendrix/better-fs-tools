@@ -33,7 +33,7 @@ formatter.format(report, { mode: "model", call, ... }) ─▶ content
 MutationResult
 ```
 
-| Stage        | Dependency                        | What happens                                                                                                                                        |
+| Stage        | Option                            | What happens                                                                                                                                        |
 | ------------ | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Input        | `limits`                          | `parseEditInput`, `parseWriteInput`, or `parseApplyPatchInput`. Unknown keys and blank paths are refused. `apply_patch` also parses the patch here  |
 | Filesystem   | `fs`                              | A `WritableFileSystem`, or a factory of the call context. The factory runs once for each call                                                       |
@@ -53,14 +53,14 @@ MutationResult
 | Record       | `state`, `digest`, `clock`        | Stores a record for each committed file. A store failure does not fail the call                                                                     |
 | Format       | `formatter`, `messages`           | Turns the report into content parts                                                                                                                 |
 
-Some stages cannot be removed by any dependency: input validation, the type check, the order of the access authorize before any content read, the lock, the load cap, the codec round trip, the precondition check when a store is set, the literal splice, the check of every change before the first commit, and the record after a commit. They are the reason the package exists. Everything else is a dependency.
+Some stages cannot be removed by any option: input validation, the type check, the order of the access authorize before any content read, the lock, the load cap, the codec round trip, the precondition check when a store is set, the literal splice, the check of every change before the first commit, and the record after a commit. They are the reason the package exists. Everything else is an option.
 
 ## Source layout
 
 | Path                                                                                             | Role                                                                                                       |
 | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
 | `src/contract/`                                                                                  | The public types, one file for each area. No runtime code                                                  |
-| `src/core/create-tools.ts`, `core/deps.ts`                                                       | The three factories. They check and resolve the dependencies once, synchronously                           |
+| `src/core/create-tools.ts`, `core/deps.ts`                                                       | The three factories. They check and resolve the options once, synchronously                                |
 | `src/core/pipeline.ts`                                                                           | The stage order for `edit` and `write`. `apply_patch` has its own order in `core/patch-pipeline.ts`        |
 | `src/core/scope.ts`                                                                              | Per-call state: the call object, the phase, `fs(call)`, `state(call)`, notes, abort checks, and failures   |
 | `src/core/resolve.ts`, `target.ts`, `lock.ts`, `load.ts`, `precondition.ts`                      | Resolve, stat, lock, load, and the precondition table                                                      |

@@ -116,13 +116,13 @@ read({ path, offset, limit }, ctx)
 ReadResult
 ```
 
-You cannot remove the input validation, the scan, the limits, the type check, or change detection. Every other step is a dependency that you can replace. [docs/architecture.md](docs/architecture.md) explains each stage.
+You cannot remove the input validation, the scan, the limits, the type check, or change detection. Every other step is an option that you can replace. [docs/architecture.md](docs/architecture.md) explains each stage.
 
 ## What you can change
 
 Pass options to `createReadTool()`, `readToolDefinition()`, or an integration factory (`createAiSdkReadTool()`, `createPiReadTool()`, `createAgentCoreReadTool()`). Every integration takes the same options with the same defaults, and passes them to the core.
 
-| Dimension                                              | Dependency                  | Default                                                                                      |
+| Dimension                                              | Option                      | Default                                                                                      |
 | ------------------------------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------- |
 | Tool name, parameters, range model, descriptions       | `signature` (adapters only) | `defaultReadSignature()`: `read` with `path`, `offset`, `limit`                              |
 | Filesystem, allowed roots, deny roots, symlinks        | `fs`                        | Required. `nodeFileSystem()` from `@better-fs-tools/node` reads the local disk               |
@@ -140,7 +140,7 @@ Pass options to `createReadTool()`, `readToolDefinition()`, or an integration fa
 | Content hashes and observations                        | `digest`                    | `sha256Digest()`, which runs anywhere. `nodeDigest()` is faster on Node. `null` turns it off |
 | Timestamps                                             | `clock`                     | `() => new Date()`                                                                           |
 
-`limits` and `messages` merge over their defaults key by key. Every other dependency replaces its default. To add to a list, include the default yourself:
+`limits` and `messages` merge over their defaults key by key. Every other option replaces its default. To add to a list, include the default yourself:
 
 ```ts
 import { nodeFileSystem } from "@better-fs-tools/node";
@@ -148,7 +148,7 @@ import { createReadTool, defaultClassifiers, extensionClassifier } from "@better
 
 export const read = createReadTool({
   fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
-  // A list dependency replaces the default. Include the default to add to it.
+  // A list option replaces the default. Include the default to add to it.
   classifiers: [
     extensionClassifier({ unsupported: { ".parquet": { code: "BINARY" } } }),
     ...defaultClassifiers(),
@@ -159,7 +159,7 @@ export const read = createReadTool({
 });
 ```
 
-`createReadTool()` checks the dependencies once, when you call it. An unknown key, an empty classifier list, a limit that is not a positive safe integer, or a message that is not a function throws `TypeError`.
+`createReadTool()` checks the options once, when you call it. An unknown key, an empty classifier list, a limit that is not a positive safe integer, or a message that is not a function throws `TypeError`.
 
 ## Tool signature and docs
 
@@ -627,7 +627,7 @@ No default message names `offset` or `limit`. Every message that suggests a retr
 | `unsupported` | A classifier or converter refused the format. `code` is open, for example `PDF` or `TOO_LARGE`. |
 | `error`       | `error.code` is one of thirteen `ReadErrorCode` values.                                         |
 
-The error codes are `INVALID_INPUT`, `NOT_FOUND`, `NOT_A_FILE`, `DANGEROUS_PATH`, `OUTSIDE_ALLOWED_ROOTS`, `PERMISSION_DENIED`, `DENIED`, `TOO_LARGE`, `CHANGED_DURING_READ`, `ABORTED`, `UNSUPPORTED_BACKEND`, `EXTENSION_FAILED`, and `IO_ERROR`. `TOO_LARGE` is an `error` when a backend byte ceiling refuses the file, and an `unsupported` code when a converter or media limit stops it. `EXTENSION_FAILED` means that host code threw or broke a rule. Its note data names the dependency and the stage, for example `{ extension: "hooks", phase: "hooks", id: "redact" }`.
+The error codes are `INVALID_INPUT`, `NOT_FOUND`, `NOT_A_FILE`, `DANGEROUS_PATH`, `OUTSIDE_ALLOWED_ROOTS`, `PERMISSION_DENIED`, `DENIED`, `TOO_LARGE`, `CHANGED_DURING_READ`, `ABORTED`, `UNSUPPORTED_BACKEND`, `EXTENSION_FAILED`, and `IO_ERROR`. `TOO_LARGE` is an `error` when a backend byte ceiling refuses the file, and an `unsupported` code when a converter or media limit stops it. `EXTENSION_FAILED` means that host code threw or broke a rule. Its note data names the option and the stage, for example `{ extension: "hooks", phase: "hooks", id: "redact" }`.
 
 An `ok` result has structured lines, and an `error` result has its error:
 
@@ -703,7 +703,7 @@ await read({ path: "/a.txt" }, { host: session, callId: "call-1" });
 
 ## Security guarantees
 
-Your dependencies can narrow access. They cannot widen it.
+Your options can narrow access. They cannot widen it.
 
 - The filesystem is the only place that grants access. It checks roots, deny roots, the realpath, and the type in one `open()` call. `resolve` runs before it and `authorize` runs after it.
 - Each read opens at most one file. A resolver only changes the path that goes into that open.

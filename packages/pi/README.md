@@ -1,6 +1,6 @@
 # @better-fs-tools/pi
 
-Better FS Tools for the [Pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent). It replaces Pi's built-in `read`, `edit`, and `write` tools, and can add `apply_patch`. Every call is confined to the working directory of that call. A read store, so that `edit` and `write` need a read first, is opt-in.
+Better FS Tools for the [Pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) and for `@earendil-works/pi-agent-core`. It replaces Pi's built-in `read`, `edit`, and `write` tools, and can add `apply_patch` and `bash`. The tools take the options of every Better FS Tools integration, with the same defaults, plus Pi's prompt options. `piCwdFileSystem()` from the `./node` subpath confines each call to its working directory.
 
 ## Install
 
@@ -10,7 +10,7 @@ npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @ea
 
 `@earendil-works/pi-coding-agent` (`^1.0.0`) and `typebox` (`^1.3.16`) are required peers. Pi versions before 1.0 are not supported. The package needs Node 24 or later.
 
-The package has a `pi.extensions` entry. When Pi loads the package, the entry registers `read`, `edit`, and `write` from `createPiFsTools()`. They replace Pi's own tools of those names. They have the same default signatures as every Better FS Tools integration, and the entry registers `piToolRenderers()` so that Pi's built-in renderers draw them. `read` returns images. There is no read store, so `edit` and `write` do not check for a read first. Writes stay inside `ctx.cwd`. The entry writes no settings or session file.
+The package has a `pi.extensions` entry. When Pi loads the package, the entry registers `read`, `edit`, and `write` from `createPiFsTools()`. They replace Pi's own tools of those names. The entry uses the recommended Pi configuration: `fs: piCwdFileSystem()`, so each call reads and writes inside `ctx.cwd`; `locks: piMutationQueueLocks()`, so Pi's own `edit` and `write` wait for these tools; and `digest: nodeDigest()`. Every other option has the shared default: `read` returns images, and there is no read store, so `edit` and `write` do not check for a read first. The entry registers `piToolRenderers()` so that Pi's built-in renderers draw the tools. It writes no settings or session file.
 
 ## Example
 
@@ -104,26 +104,49 @@ try {
 
 The session's `cwd` is the root of every call. For `tools`, `noTools`, and inline extensions with hooks and guards, see [Use Pi from code (SDK)](https://better-fs-tools.gandrew.com/integrations/pi#use-pi-from-code-sdk). For `pi-agent-core`, use `createAgentCoreFsTools()`: see [Pi agent core](#pi-agent-core) below. For the experimental `pi-durable` harness, use [`@better-fs-tools/pi-durable`](https://www.npmjs.com/package/@better-fs-tools/pi-durable).
 
-## What the read tool does
+## Options
 
-- `createPiReadTool(options?)` takes every `createReadTool()` option except `fs`. It also takes `signature`, `promptSnippet`, `promptGuidelines`, `denyRoots`, and `symlinks`. `promptSnippet` and `promptGuidelines` are Pi fields. The snippet defaults to the first sentence of the signature description, because Pi lists a tool under "Available tools" only when it has a snippet. The guidelines default to `[]`.
-- `fs`, `cwd`, and `allowedRoots` throw `TypeError`. Each call reads through `nodeFileSystem` with Pi's `ctx.cwd` as the only allowed root. When the working directory changes between calls, the root changes too. The tool keeps the filesystems for the last 8 working directories.
-- Pi's `ExtensionContext` is the host type. Host functions get it as `ctx.call.host`, for example `ctx.call.host.ui.confirm(...)` in `askUser`, or `ctx.call.host.sessionManager.getSessionId()` in a `state` factory.
-- The default signature is `defaultReadSignature()`, as in every integration. Its schema has integer `offset` and `limit`, so a model that sends `2.5` gets Pi's validation error. `digest` defaults to `nodeDigest()`.
-- `converters` defaults to `[imageConverter()]`, as in the AI SDK integration. This holds for `createPiReadTool()`, `createPiFsTools()`, and the extension entry. A list you pass replaces the default, so `converters: []` turns images off, and a list without `imageConverter()` refuses images. In `createPiFsTools()` the option goes under `read`, for example `read: { converters: [] }`.
+Every Pi factory takes the options of the matching core factory, with the same defaults, plus `signature`, `promptSnippet`, and `promptGuidelines`:
+
+| Factory                                                                 | Options                                                                                                             |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `createPiReadTool(options)`                                             | `createReadTool()`: `fs` is required                                                                                |
+| `createPiEditTool()`, `createPiWriteTool()`, `createPiApplyPatchTool()` | `createEditTool()`, `createWriteTool()`, `createApplyPatchTool()`: `fs` is required                                 |
+| `createPiBashTool(options)`                                             | `createBashTool()`: `runner` and `env` are required                                                                 |
+| `createPiFsTools(options)`                                              | `createFsTools()`: `fs` is required. Each tool's options go under `read`, `edit`, `write`, `applyPatch`, and `bash` |
+
+- `promptSnippet` and `promptGuidelines` are Pi fields. The snippet defaults to the first sentence of the signature description, because Pi lists a tool under "Available tools" only when it has a snippet. The guidelines default to `[]`.
+- Pi's `ExtensionContext` is the host type. Host functions get it as `ctx.call.host`, for example `ctx.call.host.ui.confirm(...)` in `askUser`, or `ctx.call.host.sessionManager.getSessionId()` in a `state` factory. A factory `fs`, `state`, or `runner` gets the call, so it can use `ctx.cwd`.
+- The defaults are those of every integration: `digest` is `sha256Digest()`, `locks` is `memoryLocks()`, `state` is `null`, `read.converters` is `[imageConverter()]`, and the default signatures are `defaultReadSignature()`, `defaultEditSignature({ matchers })`, `defaultWriteSignature()`, `defaultPatchSignature()`, and `defaultBashSignature({ runner, limits })`. `docs/hosts.md` in `@better-fs-tools/write` has the full table.
+- `createPiFsTools()` returns `read`, `edit`, `write`, `applyPatch` and `bash` (each `null` when off), `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`. Pass the call to `invalidate` when `fs` or `state` is a factory: in a bash `afterRun` hook it is `ctx.call`.
+
+## The Node helpers
+
+`@better-fs-tools/pi/node` has the Node backends of a Pi extension. The main entry imports no Node module.
+
+| Helper                         | Gives                                                                                                                                                                                                                                                                 |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `piCwdFileSystem(options?)`    | A per-call `fs`: `nodeFileSystem()` with `cwd` and `allowedRoots` set to `ctx.cwd`. It keeps the filesystems of the last 8 roots. It takes every other `nodeFileSystem()` option, such as `denyRoots`, `symlinks`, `hardLinks`, `newFileMode`, and `newDirectoryMode` |
+| `piCwdCommandRunner(options?)` | A per-call bash `runner`: `nodeCommandRunner()` at `ctx.cwd`, which must be absolute. It keeps the runners of the last 8 directories                                                                                                                                  |
+
+A call without a usable `ctx.cwd` gives an `extension-failed` error result.
+
+## Recommended configuration
+
+These choices suit Pi. They are options, not defaults:
+
+- `fs: piCwdFileSystem()`: each call is confined to its working directory.
+- `locks: piMutationQueueLocks()`: Pi's own per-file queue, `withFileMutationQueue()`. A Better FS Tools `edit` and Pi's own `edit` or `write` on the same file then wait for each other. `piMutationQueueLocks({ timeoutMs })` waits 30 seconds by default, then fails the change with `LOCK_TIMEOUT`. In a Pi extension, Pi's loader resolves the package's import of `@earendil-works/pi-coding-agent` to Pi's own module, so the queue is Pi's. In an SDK host, install one copy of Pi, so that the package and the host share the queue.
+- `digest: nodeDigest()`: the same values as `sha256Digest()`, faster on Node.
+- For bash: `runner: piCwdCommandRunner()` and `env: shellEnv(() => process.env)`.
+
+## What the tools return
+
 - Image parts become Pi `image` parts. Other media becomes a text part that says what was left out.
-- `details.truncation` follows Pi's own read tool for line and byte stops. Its `content` comes from the formatter in `"view"` mode. For other results, or a formatter that returns parts, `details` is `{}`. `toPiReadDetails()` builds the details for your own tool.
-
-## What the write tools do
-
-- `createPiFsTools(options?)` wraps `createFsTools()` from `@better-fs-tools/write`. It builds `read`, `edit`, and `write` with one `nodeDigest()`, one lock manager, one clock, and one cache of filesystems over `ctx.cwd`. `applyPatch: true`, or an options object, adds `apply_patch`. `state` defaults to `null`, so read-before-write is off; `state: memoryStore()` turns it on. `digest` (default `nodeDigest()`), `locks`, `clock`, and the root options (`denyRoots`, `symlinks`, `hardLinks`, `newFileMode`, `newDirectoryMode`) are set once for all the tools. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`. The result also has `applyPatch` (`null` when off), `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, which returns an `InvalidateOutcome`. Pass the call, so the path resolves under its `ctx.cwd`: in a bash `afterRun` hook it is `ctx.call`. Without it the outcome is `{ ok: false }` with reason `unsupported`. An unknown top-level key, or `state`, `digest`, `locks`, `clock`, or a root option inside a tool's options, throws `TypeError`.
-- `createPiEditTool()`, `createPiWriteTool()`, and `createPiApplyPatchTool()` build one tool each. They default to `state: null`, so read-before-write is off. Pass the same `state` as your read tool, or use `createPiFsTools()`.
-- `fs`, `cwd`, and `allowedRoots` throw `TypeError`, as for the read tool. Writes go through `nodeFileSystem` with `ctx.cwd` as the only allowed root, and `hardLinks: "in-place"` by default: a file with more than one hard link is written through the link, not atomically. `hardLinks: "refuse"` fails that write with `DENIED`. `newFileMode` and `newDirectoryMode` set the modes of new files and directories exactly. Without them, a new file is `0o666` and a new directory `0o777`, less the process umask.
-- The default signatures are the shared defaults of every integration: `edit` takes `path`, `old_string`, `new_string`, and `replace_all` (`defaultEditSignature()`), `write` takes `path` and `content` (`defaultWriteSignature()`), and `apply_patch` takes one `patch` string (`defaultPatchSignature()`). The prompt snippet is the first sentence of the signature description, and there are no guidelines. A signature with a `grammar`, such as `defaultPatchSignature()` with `CODEX_PATCH_GRAMMAR` from `@better-fs-tools/write/patch` added, sets `constrainedSampling` for models with grammar-tool support.
+- `read` gives `details.truncation` as Pi's own read tool does for line and byte stops. Its `content` comes from the formatter in `"view"` mode. For other results, or a formatter that returns parts, `details` is `{}`. `toPiReadDetails()` builds the details for your own tool.
 - `edit` and `apply_patch` return `details` in the shape of Pi's `EditToolDetails` (`diff`, `patch`, `firstChangedLine`), so Pi's edit renderer draws the diff. `toPiMutationDetails()` builds them for your own tool. `write` returns no details, as Pi's own `write` does.
-- `locks` defaults to `piMutationQueueLocks()` in `createPiFsTools()` and in each single-tool factory. It takes Pi's own per-file queue, `withFileMutationQueue()`, so a Better FS Tools `edit` and Pi's own `edit` or `write` on the same file wait for each other. Pass `locks: memoryLocks()` for the old behaviour. `piMutationQueueLocks({ timeoutMs })` waits 30 seconds by default, then fails the change with `LOCK_TIMEOUT`. In a Pi extension, Pi's loader resolves the package's import of `@earendil-works/pi-coding-agent` to Pi's own module, so the queue is Pi's. In an SDK host, install one copy of Pi, so that the package and the host share the queue.
-- A tool error becomes Pi content text with `isError: true`. The tool does not throw for a tool error. Pi shows the text as an error, and `tool_result` handlers see `isError: true`.
-- The tool also accepts close matches for the old text, and the result says when it used one.
+- A signature with a `grammar`, such as `defaultPatchSignature()` with `CODEX_PATCH_GRAMMAR` from `@better-fs-tools/write/patch` added, sets `constrainedSampling` for models with grammar-tool support.
+- A tool error becomes Pi content text with `isError: true`. The tool does not throw for a tool error. Pi shows the text as an error, and `tool_result` handlers see `isError: true`. Bad model input rejects with `TypeError`.
 
 ## Renderers
 
@@ -146,7 +169,7 @@ Permission extensions read `annotations` from `pi.getAllTools()`. The hints are 
 
 ## Bash tool
 
-`createPiBashTool()` is a `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell) with the shared default signature, `defaultBashSignature()`: `{ command, timeout?, cwd? }` with the timeout in milliseconds. A `cwd` from the model is relative to `ctx.cwd`. Commands run in `ctx.cwd` by default, also with a `runner` you pass: the runner gets `ctx.cwd` as the request's `cwd`, not its own. A relative `ctx.cwd` throws `TypeError`. For Pi's own bash input, pass `signature: defaultBashSignature({ timeoutUnit: "s", cwd: false })`. The extension entry does not register this tool, so Pi's own `bash` stays unless you register this one:
+`createPiBashTool()` is a `bash` tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell) with the shared default signature, `defaultBashSignature()`: `{ command, timeout?, cwd? }` with the timeout in milliseconds. `runner` and `env` are required. With `piCwdCommandRunner()`, commands run in `ctx.cwd`, and a `cwd` from the model is relative to it. For a runner with its own directory, the `cwd` option sets another one, for example `cwd: (call) => call.host.cwd`. The extension entry does not register this tool, so Pi's own `bash` stays unless you register this one:
 
 ```ts
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -166,11 +189,11 @@ export default function bashExtension(pi: ExtensionAPI): void {
 }
 ```
 
-The options take every `createBashTool()` dependency except `cwd`, plus `runner`, `signature`, `promptSnippet`, and `promptGuidelines`. `runner` and `env` are optional here. The default description names the timeouts and output limits from `limits`, and the id of a `runner` object when you pass one.
+The default description names the timeouts and output limits from `limits`, and the id of a `runner` object. A runner factory, such as `piCwdCommandRunner()`, has no id to name.
 
-Pi's own `bash` also sets `PI_*` session variables. This tool does not. Add them with the `env` option when you need them. `env` defaults to `shellEnv(() => process.env)`.
+Pi's own `bash` also sets `PI_*` session variables. This tool does not. Add them with the `env` option when you need them.
 
-With the file tools, a bash `afterRun` hook can make the next edit of a file need a read:
+The bundle takes `bash` too. With a read store, a bash `afterRun` hook can make the next edit of a file need a read:
 
 ```ts
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -211,7 +234,7 @@ export default function fsAndBashExtension(pi: ExtensionAPI): void {
 
 ## Pi agent core
 
-`@better-fs-tools/pi/agent-core` has `createAgentCoreFsTools()`. It gives the tools as `AgentTool` objects for `@earendil-works/pi-agent-core`: for `agent.state.tools`, or the `tools` of an `agentLoop()` context. An `AgentTool` gets no context object, so the bundle takes a filesystem, as `createFsTools()` does:
+`@better-fs-tools/pi/agent-core` gives the tools as `AgentTool` objects for `@earendil-works/pi-agent-core`: for `agent.state.tools`, or the `tools` of an `agentLoop()` context. It has `createAgentCoreFsTools()` and the single-tool factories `createAgentCoreReadTool()`, `createAgentCoreEditTool()`, `createAgentCoreWriteTool()`, `createAgentCoreApplyPatchTool()`, and `createAgentCoreBashTool()`. An `AgentTool` gets no context object, so the host type is `undefined`:
 
 ```ts
 import { Agent } from "@earendil-works/pi-agent-core";
@@ -229,16 +252,16 @@ export function addFsTools(agent: Agent): void {
 }
 ```
 
-- The options are those of `createFsTools()`: `fs` (required), `state`, `digest`, `locks`, `clock`, `read`, `edit`, `write`, `applyPatch`, and `bash`. Each tool's options also take a `signature`. The default signatures are the shared defaults of every integration. No tool declares an output schema.
+- The options are those of the core factories and `createFsTools()`, with the same defaults, plus a `signature` for each tool. No tool declares an output schema.
 - `fs` can be any writable filesystem. The module imports no Node module and no Pi package at run time, so it runs in a browser or a Worker, for example with `memoryFileSystem()` or a Cloudflare filesystem.
 - pi-agent-core has no tools of its own. `bash: { runner, env }` adds a `bash` tool with `defaultBashSignature()`: `{ command, timeout?, cwd? }` with the timeout in milliseconds.
-- A tool error is a result with `isError: true`. Bad model input throws `TypeError`, which the agent reports as an error result.
+- A tool error is a result with `isError: true`. Bad model input rejects with `TypeError`, which the agent reports as an error result.
 - `read` sets `replay: "safe"`. `edit` and `apply_patch` give `toPiMutationDetails()` as `details`.
-- The tools use `memoryLocks()` by default. pi-agent-core has no file queue of its own. Two calls in one batch that change one file wait for each other.
+- The tools use `memoryLocks()` by default, as every integration does. pi-agent-core has no file queue of its own. Two calls in one batch that change one file wait for each other.
 
 ## Links
 
 - [Choose an integration](https://better-fs-tools.gandrew.com/integrations) and [Filesystems](https://better-fs-tools.gandrew.com/filesystems) on the docs site: the defaults of every host and bundle, and what each backend can do. `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has the same tables
-- [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option, the signature builders, and the format presets. Its README has a full Pi host example.
+- [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option, the default signature, `readToolDefinition()`, and the format presets. Its README has a full Pi host example.
 - [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): every write option, the guards, and the authorizers
-- [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node): the filesystem that each call uses
+- [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node): the filesystem and runner that the `./node` helpers build on

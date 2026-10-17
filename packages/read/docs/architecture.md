@@ -39,7 +39,7 @@ formatter.format(outcome, { mode: "model", call, ... }) ─▶ content
 ReadResult
 ```
 
-| Stage               | Phase          | Dependency                   | What happens                                                                                                                                                                                                                                         |
+| Stage               | Phase          | Option                       | What happens                                                                                                                                                                                                                                         |
 | ------------------- | -------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Input               | `input`        | `limits`                     | `parseReadInput` accepts only `path`, `offset`, and `limit`. The path must be a non-blank string with no NUL. `offset` and `limit` must be positive safe integers. `limit` is clamped to `limits.maxLines`, and the tool adds a `clamped` info note. |
 | Filesystem          | `open`         | `fs`                         | A `FileSystem`, or a factory of the call context. The factory runs once for each read.                                                                                                                                                               |
@@ -54,7 +54,7 @@ ReadResult
 | Record              | none           | `state`, `digest`            | Stores the observation. A store failure does not fail the read.                                                                                                                                                                                      |
 | Format              | none           | `formatter`, `messages`      | Turns the outcome into content parts.                                                                                                                                                                                                                |
 
-The core owns line scanning, view selection, clamping, the byte limit, continuation arithmetic, change detection, and note assembly. That list is the reason the package exists. Everything else is a dependency.
+The core owns line scanning, view selection, clamping, the byte limit, continuation arithmetic, change detection, and note assembly. That list is the reason the package exists. Everything else is an option.
 
 ### What open() fetches before authorize
 
@@ -65,7 +65,7 @@ The core owns line scanning, view selection, clamping, the byte limit, continuat
 | Path                                                                                                        | Role                                                                                                        |
 | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `src/contract/`                                                                                             | The public types, one file for each area. No runtime code. `base.ts` holds the tool-neutral types           |
-| `src/core/create-read-tool.ts`, `core/deps.ts`                                                              | Checks and resolves the dependencies once, synchronously                                                    |
+| `src/core/create-read-tool.ts`, `core/deps.ts`                                                              | Checks and resolves the options once, synchronously                                                         |
 | `src/core/pipeline.ts`                                                                                      | The stage order, and nothing else                                                                           |
 | `src/core/call-scope.ts`                                                                                    | Per-read state: the call object, the phase, `fs(call)`, `state(call)`, the listing budget, and abort checks |
 | `src/core/resolve.ts`, `open.ts`, `suggest.ts`, `authorize.ts`                                              | Resolve, open, suggestions on a miss, and the authorize checks                                              |
@@ -213,7 +213,7 @@ The core makes the other failures itself:
 - `CHANGED_DURING_READ` from the size check or `verify()`.
 - `UNSUPPORTED_BACKEND` when no classifier had an opinion.
 - `IO_ERROR` when a filesystem method or the byte stream throws.
-- `EXTENSION_FAILED` when host code throws or breaks a rule. `data.extension` names the dependency (`fs`, `state`, `resolve`, `suggest`, `authorize`, `converters`, `budget`, or `hooks`), `data.phase` names the stage, and `data.id` names the extension object when it has one.
+- `EXTENSION_FAILED` when host code throws or breaks a rule. `data.extension` names the option (`fs`, `state`, `resolve`, `suggest`, `authorize`, `converters`, `budget`, or `hooks`), `data.phase` names the stage, and `data.id` names the extension object when it has one.
 
 A formatter that throws, or returns neither a string nor an array, does not reject the call. The core formats the result with `lineNumberFormatter()` and adds no note. The status stays as it was.
 

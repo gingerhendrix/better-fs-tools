@@ -50,13 +50,15 @@ A tool call is `tool(input, ctx?)`. `ctx` is the read tool's call context: `{ si
 
 ## One bundle for every tool
 
-`createFsTools(options)` takes a `WritableFileSystem`, or a factory that returns one for each call, and builds `read`, `edit`, and `write`. `applyPatch: true`, or an options object, adds `apply_patch`. The tools share one `state` (one store, not a per-call factory; default `null`, so there is no read-before-write; `memoryStore({ clock })` turns it on), one `digest` (default `sha256Digest()`), one `locks` (default `memoryLocks()`), and one `clock`. It imports no `node:` module, so a Worker needs no host digest. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`.
+`createFsTools(options)` takes a `WritableFileSystem`, or a factory that returns one for each call, and builds `read`, `edit`, and `write`. `applyPatch: true`, or an options object, adds `apply_patch`. The tools share one `state` (a store or a factory of the call; default `null`, so there is no read-before-write; `memoryStore({ clock })` turns it on), one `digest` (default `sha256Digest()`), one `locks` (default `memoryLocks()`), and one `clock`. It imports no `node:` module, so a Worker needs no host digest. Each tool's other options go under `read`, `edit`, `write`, and `applyPatch`.
 
 Bash is off unless you ask. `bash: { runner, env, ... }` adds a bash tool from [`@better-fs-tools/shell`](https://www.npmjs.com/package/@better-fs-tools/shell) that gets the same `digest` and `clock`. The allowed roots of the filesystem do not limit a command.
 
-The result also has `applyPatch` (`null` unless asked for), `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, which deletes the record for a path so the next edit needs a read. It returns an `InvalidateOutcome`. When `fs` is a factory, pass the call context, for example `ctx.call` in a bash `afterRun` hook.
+The result also has `applyPatch` (`null` unless asked for), `state`, `digest`, `locks`, `clock`, and `invalidate(path, call?)`, which deletes the record for a path so the next edit needs a read. It returns an `InvalidateOutcome`. When `fs` or `state` is a factory, pass the call context, for example `ctx.call` in a bash `afterRun` hook.
 
-An unknown option key, a shared key (`fs`, `state`, `digest`, `locks`, or `clock`) inside a tool's options, or `bash: true` throws `TypeError`. `createPiFsTools()` and `createAiSdkFsTools()` wrap it.
+An unknown option key, a shared key (`fs`, `state`, `digest`, `locks`, or `clock`) inside a tool's options, or `bash: true` throws `TypeError`.
+
+`fsToolDefinitions(options)` from `./signature` builds the same bundle with each tool bound to its signature, and every integration bundle is an adapter over it. `editToolDefinition()`, `writeToolDefinition()`, and `applyPatchToolDefinition()` do the same for one tool. A definition has the name, description, and JSON Schema to declare, a `validate` for model input, and an `execute` that maps model input and runs the tool. Use them to connect the tools to a framework of your own.
 
 ## Hosts
 
@@ -65,18 +67,20 @@ An unknown option key, a shared key (`fs`, `state`, `digest`, `locks`, or `clock
 | Any                                   | this package                                                                                              | `createFsTools({ fs })`, `createEditTool()`, `createWriteTool()`, `createApplyPatchTool()`                     |
 | Node or Bun                           | [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node)                            | `nodeFileSystem()` as the `fs` of any tool or bundle                                                           |
 | AI SDK 7                              | [`@better-fs-tools/ai-sdk`](https://www.npmjs.com/package/@better-fs-tools/ai-sdk)                        | `createAiSdkFsTools({ fs })`, `createAiSdkEditTool()`, `createAiSdkWriteTool()`, `createAiSdkApplyPatchTool()` |
-| Pi coding agent                       | [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)                                | `createPiFsTools()`, one factory for each tool, and a `pi.extensions` entry                                    |
+| Pi coding agent                       | [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)                                | `createPiFsTools({ fs })`, one factory for each tool, and a `pi.extensions` entry                              |
+| Pi agent core                         | [`@better-fs-tools/pi`](https://www.npmjs.com/package/@better-fs-tools/pi)                                | `createAgentCoreFsTools({ fs })` and one factory for each tool, from `./agent-core`                            |
+| Pi durable harness                    | [`@better-fs-tools/pi-durable`](https://www.npmjs.com/package/@better-fs-tools/pi-durable)                | `createDurableFsTools({ fs })`, an extension                                                                   |
 | Cloudflare Shell, Computer, just-bash | `@better-fs-tools/cloudflare-shell`, `@better-fs-tools/cloudflare-computer`, `@better-fs-tools/just-bash` | Writable filesystems for `createFsTools()`, `createAiSdkFsTools()`, or the single factories                    |
 
 The bundles and the single-tool factories (`createEditTool()`, `createAiSdkEditTool()`, `createPiEditTool()`, and the others) all default to `state: null`. The tools then change files that the model has not read, and nothing tells the model. The tool descriptions still ask the model to read first. For the check, pass `state: memoryStore()` to a bundle (`createFsTools()`, `createPiFsTools()`, or `createAiSdkFsTools()`), or pass the same `state`, `digest`, and `locks` to the read tool and the write tools.
 
-[docs/hosts.md](docs/hosts.md) lists the defaults of every bundle and single factory, the default signature of each tool in each host, and what each backend can do.
+Every integration takes the options of the core factories, with the same defaults. [docs/hosts.md](docs/hosts.md) lists the shared defaults, the default signature of each tool, the few host options, a recommended configuration for each host, and what each backend can do.
 
 ## edit
 
 `createEditTool({ fs })`. The input is a path and one or more `{ oldText, newText, replaceAll? }` pairs, all matched against one snapshot of the file. Each old text must match once, unless `replaceAll` is set. Pairs must not overlap. The replacement is a literal splice: `$&` and `$1` in the new text stay as written.
 
-Matching tries `exactMatcher()` first, then `normalizedMatcher()` (trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces). A loose match gives a `fuzzy-match` note that names the lines. `escapeMatcher()` (escape sequences written out), `lineTrimmedMatcher()`, `indentationMatcher()`, and `blockAnchorMatcher()` are opt-in through the `matchers` dependency, for example `matchers: [...defaultEditMatchers(), escapeMatcher()]`.
+Matching tries `exactMatcher()` first, then `normalizedMatcher()` (trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces). A loose match gives a `fuzzy-match` note that names the lines. `escapeMatcher()` (escape sequences written out), `lineTrimmedMatcher()`, `indentationMatcher()`, and `blockAnchorMatcher()` are opt-in through the `matchers` option, for example `matchers: [...defaultEditMatchers(), escapeMatcher()]`.
 
 When a pair does not match, the error is `NO_MATCH`, even when the new text is already in the file. `recovery: true` turns on three extras. The error shows the closest region of the file with line numbers. When the new text is already in the file and the old text is not, the pair is `already-applied` and the status is `no-change`. After three misses in a row on one file, the tool adds a `repeated-miss` note that asks the model to read the file again.
 
@@ -141,17 +145,17 @@ With the read tool's `state` store and a `digest`, the write tools check what th
 - `createInvalidator({ fs, state })` returns `invalidate(path)`. Call it when something else, for example a shell tool, may have changed a file. The next edit then needs a read. It never throws. It resolves to an `InvalidateOutcome`: `{ ok: true, resolvedPath, recorded }`, where `recorded` says whether a record was there, or `{ ok: false, phase }` when the stat (`phase: "stat"`, with the backend `error`) or the store (`phase: "state"`, with a `detail`) failed. After `ok: false` the record may still be there.
 - `preconditions: { requireRead: "off" }` turns the check off. `partialRead` and `onStale` change the other two rules.
 
-`state` without `digest` is a `TypeError`, as in the read tool, and the `StateNeedsDigest` type refuses it at compile time. `state: null` turns the check off. The result has no note about this, because the model cannot change the host's setup.
+`state` with `digest: null` is a `TypeError`, as in the read tool, and the `StateNeedsDigest` type refuses it at compile time. The default digest is `sha256Digest()`. `state: null` turns the check off. The result has no note about this, because the model cannot change the host's setup.
 
-## Dependencies
+## Options
 
-Every dependency except `fs` has a default. Pass them to `createEditTool()`, `createWriteTool()`, or `createApplyPatchTool()`, or to a host factory.
+Every option except `fs` has a default. Pass them to `createEditTool()`, `createWriteTool()`, or `createApplyPatchTool()`, or to an integration factory, which has the same defaults.
 
-| Dependency      | Default                                                                    | Meaning                                                                                                   |
+| Option          | Default                                                                    | Meaning                                                                                                   |
 | --------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `fs`            | required                                                                   | A `WritableFileSystem`, or a factory of the call context that runs once for each call                     |
-| `state`         | `null`                                                                     | The read tool's store, or a factory. Needs `digest`                                                       |
-| `digest`        | `null`                                                                     | Content hashes for records and `changes[].after.contentId`                                                |
+| `state`         | `null`                                                                     | The read tool's store, or a factory. Needs a `digest`                                                     |
+| `digest`        | `sha256Digest()`                                                           | Content hashes for records and `changes[].after.contentId`. `null` turns them off                         |
 | `locks`         | `memoryLocks()`                                                            | Orders writers to one path inside the process. Share one across the three tools. `timeoutMs` default 30 s |
 | `resolve`       | `null`                                                                     | A read `PathResolver`, for example `unicodeRepair()`                                                      |
 | `authorize`     | `null`                                                                     | A `WriteAuthorizer`, or a read `ToolAuthorizer` such as `denyPaths()`                                     |
@@ -229,7 +233,7 @@ An authorizer may allow with `content` for `edit` and `write`. The tool then wri
 
 ## Guards and hooks
 
-Guards check each planned change before anything is written. No guard runs by default. `recommendedGuards()` gives the five this package recommends, and the `guards` dependency turns them on. They refuse new text that carries the read tool's line-number gutter (`readPrefixGuard`), a read note line or clamp marker (`truncationNoticeGuard`), or a placeholder such as `// ... rest of code` in place of real lines (`omissionGuard`). It refuses an update that makes a valid `.json` file invalid (`syntaxGuard`), and new content that the classifiers do not call text (`nonTextGuard`). The default classifiers call a notebook JSON text. Pass `classifiers: [notebookClassifier(), ...defaultClassifiers()]` to refuse notebooks on load and in `nonTextGuard`. Each guard lets the near miss through: lines already in the file, a file that was already broken, or a create. `generatedFileGuard()` is opt-in. It refuses updates to files that look generated. A host guard returns `{ allow: true, notes? }` or `{ allow: false, note? }`, as an authorizer does. A refusal without a note gets the `guardRefused` message from the catalog.
+Guards check each planned change before anything is written. No guard runs by default. `recommendedGuards()` gives the five this package recommends, and the `guards` option turns them on. They refuse new text that carries the read tool's line-number gutter (`readPrefixGuard`), a read note line or clamp marker (`truncationNoticeGuard`), or a placeholder such as `// ... rest of code` in place of real lines (`omissionGuard`). It refuses an update that makes a valid `.json` file invalid (`syntaxGuard`), and new content that the classifiers do not call text (`nonTextGuard`). The default classifiers call a notebook JSON text. Pass `classifiers: [notebookClassifier(), ...defaultClassifiers()]` to refuse notebooks on load and in `nonTextGuard`. Each guard lets the near miss through: lines already in the file, a file that was already broken, or a create. `generatedFileGuard()` is opt-in. It refuses updates to files that look generated. A host guard returns `{ allow: true, notes? }` or `{ allow: false, note? }`, as an authorizer does. A refusal without a note gets the `guardRefused` message from the catalog.
 
 Hooks run after each committed file. `executableShebang()` gives a new file that starts with `#!` mode `0o755`, through the hook's `newFileMode()`. `verifyWrite()` reads each committed file back and adds a warning when it does not match what was written. A hook failure is a warning note: the file is already committed, so the status stays `ok`.
 

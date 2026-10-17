@@ -126,9 +126,9 @@ stdout and stderr are merged in arrival order. The core decodes UTF-8 with repla
 
 ## Hooks
 
-`runner` and `env` are required. `limits` and `messages` merge key by key. Every other dependency replaces its default.
+`runner` and `env` are required. `limits` and `messages` merge key by key. Every other option replaces its default.
 
-| Dependency  | Default                   | What a host builds on it                                                                                                                                                    |
+| Option      | Default                   | What a host builds on it                                                                                                                                                    |
 | ----------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `runner`    | required                  | Node, just-bash, a sandbox wrapper, a remote runner. A factory gets the call.                                                                                               |
 | `cwd`       | the runner's `cwd`        | Another default directory, or one for each call.                                                                                                                            |
@@ -140,7 +140,7 @@ stdout and stderr are merged in arrival order. The core decodes UTF-8 with repla
 | `afterRun`  | `[]`                      | Secret masking, output filters, exit-code meanings, read-record invalidation.                                                                                               |
 | `formatter` | `defaultShellFormatter()` | Another layout of the model text.                                                                                                                                           |
 | `messages`  | `defaultShellMessages`    | Wording. A signature sets the parameter names and the timeout unit.                                                                                                         |
-| `digest`    | null                      | Passed to host functions as `ctx.digest`. The bash tool hashes nothing itself.                                                                                              |
+| `digest`    | `sha256Digest()`          | Passed to host functions as `ctx.digest`. The bash tool hashes nothing itself.                                                                                              |
 | `clock`     | `() => new Date()`        | Passed to host functions as `ctx.clock`.                                                                                                                                    |
 
 The stages run in this order: input, cwd, `beforeRun`, `authorize`, `env`, the run, `afterRun`, and the formatter. `authorize` sees the command after every `beforeRun` rewrite, so an approval prompt shows the command that runs. Its target has the cwd as `resolvedPath`, and a `displayPath` relative to the default cwd (`.` for the default cwd itself), as the file tools show paths.
@@ -258,7 +258,7 @@ The runner's `id` goes into the tool description, so the model can see, for exam
 
 ## Signatures
 
-`defaultBashSignature()` from `@better-fs-tools/shell/signature` gives the model `bash({ command, timeout?, cwd? })` with the timeout in milliseconds. `timeoutUnit: "s"` takes seconds, and `cwd: false` leaves out the cwd parameter; `names.cwd` and `describe.cwd` are then ignored. `names` renames a parameter, for example `names: { timeout: "timeout_seconds" }`, and `describe` replaces a parameter's description. Both take the preset's own names as keys, as in the read and write presets. `BashSignature` extends the `ToolSignature` base from `@better-fs-tools/read` with `duration(ms)`, the timeout in the signature's unit. `bashSignatureMessages(signature)` gives the messages the same parameter names and unit.
+`defaultBashSignature()` from `@better-fs-tools/shell/signature` gives the model `bash({ command, timeout?, cwd? })` with the timeout in milliseconds. `timeoutUnit: "s"` takes seconds, and `cwd: false` leaves out the cwd parameter; `names.cwd` and `describe.cwd` are then ignored. `names` renames a parameter, for example `names: { timeout: "timeout_seconds" }`, and `describe` replaces a parameter's description. Both take the signature's own names as keys, as in the read and write signatures. `bashToolDefinition()` from the same subpath binds the bash tool to a signature for a framework of your own. `BashSignature` extends the `ToolSignature` base from `@better-fs-tools/read` with `duration(ms)`, the timeout in the signature's unit. `bashSignatureMessages(signature)` gives the messages the same parameter names and unit.
 
 ## Parse helper
 
