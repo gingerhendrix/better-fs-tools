@@ -17,7 +17,7 @@ import type {
   ReadOk,
   ReadResult,
   ReadTool,
-  ReadToolDeps,
+  ReadToolOptions,
   ReadUnsupported,
   StateNeedsDigest,
 } from "../src/index.ts";
@@ -55,7 +55,7 @@ export interface HarnessOptions {
   files?: Record<string, string | Uint8Array>;
   limits?: Partial<ReadLimits>;
   fsOptions?: MemoryFileSystemOptions;
-  deps?: Omit<ReadToolDeps, "fs">;
+  deps?: Omit<ReadToolOptions, "fs">;
 }
 
 export function harness(options: HarnessOptions = {}): { read: ReadTool; fs: MemoryFileSystem } {
@@ -67,7 +67,7 @@ export function harness(options: HarnessOptions = {}): { read: ReadTool; fs: Mem
     ...(options.limits === undefined ? {} : { limits: options.limits }),
     ...options.deps,
     // A test may override the digest, so the state pairing is only checked at run time.
-  } as ReadToolDeps & StateNeedsDigest);
+  } as ReadToolOptions & StateNeedsDigest);
   return { read, fs };
 }
 

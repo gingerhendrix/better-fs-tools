@@ -16,7 +16,7 @@ import {
 import type {
   EditInput,
   EditTool,
-  EditToolDeps,
+  EditToolOptions,
   Matcher,
   MatchInfo,
   MutationResult,
@@ -61,7 +61,7 @@ export const chain: readonly Matcher[] = [
   ...defaultEditMatchers(),
   ...defaultPatchMatchers(),
 ];
-export const deps: EditToolDeps<Host> = {
+export const deps: EditToolOptions<Host> = {
   fs: (call: ToolCallContext<Host>) => (call.host.id === "" ? fs : fs),
   matchers: chain,
 };
@@ -74,7 +74,7 @@ export const custom: Matcher = {
   adapt: (newText, hit) => (hit.range.refused === "boundary" ? hit.needle : newText),
 };
 // @ts-expect-error: matchers is an edit dependency.
-export const writeDeps: import("../../src/index.ts").WriteToolDeps = { fs, matchers: chain };
+export const writeDeps: import("../../src/index.ts").WriteToolOptions = { fs, matchers: chain };
 
 export const info: MatchInfo = {
   index: 0,

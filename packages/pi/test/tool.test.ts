@@ -81,7 +81,7 @@ describe("pi tool shape", () => {
     expect(() => createPiReadTool(null as never)).toThrow(TypeError);
     expect(() => createPiReadTool([] as never)).toThrow(TypeError);
     expect(() => createPiReadTool({ input: {} } as never)).toThrow(
-      "Unknown read tool dependency: input",
+      "Unknown read tool option: input",
     );
   });
 });

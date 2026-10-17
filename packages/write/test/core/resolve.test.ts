@@ -2,10 +2,10 @@ import { describe, expect, spyOn, test } from "bun:test";
 
 import { expandHome, unicodeRepair } from "@better-fs-tools/read";
 
-import type { WriteToolDeps } from "../../src/index.ts";
+import type { WriteToolOptions } from "../../src/index.ts";
 import { errorOf, codes, errorCode, harness, text } from "../helpers.ts";
 
-type Resolver = NonNullable<WriteToolDeps["resolve"]>;
+type Resolver = NonNullable<WriteToolOptions["resolve"]>;
 
 describe("resolve", () => {
   test("the read tool's resolvers work unchanged", async () => {

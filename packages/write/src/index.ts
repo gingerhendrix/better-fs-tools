@@ -31,14 +31,7 @@ export type {
   WriteErrorCode,
   WritePhase,
 } from "./contract/result.ts";
-export type {
-  ApplyPatchDependencies,
-  ApplyPatchToolDeps,
-  EditDependencies,
-  EditToolDeps,
-  WriteDependencies,
-  WriteToolDeps,
-} from "./contract/deps.ts";
+export type { ApplyPatchToolOptions, EditToolOptions, WriteToolOptions } from "./contract/deps.ts";
 export type {
   AfterWriteContext,
   ChangeFragment,
@@ -95,7 +88,7 @@ export { defaultWriteFormatter } from "./formatters/index.ts";
 export type { WriteFormatterOptions } from "./formatters/index.ts";
 export { createFsTools } from "./bundle/create-fs-tools.ts";
 export type {
-  CreateFsToolsOptions,
+  FsToolsOptions,
   FsTools,
   FsToolsApplyPatchOptions,
   FsToolsBashOptions,

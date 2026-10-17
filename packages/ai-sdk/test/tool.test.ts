@@ -368,7 +368,7 @@ describe("ai sdk messages", () => {
 
   test("unknown dependencies still throw from the core", () => {
     expect(() => createAiSdkReadTool({ fs: memoryFileSystem(), input: {} } as never)).toThrow(
-      "Unknown read tool dependency: input",
+      "Unknown read tool option: input",
     );
     expect(() => createAiSdkReadTool(null as never)).toThrow(TypeError);
   });

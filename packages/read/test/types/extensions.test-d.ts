@@ -19,7 +19,7 @@ import type {
   ReadAuthorizeDecision,
   ReadAuthorizer,
   ReadAuthorizeTarget,
-  ReadDependencies,
+  ReadToolOptions,
   ReadHookContext,
   ReadResolveContext,
   Suggest,
@@ -89,7 +89,7 @@ createReadTool<Host>({
 });
 
 // A host-typed suggest reads the host too.
-export const hostSuggest: ReadDependencies<Host>["suggest"] = (ctx) => [ctx.call.host.id];
+export const hostSuggest: ReadToolOptions<Host>["suggest"] = (ctx) => [ctx.call.host.id];
 
 // Context types widen to unknown and do not narrow back.
 declare const hook: ReadHookContext<Host>;

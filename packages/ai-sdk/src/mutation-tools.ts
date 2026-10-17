@@ -12,11 +12,11 @@ import {
   resolveWriteLimits,
 } from "@better-fs-tools/write";
 import type {
-  ApplyPatchToolDeps,
-  EditToolDeps,
+  ApplyPatchToolOptions,
+  EditToolOptions,
   MutationResult,
   WriteLimits,
-  WriteToolDeps,
+  WriteToolOptions,
 } from "@better-fs-tools/write";
 import {
   defaultEditSignature,
@@ -36,7 +36,7 @@ import type { AiSdkToolOutput } from "./output.ts";
 import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
 /** Options for createAiSdkEditTool. A state store requires a digest. */
-export type CreateAiSdkEditToolOptions<C = unknown> = EditToolDeps<ToolExecutionOptions<C>> &
+export type AiSdkEditToolOptions<C = unknown> = EditToolOptions<ToolExecutionOptions<C>> &
   StateNeedsDigest & {
     /** Defaults to defaultEditSignature() for `options.matchers`. */
     readonly signature?: EditSignature;
@@ -45,7 +45,7 @@ export type CreateAiSdkEditToolOptions<C = unknown> = EditToolDeps<ToolExecution
   };
 
 /** Options for createAiSdkWriteTool. A state store requires a digest. */
-export type CreateAiSdkWriteToolOptions<C = unknown> = WriteToolDeps<ToolExecutionOptions<C>> &
+export type AiSdkWriteToolOptions<C = unknown> = WriteToolOptions<ToolExecutionOptions<C>> &
   StateNeedsDigest & {
     /** Defaults to defaultWriteSignature(). */
     readonly signature?: WriteSignature;
@@ -54,7 +54,7 @@ export type CreateAiSdkWriteToolOptions<C = unknown> = WriteToolDeps<ToolExecuti
   };
 
 /** Options for createAiSdkApplyPatchTool. A state store requires a digest. */
-export type CreateAiSdkApplyPatchToolOptions<C = unknown> = ApplyPatchToolDeps<
+export type AiSdkApplyPatchToolOptions<C = unknown> = ApplyPatchToolOptions<
   ToolExecutionOptions<C>
 > &
   StateNeedsDigest & {
@@ -88,7 +88,7 @@ export type BuiltMutationTool<C> = (
 
 /** Creates an AI SDK edit tool. `options.messages` override the signature's messages. */
 export function createAiSdkEditTool<C = unknown>(
-  options: CreateAiSdkEditToolOptions<C>,
+  options: AiSdkEditToolOptions<C>,
 ): AiSdkMutationTool<C> {
   checkOptions(options, "edit");
   const { signature: given, contextSchema, ...deps } = options;
@@ -102,7 +102,7 @@ export function createAiSdkEditTool<C = unknown>(
 
 /** Creates an AI SDK write tool. `options.messages` override the signature's messages. */
 export function createAiSdkWriteTool<C = unknown>(
-  options: CreateAiSdkWriteToolOptions<C>,
+  options: AiSdkWriteToolOptions<C>,
 ): AiSdkMutationTool<C> {
   checkOptions(options, "write");
   const { signature = defaultWriteSignature(), contextSchema, ...deps } = options;
@@ -119,7 +119,7 @@ export function createAiSdkWriteTool<C = unknown>(
  * grammar, because the AI SDK has no freeform tool input.
  */
 export function createAiSdkApplyPatchTool<C = unknown>(
-  options: CreateAiSdkApplyPatchToolOptions<C>,
+  options: AiSdkApplyPatchToolOptions<C>,
 ): AiSdkMutationTool<C> {
   checkOptions(options, "apply_patch");
   const { signature = defaultPatchSignature(), contextSchema, ...deps } = options;
@@ -136,7 +136,7 @@ function checkOptions(options: unknown, tool: string): void {
   }
 }
 
-export function matchersOf(matchers: EditToolDeps["matchers"]) {
+export function matchersOf(matchers: EditToolOptions["matchers"]) {
   return matchers === undefined ? {} : { matchers };
 }
 

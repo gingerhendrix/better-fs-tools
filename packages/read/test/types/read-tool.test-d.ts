@@ -5,11 +5,11 @@ import { createReadTool, jsonFormatter, lineNumberFormatter } from "../../src/in
 import type {
   Digest,
   ReadContext,
-  ReadDependencies,
   ReadFormatContext,
   ReadFormatter,
   ReadStateStore,
   ReadTool,
+  ReadToolOptions,
 } from "../../src/index.ts";
 import { memoryStore } from "../../src/state/index.ts";
 
@@ -80,7 +80,7 @@ createReadTool({ fs, state: memoryStore() });
 // @ts-expect-error a state with a null digest
 createReadTool({ fs, state: memoryStore(), digest: null });
 export const noState = createReadTool({ fs, state: null, digest: null });
-export const unknownState: ReadDependencies<{ id: string }>["state"] = (
+export const unknownState: ReadToolOptions<{ id: string }>["state"] = (
   _call: ReadContext<unknown>,
 ): ReadStateStore | null => null;
 createReadTool<{ id: string }>({

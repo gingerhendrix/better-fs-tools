@@ -1,11 +1,11 @@
 import { createApplyPatchTool, createEditTool, createWriteTool } from "@better-fs-tools/write";
 import type {
   ApplyPatchTool,
-  ApplyPatchToolDeps,
+  ApplyPatchToolOptions,
   EditTool,
-  EditToolDeps,
+  EditToolOptions,
   WriteTool,
-  WriteToolDeps,
+  WriteToolOptions,
 } from "@better-fs-tools/write";
 
 import type { StateNeedsDigestOrDefault } from "@better-fs-tools/read";
@@ -15,14 +15,14 @@ import { nodeFileSystem } from "./filesystem.ts";
 import type { NodeFileSystem } from "./filesystem.ts";
 
 /** Options for createNodeEditTool, all optional. A `state` needs a digest that is not null. */
-export type CreateNodeEditToolOptions<THost = undefined> = Partial<EditToolDeps<THost>> &
+export type CreateNodeEditToolOptions<THost = undefined> = Partial<EditToolOptions<THost>> &
   StateNeedsDigestOrDefault;
 /** As CreateNodeEditToolOptions, for write. */
-export type CreateNodeWriteToolOptions<THost = undefined> = Partial<WriteToolDeps<THost>> &
+export type CreateNodeWriteToolOptions<THost = undefined> = Partial<WriteToolOptions<THost>> &
   StateNeedsDigestOrDefault;
 /** As CreateNodeEditToolOptions, for apply_patch. */
 export type CreateNodeApplyPatchToolOptions<THost = undefined> = Partial<
-  ApplyPatchToolDeps<THost>
+  ApplyPatchToolOptions<THost>
 > &
   StateNeedsDigestOrDefault;
 
@@ -65,7 +65,7 @@ export function createNodeApplyPatchTool<THost = undefined>(
 
 function checkDeps(deps: unknown, tool: string): void {
   if (deps === null || typeof deps !== "object" || Array.isArray(deps)) {
-    throw new TypeError(`${tool} tool dependencies must be an object`);
+    throw new TypeError(`${tool} tool options must be an object`);
   }
 }
 

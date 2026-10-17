@@ -9,7 +9,7 @@ export interface MemoryStoreOptions {
   readonly maxEntries?: number;
   /** Default 30 minutes. */
   readonly ttlMs?: number;
-  /** The same clock type as the tools' `clock` dependency. Default the time now. */
+  /** The same clock type as the tools' `clock` option. Default the time now. */
   readonly clock?: Clock;
 }
 

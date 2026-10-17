@@ -3,7 +3,7 @@ import type { FlexibleSchema, JSONSchema7, Schema, ToolExecutionOptions } from "
 
 import type { JsonObject, ToolCallContext } from "@better-fs-tools/read";
 import { createBashTool, parseBashInput, resolveShellLimits } from "@better-fs-tools/shell";
-import type { BashTool, ShellLimits, ShellResult, ShellToolDeps } from "@better-fs-tools/shell";
+import type { BashTool, ShellLimits, ShellResult, BashToolOptions } from "@better-fs-tools/shell";
 import { bashSignatureMessages, defaultBashSignature } from "@better-fs-tools/shell/signature";
 import type { BashSignature } from "@better-fs-tools/shell/signature";
 
@@ -11,7 +11,7 @@ import { toAiSdkOutput } from "./output.ts";
 import type { AiSdkToolOutput } from "./output.ts";
 import { fromStrictInput, toStrictSchema } from "./strict.ts";
 
-export type CreateAiSdkBashToolOptions<C = unknown> = ShellToolDeps<ToolExecutionOptions<C>> & {
+export type AiSdkBashToolOptions<C = unknown> = BashToolOptions<ToolExecutionOptions<C>> & {
   /** Defaults to defaultBashSignature() for the runner's id and the limits. */
   readonly signature?: BashSignature;
   /** Checks the `toolsContext` entry of this tool. The AI SDK validates the context with it before `execute`. */
@@ -43,7 +43,7 @@ export interface AiSdkBashTool<C = unknown> {
  * @better-fs-tools/just-bash, and shellEnv() from @better-fs-tools/shell.
  */
 export function createAiSdkBashTool<C = unknown>(
-  options: CreateAiSdkBashToolOptions<C>,
+  options: AiSdkBashToolOptions<C>,
 ): AiSdkBashTool<C> {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("AI SDK bash tool options must be an object");
@@ -58,7 +58,7 @@ export function createAiSdkBashTool<C = unknown>(
 }
 
 export function defaultAiSdkBashSignature(deps: {
-  readonly runner?: ShellToolDeps<never>["runner"];
+  readonly runner?: BashToolOptions<never>["runner"];
   readonly limits?: Partial<ShellLimits>;
 }): BashSignature {
   const runnerId = typeof deps.runner === "function" ? undefined : deps.runner?.id;

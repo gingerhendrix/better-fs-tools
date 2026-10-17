@@ -5,14 +5,14 @@ import type {
   Digest,
   ReadStateStore,
   ReadTool,
-  ReadToolDeps,
+  ReadToolOptions,
   ToolCallContext,
 } from "@better-fs-tools/read";
 import { createBashTool } from "@better-fs-tools/shell";
-import type { BashTool, ShellToolDeps } from "@better-fs-tools/shell";
+import type { BashTool, BashToolOptions } from "@better-fs-tools/shell";
 
 import type { EditTool, ApplyPatchTool, WriteTool } from "../contract/context.ts";
-import type { ApplyPatchToolDeps, EditToolDeps, WriteToolDeps } from "../contract/deps.ts";
+import type { ApplyPatchToolOptions, EditToolOptions, WriteToolOptions } from "../contract/deps.ts";
 import type { LockManager } from "../contract/locks.ts";
 import { createApplyPatchTool, createEditTool, createWriteTool } from "../core/create-tools.ts";
 import { isWritable } from "../core/deps.ts";
@@ -25,15 +25,18 @@ import type { InvalidateOutcome } from "../state/invalidate.ts";
 export type FsToolsSharedKey = "fs" | "state" | "digest" | "locks" | "clock";
 
 /** The bash tool's options, without the digest and clock that the bundle shares. */
-export type FsToolsBashOptions<THost = undefined> = Omit<ShellToolDeps<THost>, "digest" | "clock">;
+export type FsToolsBashOptions<THost = undefined> = Omit<
+  BashToolOptions<THost>,
+  "digest" | "clock"
+>;
 
 /** The apply_patch tool's options, without the options that the bundle shares. */
 export type FsToolsApplyPatchOptions<THost = undefined> = Omit<
-  Partial<ApplyPatchToolDeps<THost>>,
+  Partial<ApplyPatchToolOptions<THost>>,
   FsToolsSharedKey
 >;
 
-export interface CreateFsToolsOptions<THost = undefined> {
+export interface FsToolsOptions<THost = undefined> {
   /** Required. A backend, or a factory called once for each call. */
   readonly fs: WritableFileSystem | ((call: ToolCallContext<THost>) => WritableFileSystem);
   /**
@@ -47,9 +50,9 @@ export interface CreateFsToolsOptions<THost = undefined> {
   readonly locks?: LockManager;
   /** Default () => new Date(). */
   readonly clock?: Clock;
-  readonly read?: Omit<Partial<ReadToolDeps<THost>>, FsToolsSharedKey>;
-  readonly edit?: Omit<Partial<EditToolDeps<THost>>, FsToolsSharedKey>;
-  readonly write?: Omit<Partial<WriteToolDeps<THost>>, FsToolsSharedKey>;
+  readonly read?: Omit<Partial<ReadToolOptions<THost>>, FsToolsSharedKey>;
+  readonly edit?: Omit<Partial<EditToolOptions<THost>>, FsToolsSharedKey>;
+  readonly write?: Omit<Partial<WriteToolOptions<THost>>, FsToolsSharedKey>;
   /**
    * Off by default. `true` or an options object adds an apply_patch tool.
    * `false` is the same as leaving it out.
@@ -70,7 +73,7 @@ export interface FsTools<THost = undefined> {
   readonly applyPatch: ApplyPatchTool<THost> | null;
   /** null unless options.bash is set. It does not share the read state: see invalidate. */
   readonly bash: BashTool<THost> | null;
-  readonly fs: CreateFsToolsOptions<THost>["fs"];
+  readonly fs: FsToolsOptions<THost>["fs"];
   readonly state: ReadStateStore | null;
   readonly digest: Digest;
   readonly locks: LockManager;
@@ -134,25 +137,21 @@ const EMPTY_STATE_STORE: ReadStateStore = Object.freeze({
  * options, or anything a tool factory refuses.
  */
 export function createFsTools<THost = undefined>(
-  options: CreateFsToolsOptions<THost> & {
+  options: FsToolsOptions<THost> & {
     readonly bash: FsToolsBashOptions<THost>;
     readonly applyPatch: true | FsToolsApplyPatchOptions<THost>;
   },
 ): FsToolsWithBash<THost> & FsToolsWithApplyPatch<THost>;
 export function createFsTools<THost = undefined>(
-  options: CreateFsToolsOptions<THost> & { readonly bash: FsToolsBashOptions<THost> },
+  options: FsToolsOptions<THost> & { readonly bash: FsToolsBashOptions<THost> },
 ): FsToolsWithBash<THost>;
 export function createFsTools<THost = undefined>(
-  options: CreateFsToolsOptions<THost> & {
+  options: FsToolsOptions<THost> & {
     readonly applyPatch: true | FsToolsApplyPatchOptions<THost>;
   },
 ): FsToolsWithApplyPatch<THost>;
-export function createFsTools<THost = undefined>(
-  options: CreateFsToolsOptions<THost>,
-): FsTools<THost>;
-export function createFsTools<THost = undefined>(
-  options: CreateFsToolsOptions<THost>,
-): FsTools<THost> {
+export function createFsTools<THost = undefined>(options: FsToolsOptions<THost>): FsTools<THost>;
+export function createFsTools<THost = undefined>(options: FsToolsOptions<THost>): FsTools<THost> {
   checkFsToolsOptions("createFsTools", options, KNOWN_OPTION_KEYS, SHARED_KEYS_BY_TOOL);
   const { fs } = options;
   const clock = options.clock ?? (() => new Date());
@@ -222,7 +221,7 @@ function checkFsToolsOptions(
 }
 
 function invalidator<THost>(
-  fs: CreateFsToolsOptions<THost>["fs"],
+  fs: FsToolsOptions<THost>["fs"],
   state: ReadStateStore,
 ): FsTools<THost>["invalidate"] {
   if (typeof fs !== "function") {

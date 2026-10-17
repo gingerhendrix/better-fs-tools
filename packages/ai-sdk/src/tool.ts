@@ -14,7 +14,7 @@ import type {
   ReadLimits,
   ReadResult,
   ReadTool,
-  ReadToolDeps,
+  ReadToolOptions,
   StateNeedsDigest,
 } from "@better-fs-tools/read";
 import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
@@ -29,7 +29,7 @@ import { fromStrictInput, toStrictSchema } from "./strict.ts";
  * converters defaults to [imageConverter()]. A list you pass replaces it:
  * [] turns images off.
  */
-export type CreateAiSdkReadToolOptions<C = unknown> = ReadToolDeps<ToolExecutionOptions<C>> &
+export type AiSdkReadToolOptions<C = unknown> = ReadToolOptions<ToolExecutionOptions<C>> &
   StateNeedsDigest & {
     /** Defaults to defaultReadSignature(). */
     readonly signature?: ReadSignature;
@@ -60,7 +60,7 @@ export interface AiSdkReadTool<C = unknown> {
  * imageConverter() out.
  */
 export function createAiSdkReadTool<C = unknown>(
-  options: CreateAiSdkReadToolOptions<C>,
+  options: AiSdkReadToolOptions<C>,
 ): AiSdkReadTool<C> {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("AI SDK read tool options must be an object");

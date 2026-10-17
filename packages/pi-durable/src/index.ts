@@ -1,6 +1,6 @@
 export { createDurableFsTools } from "./extension.ts";
 export type {
-  CreateDurableFsToolsOptions,
+  DurableFsToolsOptions,
   DurableFsHost,
   DurableFsToolsApplyPatchOptions,
   DurableFsToolsBashOptions,

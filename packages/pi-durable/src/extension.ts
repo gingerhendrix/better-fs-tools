@@ -10,23 +10,23 @@ import type {
   ContentPart,
   Digest,
   ReadStateStore,
-  ReadToolDeps,
+  ReadToolOptions,
   ToolCallContext,
 } from "@better-fs-tools/read";
 import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
 import type { ReadSignature } from "@better-fs-tools/read/signature";
 import { shellEnv } from "@better-fs-tools/shell";
-import type { ShellResult, ShellToolDeps } from "@better-fs-tools/shell";
+import type { ShellResult, BashToolOptions } from "@better-fs-tools/shell";
 import { bashSignatureMessages, defaultBashSignature } from "@better-fs-tools/shell/signature";
 import type { BashSignature } from "@better-fs-tools/shell/signature";
 import { createFsTools, memoryLocks } from "@better-fs-tools/write";
 import type {
-  ApplyPatchToolDeps,
-  EditToolDeps,
+  ApplyPatchToolOptions,
+  EditToolOptions,
   FsToolsSharedKey,
   LockManager,
   MutationResult,
-  WriteToolDeps,
+  WriteToolOptions,
 } from "@better-fs-tools/write";
 import {
   defaultEditSignature,
@@ -59,27 +59,27 @@ type Content = { type: "text"; text: string } | { type: "image"; data: string; m
 /** Above the default view of 2,000 lines and 50 KiB, so the Harness does not cut it again. */
 const DEFAULT_OUTPUT_LIMITS = Object.freeze({ maxBytes: 128 * 1024, maxLines: 4_000 });
 
-export type DurableFsToolsReadOptions = Omit<Partial<ReadToolDeps<Host>>, FsToolsSharedKey> & {
+export type DurableFsToolsReadOptions = Omit<Partial<ReadToolOptions<Host>>, FsToolsSharedKey> & {
   /** Default defaultReadSignature(), as in every integration. */
   readonly signature?: ReadSignature;
 };
-export type DurableFsToolsEditOptions = Omit<Partial<EditToolDeps<Host>>, FsToolsSharedKey> & {
+export type DurableFsToolsEditOptions = Omit<Partial<EditToolOptions<Host>>, FsToolsSharedKey> & {
   /** Default defaultEditSignature({ matchers }): { path, old_string, new_string, replace_all? }. */
   readonly signature?: EditSignature;
 };
-export type DurableFsToolsWriteOptions = Omit<Partial<WriteToolDeps<Host>>, FsToolsSharedKey> & {
+export type DurableFsToolsWriteOptions = Omit<Partial<WriteToolOptions<Host>>, FsToolsSharedKey> & {
   /** Default defaultWriteSignature(). */
   readonly signature?: WriteSignature;
 };
 export type DurableFsToolsApplyPatchOptions = Omit<
-  Partial<ApplyPatchToolDeps<Host>>,
+  Partial<ApplyPatchToolOptions<Host>>,
   FsToolsSharedKey
 > & {
   /** Default defaultPatchSignature(). */
   readonly signature?: PatchSignature;
 };
 export type DurableFsToolsBashOptions = Omit<
-  Partial<ShellToolDeps<Host>>,
+  Partial<BashToolOptions<Host>>,
   "runner" | "digest" | "clock"
 > & {
   /** Default defaultBashSignature(): { command, timeout?, cwd? } with the timeout in milliseconds. */
@@ -88,7 +88,7 @@ export type DurableFsToolsBashOptions = Omit<
   readonly inheritEnv?: boolean;
 };
 
-export interface CreateDurableFsToolsOptions {
+export interface DurableFsToolsOptions {
   /** The extension name. Default "better-fs-tools". */
   readonly name?: string;
   /**
@@ -159,7 +159,7 @@ const KNOWN: ReadonlySet<string> = new Set([
  * Throws TypeError on an unknown option key. A call without an environment
  * fails with an error result.
  */
-export function createDurableFsTools(options: CreateDurableFsToolsOptions = {}): Extension {
+export function createDurableFsTools(options: DurableFsToolsOptions = {}): Extension {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("createDurableFsTools options must be an object");
   }

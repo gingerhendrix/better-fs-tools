@@ -62,7 +62,7 @@ describe("createNodeReadTool", () => {
     const result = await read({ path: "a.txt" });
     expect(JSON.parse(textOf(result)).view.lines).toHaveLength(1);
     expect(() => createNodeReadTool({ input: null } as never)).toThrow(
-      "Unknown read tool dependency: input",
+      "Unknown read tool option: input",
     );
     expect(() => createNodeReadTool(null as never)).toThrow(TypeError);
   });

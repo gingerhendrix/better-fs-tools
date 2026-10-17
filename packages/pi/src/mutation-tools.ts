@@ -6,11 +6,11 @@ import { nodeDigest } from "@better-fs-tools/node";
 import type { JsonObject, StateNeedsDigestOrDefault, ToolCallContext } from "@better-fs-tools/read";
 import { createApplyPatchTool, createEditTool, createWriteTool } from "@better-fs-tools/write";
 import type {
-  ApplyPatchToolDeps,
-  EditToolDeps,
+  ApplyPatchToolOptions,
+  EditToolOptions,
   MutationResult,
   WriteMessageCatalog,
-  WriteToolDeps,
+  WriteToolOptions,
 } from "@better-fs-tools/write";
 import {
   defaultEditSignature,
@@ -51,19 +51,19 @@ export interface PiMutationOptions<TSignature> {
  * defaultEditSignature({ matchers }), as in every integration. digest defaults
  * to nodeDigest(); a state needs a digest that is not null.
  */
-export type CreatePiEditToolOptions = Omit<EditToolDeps<ExtensionContext>, "fs"> &
+export type PiEditToolOptions = Omit<EditToolOptions<ExtensionContext>, "fs"> &
   StateNeedsDigestOrDefault &
   PiRootOptions &
   PiMutationOptions<EditSignature>;
 
-/** As CreatePiEditToolOptions, for write. The default signature is defaultWriteSignature(). */
-export type CreatePiWriteToolOptions = Omit<WriteToolDeps<ExtensionContext>, "fs"> &
+/** As PiEditToolOptions, for write. The default signature is defaultWriteSignature(). */
+export type PiWriteToolOptions = Omit<WriteToolOptions<ExtensionContext>, "fs"> &
   StateNeedsDigestOrDefault &
   PiRootOptions &
   PiMutationOptions<WriteSignature>;
 
-/** As CreatePiEditToolOptions, for apply_patch. The default signature is defaultPatchSignature(). */
-export type CreatePiApplyPatchToolOptions = Omit<ApplyPatchToolDeps<ExtensionContext>, "fs"> &
+/** As PiEditToolOptions, for apply_patch. The default signature is defaultPatchSignature(). */
+export type PiApplyPatchToolOptions = Omit<ApplyPatchToolOptions<ExtensionContext>, "fs"> &
   StateNeedsDigestOrDefault &
   PiRootOptions &
   PiMutationOptions<PatchSignature>;
@@ -112,7 +112,7 @@ type PartsInput<TSignature> = PiMutationOptions<TSignature> & {
 };
 
 export function piEditParts(
-  options: PartsInput<EditSignature> & Pick<Partial<EditToolDeps>, "matchers">,
+  options: PartsInput<EditSignature> & Pick<Partial<EditToolOptions>, "matchers">,
 ): PiMutationParts {
   const signature =
     options.signature ??
@@ -149,7 +149,7 @@ function parts(
  * options set fs, cwd, or allowedRoots. Read-before-write is off unless you
  * pass a `state`; use createPiFsTools({ state }) for a store shared with read.
  */
-export function createPiEditTool(options: CreatePiEditToolOptions = {}): PiMutationTool {
+export function createPiEditTool(options: PiEditToolOptions = {}): PiMutationTool {
   checkPiOptions(options, "edit");
   const {
     denyRoots,
@@ -178,7 +178,7 @@ export function createPiEditTool(options: CreatePiEditToolOptions = {}): PiMutat
 }
 
 /** Creates a Pi write tool, as createPiEditTool. `details` is always undefined, as for Pi's own write. */
-export function createPiWriteTool(options: CreatePiWriteToolOptions = {}): PiMutationTool {
+export function createPiWriteTool(options: PiWriteToolOptions = {}): PiMutationTool {
   checkPiOptions(options, "write");
   const {
     denyRoots,
@@ -206,9 +206,7 @@ export function createPiWriteTool(options: CreatePiWriteToolOptions = {}): PiMut
 }
 
 /** Creates a Pi apply_patch tool, as createPiEditTool. A grammar signature sets constrainedSampling. */
-export function createPiApplyPatchTool(
-  options: CreatePiApplyPatchToolOptions = {},
-): PiMutationTool {
+export function createPiApplyPatchTool(options: PiApplyPatchToolOptions = {}): PiMutationTool {
   checkPiOptions(options, "apply_patch");
   const {
     denyRoots,

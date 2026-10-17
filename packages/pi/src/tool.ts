@@ -19,7 +19,7 @@ import type {
   ReadLimits,
   ReadMessageCatalog,
   ReadTool,
-  ReadToolDeps,
+  ReadToolOptions,
   StateNeedsDigestOrDefault,
 } from "@better-fs-tools/read";
 import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
@@ -52,7 +52,7 @@ export interface PiReadOptions {
  * a digest that is not null. converters defaults to [imageConverter()], as in
  * the AI SDK integration. A list you pass replaces it: [] turns images off.
  */
-export type CreatePiReadToolOptions = Omit<ReadToolDeps<ExtensionContext>, "fs"> &
+export type PiReadToolOptions = Omit<ReadToolOptions<ExtensionContext>, "fs"> &
   StateNeedsDigestOrDefault &
   PiReadOptions & {
     /** Added to /dev, /proc, /sys. */
@@ -93,7 +93,7 @@ export interface PiReadTool {
  * writes nothing outside the process. An image becomes a Pi image part unless
  * options.converters leaves imageConverter() out.
  */
-export function createPiReadTool(options: CreatePiReadToolOptions = {}): PiReadTool {
+export function createPiReadTool(options: PiReadToolOptions = {}): PiReadTool {
   checkPiOptions(options, "read");
   const {
     denyRoots,
@@ -128,7 +128,7 @@ export interface PiReadParts {
 export function piReadParts(
   options: PiReadOptions &
     Pick<
-      Partial<ReadToolDeps<ExtensionContext>>,
+      Partial<ReadToolOptions<ExtensionContext>>,
       "limits" | "messages" | "formatter" | "converters"
     >,
 ): PiReadParts {

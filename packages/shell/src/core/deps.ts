@@ -1,4 +1,4 @@
-import type { ShellDependencies, ShellToolDeps } from "../contract/deps.ts";
+import type { ShellDependencies, BashToolOptions } from "../contract/deps.ts";
 import type { AfterRunHook, BeforeRunHook } from "../contract/extensions.ts";
 import type { CommandRunner } from "../contract/runner.ts";
 import { defaultShellFormatter } from "../formatters/default.ts";
@@ -23,11 +23,11 @@ const KNOWN: ReadonlySet<string> = new Set([
 ]);
 
 export function resolveShellDependencies<THost>(
-  deps: ShellToolDeps<THost>,
+  deps: BashToolOptions<THost>,
 ): ShellDependencies<THost> {
-  if (!isRecord(deps)) throw new TypeError("bash tool dependencies must be an object");
+  if (!isRecord(deps)) throw new TypeError("bash tool options must be an object");
   for (const key of Object.keys(deps)) {
-    if (!KNOWN.has(key)) throw new TypeError(`Unknown bash tool dependency: ${key}`);
+    if (!KNOWN.has(key)) throw new TypeError(`Unknown bash tool option: ${key}`);
   }
 
   const { runner } = deps;

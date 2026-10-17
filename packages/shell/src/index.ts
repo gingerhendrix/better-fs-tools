@@ -20,7 +20,7 @@ export type {
   ShellRunReport,
   ShellStatus,
 } from "./contract/result.ts";
-export type { ShellDependencies, ShellToolDeps } from "./contract/deps.ts";
+export type { BashToolOptions } from "./contract/deps.ts";
 export type {
   AfterRunHook,
   AfterRunUpdate,

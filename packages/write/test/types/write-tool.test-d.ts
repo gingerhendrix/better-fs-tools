@@ -30,7 +30,7 @@ import type {
   WriteAuthorizer,
   WriteHook,
   WriteTool,
-  WriteToolDeps,
+  WriteToolOptions,
 } from "../../src/index.ts";
 
 interface Host {
@@ -59,7 +59,7 @@ export const missingHost = hosted({ path: "a", content: "b" });
 // Read's tool-neutral helpers fit the write tool with any host.
 export const neutral: ToolAuthorizer<unknown> = denyPaths(["**/.env"]);
 export const asWriteAuthorizer: WriteAuthorizer<Host> = denyPaths(["**/.env"]);
-export const deps: WriteToolDeps<Host> = {
+export const deps: WriteToolOptions<Host> = {
   fs: (call: ToolCallContext<Host>) => (call.host.id === "" ? fs : fs),
   resolve: expandHome({ home: "/home" }),
   authorize: writeAuthorizers(
@@ -70,7 +70,7 @@ export const deps: WriteToolDeps<Host> = {
   locks: memoryLocks({ timeoutMs: 1_000 }),
   formatter: defaultWriteFormatter({ diff: true }),
 };
-export const repaired: WriteToolDeps = { fs, resolve: unicodeRepair() };
+export const repaired: WriteToolOptions = { fs, resolve: unicodeRepair() };
 
 // Built-in helpers typed on unknown fit any host.
 const guard: Guard<unknown> = { id: "g", check: () => ({ allow: true }) };

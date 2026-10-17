@@ -1,7 +1,7 @@
 import type { FileSystem } from "@better-fs-tools/fs";
 
 import { defaultClassifiers } from "../classifiers/index.ts";
-import type { ReadDependencies, ReadToolDeps } from "../contract/deps.ts";
+import type { ReadDependencies, ReadToolOptions } from "../contract/deps.ts";
 import type { Converter, ReadHook, ViewBudget } from "../contract/extensions.ts";
 import type { ReadStateStore } from "../contract/state.ts";
 import { lineNumberFormatter } from "../formatters/index.ts";
@@ -10,7 +10,7 @@ import { isRecord } from "./input.ts";
 import { resolveReadLimits } from "./limits.ts";
 import { resolveReadMessages } from "./messages.ts";
 
-const KNOWN_DEPENDENCY_KEYS: ReadonlySet<string> = new Set([
+const KNOWN_OPTION_KEYS: ReadonlySet<string> = new Set([
   "fs",
   "limits",
   "messages",
@@ -27,11 +27,10 @@ const KNOWN_DEPENDENCY_KEYS: ReadonlySet<string> = new Set([
   "formatter",
 ]);
 
-export function resolveDependencies<THost>(deps: ReadToolDeps<THost>): ReadDependencies<THost> {
-  if (!isRecord(deps)) throw new TypeError("read tool dependencies must be an object");
+export function resolveDependencies<THost>(deps: ReadToolOptions<THost>): ReadDependencies<THost> {
+  if (!isRecord(deps)) throw new TypeError("read tool options must be an object");
   for (const key of Object.keys(deps)) {
-    if (!KNOWN_DEPENDENCY_KEYS.has(key))
-      throw new TypeError(`Unknown read tool dependency: ${key}`);
+    if (!KNOWN_OPTION_KEYS.has(key)) throw new TypeError(`Unknown read tool option: ${key}`);
   }
 
   const { fs } = deps;

@@ -23,8 +23,7 @@ export type {
 } from "./contract/base.ts";
 export type { ReadContext, ReadTool } from "./contract/context.ts";
 export type {
-  ReadDependencies,
-  ReadToolDeps,
+  ReadToolOptions,
   StateNeedsDigest,
   StateNeedsDigestOrDefault,
 } from "./contract/deps.ts";

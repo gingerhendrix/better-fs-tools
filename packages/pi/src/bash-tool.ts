@@ -7,7 +7,7 @@ import type { TSchema } from "typebox";
 import { nodeCommandRunner } from "@better-fs-tools/node";
 import type { JsonObject, ToolCallContext } from "@better-fs-tools/read";
 import { createBashTool, shellEnv } from "@better-fs-tools/shell";
-import type { CommandRunner, ShellToolDeps } from "@better-fs-tools/shell";
+import type { CommandRunner, BashToolOptions } from "@better-fs-tools/shell";
 import { bashSignatureMessages, defaultBashSignature } from "@better-fs-tools/shell/signature";
 import type { BashSignature } from "@better-fs-tools/shell/signature";
 
@@ -20,14 +20,14 @@ import { checkPiContext, checkPiOptions } from "./roots.ts";
 const MAX_CACHED_RUNNERS = 8;
 
 /** Options for createPiBashTool. Commands run in ctx.cwd, or in the cwd that the model gives. */
-export interface CreatePiBashToolOptions extends Omit<
-  ShellToolDeps<ExtensionContext>,
+export interface PiBashToolOptions extends Omit<
+  BashToolOptions<ExtensionContext>,
   "runner" | "cwd" | "env"
 > {
   /** Default a nodeCommandRunner at ctx.cwd. */
-  readonly runner?: ShellToolDeps<ExtensionContext>["runner"];
+  readonly runner?: BashToolOptions<ExtensionContext>["runner"];
   /** Default process.env with defaultShellEnv over it. */
-  readonly env?: ShellToolDeps<ExtensionContext>["env"];
+  readonly env?: BashToolOptions<ExtensionContext>["env"];
   /**
    * Default defaultBashSignature(), as in every integration: { command,
    * timeout?, cwd? } with the timeout in milliseconds. Its description names
@@ -77,7 +77,7 @@ export interface PiBashTool {
  * extension does not register this tool, so Pi's own bash stays in place
  * unless you register it.
  */
-export function createPiBashTool(options: CreatePiBashToolOptions = {}): PiBashTool {
+export function createPiBashTool(options: PiBashToolOptions = {}): PiBashTool {
   checkPiOptions(options, "bash");
   const {
     signature: given,

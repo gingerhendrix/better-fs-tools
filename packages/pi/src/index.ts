@@ -1,6 +1,6 @@
 export { createPiBashTool } from "./bash-tool.ts";
 export type {
-  CreatePiBashToolOptions,
+  PiBashToolOptions,
   PiBashDetails,
   PiBashTool,
   PiBashToolResult,
@@ -10,23 +10,18 @@ export type { PiReadDetails, PiTruncationResult } from "./details.ts";
 export { createPiFsTools } from "./fs-tools.ts";
 export { piMutationQueueLocks } from "./locks.ts";
 export type { PiMutationQueueLocksOptions } from "./locks.ts";
-export type { CreatePiFsToolsOptions, PiFsTools, PiFsToolsWithApplyPatch } from "./fs-tools.ts";
+export type { PiFsToolsOptions, PiFsTools, PiFsToolsWithApplyPatch } from "./fs-tools.ts";
 export { toPiMutationDetails } from "./mutation-details.ts";
 export type { PiMutationDetails } from "./mutation-details.ts";
 export { createPiApplyPatchTool, createPiEditTool, createPiWriteTool } from "./mutation-tools.ts";
 export type {
-  CreatePiApplyPatchToolOptions,
-  CreatePiEditToolOptions,
-  CreatePiWriteToolOptions,
+  PiApplyPatchToolOptions,
+  PiEditToolOptions,
+  PiWriteToolOptions,
   PiMutationTool,
   PiMutationToolResult,
 } from "./mutation-tools.ts";
 export { piToolRenderers } from "./renderers.ts";
 export type { PiToolAnnotations } from "./results.ts";
 export { createPiReadTool } from "./tool.ts";
-export type {
-  CreatePiReadToolOptions,
-  PiContentPart,
-  PiReadTool,
-  PiReadToolResult,
-} from "./tool.ts";
+export type { PiReadToolOptions, PiContentPart, PiReadTool, PiReadToolResult } from "./tool.ts";

@@ -42,9 +42,9 @@ export interface ShellDependencies<THost = undefined> {
 
 /**
  * `runner` and `env` are required. `limits` and `messages` merge key by key.
- * Every other dependency replaces its default.
+ * Every other option replaces its default.
  */
-export type ShellToolDeps<THost = undefined> = {
+export type BashToolOptions<THost = undefined> = {
   readonly runner: ShellDependencies<THost>["runner"];
   readonly env: ShellDependencies<THost>["env"];
   readonly limits?: Partial<ShellLimits>;

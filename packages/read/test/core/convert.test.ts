@@ -11,7 +11,7 @@ import type {
   FileConvertInput,
   ReadContext,
   ReadHookContext,
-  ReadToolDeps,
+  ReadToolOptions,
   StateNeedsDigest,
 } from "../../src/index.ts";
 import { memoryStore } from "../../src/state/index.ts";
@@ -88,7 +88,7 @@ function spied(inner: MemoryFileSystem) {
 
 function tool(
   files: Record<string, string | Uint8Array>,
-  deps: Omit<ReadToolDeps, "fs">,
+  deps: Omit<ReadToolOptions, "fs">,
   chunkBytes?: number,
 ) {
   const memory = memoryFileSystem({
@@ -100,7 +100,7 @@ function tool(
     digest: testDigest(),
     clock: () => FIXED_DATE,
     ...deps,
-  } as ReadToolDeps & StateNeedsDigest);
+  } as ReadToolOptions & StateNeedsDigest);
   return { read, memory };
 }
 

@@ -6,7 +6,7 @@ import { createApplyPatchTool, defaultPatchMatchers, exactMatcher } from "../../
 import type {
   ApplyPatchInput,
   ApplyPatchTool,
-  ApplyPatchToolDeps,
+  ApplyPatchToolOptions,
   CommitReport,
   MutationResult,
 } from "../../src/index.ts";
@@ -42,12 +42,12 @@ export const missingHost = hosted({ patch: "p" });
 export const badInput: ApplyPatchInput = { input: "p" };
 
 // Dependencies: matchers and patchParser join the shared ones.
-export const deps: ApplyPatchToolDeps<Host> = {
+export const deps: ApplyPatchToolOptions<Host> = {
   fs: (call: ToolCallContext<Host>) => (call.host.id === "" ? fs : fs),
   matchers: [exactMatcher(), ...defaultPatchMatchers()],
   patchParser: codexPatchParser(),
 };
-export const writeDeps: import("../../src/index.ts").WriteToolDeps = {
+export const writeDeps: import("../../src/index.ts").WriteToolOptions = {
   fs,
   // @ts-expect-error: patchParser is an apply_patch dependency.
   patchParser: codexPatchParser(),

@@ -62,7 +62,7 @@ describe("createReadTool", () => {
   test("an unknown dependency key throws TypeError", () => {
     for (const key of ["input", "recovery", "readNested", "injectInstructions"]) {
       expect(() => createReadTool({ fs, [key]: null } as never)).toThrow(
-        `Unknown read tool dependency: ${key}`,
+        `Unknown read tool option: ${key}`,
       );
     }
   });

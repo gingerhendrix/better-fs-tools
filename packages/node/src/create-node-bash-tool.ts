@@ -1,7 +1,7 @@
 import path from "node:path";
 
 import { createBashTool, shellEnv } from "@better-fs-tools/shell";
-import type { BashTool, ShellToolDeps } from "@better-fs-tools/shell";
+import type { BashTool, BashToolOptions } from "@better-fs-tools/shell";
 
 import { nodeCommandRunner } from "./command-runner.ts";
 
@@ -13,15 +13,17 @@ import { nodeCommandRunner } from "./command-runner.ts";
  * spill unless you pass one.
  */
 export function createNodeBashTool<THost = undefined>(
-  deps: Partial<ShellToolDeps<THost>> = {},
+  deps: Partial<BashToolOptions<THost>> = {},
 ): BashTool<THost> {
   if (deps === null || typeof deps !== "object" || Array.isArray(deps)) {
-    throw new TypeError("bash tool dependencies must be an object");
+    throw new TypeError("bash tool options must be an object");
   }
   return createBashTool<THost>(withNodeShellDefaults(deps));
 }
 
-function withNodeShellDefaults<THost>(deps: Partial<ShellToolDeps<THost>>): ShellToolDeps<THost> {
+function withNodeShellDefaults<THost>(
+  deps: Partial<BashToolOptions<THost>>,
+): BashToolOptions<THost> {
   const given = deps.cwd;
   return {
     ...deps,

@@ -12,9 +12,9 @@ import {
   piWriteParts,
 } from "./mutation-tools.ts";
 import type {
-  CreatePiApplyPatchToolOptions,
-  CreatePiEditToolOptions,
-  CreatePiWriteToolOptions,
+  PiApplyPatchToolOptions,
+  PiEditToolOptions,
+  PiWriteToolOptions,
   PiMutationOptions,
   PiMutationTool,
 } from "./mutation-tools.ts";
@@ -22,7 +22,7 @@ import { piMutationQueueLocks } from "./locks.ts";
 import { checkPiOptions, PI_ROOT_KEYS, piFileSystems } from "./roots.ts";
 import type { PiRootOptions } from "./roots.ts";
 import { adaptPiReadTool, piReadDeps, piReadParts } from "./tool.ts";
-import type { CreatePiReadToolOptions, PiReadTool } from "./tool.ts";
+import type { PiReadToolOptions, PiReadTool } from "./tool.ts";
 
 type BundleSharedKey = FsToolsSharedKey | keyof PiRootOptions;
 
@@ -39,7 +39,7 @@ const KNOWN_OPTIONS: ReadonlySet<string> = new Set([
 ]);
 const BUNDLE_SHARED_KEYS = ["state", "digest", "locks", "clock", ...PI_ROOT_KEYS] as const;
 
-export interface CreatePiFsToolsOptions extends PiRootOptions {
+export interface PiFsToolsOptions extends PiRootOptions {
   /** Default null: no read-before-write. A store, for example memoryStore(), turns it on. */
   readonly state?: ReadStateStore | null;
   /** Default nodeDigest(). */
@@ -48,11 +48,11 @@ export interface CreatePiFsToolsOptions extends PiRootOptions {
   readonly locks?: LockManager;
   /** Default () => new Date(). */
   readonly clock?: Clock;
-  readonly read?: Omit<CreatePiReadToolOptions, BundleSharedKey>;
-  readonly edit?: Omit<CreatePiEditToolOptions, BundleSharedKey>;
-  readonly write?: Omit<CreatePiWriteToolOptions, BundleSharedKey>;
+  readonly read?: Omit<PiReadToolOptions, BundleSharedKey>;
+  readonly edit?: Omit<PiEditToolOptions, BundleSharedKey>;
+  readonly write?: Omit<PiWriteToolOptions, BundleSharedKey>;
   /** Off by default. `true` or an options object adds an apply_patch tool. */
-  readonly applyPatch?: boolean | Omit<CreatePiApplyPatchToolOptions, BundleSharedKey>;
+  readonly applyPatch?: boolean | Omit<PiApplyPatchToolOptions, BundleSharedKey>;
 }
 
 export interface PiFsTools {
@@ -90,12 +90,12 @@ export interface PiFsToolsWithApplyPatch extends PiFsTools {
  * createPiBashTool() and call invalidate from its afterRun hook.
  */
 export function createPiFsTools(
-  options: CreatePiFsToolsOptions & {
-    readonly applyPatch: true | Omit<CreatePiApplyPatchToolOptions, BundleSharedKey>;
+  options: PiFsToolsOptions & {
+    readonly applyPatch: true | Omit<PiApplyPatchToolOptions, BundleSharedKey>;
   },
 ): PiFsToolsWithApplyPatch;
-export function createPiFsTools(options?: CreatePiFsToolsOptions): PiFsTools;
-export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools {
+export function createPiFsTools(options?: PiFsToolsOptions): PiFsTools;
+export function createPiFsTools(options: PiFsToolsOptions = {}): PiFsTools {
   checkPiOptions(options, "fs");
   for (const key of Object.keys(options)) {
     if (!KNOWN_OPTIONS.has(key)) throw new TypeError(`Unknown createPiFsTools option: ${key}`);
@@ -156,7 +156,7 @@ export function createPiFsTools(options: CreatePiFsToolsOptions = {}): PiFsTools
   };
   let patch: {
     readonly deps: Omit<
-      CreatePiApplyPatchToolOptions,
+      PiApplyPatchToolOptions,
       BundleSharedKey | keyof PiMutationOptions<unknown>
     >;
     readonly parts: ReturnType<typeof piApplyPatchParts>;

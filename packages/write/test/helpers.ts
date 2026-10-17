@@ -17,12 +17,12 @@ import type {
 import { createApplyPatchTool, createEditTool, createWriteTool } from "../src/index.ts";
 import type {
   ApplyPatchTool,
-  ApplyPatchToolDeps,
+  ApplyPatchToolOptions,
   EditTool,
-  EditToolDeps,
+  EditToolOptions,
   MutationResult,
   WriteTool,
-  WriteToolDeps,
+  WriteToolOptions,
 } from "../src/index.ts";
 
 const ENCODER = new TextEncoder();
@@ -59,9 +59,9 @@ export interface HarnessOptions {
   readonly fsOptions?: MemoryFileSystemOptions;
   /** The read tool still reads the memory filesystem. */
   readonly writeFs?: (fs: MemoryFileSystem) => WritableFileSystem;
-  readonly deps?: Omit<WriteToolDeps, "fs">;
-  readonly editDeps?: Omit<EditToolDeps, "fs">;
-  readonly patchDeps?: Omit<ApplyPatchToolDeps, "fs">;
+  readonly deps?: Omit<WriteToolOptions, "fs">;
+  readonly editDeps?: Omit<EditToolOptions, "fs">;
+  readonly patchDeps?: Omit<ApplyPatchToolOptions, "fs">;
 }
 
 export interface Harness {
@@ -88,14 +88,14 @@ export function harness(options: HarnessOptions = {}): Harness {
     digest,
     clock,
     ...options.deps,
-  } as WriteToolDeps & StateNeedsDigest;
+  } as WriteToolOptions & StateNeedsDigest;
   const write = createWriteTool(shared);
-  const edit = createEditTool({ ...shared, ...options.editDeps } as EditToolDeps &
+  const edit = createEditTool({ ...shared, ...options.editDeps } as EditToolOptions &
     StateNeedsDigest);
   const applyPatch = createApplyPatchTool({
     ...shared,
     ...options.patchDeps,
-  } as ApplyPatchToolDeps & StateNeedsDigest);
+  } as ApplyPatchToolOptions & StateNeedsDigest);
   return { fs, state, digest, read, write, edit, applyPatch };
 }
 

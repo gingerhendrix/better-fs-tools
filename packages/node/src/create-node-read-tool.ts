@@ -1,11 +1,11 @@
 import { createReadTool } from "@better-fs-tools/read";
-import type { ReadTool, ReadToolDeps, StateNeedsDigestOrDefault } from "@better-fs-tools/read";
+import type { ReadTool, ReadToolOptions, StateNeedsDigestOrDefault } from "@better-fs-tools/read";
 
 import { nodeDigest } from "./digest.ts";
 import { nodeFileSystem } from "./filesystem.ts";
 
 /** Options for createNodeReadTool, all optional. A `state` needs a digest that is not null. */
-export type CreateNodeReadToolOptions<THost = undefined> = Partial<ReadToolDeps<THost>> &
+export type CreateNodeReadToolOptions<THost = undefined> = Partial<ReadToolOptions<THost>> &
   StateNeedsDigestOrDefault;
 
 /**
@@ -17,7 +17,7 @@ export function createNodeReadTool<THost = undefined>(
   deps: CreateNodeReadToolOptions<THost> = {},
 ): ReadTool<THost> {
   if (deps === null || typeof deps !== "object" || Array.isArray(deps)) {
-    throw new TypeError("read tool dependencies must be an object");
+    throw new TypeError("read tool options must be an object");
   }
   const fs = deps.fs ?? defaultFileSystem();
   // digest: null narrows the options to the branch without a state.

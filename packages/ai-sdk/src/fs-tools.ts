@@ -4,7 +4,7 @@ import type {
   Clock,
   Digest,
   ReadStateStore,
-  ReadToolDeps,
+  ReadToolOptions,
   ToolCallContext,
 } from "@better-fs-tools/read";
 import { readSignatureMessages, defaultReadSignature } from "@better-fs-tools/read/signature";
@@ -18,14 +18,14 @@ import {
   parseWriteInput,
 } from "@better-fs-tools/write";
 import type {
-  ApplyPatchToolDeps,
-  CreateFsToolsOptions,
-  EditToolDeps,
+  ApplyPatchToolOptions,
+  FsToolsOptions,
+  EditToolOptions,
   FsToolsBashOptions,
   FsToolsSharedKey,
   InvalidateOutcome,
   LockManager,
-  WriteToolDeps,
+  WriteToolOptions,
 } from "@better-fs-tools/write";
 import {
   defaultEditSignature,
@@ -53,28 +53,28 @@ type Host<C> = ToolExecutionOptions<C>;
  * top level. converters defaults to [imageConverter()]; [] turns images off.
  */
 export type AiSdkFsToolsReadOptions<C = unknown> = Omit<
-  Partial<ReadToolDeps<Host<C>>>,
+  Partial<ReadToolOptions<Host<C>>>,
   FsToolsSharedKey
 > & {
   /** Defaults to defaultReadSignature(). */
   readonly signature?: ReadSignature;
 };
 export type AiSdkFsToolsEditOptions<C = unknown> = Omit<
-  Partial<EditToolDeps<Host<C>>>,
+  Partial<EditToolOptions<Host<C>>>,
   FsToolsSharedKey
 > & {
   /** Defaults to defaultEditSignature() for `matchers`. */
   readonly signature?: EditSignature;
 };
 export type AiSdkFsToolsWriteOptions<C = unknown> = Omit<
-  Partial<WriteToolDeps<Host<C>>>,
+  Partial<WriteToolOptions<Host<C>>>,
   FsToolsSharedKey
 > & {
   /** Defaults to defaultWriteSignature(). */
   readonly signature?: WriteSignature;
 };
 export type AiSdkFsToolsApplyPatchOptions<C = unknown> = Omit<
-  Partial<ApplyPatchToolDeps<Host<C>>>,
+  Partial<ApplyPatchToolOptions<Host<C>>>,
   FsToolsSharedKey
 > & {
   /** Defaults to defaultPatchSignature(). */
@@ -86,9 +86,9 @@ export type AiSdkFsToolsBashOptions<C = unknown> = FsToolsBashOptions<Host<C>> &
   readonly signature?: BashSignature;
 };
 
-export interface CreateAiSdkFsToolsOptions<C = unknown> {
+export interface AiSdkFsToolsOptions<C = unknown> {
   /** Required. A backend, or a factory called once for each tool call with the AI SDK options as host. */
-  readonly fs: CreateFsToolsOptions<Host<C>>["fs"];
+  readonly fs: FsToolsOptions<Host<C>>["fs"];
   /** Defaults to null: no read-before-write. A store, for example memoryStore(), turns it on. */
   readonly state?: ReadStateStore | null;
   /** Defaults to sha256Digest() from @better-fs-tools/read, which runs in a Worker. */
@@ -175,25 +175,21 @@ const SHARED_KEYS = {
  * digest, locks, clock) inside a tool's options.
  */
 export function createAiSdkFsTools<C = unknown>(
-  options: CreateAiSdkFsToolsOptions<C> & {
+  options: AiSdkFsToolsOptions<C> & {
     readonly bash: AiSdkFsToolsBashOptions<C>;
     readonly applyPatch: true | AiSdkFsToolsApplyPatchOptions<C>;
   },
 ): AiSdkFsToolsWithBash<C> & AiSdkFsToolsWithApplyPatch<C>;
 export function createAiSdkFsTools<C = unknown>(
-  options: CreateAiSdkFsToolsOptions<C> & { readonly bash: AiSdkFsToolsBashOptions<C> },
+  options: AiSdkFsToolsOptions<C> & { readonly bash: AiSdkFsToolsBashOptions<C> },
 ): AiSdkFsToolsWithBash<C>;
 export function createAiSdkFsTools<C = unknown>(
-  options: CreateAiSdkFsToolsOptions<C> & {
+  options: AiSdkFsToolsOptions<C> & {
     readonly applyPatch: true | AiSdkFsToolsApplyPatchOptions<C>;
   },
 ): AiSdkFsToolsWithApplyPatch<C>;
-export function createAiSdkFsTools<C = unknown>(
-  options: CreateAiSdkFsToolsOptions<C>,
-): AiSdkFsTools<C>;
-export function createAiSdkFsTools<C = unknown>(
-  options: CreateAiSdkFsToolsOptions<C>,
-): AiSdkFsTools<C> {
+export function createAiSdkFsTools<C = unknown>(options: AiSdkFsToolsOptions<C>): AiSdkFsTools<C>;
+export function createAiSdkFsTools<C = unknown>(options: AiSdkFsToolsOptions<C>): AiSdkFsTools<C> {
   checkOptions(options);
   const { contextSchema } = options;
   const { signature: readSignature = defaultReadSignature(), ...read } = options.read ?? {};

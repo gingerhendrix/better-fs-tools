@@ -72,7 +72,7 @@ describe("write tool dependencies", () => {
   });
 
   test.each([
-    ["an unknown key", { fs, matchers: [] }, "Unknown write tool dependency: matchers"],
+    ["an unknown key", { fs, matchers: [] }, "Unknown write tool option: matchers"],
     ["a missing fs", {}, "fs must be"],
     ["a read-only fs", { fs: { id: "ro", open: async () => ({}) } }, "fs has no write methods"],
     ["state without a digest", { fs, state: memoryStore() }, "state needs a digest"],
@@ -118,7 +118,7 @@ describe("write tool dependencies", () => {
     ["an empty matcher list", { fs, matchers: [] }, "matchers"],
     ["a malformed matcher", { fs, matchers: [{ id: "m", find: () => [] }] }, "matchers"],
     ["a bad adapt", { fs, matchers: [{ ...exactMatcher(), adapt: 1 }] }, "matchers"],
-    ["an unknown key", { fs, patchParser: {} }, "Unknown edit tool dependency: patchParser"],
+    ["an unknown key", { fs, patchParser: {} }, "Unknown edit tool option: patchParser"],
     ["a shared rule", { fs, state: memoryStore() }, "state needs a digest"],
   ])("edit rejects %s", (_name, deps, message) => {
     expect(() => createEditTool(deps as never)).toThrow(message);
@@ -141,7 +141,7 @@ describe("write tool dependencies", () => {
     ["an empty matcher list", { fs, matchers: [] }, "matchers"],
     ["a malformed parser", { fs, patchParser: { id: "p" } }, "patchParser"],
     ["a parser without an id", { fs, patchParser: { parse: () => null } }, "patchParser"],
-    ["an unknown key", { fs, replaceAll: true }, "Unknown apply_patch tool dependency: replaceAll"],
+    ["an unknown key", { fs, replaceAll: true }, "Unknown apply_patch tool option: replaceAll"],
     ["a shared rule", { fs, codecs: [] }, "codecs"],
   ])("apply_patch rejects %s", (_name, deps, message) => {
     expect(() => createApplyPatchTool(deps as never)).toThrow(message);

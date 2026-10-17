@@ -850,7 +850,7 @@ describe("createBashTool", () => {
   test("throws TypeError on a missing runner, an unknown key, or a bad limit", () => {
     expect(() => bashTool({} as never)).toThrow(TypeError);
     expect(() => bashTool({ runner: scriptedRunner(), extra: 1 } as never)).toThrow(
-      "Unknown bash tool dependency: extra",
+      "Unknown bash tool option: extra",
     );
     expect(() => bashTool({ runner: scriptedRunner(), limits: { headPercent: 101 } })).toThrow(
       TypeError,

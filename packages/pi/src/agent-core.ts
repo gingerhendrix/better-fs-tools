@@ -12,7 +12,7 @@ import type {
   Clock,
   Digest,
   ReadStateStore,
-  ReadToolDeps,
+  ReadToolOptions,
   ToolCallContext,
 } from "@better-fs-tools/read";
 import { defaultReadSignature, readSignatureMessages } from "@better-fs-tools/read/signature";
@@ -22,15 +22,15 @@ import { bashSignatureMessages, defaultBashSignature } from "@better-fs-tools/sh
 import type { BashSignature } from "@better-fs-tools/shell/signature";
 import { createFsTools } from "@better-fs-tools/write";
 import type {
-  ApplyPatchToolDeps,
-  CreateFsToolsOptions,
-  EditToolDeps,
+  ApplyPatchToolOptions,
+  FsToolsOptions,
+  EditToolOptions,
   FsToolsBashOptions,
   FsToolsSharedKey,
   InvalidateOutcome,
   LockManager,
   MutationResult,
-  WriteToolDeps,
+  WriteToolOptions,
 } from "@better-fs-tools/write";
 import {
   defaultEditSignature,
@@ -56,7 +56,7 @@ import type { PiContentPart } from "./parts.ts";
 type Host = undefined;
 
 /** The result of an agent core tool. Assignable to AgentToolResult<TDetails>. */
-export interface PiAgentToolResult<TDetails> {
+export interface AgentCoreToolResult<TDetails> {
   content: PiContentPart[];
   details: TDetails;
   /** true for a tool error. bash also sets it for a nonzero exit and a timeout. */
@@ -64,7 +64,7 @@ export interface PiAgentToolResult<TDetails> {
 }
 
 /** Assignable to AgentTool<TSchema, TDetails> from @earendil-works/pi-agent-core 1.x. */
-export interface PiAgentTool<TDetails> {
+export interface AgentCoreTool<TDetails> {
   readonly name: string;
   readonly label: string;
   readonly description: string;
@@ -80,28 +80,31 @@ export interface PiAgentTool<TDetails> {
     params: unknown,
     signal?: AbortSignal,
     onUpdate?: unknown,
-  ) => Promise<PiAgentToolResult<TDetails>>;
+  ) => Promise<AgentCoreToolResult<TDetails>>;
 }
 
-export type PiAgentReadTool = PiAgentTool<PiReadDetails>;
-export type PiAgentMutationTool = PiAgentTool<PiMutationDetails | undefined>;
-export type PiAgentBashTool = PiAgentTool<{ fullOutputPath?: string } | undefined>;
+export type AgentCoreReadTool = AgentCoreTool<PiReadDetails>;
+export type AgentCoreMutationTool = AgentCoreTool<PiMutationDetails | undefined>;
+export type AgentCoreBashTool = AgentCoreTool<{ fullOutputPath?: string } | undefined>;
 
 /** Read options. converters defaults to [imageConverter()]; [] turns images off. */
-export type AgentCoreFsToolsReadOptions = Omit<Partial<ReadToolDeps<Host>>, FsToolsSharedKey> & {
+export type AgentCoreFsToolsReadOptions = Omit<Partial<ReadToolOptions<Host>>, FsToolsSharedKey> & {
   /** Default defaultReadSignature(), as in every integration. */
   readonly signature?: ReadSignature;
 };
-export type AgentCoreFsToolsEditOptions = Omit<Partial<EditToolDeps<Host>>, FsToolsSharedKey> & {
+export type AgentCoreFsToolsEditOptions = Omit<Partial<EditToolOptions<Host>>, FsToolsSharedKey> & {
   /** Default defaultEditSignature({ matchers }): { path, old_string, new_string, replace_all? }. */
   readonly signature?: EditSignature;
 };
-export type AgentCoreFsToolsWriteOptions = Omit<Partial<WriteToolDeps<Host>>, FsToolsSharedKey> & {
+export type AgentCoreFsToolsWriteOptions = Omit<
+  Partial<WriteToolOptions<Host>>,
+  FsToolsSharedKey
+> & {
   /** Default defaultWriteSignature(). */
   readonly signature?: WriteSignature;
 };
 export type AgentCoreFsToolsApplyPatchOptions = Omit<
-  Partial<ApplyPatchToolDeps<Host>>,
+  Partial<ApplyPatchToolOptions<Host>>,
   FsToolsSharedKey
 > & {
   /** Default defaultPatchSignature(): { patch } with the Codex patch format. */
@@ -113,9 +116,9 @@ export type AgentCoreFsToolsBashOptions = FsToolsBashOptions<Host> & {
   readonly signature?: BashSignature;
 };
 
-export interface CreateAgentCoreFsToolsOptions {
+export interface AgentCoreFsToolsOptions {
   /** Required. A writable backend, or a factory called once for each call. */
-  readonly fs: CreateFsToolsOptions<Host>["fs"];
+  readonly fs: FsToolsOptions<Host>["fs"];
   /** Default null: no read-before-write. A store, for example memoryStore(), turns it on. */
   readonly state?: ReadStateStore | null;
   /** Default sha256Digest() from @better-fs-tools/read, which runs in a Worker. */
@@ -134,15 +137,15 @@ export interface CreateAgentCoreFsToolsOptions {
 }
 
 export interface AgentCoreFsTools {
-  readonly read: PiAgentReadTool;
-  readonly edit: PiAgentMutationTool;
-  readonly write: PiAgentMutationTool;
+  readonly read: AgentCoreReadTool;
+  readonly edit: AgentCoreMutationTool;
+  readonly write: AgentCoreMutationTool;
   /** null unless options.applyPatch is true or an object. */
-  readonly applyPatch: PiAgentMutationTool | null;
+  readonly applyPatch: AgentCoreMutationTool | null;
   /** null unless options.bash is set. */
-  readonly bash: PiAgentBashTool | null;
+  readonly bash: AgentCoreBashTool | null;
   /** Every tool of the bundle, for agent.state.tools or an agentLoop() context. */
-  readonly tools: readonly (PiAgentReadTool | PiAgentMutationTool | PiAgentBashTool)[];
+  readonly tools: readonly (AgentCoreReadTool | AgentCoreMutationTool | AgentCoreBashTool)[];
   readonly state: ReadStateStore | null;
   readonly digest: Digest;
   readonly locks: LockManager;
@@ -174,7 +177,7 @@ const KNOWN: ReadonlySet<string> = new Set([
  * throws TypeError. Throws TypeError on an unknown option key, and on what
  * createFsTools() refuses.
  */
-export function createAgentCoreFsTools(options: CreateAgentCoreFsToolsOptions): AgentCoreFsTools {
+export function createAgentCoreFsTools(options: AgentCoreFsToolsOptions): AgentCoreFsTools {
   if (options === null || typeof options !== "object" || Array.isArray(options)) {
     throw new TypeError("createAgentCoreFsTools options must be an object");
   }
@@ -232,7 +235,7 @@ export function createAgentCoreFsTools(options: CreateAgentCoreFsToolsOptions): 
         }),
   });
 
-  const readTool: PiAgentReadTool = Object.freeze<PiAgentReadTool>({
+  const readTool: AgentCoreReadTool = Object.freeze<AgentCoreReadTool>({
     ...declaration(readSignature),
     replay: "safe",
     async execute(toolCallId, params, signal) {
@@ -324,8 +327,8 @@ function mutationTool(
   signature: MutationSignature<unknown>,
   tool: "edit" | "write" | "apply_patch",
   run: MutationCore,
-): PiAgentMutationTool {
-  return Object.freeze<PiAgentMutationTool>({
+): AgentCoreMutationTool {
+  return Object.freeze<AgentCoreMutationTool>({
     ...declaration(signature),
     async execute(toolCallId, params, signal) {
       const result = await run(signature.toInput(params) as never, callOf(toolCallId, signal));
@@ -341,8 +344,8 @@ function mutationTool(
 
 type BashCore = (input: never, call: ToolCallContext<Host>) => Promise<ShellResult>;
 
-function bashTool(signature: BashSignature, run: BashCore): PiAgentBashTool {
-  return Object.freeze<PiAgentBashTool>({
+function bashTool(signature: BashSignature, run: BashCore): AgentCoreBashTool {
+  return Object.freeze<AgentCoreBashTool>({
     ...declaration(signature),
     async execute(toolCallId, params, signal) {
       const result = await run(signature.toInput(params) as never, callOf(toolCallId, signal));

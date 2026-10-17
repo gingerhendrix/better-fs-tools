@@ -58,7 +58,7 @@ export type StateNeedsDigestOrDefault =
   | { readonly state?: null; readonly digest: null }
   | { readonly digest?: Digest };
 
-export type ReadToolDeps<THost = undefined> = {
+export type ReadToolOptions<THost = undefined> = {
   readonly fs: ReadDependencies<THost>["fs"];
   readonly limits?: Partial<ReadLimits>;
   readonly messages?: Partial<ReadMessageCatalog>;

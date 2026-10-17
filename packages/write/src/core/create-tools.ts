@@ -3,7 +3,7 @@ import type { ToolCallContext } from "@better-fs-tools/read";
 import type { ApplyPatchTool, EditTool, WriteTool } from "../contract/context.ts";
 import type { StateNeedsDigest } from "@better-fs-tools/read";
 
-import type { ApplyPatchToolDeps, EditToolDeps, WriteToolDeps } from "../contract/deps.ts";
+import type { ApplyPatchToolOptions, EditToolOptions, WriteToolOptions } from "../contract/deps.ts";
 import type { MutationResult } from "../contract/result.ts";
 import {
   resolveApplyPatchDependencies,
@@ -16,12 +16,12 @@ import { runApplyPatch } from "./patch-pipeline.ts";
 import { runEdit, runWrite } from "./pipeline.ts";
 
 /**
- * Creates the edit tool. Takes the same dependencies as createWriteTool, plus
+ * Creates the edit tool. Takes the same options as createWriteTool, plus
  * a non-empty `matchers` list (default defaultEditMatchers()). Throws
- * TypeError on invalid dependencies.
+ * TypeError on invalid options.
  */
 export function createEditTool<THost = undefined>(
-  deps: EditToolDeps<THost> & StateNeedsDigest,
+  deps: EditToolOptions<THost> & StateNeedsDigest,
 ): EditTool<THost> {
   const resolved = resolveEditDependencies(deps);
   const misses = new MissCounter();
@@ -37,10 +37,10 @@ export function createEditTool<THost = undefined>(
  * Creates the write tool. Throws TypeError on an unknown key, a missing fs,
  * an empty classifier or codec list, state without digest, or a malformed
  * limit, message, or policy. limits, messages, and preconditions merge with
- * the defaults key by key. Every other dependency replaces its default.
+ * the defaults key by key. Every other option replaces its default.
  */
 export function createWriteTool<THost = undefined>(
-  deps: WriteToolDeps<THost> & StateNeedsDigest,
+  deps: WriteToolOptions<THost> & StateNeedsDigest,
 ): WriteTool<THost> {
   const resolved = resolveWriteDependencies(deps, "write");
   const write = async (input: unknown, ctx?: ToolCallContext<THost>): Promise<MutationResult> => {
@@ -52,13 +52,13 @@ export function createWriteTool<THost = undefined>(
 }
 
 /**
- * Creates the apply_patch tool. Takes the same dependencies as
+ * Creates the apply_patch tool. Takes the same options as
  * createWriteTool, plus a non-empty `matchers` list (default
  * defaultPatchMatchers()) and a `patchParser` (default codexPatchParser()).
- * Throws TypeError on invalid dependencies.
+ * Throws TypeError on invalid options.
  */
 export function createApplyPatchTool<THost = undefined>(
-  deps: ApplyPatchToolDeps<THost> & StateNeedsDigest,
+  deps: ApplyPatchToolOptions<THost> & StateNeedsDigest,
 ): ApplyPatchTool<THost> {
   const resolved = resolveApplyPatchDependencies(deps);
   const applyPatch = async (

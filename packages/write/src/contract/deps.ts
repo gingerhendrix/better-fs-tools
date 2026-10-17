@@ -70,6 +70,6 @@ type ToolDeps<D extends WriteDependencies<never>> = {
   readonly preconditions?: Partial<PreconditionPolicy>;
 } & Partial<Omit<D, "fs" | "limits" | "messages" | "preconditions">>;
 
-export type WriteToolDeps<THost = undefined> = ToolDeps<WriteDependencies<THost>>;
-export type EditToolDeps<THost = undefined> = ToolDeps<EditDependencies<THost>>;
-export type ApplyPatchToolDeps<THost = undefined> = ToolDeps<ApplyPatchDependencies<THost>>;
+export type WriteToolOptions<THost = undefined> = ToolDeps<WriteDependencies<THost>>;
+export type EditToolOptions<THost = undefined> = ToolDeps<EditDependencies<THost>>;
+export type ApplyPatchToolOptions<THost = undefined> = ToolDeps<ApplyPatchDependencies<THost>>;

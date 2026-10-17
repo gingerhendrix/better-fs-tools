@@ -6,11 +6,11 @@ import type {
   RunExit,
   RunRequest,
   ShellResult,
-  ShellToolDeps,
+  BashToolOptions,
 } from "@better-fs-tools/shell";
 
 export function bashTool<THost = undefined>(
-  deps: Omit<ShellToolDeps<THost>, "env"> & Partial<Pick<ShellToolDeps<THost>, "env">>,
+  deps: Omit<BashToolOptions<THost>, "env"> & Partial<Pick<BashToolOptions<THost>, "env">>,
 ): BashTool<THost> {
   return createBashTool<THost>({ env: shellEnv(), ...deps });
 }

@@ -7,11 +7,11 @@ import { utf8Codec } from "../codecs/utf8.ts";
 import type { Codec } from "../contract/codec.ts";
 import type {
   ApplyPatchDependencies,
-  ApplyPatchToolDeps,
+  ApplyPatchToolOptions,
   EditDependencies,
-  EditToolDeps,
+  EditToolOptions,
   WriteDependencies,
-  WriteToolDeps,
+  WriteToolOptions,
 } from "../contract/deps.ts";
 import type { Guard, WriteHook } from "../contract/extensions.ts";
 import type { LockManager } from "../contract/locks.ts";
@@ -47,12 +47,12 @@ const KNOWN: ReadonlySet<string> = new Set([
 ]);
 
 export function resolveWriteDependencies<THost>(
-  deps: WriteToolDeps<THost>,
+  deps: WriteToolOptions<THost>,
   tool: string,
 ): WriteDependencies<THost> {
-  if (!isRecord(deps)) throw new TypeError(`${tool} tool dependencies must be an object`);
+  if (!isRecord(deps)) throw new TypeError(`${tool} tool options must be an object`);
   for (const key of Object.keys(deps)) {
-    if (!KNOWN.has(key)) throw new TypeError(`Unknown ${tool} tool dependency: ${key}`);
+    if (!KNOWN.has(key)) throw new TypeError(`Unknown ${tool} tool option: ${key}`);
   }
 
   const { fs } = deps;
@@ -126,8 +126,10 @@ export function resolveWriteDependencies<THost>(
   });
 }
 
-export function resolveEditDependencies<THost>(deps: EditToolDeps<THost>): EditDependencies<THost> {
-  if (!isRecord(deps)) throw new TypeError("edit tool dependencies must be an object");
+export function resolveEditDependencies<THost>(
+  deps: EditToolOptions<THost>,
+): EditDependencies<THost> {
+  if (!isRecord(deps)) throw new TypeError("edit tool options must be an object");
   const { matchers = defaultEditMatchers(), recovery = false, ...shared } = deps;
   if (!Array.isArray(matchers) || matchers.length === 0 || !matchers.every(isMatcher)) {
     throw new TypeError("matchers must be a non-empty array of matchers");
@@ -141,9 +143,9 @@ export function resolveEditDependencies<THost>(deps: EditToolDeps<THost>): EditD
 }
 
 export function resolveApplyPatchDependencies<THost>(
-  deps: ApplyPatchToolDeps<THost>,
+  deps: ApplyPatchToolOptions<THost>,
 ): ApplyPatchDependencies<THost> {
-  if (!isRecord(deps)) throw new TypeError("apply_patch tool dependencies must be an object");
+  if (!isRecord(deps)) throw new TypeError("apply_patch tool options must be an object");
   const { matchers = defaultPatchMatchers(), patchParser = codexPatchParser(), ...shared } = deps;
   if (!Array.isArray(matchers) || matchers.length === 0 || !matchers.every(isMatcher)) {
     throw new TypeError("matchers must be a non-empty array of matchers");
