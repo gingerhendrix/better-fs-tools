@@ -65,16 +65,17 @@ export interface FsToolDefinitions<THost = undefined> {
 /**
  * The bundle of createFsTools(), with each tool bound to its signature by
  * readToolDefinition() and the other definition helpers. Every integration
- * bundle builds on it. Throws TypeError where createFsTools() does, with
- * "fsToolDefinitions" in the message.
+ * bundle builds on it. Throws TypeError where createFsTools() does, and when
+ * two tools have the same name. `label` names the caller in each message.
  */
 export function fsToolDefinitions<THost = undefined>(
   options: FsToolDefinitionsOptions<THost>,
+  label = "fsToolDefinitions",
 ): FsToolDefinitions<THost> {
-  const bundle = resolveBundle("fsToolDefinitions", options);
+  const bundle = resolveBundle(label, options);
   const { fs, state, digest, locks, clock } = bundle;
   const shared = { fs, state, digest, clock };
-  return Object.freeze<FsToolDefinitions<THost>>({
+  const definitions = {
     read: readToolDefinition<THost>({ ...options.read, ...shared }),
     edit: editToolDefinition<THost>({ ...options.edit, ...shared, locks }),
     write: writeToolDefinition<THost>({ ...options.write, ...shared, locks }),
@@ -84,6 +85,17 @@ export function fsToolDefinitions<THost = undefined>(
         : applyPatchToolDefinition<THost>({ ...bundle.applyPatch, ...shared, locks }),
     bash:
       bundle.bash === null ? null : bashToolDefinition<THost>({ ...bundle.bash, digest, clock }),
+  };
+  const names = new Set<string>();
+  for (const definition of Object.values(definitions)) {
+    if (definition === null) continue;
+    if (names.has(definition.name)) {
+      throw new TypeError(`${label} has two tools named ${definition.name}`);
+    }
+    names.add(definition.name);
+  }
+  return Object.freeze<FsToolDefinitions<THost>>({
+    ...definitions,
     fs,
     state,
     digest,

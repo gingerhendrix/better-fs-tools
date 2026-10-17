@@ -23,7 +23,7 @@ import type {
   WriteSignature,
 } from "@better-fs-tools/write/signature";
 
-import { adaptAiSdkTool } from "./adapt.ts";
+import { adaptAiSdkTool, checkOptions } from "./adapt.ts";
 import type { AiSdkBashTool } from "./bash-tool.ts";
 import type { AiSdkMutationTool } from "./mutation-tools.ts";
 import type { AiSdkReadTool } from "./tool.ts";
@@ -102,28 +102,6 @@ export interface AiSdkFsToolsWithApplyPatch<C = unknown> extends AiSdkFsTools<C>
   readonly applyPatch: AiSdkMutationTool<C>;
 }
 
-const KNOWN: ReadonlySet<string> = new Set([
-  "fs",
-  "state",
-  "digest",
-  "locks",
-  "clock",
-  "contextSchema",
-  "read",
-  "edit",
-  "write",
-  "applyPatch",
-  "bash",
-]);
-
-const SHARED_KEYS = {
-  read: ["fs", "state", "digest", "clock"],
-  edit: ["fs", "state", "digest", "locks", "clock"],
-  write: ["fs", "state", "digest", "locks", "clock"],
-  applyPatch: ["fs", "state", "digest", "locks", "clock"],
-  bash: ["digest", "clock"],
-} as const;
-
 /**
  * Creates AI SDK read, edit, and write tools over one backend, sharing one
  * digest, lock manager, and clock, and the read store when `state` is given.
@@ -151,9 +129,9 @@ export function createAiSdkFsTools<C = unknown>(
 ): AiSdkFsToolsWithApplyPatch<C>;
 export function createAiSdkFsTools<C = unknown>(options: AiSdkFsToolsOptions<C>): AiSdkFsTools<C>;
 export function createAiSdkFsTools<C = unknown>(options: AiSdkFsToolsOptions<C>): AiSdkFsTools<C> {
-  checkOptions(options);
+  checkOptions(options, "createAiSdkFsTools");
   const { contextSchema, ...rest } = options;
-  const defs = fsToolDefinitions<Host<C>>(rest);
+  const defs = fsToolDefinitions<Host<C>>(rest, "createAiSdkFsTools");
   const adapted = {
     read: adaptAiSdkTool<ReadResult, C>(defs.read, contextSchema),
     edit: adaptAiSdkTool<MutationResult, C>(defs.edit, contextSchema),
@@ -166,11 +144,7 @@ export function createAiSdkFsTools<C = unknown>(options: AiSdkFsToolsOptions<C>)
   };
   const tools: Record<string, AiSdkReadTool<C> | AiSdkMutationTool<C> | AiSdkBashTool<C>> = {};
   for (const tool of Object.values(adapted)) {
-    if (tool === null) continue;
-    if (Object.hasOwn(tools, tool.name)) {
-      throw new TypeError(`createAiSdkFsTools has two tools named ${tool.name}`);
-    }
-    tools[tool.name] = tool;
+    if (tool !== null) tools[tool.name] = tool;
   }
   return Object.freeze<AiSdkFsTools<C>>({
     ...adapted,
@@ -181,45 +155,4 @@ export function createAiSdkFsTools<C = unknown>(options: AiSdkFsToolsOptions<C>)
     clock: defs.clock,
     invalidate: defs.invalidate,
   });
-}
-
-function checkOptions(options: unknown): void {
-  if (options === null || typeof options !== "object" || Array.isArray(options)) {
-    throw new TypeError("createAiSdkFsTools options must be an object");
-  }
-  for (const key of Object.keys(options)) {
-    if (!KNOWN.has(key)) throw new TypeError(`Unknown createAiSdkFsTools option: ${key}`);
-  }
-  const state: unknown = (options as Record<string, unknown>).state;
-  if (state !== undefined && state !== null && typeof state !== "function" && !isStore(state)) {
-    throw new TypeError(
-      "createAiSdkFsTools state must be a read state store, a function that returns one, or null",
-    );
-  }
-  for (const [tool, keys] of Object.entries(SHARED_KEYS)) {
-    const part: unknown = (options as Record<string, unknown>)[tool];
-    if (part === undefined || (tool === "bash" && part === false)) continue;
-    if (tool === "applyPatch" && typeof part === "boolean") continue;
-    if (tool === "bash" && part === true) {
-      throw new TypeError(
-        "createAiSdkFsTools bash must be an object with a runner and an env: the portable bundle has no default runner",
-      );
-    }
-    if (part === null || typeof part !== "object" || Array.isArray(part)) {
-      throw new TypeError(`createAiSdkFsTools ${tool} options must be an object`);
-    }
-    for (const key of keys) {
-      if (Object.hasOwn(part, key)) {
-        throw new TypeError(
-          `createAiSdkFsTools ${tool} options cannot set ${key}: set it once at the top level`,
-        );
-      }
-    }
-  }
-}
-
-function isStore(value: unknown): boolean {
-  if (value === null || typeof value !== "object") return false;
-  const store = value as Record<string, unknown>;
-  return ["get", "put", "delete"].every((key) => typeof store[key] === "function");
 }
