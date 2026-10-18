@@ -76,22 +76,27 @@ A hook runs as your own code. If it reads other files, the tool does not check t
 
 ## State
 
-Set `state` to a store, and the tool stores a record of each read: the path, the range, and hashes of the content. `state` needs a `digest` to make the hashes:
+Set `state` to a store, and the tool stores a record of each read: the path, the range, and hashes of the content. `state` needs a `digest` to make the hashes. The default `digest` is `sha256Digest()`, so a store is enough:
+
+```ts
+import { memoryStore } from "@better-fs-tools/read";
+
+const read = createReadTool({ fs, state: memoryStore() });
+```
+
+On Node, `nodeDigest()` from `@better-fs-tools/node` is faster. It gives the same values as `sha256Digest()`, so records made with one are valid for the other:
 
 ```ts
 import { nodeDigest } from "@better-fs-tools/node";
-import { memoryStore } from "@better-fs-tools/read";
 
 const read = createReadTool({ fs, digest: nodeDigest(), state: memoryStore() });
 ```
 
-Without a `digest`, the options do not type-check, and `createReadTool` throws:
+`digest: null` turns the hashes off. Then `state` must be `null` too. The `StateNeedsDigest` type refuses a `state` with `digest: null`, and `createReadTool` throws:
 
 ```text
 TypeError: state needs a digest: records name the digest that made them
 ```
-
-`nodeDigest()` uses `node:crypto`. Where `node:crypto` is not available, use `sha256Digest()` from `@better-fs-tools/read`. `createNodeReadTool()` sets `digest: nodeDigest()` for you.
 
 `memoryStore()` keeps records in memory, up to 1,000 records for 30 minutes. Set `maxEntries` and `ttlMs` to change this. To keep records somewhere else, write a store with `get`, `put`, and `delete`. See the [read reference](/reference/read#readstatestore).
 

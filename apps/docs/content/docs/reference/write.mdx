@@ -5,11 +5,11 @@ description: Every field of the edit, write, and apply_patch result, every error
 
 This page lists the types and helpers of `@better-fs-tools/write`. For a walkthrough, see the [write guide](/write).
 
-| Entry                              | Contents                                                                                                                                                                                                                                                                                               |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@better-fs-tools/write`           | `createEditTool`, `createWriteTool`, `createApplyPatchTool`, `createFsTools`, the matchers, guards, authorizers, hooks, `defaultWriteFormatter`, `utf8Codec`, `memoryLocks`, `createInvalidator`, the helpers on this page, and the types. `textOf` is the same function as in `@better-fs-tools/read` |
-| `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, `CODEX_PATCH_GRAMMAR`, and the [patch types](#patchparser)                                                                                                                                                                                                           |
-| `@better-fs-tools/write/signature` | The edit, write, and patch signatures, and `writeSignatureMessages`. See [tool definition](/integrations/tool-definition)                                                                                                                                                                              |
+| Entry                              | Contents                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@better-fs-tools/write`           | `createEditTool`, `createWriteTool`, `createApplyPatchTool`, `createFsTools`, the matchers, guards, authorizers, hooks, `defaultWriteFormatter`, `utf8Codec`, `memoryLocks`, `createInvalidator`, the helpers on this page, and the types. `EditToolOptions`, `WriteToolOptions`, `ApplyPatchToolOptions`, and `FsToolsOptions` are the types of the factory options. `textOf` is the same function as in `@better-fs-tools/read` |
+| `@better-fs-tools/write/patch`     | `parsePatch`, `codexPatchParser`, `CODEX_PATCH_GRAMMAR`, and the [patch types](#patchparser)                                                                                                                                                                                                                                                                                                                                      |
+| `@better-fs-tools/write/signature` | `editToolDefinition`, `writeToolDefinition`, `applyPatchToolDefinition`, `fsToolDefinitions`, the signatures (`defaultEditSignature`, `multiEditSignature`, `defaultWriteSignature`, `defaultPatchSignature`, `freeformPatchSignature`), `writeSignatureMessages`, and the signature types. See [Tool definitions](/integrations/tool-definition)                                                                                 |
 
 ## MutationResult
 
@@ -106,7 +106,7 @@ interface FileChange {
 }
 
 interface FileVersion {
-  contentId: string | null; // null with no digest
+  contentId: string | null; // null with digest: null
   version: string | null; // the backend version. null when the backend gave none
   bytes: number;
 }

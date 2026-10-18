@@ -55,7 +55,7 @@ Use the format of another harness when your model was tuned on that harness. Thi
 | `notes`       | show all                        | A filter for notes. Return `null` to hide a note                   |
 | `noteLine`    | `[read:code] message`           | How each note is printed                                           |
 
-The package has helpers for `gutter`, `header`, and `footer`. `hashlineGutter()` adds the start of a hash of each line, and `fileHashHeader()` adds a hash of the file. Both need a `digest`. With no digest, the gutter shows only the line number, and the header does not show:
+The package has helpers for `gutter`, `header`, and `footer`. `hashlineGutter()` adds the start of a hash of each line, and `fileHashHeader()` adds a hash of the file. Both use the tool's `digest`, by default `sha256Digest()`. With `digest: null`, the gutter shows only the line number, and the header does not show. This example sets `nodeDigest()`, which is faster on Node:
 
 ```ts
 import { nodeDigest } from "@better-fs-tools/node";

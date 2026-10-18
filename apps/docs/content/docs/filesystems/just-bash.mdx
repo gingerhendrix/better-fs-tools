@@ -35,12 +35,11 @@ console.log(textOf(await read({ path: "src/index.ts" })));
 // 1|const a = 1;
 ```
 
-The same filesystem with a write tool and a read store, so `edit` needs a read first:
+The same filesystem with a write tool and a read store, so `edit` needs a read first. Both tools use the default digest, `sha256Digest()`:
 
 ```ts
 import { InMemoryFs } from "just-bash";
 import { justBashFileSystem } from "@better-fs-tools/just-bash";
-import { nodeDigest } from "@better-fs-tools/node";
 import { createReadTool, memoryStore, textOf } from "@better-fs-tools/read";
 import { createEditTool, memoryLocks } from "@better-fs-tools/write";
 
@@ -51,7 +50,7 @@ const fs = justBashFileSystem(bash, {
   allowedRoots: ["/workspace"],
   maxBufferedBytes: 4 * 1024 * 1024,
 });
-const shared = { fs, state: memoryStore(), digest: nodeDigest() };
+const shared = { fs, state: memoryStore() };
 const read = createReadTool(shared);
 const edit = createEditTool({ ...shared, locks: memoryLocks() });
 

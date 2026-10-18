@@ -5,11 +5,11 @@ description: Every field of the read result, every error and note code, every me
 
 This page lists the types and helpers of `@better-fs-tools/read`. For a walkthrough, see the [read guide](/read).
 
-| Entry                             | Contents                                                                                                                                             |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@better-fs-tools/read`           | `createReadTool`, `textOf`, the helpers on this page, the classifiers, resolvers, authorizers, converters, hooks, formatters, and the types          |
-| `@better-fs-tools/read/signature` | `defaultReadSignature`, `lineRangeSignature`, `readSignatureMessages`, and the signature types. See [tool definition](/integrations/tool-definition) |
-| `@better-fs-tools/read/formats`   | `opencodeFormat`, `deepAgentsFormat`, `hashlineFormat`, `hermesFormat`                                                                               |
+| Entry                             | Contents                                                                                                                                                                                                                                  |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@better-fs-tools/read`           | `createReadTool`, `textOf`, `sha256Digest`, `memoryStore`, the helpers on this page, the classifiers, resolvers, authorizers, converters, hooks, formatters, and the types. `ReadToolOptions` is the type of the `createReadTool` options |
+| `@better-fs-tools/read/signature` | `readToolDefinition`, `defaultReadSignature`, `lineRangeSignature`, `readSignatureMessages`, and the signature types. See [Tool definitions](/integrations/tool-definition)                                                               |
+| `@better-fs-tools/read/formats`   | `opencodeFormat`, `deepAgentsFormat`, `hashlineFormat`, `hermesFormat`                                                                                                                                                                    |
 
 The package does not export the filesystem types. Import `FileSystem` and the other filesystem types from `@better-fs-tools/fs`.
 
@@ -135,7 +135,7 @@ As a `ReadResult`, the variant also has `content`, for example `[{ type: "text",
 | `truncation`     | `reasons` can hold `lines`, `bytes`, `budget`, `scan-limit`, and `line-length`. `primary` is the first reason, or `null`                                                                                                                                                                                                                                                 |
 | `continuation`   | `next` is a complete canonical input, `{ path, offset, limit }`. It uses the canonical names, also when the tool has a [signature](/integrations/tool-definition) with other names                                                                                                                                                                                       |
 | `totals`         | `lines` is `null` and `exact` is `false` when the scan limit stopped the count. `bytes` is the scanned byte count when the scan reached the end, and the file size otherwise                                                                                                                                                                                             |
-| `observation`    | `null` with no `digest`, and for folders. `contentId` is `null` when the scan stopped before the end. `wholeFileVisible` is `true` only when `offset` is 1, nothing was cut, and no hook changed the view                                                                                                                                                                |
+| `observation`    | `null` with `digest: null`, and for folders. `contentId` is `null` when the scan stopped before the end. `wholeFileVisible` is `true` only when `offset` is 1, nothing was cut, and no hook changed the view                                                                                                                                                             |
 
 ### media
 
@@ -398,7 +398,7 @@ const record = records.get("/a.txt");
 console.log(record?.origin, record?.wholeFileVisible); // read true
 ```
 
-`state` needs a `digest`. `createReadTool` throws `TypeError` for a `state` with no `digest`, and the `StateNeedsDigest` type refuses it at compile time.
+`state` needs a `digest`. The default `digest` is `sha256Digest()`. `digest: null` turns it off, and then `state` must be `null`. `createReadTool` throws `TypeError` for a `state` with `digest: null`, and the `StateNeedsDigest` type refuses it at compile time. The example sets `digest: sha256Digest()` only to show the option.
 
 ## Converter
 
@@ -479,7 +479,7 @@ console.log(result.status); // "ok"
 console.log(textOf(result)); // "1|PDF with 9 bytes"
 ```
 
-The built-in converters are `imageConverter()`, `notebookConverter()`, `textConverter()`, and `directoryListing()`. See [File types](/read/file-types).
+The built-in converters are `imageConverter()`, `notebookConverter()`, `textConverter()`, and `directoryListing()`. The default `converters` is `[imageConverter()]`. See [File types](/read/file-types).
 
 ## Classifier
 

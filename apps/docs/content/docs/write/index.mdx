@@ -33,10 +33,10 @@ const applyPatch = createApplyPatchTool({ fs });
 
 <Callout type="warn">
   With only `fs`, the tools change files that the model has not read. To make them check, give them
-  the `state` and `digest` of the read tool. See [Read before write](#read-before-write).
+  the `state` of the read tool. See [Read before write](#read-before-write).
 </Callout>
 
-On Node or Bun, `createNodeEditTool()`, `createNodeWriteTool()`, and `createNodeApplyPatchTool()` from `@better-fs-tools/node` do the same with a filesystem rooted at `process.cwd()`, and set `digest: nodeDigest()`. They take the same options.
+On Node or Bun, pass `nodeFileSystem()` from `@better-fs-tools/node`, as above. In a Worker or a sandbox, pass another writable [filesystem](/filesystems).
 
 `createFsTools({ fs })` creates `read`, `edit`, and `write` together. Set `applyPatch: true` to also create `apply_patch`. The default `state` of the bundle is `null`, so read before write is off. Set `state: memoryStore()` to turn it on. See [Choose an integration](/integrations).
 
@@ -46,7 +46,7 @@ On Node or Bun, `createNodeEditTool()`, `createNodeWriteTool()`, and `createNode
 | `formatter`     | `defaultWriteFormatter()`                                          | Change the text the tool returns                                |
 | `messages`      | `defaultWriteMessages`                                             | Change the wording of notes                                     |
 | `state`         | `null`                                                             | Refuse changes to files the model has not read                  |
-| `digest`        | `null`                                                             | Hash file content. `state` needs it                             |
+| `digest`        | `sha256Digest()`                                                   | Hash file content. `state` needs it. `null` turns it off        |
 | `preconditions` | see [Read before write](/write/read-before-write#change-the-rules) | Change the read-before-write rules                              |
 | `locks`         | `memoryLocks()`                                                    | Stop two calls from changing one file at the same time          |
 | `resolve`       | `null`                                                             | Rewrite paths before the tool opens them                        |
@@ -133,7 +133,7 @@ Edited src/greet.ts: 1 replacement at line 2.
 
 ## Read before write
 
-Give the write tools the same `state` and `digest` as the read tool. They then refuse to change a file that the model has not read, or that changed after the read. Give them one `locks` too:
+Give the write tools the same `state` and `digest` as the read tool. They then refuse to change a file that the model has not read, or that changed after the read. Give them one `locks` too. This example sets `nodeDigest()`, which is faster on Node than the default `sha256Digest()`:
 
 ```ts
 import { nodeDigest } from "@better-fs-tools/node";

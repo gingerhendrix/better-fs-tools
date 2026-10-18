@@ -24,7 +24,9 @@ const bash = createBashTool({
 });
 ```
 
-On Node or Bun, `createNodeBashTool()` from `@better-fs-tools/node` does the same. It runs `bash -c` in `process.cwd()` with `process.env`, and takes the same options. To get the bash tool with the file tools, set `bash` on a bundle: `createFsTools({ fs, bash: { runner, env } })`. On Node or Bun, `runner` is `nodeCommandRunner()` and `fs` is `nodeFileSystem()`.
+`nodeCommandRunner()` from `@better-fs-tools/node` runs `bash -c` on the local machine, in `process.cwd()` by default. `shellEnv(() => process.env)` gives the command the host environment. Each host has a runner that suits it, for example `piCwdCommandRunner()` for [Pi](/integrations/pi) and `durableEnvRunner()` for [pi-durable](/integrations/pi-durable).
+
+To get the bash tool with the file tools, set `bash` on a bundle: `createFsTools({ fs, bash: { runner, env } })`. The bash tool then gets the bundle's `digest` and `clock`. See [Choose an integration](/integrations).
 
 | Option      | Default                   | Use it to                                                                        |
 | ----------- | ------------------------- | -------------------------------------------------------------------------------- |
@@ -39,7 +41,7 @@ On Node or Bun, `createNodeBashTool()` from `@better-fs-tools/node` does the sam
 | `beforeRun` | `[]`                      | Refuse or rewrite a command                                                      |
 | `authorize` | `null` (allow all)        | Refuse a command, or ask the user                                                |
 | `afterRun`  | `[]`                      | Change the output or the notes after the run                                     |
-| `digest`    | `null`                    | Give a digest to your hooks. The tool hashes nothing                             |
+| `digest`    | `sha256Digest()`          | Give a digest to your hooks. The tool hashes nothing                             |
 | `clock`     | `() => new Date()`        | Give a clock to your hooks                                                       |
 
 `limits` and `messages` merge with their defaults key by key. Every other option replaces its default. `createBashTool` throws `TypeError` for an unknown option, a missing `runner` or `env`, or an option with the wrong shape.

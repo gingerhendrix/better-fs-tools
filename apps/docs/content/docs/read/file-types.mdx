@@ -9,7 +9,7 @@ The tool reads the first bytes of a file, and the `classifiers` decide its type 
 - With no converter, the tool reads a text file as lines.
 - With no converter, any other type returns status `unsupported`, with a note that names the type.
 
-The default `converters` is `[]`, so by default the tool reads only UTF-8 text. A Jupyter notebook is JSON text, so the tool reads it as lines. Other types return `unsupported`:
+The default `converters` is `[imageConverter()]`, so by default the tool reads UTF-8 text and images. A Jupyter notebook is JSON text, so the tool reads it as lines. Other types return `unsupported`:
 
 ```text
 [read:unsupported-pdf] This content is not supported as UTF-8 text. Use a PDF extraction tool.
@@ -17,7 +17,7 @@ The default `converters` is `[]`, so by default the tool reads only UTF-8 text. 
 
 A folder is refused with status `error` and code `NOT_A_FILE`, unless a converter lists it.
 
-The AI SDK and Pi integrations set `converters` to `[imageConverter()]` when you set no `converters`, so they read images. A list you set replaces it. Set `converters: []` to turn images off.
+Every integration has the same default. A list you set replaces it, so keep `imageConverter()` in the list to read images. Set `converters: []` to turn images off.
 
 ## Add converters
 
@@ -54,7 +54,7 @@ Converted text works like a text file. `offset`, `limit`, the [limits](/read/lim
 
 ## Read images
 
-With `imageConverter()`, an image returns status `media`. `result.content` holds the image:
+With `imageConverter()`, the default, an image returns status `media`. `result.content` holds the image:
 
 ```ts
 const result = await read({ path: "docs/diagram.png" });

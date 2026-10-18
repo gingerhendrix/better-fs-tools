@@ -7,7 +7,7 @@ The read tool stores a record of each read in its `state`. The write tools look 
 
 ## Share the store with the read tool
 
-Give the read tool and the write tools the same `state` and the same `digest`. A record that another digest made does not count:
+Give the read tool and the write tools the same `state` and the same `digest`. A record that another digest made does not count. `nodeDigest()` and the default `sha256Digest()` have the same id, so their records count for each other:
 
 ```ts
 import { nodeDigest, nodeFileSystem } from "@better-fs-tools/node";
@@ -29,7 +29,7 @@ A change to a file with no record returns status `error` with code `NOT_READ`:
 [edit:not-read] Read src/greet.ts with the read tool before changing it.
 ```
 
-`state` needs a `digest`, as on the read tool. Without one, the options do not type-check, and the factory throws `TypeError`. `createNodeEditTool()` and the other Node factories set `digest: nodeDigest()` for you, but not `state`.
+`state` needs a `digest`, as on the read tool. The default `digest` is `sha256Digest()`. With `digest: null` and a `state`, the options do not type-check, and the factory throws `TypeError`.
 
 Give the write tools one `locks` too. The lock stops two calls from changing one file at the same time. Each factory makes its own lock manager by default, so `edit` and `write` would not wait for each other. A lock works in one process only.
 
@@ -107,4 +107,4 @@ const { read, edit, write, applyPatch, invalidate } = createFsTools({
 });
 ```
 
-A bundle takes one store, not a function of the call. To use one store for each session, use the single factories with `state` set to a function, as on the [read tool](/read/hooks-and-state#use-one-store-for-each-session). See [Choose an integration](/integrations).
+To use one store for each session, set `state` to a function of the call, as on the [read tool](/read/hooks-and-state#use-one-store-for-each-session). Each tool of the bundle calls it at most once for each call. Then pass the call context to `invalidate(path, call)`. See [Choose an integration](/integrations).

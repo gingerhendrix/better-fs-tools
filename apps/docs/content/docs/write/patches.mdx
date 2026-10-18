@@ -107,6 +107,10 @@ When an undo also fails, the code is `PARTIAL_COMMIT`. The note and `result.comm
 
 The tool keeps the list of steps in memory. If the process stops during the writes, some files stay changed. Undoing a new file deletes it, but not the folders that the tool made for it.
 
+## The tool signature
+
+Every integration declares `apply_patch` with `defaultPatchSignature()` by default. It gives `apply_patch({ patch })` as JSON, with a short example of the patch format in the description. `freeformPatchSignature()` from `@better-fs-tools/write/signature` is the same, and adds the Lark grammar of the Codex format. The Pi, pi-agent-core, and pi-durable integrations send that grammar as `constrainedSampling`. The AI SDK sends only the JSON schema. Pass the signature as the `signature` option of the tool. See [Tool definitions](/integrations/tool-definition).
+
 ## Use another patch format
 
 Set `patchParser` to read another format. A parser is an object with an `id` and a synchronous `parse(text)` function. It returns `{ ok: true, plan }` with the operations, or `{ ok: false, error: { line, detail } }`. It must not throw. `parsePatch` and `codexPatchParser` from `@better-fs-tools/write/patch` read the Codex format. The [write reference](/reference/write#patchparser) lists the operation types.

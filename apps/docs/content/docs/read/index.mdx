@@ -7,8 +7,8 @@ description: Create the read function with createReadTool, and configure it with
   To give a read tool to an agent, use a provider integration such as [AI SDK](/integrations/ai-sdk)
   or [Pi](/integrations/pi). The integration gives you the tool definition: the name, the
   description, and the parameter schema. It takes the options on this page, plus a
-  [`signature`](/integrations/tool-definition) for the tool definition. The AI SDK and Pi
-  integrations add `imageConverter()` when you set no `converters`.
+  [`signature`](/integrations/tool-definition) for the tool definition. The defaults are the same in
+  every integration.
 </Callout>
 
 `createReadTool` is the lower-level API. It creates the function that implements the tool. Use it when you write your own integration, or when your code reads files for the agent.
@@ -24,7 +24,7 @@ const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
 const read = createReadTool({ fs });
 ```
 
-On Node or Bun, `createNodeReadTool()` from `@better-fs-tools/node` does the same with a filesystem rooted at `process.cwd()`, and sets `digest: nodeDigest()`. It takes the same options.
+On Node or Bun, pass `nodeFileSystem()` from `@better-fs-tools/node`, as above. In a Worker or a sandbox, pass another [filesystem](/filesystems). `fs` can also be a function that returns a filesystem for each call.
 
 | Option        | Default                 | Use it to                                                       |
 | ------------- | ----------------------- | --------------------------------------------------------------- |
@@ -35,12 +35,12 @@ On Node or Bun, `createNodeReadTool()` from `@better-fs-tools/node` does the sam
 | `suggest`     | `defaultSuggest()`      | Suggest names when a file is missing                            |
 | `authorize`   | `null` (allow all)      | Refuse paths, large files, or ask the user                      |
 | `classifiers` | `defaultClassifiers()`  | Decide which files are text, images, PDFs, or binary            |
-| `converters`  | `[]`                    | Read images, notebooks, PDFs, and folders                       |
+| `converters`  | `[imageConverter()]`    | Read images, notebooks, PDFs, and folders                       |
 | `limits`      | `defaultReadLimits`     | Change the line, byte, and size limits                          |
 | `budget`      | `null`                  | Stop a read at a token budget                                   |
 | `hooks`       | `[]`                    | Change a result after the read, for example to redact secrets   |
 | `state`       | `null`                  | Store each read, so later calls and tools know what was read    |
-| `digest`      | `null`                  | Hash file content. `state` needs it                             |
+| `digest`      | `sha256Digest()`        | Hash file content. `state` needs it. `null` turns it off        |
 | `clock`       | `() => new Date()`      | Set the time used in stored reads                               |
 
 `limits` and `messages` merge with their defaults key by key. Every other option replaces its default. `createReadTool` throws `TypeError` for an unknown option or an option with the wrong shape.
@@ -154,7 +154,7 @@ A refused read returns status `error` with code `DENIED`:
 
 ## File types
 
-By default the tool reads text. It returns `unsupported` for images, PDFs, Office documents, and binary files, and `error` for a folder. A Jupyter notebook is JSON text, so the tool reads it as lines. Set `converters` to read the other types:
+By default the tool reads text and images. It returns `unsupported` for PDFs, Office documents, and binary files, and `error` for a folder. A Jupyter notebook is JSON text, so the tool reads it as lines. Set `converters` to read the other types:
 
 ```ts
 import { directoryListing, imageConverter } from "@better-fs-tools/read";
@@ -162,7 +162,7 @@ import { directoryListing, imageConverter } from "@better-fs-tools/read";
 const read = createReadTool({ fs, converters: [imageConverter(), directoryListing()] });
 ```
 
-An image then returns status `media`, with the image in `result.content`. A folder returns one entry for each line. The AI SDK and Pi integrations read images by default. Set `converters: []` to turn this off. Set `classifiers` to change how the tool decides the file type. See [File types](/read/file-types).
+An image returns status `media`, with the image in `result.content`. A folder returns one entry for each line. A list that you set replaces the default, so keep `imageConverter()` in it to read images. Set `converters: []` to turn images off. Set `classifiers` to change how the tool decides the file type. See [File types](/read/file-types).
 
 ## Limits
 
@@ -204,7 +204,7 @@ A hook cannot turn a failed read into a successful one. If a hook throws, the re
 
 ## State
 
-Set `state` to store a record of each read. When the edit and write tools share the store, they use the records to check that the model read a file before it changes it. `state` needs a `digest`:
+Set `state` to store a record of each read. When the edit and write tools share the store, they use the records to check that the model read a file before it changes it. `state` needs a `digest`. The default `digest` is `sha256Digest()`, and on Node `nodeDigest()` is faster:
 
 ```ts
 import { nodeDigest } from "@better-fs-tools/node";
@@ -218,4 +218,4 @@ const read = createReadTool({
 });
 ```
 
-`repeatReadGuard` uses the records. When the model reads the same unchanged lines again, it returns a note in place of the lines. `sha256Digest()` from `@better-fs-tools/read` works where `node:crypto` is not available. To use one store for each session, pass a function as `state`. See [Hooks and state](/read/hooks-and-state#state).
+`repeatReadGuard` uses the records. When the model reads the same unchanged lines again, it returns a note in place of the lines. `nodeDigest()` and `sha256Digest()` give the same values, so records made with one are valid for the other. To use one store for each session, pass a function as `state`. See [Hooks and state](/read/hooks-and-state#state).

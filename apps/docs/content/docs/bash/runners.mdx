@@ -5,10 +5,12 @@ description: Choose where commands run, set the working directory, and set the e
 
 A runner starts one command. The tool handles the timeout, the stop, and the output. Set `runner` to one of the runners below, or to your own.
 
-| Runner                         | Import from                  | Runs commands                                                            |
-| ------------------------------ | ---------------------------- | ------------------------------------------------------------------------ |
-| `nodeCommandRunner()`          | `@better-fs-tools/node`      | With `bash -c` on the local machine. POSIX only                          |
-| `justBashCommandRunner(shell)` | `@better-fs-tools/just-bash` | In a [just-bash](/filesystems/just-bash) emulated shell, with no process |
+| Runner                         | Import from                   | Runs commands                                                                         |
+| ------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------- |
+| `nodeCommandRunner()`          | `@better-fs-tools/node`       | With `bash -c` on the local machine. POSIX only                                       |
+| `justBashCommandRunner(shell)` | `@better-fs-tools/just-bash`  | In a [just-bash](/filesystems/just-bash) emulated shell, with no process              |
+| `piCwdCommandRunner()`         | `@better-fs-tools/pi/node`    | With `nodeCommandRunner()` in the `ctx.cwd` of each [Pi](/integrations/pi) call       |
+| `durableEnvRunner()`           | `@better-fs-tools/pi-durable` | Through the execution environment of each [pi-durable](/integrations/pi-durable) call |
 
 The runner's `id` goes into the tool description, so the model knows where its commands run.
 
@@ -85,7 +87,7 @@ Exit code 0 · 0 s
 HOME= PAGER=cat
 ```
 
-`process.env` often holds API keys and tokens. Use an allow list when the model must not see them. `createNodeBashTool()` uses `shellEnv(() => process.env)` when you do not set `env`.
+`process.env` often holds API keys and tokens. Use an allow list when the model must not see them. `env` has no default, so you always choose what the command gets.
 
 To make the environment your own way, set `env` to a function. It gets the command and the call context, and can be async:
 
