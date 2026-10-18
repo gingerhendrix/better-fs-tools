@@ -2,6 +2,7 @@ import type { ChangeFragment } from "../contract/extensions.ts";
 import type { Matcher, MatchRange } from "../contract/matcher.ts";
 import type { PatchHunk, PatchLine } from "../contract/patch.ts";
 import type { MatchInfo } from "../contract/result.ts";
+import { keepFileLines } from "../matchers/keep-bytes.ts";
 import { findWith } from "./match.ts";
 import type { MutationScope } from "./scope.ts";
 
@@ -139,18 +140,50 @@ function withoutLastOldLine(body: readonly PatchLine[]): PatchLine[] {
   return copy;
 }
 
+/**
+ * Context lines keep the file's bytes. In each run of `-` and `+` lines, a
+ * `-` line that comes back unchanged as a `+` line keeps them too, and each
+ * other `+` line takes the CR of the file line it replaces. A hunk whose
+ * old and new lines are the same exists only to change the characters the
+ * matcher folded, so its `+` lines are written as given, with the file's CRs.
+ */
 function newLines(body: readonly PatchLine[], file: LineFile, hit: Hit): string[] {
+  const keepUnchanged = !sameTexts(
+    body.filter((line) => line.kind !== "+"),
+    body.filter((line) => line.kind !== "-"),
+  );
   const lines: string[] = [];
+  let removedFile: string[] = [];
+  let removed: string[] = [];
+  let added: string[] = [];
+  const flush = () => {
+    lines.push(...keepFileLines(removedFile, removed, added, keepUnchanged));
+    removedFile = [];
+    removed = [];
+    added = [];
+  };
   let offset = 0;
   for (const line of body) {
     if (line.kind === "+") {
-      lines.push(line.text);
+      added.push(line.text);
       continue;
     }
-    if (line.kind === " ") lines.push(file.lines[hit.line + offset] as string);
+    const own = file.lines[hit.line + offset] as string;
     offset += 1;
+    if (line.kind === "-") {
+      removedFile.push(own);
+      removed.push(line.text);
+      continue;
+    }
+    flush();
+    lines.push(own);
   }
+  flush();
   return lines;
+}
+
+function sameTexts(old: readonly PatchLine[], next: readonly PatchLine[]): boolean {
+  return old.length === next.length && old.every((line, at) => line.text === next[at]?.text);
 }
 
 class LineFile {

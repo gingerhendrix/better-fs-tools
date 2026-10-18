@@ -80,7 +80,7 @@ Every integration takes the options of the core factories, with the same default
 
 `createEditTool({ fs })`. The input is a path and one or more `{ oldText, newText, replaceAll? }` pairs, all matched against one snapshot of the file. Each old text must match once, unless `replaceAll` is set. Pairs must not overlap. The replacement is a literal splice: `$&` and `$1` in the new text stay as written.
 
-Matching tries `exactMatcher()` first, then `normalizedMatcher()` (trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces). A loose match gives a `fuzzy-match` note that names the lines. `escapeMatcher()` (escape sequences written out), `lineTrimmedMatcher()`, `indentationMatcher()`, and `blockAnchorMatcher()` are opt-in through the `matchers` option, for example `matchers: [...defaultEditMatchers(), escapeMatcher()]`.
+Matching tries `exactMatcher()` first, then `normalizedMatcher()` (trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces). A loose match gives a `fuzzy-match` note that names the lines. After a loose match with `normalizedMatcher()` or `lineTrimmedMatcher()`, the leading and trailing lines that the new text leaves as they were keep the file's bytes, and each replaced line keeps the CR of the file line it replaces. When the old text and the new text are the same, the edit can only change the characters that the matcher folded, so the new text is written as given. `escapeMatcher()` (escape sequences written out), `lineTrimmedMatcher()`, `indentationMatcher()`, and `blockAnchorMatcher()` are opt-in through the `matchers` option, for example `matchers: [...defaultEditMatchers(), escapeMatcher()]`.
 
 When a pair does not match, the error is `NO_MATCH`, even when the new text is already in the file. `recovery: true` turns on three extras. The error shows the closest region of the file with line numbers. When the new text is already in the file and the old text is not, the pair is `already-applied` and the status is `no-change`. After three misses in a row on one file, the tool adds a `repeated-miss` note that asks the model to read the file again.
 
@@ -130,7 +130,7 @@ console.log(textOf(result));
 // D /src/old.ts
 ```
 
-Every operation is checked before any file changes. An Add on an existing file, an Update or Delete on a missing file, a move onto an existing file, two operations on one file, and a hunk that does not match all give `PATCH_VERIFY`, with every problem listed. Each hunk matches at the first place after the previous hunk, as Codex does. The chain is `exactMatcher()`, `normalizedMatcher()`, and `lineTrimmedMatcher()` on whole lines. Context lines keep the file's own bytes.
+Every operation is checked before any file changes. An Add on an existing file, an Update or Delete on a missing file, a move onto an existing file, two operations on one file, and a hunk that does not match all give `PATCH_VERIFY`, with every problem listed. Each hunk matches at the first place after the previous hunk, as Codex does. The chain is `exactMatcher()`, `normalizedMatcher()`, and `lineTrimmedMatcher()` on whole lines. Context lines keep the file's own bytes. So does a `-` line that comes back unchanged as a `+` line. Each other `+` line keeps the CR of the file line it replaces, so a CRLF line in a mixed-EOL file stays CRLF. When the old and new lines of a hunk are the same, the hunk can only change the characters that the matcher folded, so its `+` lines are written as given.
 
 The commit stages every new file when the backend has `stage()`, then publishes in patch order. Without `stage()` it writes each file in turn. When a step fails, the steps already done are undone from the end, and `result.commit` says so. When an undo step also fails, the code is `PARTIAL_COMMIT` and `result.commit.files` lists the state of every file. A host can pass its own `patchParser` for another patch format.
 
@@ -412,7 +412,7 @@ Without compare-and-swap, the core checks the version with a fresh `stat` just b
 - With `recovery: true`, the repeated-miss count lives in each tool instance. A host that builds a new tool for each call never sees the `repeated-miss` note.
 - After-commit hooks are not raced against the abort signal. A hook that never settles holds the call open. From the first commit step on, the signal is ignored, so a started commit finishes.
 - `memoryStore()` forgets a read after 30 minutes, and keeps at most 1 000 records. A file read longer ago needs a new read before `edit`, and the result says so (`NOT_READ`).
-- A match with a loose matcher writes the model's new text as given. When the normalized matcher matched ASCII quotes against curly quotes, the model's ASCII quotes are written.
+- After a loose match, a line that the model changed is written with the model's characters. When the normalized matcher matched ASCII quotes against curly quotes on that line, the model's ASCII quotes are written. Only whole unchanged lines keep the file's bytes. When a hit changes one line and retypes another line only to fix its lookalike characters, the retyped line keeps the file's bytes. In a mixed-EOL file, a line inserted where no line is replaced gets no CR.
 
 ## Entries
 

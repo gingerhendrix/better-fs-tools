@@ -1,6 +1,7 @@
 import type { Matcher, MatchContext, MatchRange } from "../contract/matcher.ts";
 import { FIRST, LAST, fold } from "./fold.ts";
 import type { Folded } from "./fold.ts";
+import { adaptKeepingBytes } from "./keep-bytes.ts";
 import { memoizeLast } from "./lines.ts";
 
 const LF = 10;
@@ -8,7 +9,8 @@ const LF = 10;
 /**
  * Matches while ignoring trailing whitespace, Unicode normalization, curly
  * quotes, dashes, and special spaces. A match that starts or ends inside one
- * folded character is refused.
+ * folded character is refused. Lines of the hit that the new text leaves as
+ * they were keep the file's bytes, and replaced lines keep the file's CRs.
  */
 export function normalizedMatcher(): Matcher {
   const folded = memoizeLast(fold);
@@ -18,7 +20,13 @@ export function normalizedMatcher(): Matcher {
     describe:
       "trailing whitespace, Unicode normalization, curly quotes, dashes, and special spaces",
     find: (haystack, needle, ctx) => findFolded(haystack, folded(haystack), fold(needle), ctx),
+    adapt: (newText, { haystack, needle, range }) =>
+      adaptKeepingBytes(newText, haystack.slice(range.start, range.end), needle, sameFolded),
   });
+}
+
+function sameFolded(file: readonly string[], old: readonly string[]): boolean {
+  return file.every((line, at) => fold(line).text === fold(old[at] ?? "").text);
 }
 
 function findFolded(

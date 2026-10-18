@@ -627,3 +627,66 @@ describe("edit on a stale record", () => {
     expect(text(fs, "/f.ts")).toBe("one\nsomeone else's line\n");
   });
 });
+
+describe("a loose hit keeps the file's bytes for text the model did not change", () => {
+  // Fixture literal-1-crlf-plain: one CRLF line in an LF file (eol "keep").
+  const MIXED = "// Keep this comment unchanged.\nold\r\nline\n";
+  // Fixture unicode-fix-1-minus-unicode, and the line text GLM sent for it.
+  const LOOKALIKES =
+    "lookalikes: A B | A B | A B | A​B | A⁠B | A-B | A‑B | A−B | café | café | payload | pаyload";
+  const TYPED =
+    "lookalikes: A B | A B | A B | A​B | A⁠B | A-B | A‑B | A−B | café | café | payload | pаyload";
+
+  test("a replaced line keeps the CR of a mixed-EOL file (GLM, literal-1-crlf-plain)", async () => {
+    const { edit, fs } = await readFile(MIXED);
+    const result = await edit({
+      path: "/f.ts",
+      edits: [{ oldText: "old\nline", newText: "new\nline" }],
+    });
+    expect(result.changes[0]?.matches[0]).toMatchObject({ matcher: "normalized", fuzzy: true });
+    expect(text(fs, "/f.ts")).toBe("// Keep this comment unchanged.\nnew\r\nline\n");
+  });
+
+  test("an unchanged line keeps its code points while the next line changes", async () => {
+    const { edit, fs } = await readFile(`${LOOKALIKES}\ntarget: A−B\n`);
+    await edit({
+      path: "/f.ts",
+      edits: [{ oldText: `${TYPED}\ntarget: A−B`, newText: `${TYPED}\ntarget: A-B` }],
+    });
+    expect(text(fs, "/f.ts")).toBe(`${LOOKALIKES}\ntarget: A-B\n`);
+  });
+
+  test("equal old and new text is written as given: the edit changes only folded characters", async () => {
+    const { edit, fs } = await readFile("guard: A B\ntarget: A B\n");
+    const result = await edit({
+      path: "/f.ts",
+      edits: [{ oldText: "target: A B", newText: "target: A B" }],
+    });
+    expect(result.status).toBe("ok");
+    expect(text(fs, "/f.ts")).toBe("guard: A B\ntarget: A B\n");
+    const mixed = await readFile("x y\r\nz\n");
+    await mixed.edit({ path: "/f.ts", edits: [{ oldText: "x y\nz", newText: "x y\nz" }] });
+    expect(text(mixed.fs, "/f.ts")).toBe("x y\r\nz\n");
+  });
+
+  test("pure LF and pure CRLF files: kept lines keep their bytes and the line endings do not change", async () => {
+    const edits = [{ oldText: '// "c"\nold', newText: '// "c"\nnew' }];
+    const lf = await readFile("// “c”\nold\nline\n");
+    await lf.edit({ path: "/f.ts", edits });
+    expect(text(lf.fs, "/f.ts")).toBe("// “c”\nnew\nline\n");
+    const crlf = await readFile("// “c”\r\nold\r\nline\r\n");
+    await crlf.edit({ path: "/f.ts", edits });
+    expect(text(crlf.fs, "/f.ts")).toBe("// “c”\r\nnew\r\nline\r\n");
+  });
+
+  test("the opt-in line-trimmed matcher keeps the indentation of unchanged lines", async () => {
+    const { edit, fs } = await readFile("    keep();\n    old();\n", {
+      editDeps: { matchers: [lineTrimmedMatcher()] },
+    });
+    await edit({
+      path: "/f.ts",
+      edits: [{ oldText: "keep();\nold();", newText: "keep();\nnew();" }],
+    });
+    expect(text(fs, "/f.ts")).toBe("    keep();\nnew();\n");
+  });
+});

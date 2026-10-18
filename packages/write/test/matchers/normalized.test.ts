@@ -7,11 +7,18 @@ describe("normalizedMatcher", () => {
   const normalized = normalizedMatcher();
 
   test("id and fuzzy flag", () => {
-    expect([normalized.id, normalized.fuzzy, normalized.adapt]).toEqual([
-      "normalized",
-      true,
-      undefined,
-    ]);
+    expect([normalized.id, normalized.fuzzy]).toEqual(["normalized", true]);
+  });
+
+  test("adapt keeps the file's unchanged lines and CRs, and falls back when lines do not align", () => {
+    const haystack = "x\n\u201cq\u201d\r\nold\r\ny\n";
+    const needle = '"q"\nold';
+    const [range] = normalized.find(haystack, needle, TEXT);
+    if (range === undefined) throw new Error("no hit");
+    const hit = { haystack, needle, range };
+    expect(normalized.adapt?.('"q"\nnew', hit)).toBe("\u201cq\u201d\r\nnew");
+    expect(normalized.adapt?.('"q"\nold', hit)).toBe('"q"\r\nold');
+    expect(normalized.adapt?.("one line", { ...hit, needle: "other" })).toBe("one line");
   });
 
   test("trailing spaces, tabs, and a CR before LF fold away", () => {

@@ -816,3 +816,79 @@ describe("parse, limits, and the parser extension", () => {
     expect(result.changes[0]?.matches[0]?.matcher).toBe("line-trimmed");
   });
 });
+
+describe("a loose hunk keeps the file's bytes for lines the model did not change", () => {
+  // Fixture literal-1-crlf-plain: one CRLF line in an LF file (eol "keep").
+  const MIXED = "// Keep this comment unchanged.\nold\r\nline\n";
+  const FIXED = "// Keep this comment unchanged.\nnew\r\nline\n";
+  // Fixture unicode-fix-1-minus-unicode, and the line text GLM sent for it.
+  const LOOKALIKES =
+    "lookalikes: A B | A B | A B | A​B | A⁠B | A-B | A‑B | A−B | café | café | payload | pаyload";
+  const TYPED =
+    "lookalikes: A B | A B | A B | A​B | A⁠B | A-B | A‑B | A−B | café | café | payload | pаyload";
+
+  test("a replaced line takes the CR of the line it replaces (GLM and Luna, literal-1-crlf-plain)", async () => {
+    for (const lines of [
+      ["-old", "+new"],
+      ["-old", "+new", " line"],
+      ["-old", "-line", "+new", "+line"],
+    ]) {
+      const { applyPatch, fs } = await readAll({ "/sample.txt": MIXED });
+      const result = await applyPatch({
+        patch: patchText("*** Update File: /sample.txt", "@@", ...lines),
+      });
+      expect(result.changes[0]?.matches[0]).toMatchObject({ matcher: "normalized", fuzzy: true });
+      expect(text(fs, "/sample.txt")).toBe(FIXED);
+    }
+  });
+
+  test("a - line sent back unchanged as a + line keeps its bytes (GLM, unicode-fix-1-minus-unicode)", async () => {
+    const { applyPatch, fs } = await readAll({ "/sample.txt": `${LOOKALIKES}\ntarget: A−B\n` });
+    await applyPatch({
+      patch: patchText(
+        "*** Update File: /sample.txt",
+        "@@",
+        `-${TYPED}`,
+        "-target: A−B",
+        `+${TYPED}`,
+        "+target: A-B",
+      ),
+    });
+    expect(text(fs, "/sample.txt")).toBe(`${LOOKALIKES}\ntarget: A-B\n`);
+  });
+
+  test("a hunk with equal old and new lines is written as given: it changes only folded characters", async () => {
+    const { applyPatch, fs } = await readAll({ "/a.txt": "guard: A B\ntarget: A B\r\nend\n" });
+    const result = await applyPatch({
+      patch: patchText("*** Update File: /a.txt", "@@", "-target: A B", "+target: A B"),
+    });
+    expect(result.status).toBe("ok");
+    expect(text(fs, "/a.txt")).toBe("guard: A B\ntarget: A B\r\nend\n");
+  });
+
+  test("pure LF and pure CRLF files: kept lines keep their bytes and the line endings do not change", async () => {
+    const lines = ['-say("hi");', "-old", '+say("hi");', "+new"];
+    const lf = await readAll({ "/a.ts": "say(“hi”);\nold\n" });
+    await lf.applyPatch({ patch: patchText("*** Update File: /a.ts", "@@", ...lines) });
+    expect(text(lf.fs, "/a.ts")).toBe("say(“hi”);\nnew\n");
+    const crlf = await readAll({ "/a.ts": "say(“hi”);\r\nold\r\n" });
+    await crlf.applyPatch({ patch: patchText("*** Update File: /a.ts", "@@", ...lines) });
+    expect(text(crlf.fs, "/a.ts")).toBe("say(“hi”);\r\nnew\r\n");
+  });
+
+  test("the line-trimmed matcher keeps the indentation of unchanged lines", async () => {
+    const { applyPatch, fs } = await readAll({ "/a.py": "    keep()\n    old()\n" });
+    const result = await applyPatch({
+      patch: patchText(
+        "*** Update File: /a.py",
+        "@@",
+        "-keep()",
+        "-old()",
+        "+keep()",
+        "+    new()",
+      ),
+    });
+    expect(result.changes[0]?.matches[0]?.matcher).toBe("line-trimmed");
+    expect(text(fs, "/a.py")).toBe("    keep()\n    new()\n");
+  });
+});

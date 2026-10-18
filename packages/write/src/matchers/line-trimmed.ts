@@ -1,7 +1,11 @@
 import type { Matcher, MatchRange } from "../contract/matcher.ts";
+import { adaptKeepingBytes } from "./keep-bytes.ts";
 import { LineTable, memoizeLast, needleLines } from "./lines.ts";
 
-/** Matches whole lines, ignoring leading and trailing whitespace on each line. */
+/**
+ * Matches whole lines, ignoring leading and trailing whitespace on each line.
+ * Lines that the new text leaves as they were keep the file's bytes.
+ */
 export function lineTrimmedMatcher(): Matcher {
   const table = memoizeLast((text) => new LineTable(text));
   return Object.freeze<Matcher>({
@@ -26,5 +30,11 @@ export function lineTrimmedMatcher(): Matcher {
       }
       return ranges;
     },
+    adapt: (newText, { haystack, needle, range }) =>
+      adaptKeepingBytes(newText, haystack.slice(range.start, range.end), needle, sameTrimmed),
   });
+}
+
+function sameTrimmed(file: readonly string[], old: readonly string[]): boolean {
+  return file.every((line, at) => line.trim() === (old[at] ?? "").trim());
 }

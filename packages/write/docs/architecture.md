@@ -129,6 +129,7 @@ The commit carries a precondition: `absent` for a create, and the loaded `versio
 The core owns the rules on every hit:
 
 - The splice is literal: `text.slice(0, start) + newText + text.slice(end)`. `String.prototype.replace` is never called, so `$&` and `$1` stay as written.
+- A matcher's `adapt()` can rewrite the new text for its hit before the splice. `normalizedMatcher()` and `lineTrimmedMatcher()` use it so that the leading and trailing lines the new text leaves as they were keep the file's bytes, and each replaced line keeps the CR of the file line it replaces. When the old text and the new text are the same, the new text keeps its characters.
 - A loose hit much longer than the old text (`span`), a hit that starts or ends inside a folded span (`boundary`), and a loose hit whose new text adds escape sequences the matched text does not have (`escape`) give `MATCH_REFUSED`.
 - Ranges of different pairs must not overlap. Splices apply from the end.
 - A result equal to the original gives `NO_CHANGE`, unless every pair is already applied.
@@ -139,7 +140,7 @@ A miss is `NO_MATCH`, with a trailing-newline hint when that is the only differe
 
 The order is parse, resolve, stat, access, lock, stat again, load, preconditions, verify every hunk, plan, guards, change authorize, encode, commit, hooks, record.
 
-Verification collects every problem before anything changes: an Add on an existing file, an Update or Delete on a missing file, a move onto an existing file, two operations on one file, a missing `remove()` for a Delete or Move, and each hunk that does not match. Each hunk matches at the first place after the previous hunk (Codex). The chain runs on whole lines. A ` ` context line takes the file's own line, so its bytes stay the same.
+Verification collects every problem before anything changes: an Add on an existing file, an Update or Delete on a missing file, a move onto an existing file, two operations on one file, a missing `remove()` for a Delete or Move, and each hunk that does not match. Each hunk matches at the first place after the previous hunk (Codex). The chain runs on whole lines. A ` ` context line takes the file's own line, so its bytes stay the same. In each run of `-` and `+` lines, a `-` line that comes back unchanged as a `+` line also takes the file's line, and each other `+` line takes the CR of the file line it replaces. A hunk whose old and new lines are the same writes its `+` lines as given, with those CRs.
 
 The commit keeps a journal:
 
