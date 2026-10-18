@@ -118,6 +118,7 @@ interface ReadObservation {
   viewId: string;
   observedAt: string;
   wholeFileVisible: boolean;
+  visibleLines: { start: number; end: number } | null;
 }
 
 type TruncationReason = "lines" | "bytes" | "budget" | "line-length" | "scan-limit";
@@ -125,17 +126,17 @@ type TruncationReason = "lines" | "bytes" | "budget" | "line-length" | "scan-lim
 
 As a `ReadResult`, the variant also has `content`, for example `[{ type: "text", text: "1|..." }]`.
 
-| Field            | Meaning                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `request`        | The checked canonical input. `offset` defaults to 1. `limit` defaults to `limits.maxLines`, and a larger `limit` is cut to it with a `clamped` note. `ranged` is `true` when the input set `offset` or `limit`                                                                                                                                                           |
-| `file`           | `requestedPath` is the path from the model. `resolvedFrom` is that path when a resolver changed it, else `null`. `backend` is the filesystem `id`. `identity` is `null` unless the filesystem has stable identity. `version` is the change token of the backend, or `null`                                                                                               |
-| `classification` | `kind` is `"text"`, `"unsupported"`, or `"directory"`. `classifier` is the classifier id, or `"fs"` for a folder. `code` is the unsupported code, and `null` for text and folders. A converted file keeps its classification                                                                                                                                             |
-| `conversion`     | The converter that made the text, or `null` for plain text                                                                                                                                                                                                                                                                                                               |
-| `view`           | `lines[].text` is the source text cut at `limits.maxCharsPerLine`, with no gutter. `sourceChars` is the length before the cut, else `null`. `endLine` is `startLine - 1` for an empty view. `bytes` counts UTF-8 source bytes plus one byte for each line break. `partial` is `true` when the view starts after line 1, stops before the end, or has a truncation reason |
-| `truncation`     | `reasons` can hold `lines`, `bytes`, `budget`, `scan-limit`, and `line-length`. `primary` is the first reason, or `null`                                                                                                                                                                                                                                                 |
-| `continuation`   | `next` is a complete canonical input, `{ path, offset, limit }`. It uses the canonical names, also when the tool has a [signature](/integrations/tool-definition) with other names                                                                                                                                                                                       |
-| `totals`         | `lines` is `null` and `exact` is `false` when the scan limit stopped the count. `bytes` is the scanned byte count when the scan reached the end, and the file size otherwise                                                                                                                                                                                             |
-| `observation`    | `null` with `digest: null`, and for folders. `contentId` is `null` when the scan stopped before the end. `wholeFileVisible` is `true` only when `offset` is 1, nothing was cut, and no hook changed the view                                                                                                                                                             |
+| Field            | Meaning                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `request`        | The checked canonical input. `offset` defaults to 1. `limit` defaults to `limits.maxLines`, and a larger `limit` is cut to it with a `clamped` note. `ranged` is `true` when the input set `offset` or `limit`                                                                                                                                                                                     |
+| `file`           | `requestedPath` is the path from the model. `resolvedFrom` is that path when a resolver changed it, else `null`. `backend` is the filesystem `id`. `identity` is `null` unless the filesystem has stable identity. `version` is the change token of the backend, or `null`                                                                                                                         |
+| `classification` | `kind` is `"text"`, `"unsupported"`, or `"directory"`. `classifier` is the classifier id, or `"fs"` for a folder. `code` is the unsupported code, and `null` for text and folders. A converted file keeps its classification                                                                                                                                                                       |
+| `conversion`     | The converter that made the text, or `null` for plain text                                                                                                                                                                                                                                                                                                                                         |
+| `view`           | `lines[].text` is the source text cut at `limits.maxCharsPerLine`, with no gutter. `sourceChars` is the length before the cut, else `null`. `endLine` is `startLine - 1` for an empty view. `bytes` counts UTF-8 source bytes plus one byte for each line break. `partial` is `true` when the view starts after line 1, stops before the end, or has a truncation reason                           |
+| `truncation`     | `reasons` can hold `lines`, `bytes`, `budget`, `scan-limit`, and `line-length`. `primary` is the first reason, or `null`                                                                                                                                                                                                                                                                           |
+| `continuation`   | `next` is a complete canonical input, `{ path, offset, limit }`. It uses the canonical names, also when the tool has a [signature](/integrations/tool-definition) with other names                                                                                                                                                                                                                 |
+| `totals`         | `lines` is `null` and `exact` is `false` when the scan limit stopped the count. `bytes` is the scanned byte count when the scan reached the end, and the file size otherwise                                                                                                                                                                                                                       |
+| `observation`    | `null` with `digest: null`, and for folders. `contentId` is `null` when the scan stopped before the end. `wholeFileVisible` is `true` only when `offset` is 1, nothing was cut, and no hook changed the view. `visibleLines` is the range of source lines that the view showed in full. It is `null` when no line was shown, a line was cut, a converter made the text, or a hook changed the view |
 
 ### media
 
@@ -361,10 +362,13 @@ interface ReadRecord {
   viewId: string;
   observedAt: string;
   wholeFileVisible: boolean;
+  seenLines: { start: number; end: number }[]; // empty for a write record
   totalsExact: boolean;
   request: { offset: number; limit: number } | null; // null for a write record
 }
 ```
+
+`seenLines` joins the `visibleLines` of reads of the same `contentId` and `digest`. A read of other content starts the list again. `wholeFileVisible` is `true` when one read showed the whole file, or when `seenLines` runs from line 1 to the last line and the totals are exact.
 
 A write tool stores a record with `origin: "write"` after a commit. Its `viewId` is the same as its `contentId`, and its `request` is `null`. Hooks see the earlier record as `ctx.previous`. A record of another schema, or from another digest, counts as absent. `repeatReadGuard` fires only on a record with `origin: "read"`.
 

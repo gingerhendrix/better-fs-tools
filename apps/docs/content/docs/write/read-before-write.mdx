@@ -40,12 +40,13 @@ Give the write tools one `locks` too. The lock stops two calls from changing one
 | The file is new                 | No read needed           | No read needed |
 | No record                       | `NOT_READ`               | `NOT_READ`     |
 | The model read part of the file | Goes on                  | `NOT_READ`     |
+| Ranged reads show every line    | Goes on                  | Goes on        |
 | The file changed after the read | `STALE`                  | `STALE`        |
 
-`write` replaces the whole file, so it needs a read of the whole file:
+`write` replaces the whole file, so it needs a read of the whole file. Reads in ranges of the same content count when together they show every line:
 
 ```text
-[write:not-read] Read all of src/greet.ts before replacing it. A partial read is not enough for write.
+[write:not-read] Read all of src/greet.ts before replacing it. Reads in ranges count when together they show every line.
 ```
 
 When the file changed after the read, the call fails with `STALE`:

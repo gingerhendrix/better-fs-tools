@@ -151,7 +151,7 @@ const write = createWriteTool({ ...shared, locks });
 [write:not-read] Read src/greet.ts with the read tool before changing it.
 ```
 
-`edit` and `apply_patch` accept a read of part of the file. `write` needs a read of the whole file. A new file needs no read. A file that changed after the read returns `STALE`. Without `state`, the tools do not check reads. See [Read before write](/write/read-before-write).
+`edit` and `apply_patch` accept a read of part of the file. `write` needs a read of the whole file, or reads in ranges that together show every line. A new file needs no read. A file that changed after the read returns `STALE`. Without `state`, the tools do not check reads. See [Read before write](/write/read-before-write).
 
 ## Permissions
 
