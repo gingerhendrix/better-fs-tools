@@ -76,6 +76,8 @@ core:packages:
       - uniform-public-interface.md
     id: npm:@better-fs-tools/write
     updated: true
+npm:mark-latest:
+  - id: npm:@better-fs-tools/pi-durable
 npm:packages:
   - id: npm:@better-fs-tools/ai-sdk
   - id: npm:@better-fs-tools/cloudflare-computer
