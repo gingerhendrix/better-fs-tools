@@ -7,19 +7,30 @@ description: Give the read, edit, and write tools to an Agent or agentLoop() fro
 
 `createAgentCoreFsTools()` from `@better-fs-tools/pi/agent-core` gives the Better FS Tools as `AgentTool` objects. The examples compile against `pi-agent-core` 1.2.0.
 
-## Why the Pi bundle does not fit
-
-An `AgentTool` gets `execute(toolCallId, params, signal, onUpdate)`. It gets no context object. The tools from `createPiFsTools()` need `ctx.cwd` from the coding agent on every call, so they do not work here. `createAgentCoreFsTools()` takes the filesystem when you make it, as `createFsTools()` does.
-
 ## Install
 
 ```sh
-npm install @better-fs-tools/pi @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-agent-core @earendil-works/pi-coding-agent typebox
+npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-agent-core @earendil-works/pi-coding-agent typebox
 ```
 
-`@better-fs-tools/pi` has `@earendil-works/pi-coding-agent` (`^1.0.0`) and `typebox` as required peers, so npm installs the coding agent too. The `agent-core` module does not import it, or any Node module, at run time.
+`@better-fs-tools/pi` has `@earendil-works/pi-coding-agent` (`^1.0.0`) and `typebox` as required peers, so npm installs the coding agent too. The `agent-core` module does not import it, or any Node module, at run time. Add a [filesystem](/filesystems) package for `fs`, for example `@better-fs-tools/node`.
+
+## Recommended configuration
+
+Give `createAgentCoreFsTools()` any writable filesystem as `fs`. Every other option can keep its default:
+
+```ts
+import { createAgentCoreFsTools } from "@better-fs-tools/pi/agent-core";
+import { memoryFileSystem } from "@better-fs-tools/fs";
+
+createAgentCoreFsTools({ fs: memoryFileSystem() }); // any writable filesystem; no Node import
+```
+
+pi-agent-core has no tools, no file queue, and no working directory of its own, so the defaults of every integration fit it: `sha256Digest()`, `memoryLocks()`, no read store, and `read` returns images. [Choose an integration](/integrations) has the full table.
 
 ## Give the tools to the agent
+
+`tools` has every tool that is on. Add it to `agent.state.tools`, or to the `tools` of an `agentLoop()` context:
 
 ```ts
 import { Agent } from "@earendil-works/pi-agent-core";
@@ -29,7 +40,7 @@ import { createAgentCoreFsTools } from "@better-fs-tools/pi/agent-core";
 import { memoryStore } from "@better-fs-tools/read";
 
 // read, edit, and write over one filesystem, with one read store and one lock
-// manager. The default signatures are those of the coding agent's own tools.
+// manager.
 const fsTools = createAgentCoreFsTools({
   fs: nodeFileSystem({ cwd: "/work/repo", allowedRoots: ["/work/repo"] }),
   state: memoryStore(),
@@ -46,11 +57,15 @@ export const context: AgentContext = {
 };
 ```
 
-The result has one property for each tool: `read`, `edit`, `write`, `applyPatch`, and `bash`. `applyPatch` and `bash` are `null` when they are off. `tools` has every tool that is on. The result also has the shared `state`, `digest`, `locks`, and `clock`, and `invalidate(path, call?)`, as `createFsTools()` does.
+The result has one property for each tool: `read`, `edit`, `write`, `applyPatch`, and `bash`. `applyPatch` and `bash` are `null` when they are off. The result also has the shared `state`, `digest`, `locks`, and `clock`, and `invalidate(path, call?)`, as `createFsTools()` does.
+
+### Why the Pi bundle does not fit
+
+An `AgentTool` gets `execute(toolCallId, params, signal, onUpdate)`. It gets no context object, so the host of each call is `undefined`. The tools from `createPiFsTools()` take Pi's `ExtensionContext` as the host, and `piCwdFileSystem()` needs its `ctx.cwd`. `createAgentCoreFsTools()` takes the filesystem when you make it, as `createFsTools()` does.
 
 ## Options
 
-The options are those of `createFsTools()`. Set the shared options once, at the top level:
+The options are those of `createFsTools()`, with the same defaults, plus a `signature` in each tool's options. Set the shared options once, at the top level:
 
 | Option                  | Default            | Meaning                                                                                        |
 | ----------------------- | ------------------ | ---------------------------------------------------------------------------------------------- |
@@ -59,25 +74,35 @@ The options are those of `createFsTools()`. Set the shared options once, at the 
 | `digest`                | `sha256Digest()`   | The digest for read records. It is plain JavaScript, so it runs in a Worker                    |
 | `locks`                 | `memoryLocks()`    | The lock manager of the write tools                                                            |
 | `clock`                 | `() => new Date()` | The clock of the tools and the store                                                           |
+| `read`, `edit`, `write` | `{}`               | The options of one tool, and its `signature`. See the [read](/read) and [write](/write) guides |
 | `applyPatch`            | off                | `true`, or an options object, adds `apply_patch`                                               |
 | `bash`                  | off                | An options object with `runner` and `env` adds `bash`. See [Add a bash tool](#add-a-bash-tool) |
-| `read`, `edit`, `write` | `{}`               | The options of one tool, and its `signature`. See the [read](/read) and [write](/write) guides |
 
-An unknown key, or a shared option inside one tool's options, throws `TypeError`.
+An unknown key, a shared option inside one tool's options, and `true` as the value of `bash` throw `TypeError`.
 
-Each tool's options also take a `signature`, which sets the model-facing name, description, and JSON Schema. The defaults are those of the coding agent:
+Each tool's options also take a `signature`, which sets the model-facing name, description, and JSON Schema. The defaults are the signatures of every integration:
 
-| Tool          | Default signature                        | Model input                                 |
-| ------------- | ---------------------------------------- | ------------------------------------------- |
-| `read`        | `defaultReadSignature({ name: "read" })` | `{ path, offset?, limit? }`                 |
-| `edit`        | `multiEditSignature()`                   | `{ path, edits: [{ oldText, newText }] }`   |
-| `write`       | `defaultWriteSignature()`                | `{ path, content }`                         |
-| `apply_patch` | `freeformPatchSignature()`               | `{ patch }`, plus the Codex patch grammar   |
-| `bash`        | the coding agent's bash shape            | `{ command, timeout? }`, timeout in seconds |
+| Tool          | Default signature                          | Model input                                                   |
+| ------------- | ------------------------------------------ | ------------------------------------------------------------- |
+| `read`        | `defaultReadSignature()`                   | `{ path, offset?, limit? }`                                   |
+| `edit`        | `defaultEditSignature({ matchers })`       | `{ path, old_string, new_string, replace_all? }`              |
+| `write`       | `defaultWriteSignature()`                  | `{ path, content }`                                           |
+| `apply_patch` | `defaultPatchSignature()`                  | `{ patch }` as JSON                                           |
+| `bash`        | `defaultBashSignature({ runner, limits })` | `{ command, timeout?, cwd? }`, with `timeout` in milliseconds |
 
-`read` returns images by default, as the coding agent's `read` does. Set `read: { converters: [] }` to turn images off. See [Customise the tool definition](/integrations/tool-definition) to change a signature.
+A signature with a grammar, such as `freeformPatchSignature()`, sets `constrainedSampling` on the tool, so a model that supports grammar tools gets the grammar. `multiEditSignature()` gives the coding agent's edit input, `{ path, edits: [{ oldText, newText }] }`. See [Tool definitions](/integrations/tool-definition) to change a signature.
 
-## Add a bash tool
+`read` returns images by default. Set `read: { converters: [] }` to turn images off.
+
+### Single tools
+
+Each tool also has its own factory: `createAgentCoreReadTool()`, `createAgentCoreEditTool()`, `createAgentCoreWriteTool()`, `createAgentCoreApplyPatchTool()`, and `createAgentCoreBashTool()`. Each takes the options of its core factory, with the same defaults, plus `signature`. The options types are `AgentCoreReadToolOptions` and the four others. The tool types are `AgentCoreReadTool`, `AgentCoreMutationTool`, and `AgentCoreBashTool`.
+
+A single factory shares nothing with another one. Use the bundle when you install more than one tool.
+
+## Alternatives
+
+### Add a bash tool
 
 pi-agent-core has no tools of its own. To give the model a shell, pass a runner and an environment in `bash`. This tool runs commands on the local machine:
 
@@ -95,78 +120,9 @@ export const fsTools = createAgentCoreFsTools({
 });
 ```
 
-`bash: true` throws `TypeError`, because the module starts no process and does not read `process.env`. The allowed roots of `fs` do not limit what a command touches. See the [bash guide](/bash) for limits, policy, and runners.
+`true` as the value of `bash` throws `TypeError`, because the module starts no process and does not read `process.env`. The allowed roots of `fs` do not limit what a command touches. See the [bash guide](/bash) for limits, policy, and runners.
 
-## Results
-
-A Better FS Tools tool does not throw for a tool error. It returns a result with `isError: true`. The model then sees an error result, and an `afterToolCall` hook gets `isError: true`. With the read store on, an edit before a read gives this result:
-
-```json
-{
-  "content": [
-    { "type": "text", "text": "[edit:not-read] Read a.txt with the read tool before changing it." }
-  ],
-  "isError": true
-}
-```
-
-Bad model input throws `TypeError`. The agent reports the throw as an error result.
-
-| Tool                  | `isError`                                      | `structuredContent`                                            | `details`                                                                  |
-| --------------------- | ---------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `read`                | `true` for status `error`                      | The coding agent's read output. None for an error              | `{ truncation }` when the read stopped at a limit, else `{}`               |
-| `edit`, `apply_patch` | `true` for status `error`                      | None                                                           | `{ diff, patch, firstChangedLine }`. `undefined` for an error or no change |
-| `write`               | `true` for status `error`                      | None                                                           | `undefined`                                                                |
-| `bash`                | `true` for a nonzero exit, a timeout, an error | The coding agent's bash output. None for a timeout or an abort | `{ fullOutputPath }` when the output spilled to a file                     |
-
-`read` and `bash` also set `outputSchema` to the schemas of the coding agent's own tools, so a codemode script gets the same values. `read` sets `replay: "safe"`.
-
-A read with status `unsupported`, for example of a binary file or a file that is too large, is not an error. Its text tells the model why the tool did not show the file.
-
-`details` go to your UI and your hooks. The model does not see them. They have the shapes of the coding agent's `TruncationResult` and `EditToolDetails`. See [Results in Pi](/integrations/pi#results-in-pi).
-
-## Run order
-
-The agent runs the tool calls of one model response in parallel by default. The write tools take one lock for each path, so two changes to the same file wait for each other. pi-agent-core has no file queue of its own, so the default lock manager is `memoryLocks()`.
-
-The tools do not set `executionMode`. To make the agent run each batch one call at a time, set `executionMode: "sequential"` on a copy of a tool:
-
-```ts
-import type { AgentTool } from "@earendil-works/pi-agent-core";
-import { memoryFileSystem } from "@better-fs-tools/fs";
-import { createAgentCoreFsTools } from "@better-fs-tools/pi/agent-core";
-
-const fsTools = createAgentCoreFsTools({ fs: memoryFileSystem() });
-
-// The agent runs a batch with an edit or a write one call at a time.
-export const tools: AgentTool[] = [
-  fsTools.read,
-  { ...fsTools.edit, executionMode: "sequential" },
-  { ...fsTools.write, executionMode: "sequential" },
-];
-```
-
-Set it when the order of the calls must be the order of the model, or when other tools in your host change files too.
-
-## Other filesystems
-
-`fs` can be any writable filesystem. This bundle uses no Node API:
-
-```ts
-import { memoryFileSystem } from "@better-fs-tools/fs";
-import { createAgentCoreFsTools } from "@better-fs-tools/pi/agent-core";
-import { memoryStore } from "@better-fs-tools/read";
-
-// No Node APIs: memoryFileSystem, sha256Digest, and memoryLocks.
-export const fsTools = createAgentCoreFsTools({
-  fs: memoryFileSystem({ files: { "/src/index.ts": "export const a = 1;\n" } }),
-  state: memoryStore(),
-});
-```
-
-In a browser, `Agent` can call the model through your server with `streamProxy()`. Use a Cloudflare or just-bash filesystem there. See [Filesystems](/filesystems).
-
-## Use pi-ai only
+### Use pi-ai only
 
 A host can also call `@earendil-works/pi-ai` directly and run the tools itself. Declare each tool in the request with its `name`, `description`, and `parameters`. For each tool call in the model's answer, call `tool.execute(toolCall.id, toolCall.arguments)`. Then add a `toolResult` message with the tool's `content` and `isError`. pi-ai only sends and receives the messages. The loop, the parallel calls, and the hooks are yours.
 
@@ -174,5 +130,5 @@ A host can also call `@earendil-works/pi-ai` directly and run the tools itself. 
 
 - [Pi](/integrations/pi): the coding agent extension and SDK
 - [Pi durable](/integrations/pi-durable): the tools in the durable harness
-- [Customise the tool definition](/integrations/tool-definition): signatures, names, and descriptions
-- [Choose an integration](/integrations): the defaults of every bundle
+- [Tool definitions](/integrations/tool-definition): signatures, names, and descriptions
+- [Choose an integration](/integrations): the defaults of every integration

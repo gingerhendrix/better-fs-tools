@@ -1,29 +1,45 @@
 ---
 title: Choose an integration
-description: Choose the bundle for your integration, and see what each bundle sets by default.
+description: Choose the integration for your host, and see the defaults and options that every integration shares.
 ---
 
+Every integration has the same options and the same defaults. An integration only changes the format of the tools, so that your host can use them. This page helps you choose one, and lists what they all share.
+
+## Choose an integration
+
+| Host                                     | Package                          | Bundle                     | Page                                                                |
+| ---------------------------------------- | -------------------------------- | -------------------------- | ------------------------------------------------------------------- |
+| AI SDK 7 `generateText` or `streamText`  | `@better-fs-tools/ai-sdk`        | `createAiSdkFsTools()`     | [AI SDK](/integrations/ai-sdk)                                      |
+| Pi coding agent: the `pi` command or SDK | `@better-fs-tools/pi`            | `createPiFsTools()`        | [Pi](/integrations/pi)                                              |
+| `pi-agent-core` or `pi-ai`               | `@better-fs-tools/pi/agent-core` | `createAgentCoreFsTools()` | [Pi agent core](/integrations/pi-agent-core)                        |
+| `pi-durable`, experimental               | `@better-fs-tools/pi-durable`    | `createDurableFsTools()`   | [Pi durable](/integrations/pi-durable)                              |
+| A framework of your own                  | `@better-fs-tools/write`         | `fsToolDefinitions()`      | [Tool definitions](/integrations/tool-definition)                   |
+| Your own code, with no model framework   | `@better-fs-tools/write`         | `createFsTools()`          | [Get started](/get-started#3-configure-the-tools-for-your-use-case) |
+
+Pi has more than one library. `createPiFsTools()` only fits the coding agent, because its tools get Pi's `ExtensionContext` on each call. `pi-agent-core` and `pi-durable` have their own bundles.
+
+The Node, just-bash, Cloudflare Shell, and Cloudflare Computer packages are backends, not integrations. Pass their filesystem as `fs`, and a runner as the bash `runner`, to any factory. See [Filesystems](/filesystems).
+
+## One interface in three layers
+
+| Layer       | Factories                                                                                                                                                                          | Takes                                                                                  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Core        | `createReadTool()`, `createEditTool()`, `createWriteTool()`, `createApplyPatchTool()`, `createBashTool()`, `createFsTools()`                                                       | `XxxToolOptions` and `FsToolsOptions`. `fs` is required. bash needs `runner` and `env` |
+| Definitions | `readToolDefinition()`, `editToolDefinition()`, `writeToolDefinition()`, `applyPatchToolDefinition()`, `bashToolDefinition()`, `fsToolDefinitions()` in the `./signature` subpaths | the core options, plus `signature`                                                     |
+| Integration | the AI SDK, Pi, pi-agent-core, and pi-durable factories                                                                                                                            | the core options, plus `signature`, plus host display or registration options          |
+
+The core tools take the canonical input and return a result. A definition binds a core tool to its signature: the name, description, and JSON Schema to declare, a `validate` for model input, and an `execute` that maps model input and runs the tool. Every integration is an adapter over the definitions. [Tool definitions](/integrations/tool-definition) shows how to use them in a framework of your own.
+
+Each integration has one factory for each tool and one bundle:
+
+| Integration        | Single tools                                                                           | Bundle                                                |
+| ------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| AI SDK 7           | `createAiSdkReadTool()` and the four others                                            | `createAiSdkFsTools()`                                |
+| Pi coding agent    | `createPiReadTool()` and the four others                                               | `createPiFsTools()`                                   |
+| Pi agent core      | `createAgentCoreReadTool()` and the four others, from `@better-fs-tools/pi/agent-core` | `createAgentCoreFsTools()`                            |
+| Pi durable harness | none: tools register inside an extension                                               | `createDurableFsTools()`, which returns the extension |
+
 A bundle creates `read`, `edit`, and `write` over one filesystem. When you ask for them, it also creates `apply_patch` and `bash`. The tools share one digest, one lock manager, and one clock. When you set `state`, they also share one read store, so `edit` and `write` know what the model has read.
-
-There are three bundles. `createFsTools()` is the portable core. The other two wrap it for one host.
-
-## Choose a bundle
-
-| Bundle                 | Package                   | Use it when                                                                                                |
-| ---------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `createFsTools()`      | `@better-fs-tools/write`  | You write your own host glue, on Node, Bun, or a Worker, with any filesystem                               |
-| `createPiFsTools()`    | `@better-fs-tools/pi`     | You write a [Pi](/integrations/pi) coding agent extension, or you use the Pi SDK                           |
-| `createAiSdkFsTools()` | `@better-fs-tools/ai-sdk` | You pass the tools to [AI SDK](/integrations/ai-sdk) 7 `generateText` or `streamText`, with any filesystem |
-
-Pi has more than one library. The Pi bundle only fits the coding agent. The other Pi libraries have their own bundles:
-
-| Pi library                                | Bundle                                                           | Page                                         |
-| ----------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------- |
-| Coding agent: the `pi` command or the SDK | `createPiFsTools()`                                              | [Pi](/integrations/pi)                       |
-| `pi-agent-core` or `pi-ai`                | `createAgentCoreFsTools()` from `@better-fs-tools/pi/agent-core` | [Pi agent core](/integrations/pi-agent-core) |
-| `pi-durable`, experimental                | `createDurableFsTools()` from `@better-fs-tools/pi-durable`      | [Pi durable](/integrations/pi-durable)       |
-
-The Node, just-bash, Cloudflare Shell, and Cloudflare Computer packages give you a filesystem. They do not give you a bundle. Pass their filesystem as `fs` to `createFsTools()` or `createAiSdkFsTools()`. See [Filesystems](/filesystems).
 
 The core bundle runs anywhere. This example uses an in-memory filesystem:
 
@@ -44,122 +60,83 @@ console.log(textOf(result));
 // Edited /src/index.ts: 1 replacement at line 1.
 ```
 
-On Node or Bun, give the core bundle a `nodeFileSystem()` for the local files. For a bash tool, also give it a Node runner and an environment:
+## Defaults
 
-```ts
-import { nodeCommandRunner, nodeFileSystem } from "@better-fs-tools/node";
-import { memoryStore } from "@better-fs-tools/read";
-import { shellEnv } from "@better-fs-tools/shell";
-import { createFsTools } from "@better-fs-tools/write";
+Every core tool, bundle, and integration has these defaults:
 
-// read, edit, write, apply_patch, and bash in process.cwd().
-export const tools = createFsTools({
-  fs: nodeFileSystem({ allowedRoots: [process.cwd()] }),
-  state: memoryStore(),
-  applyPatch: true,
-  bash: { runner: nodeCommandRunner(), env: shellEnv(() => process.env) },
-});
-```
+| Option                            | Default                                                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `fs`                              | required: a backend, or a factory of the call                                                                 |
+| `state`                           | `null`: no read before write. A store, such as `memoryStore({ clock })`, or a factory of the call turns it on |
+| `digest`                          | `sha256Digest()`, plain JavaScript. `null` turns observations off, and then `state` must be `null`            |
+| `locks`                           | `memoryLocks()`                                                                                               |
+| `clock`                           | `() => new Date()`                                                                                            |
+| `read.converters`                 | `[imageConverter()]`: an image becomes a media part. `[]` turns images off                                    |
+| `applyPatch` in a bundle          | off. `true` or an options object adds `apply_patch`                                                           |
+| `bash` in a bundle                | off. An options object with `runner` and `env` adds it. `true` throws                                         |
+| bash `runner`, `env`              | required                                                                                                      |
+| bash `cwd`                        | the runner's `cwd`                                                                                            |
+| New file and directory modes      | the backend's                                                                                                 |
+| `symlinks`, `identity`, buffering | the backend's                                                                                                 |
+| `invalidate` of a bundle          | `(path, call?)`. Pass the call when `fs` or `state` is a factory                                              |
 
-The AI SDK bundle gives you `tools`, keyed by tool name, for `generateText`:
-
-```ts
-import { generateText, isStepCount } from "ai";
-import type { LanguageModel } from "ai";
-import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
-import { nodeFileSystem } from "@better-fs-tools/node";
-
-const cwd = process.cwd();
-const { tools } = createAiSdkFsTools({ fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }) });
-
-export async function change(model: LanguageModel, prompt: string): Promise<string> {
-  const result = await generateText({ model, prompt, tools, stopWhen: isStepCount(10) });
-  return result.text;
-}
-```
-
-The Pi bundle gives you tools that you register in an extension. Each call uses `ctx.cwd` as its only root:
-
-```ts
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { createPiFsTools } from "@better-fs-tools/pi";
-import { memoryStore } from "@better-fs-tools/read";
-
-export default function fsToolsExtension(pi: ExtensionAPI): void {
-  const tools = createPiFsTools({ state: memoryStore(), applyPatch: true });
-  pi.registerTool(tools.read);
-  pi.registerTool(tools.edit);
-  pi.registerTool(tools.write);
-  pi.registerTool(tools.applyPatch);
-}
-```
-
-## Bundle defaults
-
-| Setting                           | `createFsTools()`                                                     | `createPiFsTools()`                                                                        | `createAiSdkFsTools()`                                                |
-| --------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `fs`                              | required: a filesystem, or a function of the call                     | a `nodeFileSystem` rooted at `ctx.cwd` on each call. `fs`, `cwd`, and `allowedRoots` throw | required, as in `createFsTools()`                                     |
-| Tool input                        | canonical                                                             | the Pi signatures below                                                                    | the AI SDK signatures below, `strict: true`                           |
-| `state`                           | `null`: no read before write. `memoryStore()` turns it on             | `null`, as `createFsTools()`                                                               | `null`, as `createFsTools()`                                          |
-| `applyPatch`                      | off. `true` or an options object adds `apply_patch`                   | off, as `createFsTools()`. The `pi.extensions` entry does not register it                  | off, as `createFsTools()`. When off, `tools` has no `apply_patch` key |
-| `digest`                          | `sha256Digest()`, plain JavaScript                                    | `nodeDigest()`                                                                             | `sha256Digest()`                                                      |
-| `locks`                           | `memoryLocks()`                                                       | `piMutationQueueLocks()`: Pi's own per-file queue                                          | `memoryLocks()`                                                       |
-| `clock`                           | `() => new Date()`                                                    | `() => new Date()`                                                                         | `() => new Date()`                                                    |
-| `bash`                            | off. An options object with `runner` and `env` adds it. `true` throws | no option: a `bash` key throws. Register `createPiBashTool()` on its own                   | off. An options object with `runner` and `env` adds it. `true` throws |
-| bash `runner`                     | required                                                              | `createPiBashTool()`: a Node runner at `ctx.cwd`                                           | required                                                              |
-| bash `env`                        | required                                                              | `createPiBashTool()`: `shellEnv(() => process.env)`                                        | required                                                              |
-| `read` images                     | off: `converters` is `[]`                                             | on: `converters` is `[imageConverter()]`. `[]` turns it off                                | on, as `createPiFsTools()`. An image becomes a file part              |
-| New file and directory modes      | the filesystem's                                                      | as `nodeFileSystem()`                                                                      | the filesystem's                                                      |
-| `symlinks`, `identity`, buffering | the filesystem's                                                      | as `nodeFileSystem()`                                                                      | the filesystem's                                                      |
-| `invalidate`                      | `(path, call?)`                                                       | `(path, call?)`, pass the call                                                             | `(path, call?)`                                                       |
-
-### Defaults that differ between integrations
-
-Check these rows when you move tools from one host to another:
-
-- **`digest`**. The core and AI SDK bundles use `sha256Digest()` from `@better-fs-tools/read`. It is plain JavaScript, so it runs in a Worker. The Pi bundle uses `nodeDigest()`, which uses `node:crypto`. Both have the id `sha256`.
-- **`bash: true`**. The core and AI SDK bundles start no process and do not read `process.env`, so `bash: true` throws `TypeError`. Give them an options object with your own `runner` and `env`. The Pi bundle has no `bash` option. Register `createPiBashTool()` next to the bundle tools.
-- **`fs`**. The core and AI SDK bundles need `fs`. The Pi bundle makes its own `nodeFileSystem()`. It takes the root options of `nodeFileSystem()` except `cwd` and `allowedRoots`, because the root is always `ctx.cwd`. An `fs` key throws.
-- **Images**. The Pi and AI SDK `read` tools return images, as the host's own read tool does. The core `read` tool does not. Set `read: { converters }` to change this.
-- **`invalidate`**. The Pi bundle picks a filesystem for each call, so `invalidate(path)` without the call returns `ok: false`. In a bash `afterRun` hook, pass `ctx.call`. The core and AI SDK bundles need the call only when `fs` is a function.
+`sha256Digest()` and `nodeDigest()` give the same digest, with the id `sha256`, so records made with one are valid for the other. `nodeDigest()` uses `node:crypto` and is faster. `sha256Digest()` runs in a Worker.
 
 ### Rules for every bundle
 
 - A shared key (`fs`, `state`, `digest`, `locks`, `clock`) inside one tool's options throws `TypeError`. Set it once at the top level. An unknown option key also throws.
-- `state` is one store or `null`. The single factories also take a function that returns a store for each call. A bundle does not, and throws a `TypeError` that names the bundle.
+- `state` is a store, a factory of the call, or `null`. A factory gives each call its own store.
 - The bash tool gets the bundle's digest and clock, so `ctx.digest` and `ctx.clock` in a bash hook match the file tools.
 - The allowed roots do not limit what a bash command touches.
 - The bash tool does not update the read records. To make the model read a file again after a command, call `invalidate(path)` from an `afterRun` hook. See [Bash policy](/bash/policy).
 
-### Tool signatures
+### Single-tool factories
 
-A signature is the shape of a tool that the model sees. The core and Node tools take the canonical input and have no signature. Pi and the AI SDK each use the shape that their models know by default. See [Customise the tool definition](/integrations/tool-definition).
+A single-tool factory shares nothing with another one. Each write tool makes its own lock manager, and there is no read store unless you pass one. To use single tools with read before write, give each tool the same `state`, and the same `locks` to the write tools. Use a bundle when a host installs more than one tool.
 
-| Tool          | Canonical input (core, Node)                           | Pi default                                                                  | AI SDK default                                                                                |
-| ------------- | ------------------------------------------------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `read`        | `{ path, offset?, limit? }`                            | `defaultReadSignature({ name: "read" })`: `read({ path, offset?, limit? })` | `defaultReadSignature()`: `read({ path, offset?, limit? })`                                   |
-| `edit`        | `{ path, edits: [{ oldText, newText, replaceAll? }] }` | `multiEditSignature()`: `edit({ path, edits: [{ oldText, newText }] })`     | `defaultEditSignature()`: `edit({ path, old_string, new_string, replace_all? })`              |
-| `write`       | `{ path, content }`                                    | `defaultWriteSignature()`: `write({ path, content })`                       | `defaultWriteSignature()`: `write({ path, content })`                                         |
-| `apply_patch` | `{ patch }`                                            | `freeformPatchSignature()`: `apply_patch({ patch })` plus the Codex grammar | `defaultPatchSignature()`: `apply_patch({ patch })` as JSON                                   |
-| `bash`        | `{ command, timeoutMs?, cwd? }`                        | `createPiBashTool()`: `bash({ command, timeout? })`, seconds, no `cwd`      | `defaultBashSignature({ runner, limits })`: `bash({ command, timeout?, cwd? })`, milliseconds |
+## Tool signatures
 
-Every preset takes `name`, `description`, `describe`, and `names`. `names` renames a parameter. Its keys are the preset's own parameter names. The AI SDK ignores a grammar on a patch signature, because AI SDK tools take JSON only.
+A signature is the shape of a tool that the model sees. The core tools take the canonical input. Every definition and integration has the same default signatures:
 
-## Single-tool factories
+| Tool          | Canonical input (core)                                 | Default signature                                                                             |
+| ------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `read`        | `{ path, offset?, limit? }`                            | `defaultReadSignature()`: `read({ path, offset?, limit? })`                                   |
+| `edit`        | `{ path, edits: [{ oldText, newText, replaceAll? }] }` | `defaultEditSignature({ matchers })`: `edit({ path, old_string, new_string, replace_all? })`  |
+| `write`       | `{ path, content }`                                    | `defaultWriteSignature()`: `write({ path, content })`                                         |
+| `apply_patch` | `{ patch }`                                            | `defaultPatchSignature()`: `apply_patch({ patch })` as JSON                                   |
+| `bash`        | `{ command, timeoutMs?, cwd? }`                        | `defaultBashSignature({ runner, limits })`: `bash({ command, timeout?, cwd? })`, milliseconds |
 
-Each tool also has its own factory. Two single factories share nothing. Each write tool makes its own lock manager, and there is no read store unless you pass one. The Pi write factories are the exception for locks: they all use Pi's own file queue. Use a bundle when a host installs more than one tool.
+To give a model other names, pass a default signature with options as the tool's `signature`. Every default signature takes `name`, `description`, `describe`, and `names`. `names` renames a parameter, keyed by the signature's own parameter names. Three presets give another shape:
 
-| Factory                                                                               | `state` | `digest`                                    | bash `env`                    |
-| ------------------------------------------------------------------------------------- | ------- | ------------------------------------------- | ----------------------------- |
-| `createReadTool()`, `createEditTool()`, `createWriteTool()`, `createApplyPatchTool()` | none    | none. A `state` without a `digest` throws   | none                          |
-| `createBashTool()`                                                                    | none    | none                                        | required                      |
-| `createNodeReadTool()` and the Node write tools                                       | none    | `nodeDigest()`. `digest: null` turns it off | none                          |
-| `createNodeBashTool()`                                                                | none    | none                                        | `shellEnv(() => process.env)` |
-| `createPiReadTool()` and the Pi write tools                                           | none    | `nodeDigest()`. `digest: null` turns it off | none                          |
-| `createPiBashTool()`                                                                  | none    | none                                        | `shellEnv(() => process.env)` |
-| `createAiSdkReadTool()` and the AI SDK write tools                                    | none    | none. A `state` without a `digest` throws   | none                          |
-| `createAiSdkBashTool()`                                                               | none    | none                                        | required                      |
+- `multiEditSignature()`: `edit({ path, edits: [{ oldText, newText }] })`, for many replacements in one call.
+- `lineRangeSignature()`: `read({ path, start?, end? })`, with inclusive lines.
+- `freeformPatchSignature()`: `apply_patch({ patch })`, plus the Codex patch grammar. The Pi, pi-agent-core, and pi-durable integrations send that grammar as `constrainedSampling`. The AI SDK sends only the JSON schema.
+
+[Tool definitions](/integrations/tool-definition) has the options and the default descriptions of each signature.
+
+## Host options
+
+An integration adds options only for its host's display or registration. It changes no default.
+
+| Integration | Options                             | Default                                                   | Why                                                                                                                                           |
+| ----------- | ----------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI SDK      | `contextSchema`                     | none                                                      | The AI SDK validates the `toolsContext` entry of a tool with it                                                                               |
+| Pi          | `promptSnippet`, `promptGuidelines` | the first sentence of the signature description, and `[]` | Pi lists a tool under "Available tools" only when it has a snippet. The text comes from the shared signature                                  |
+| pi-durable  | `name`, `outputLimits`              | `"better-fs-tools"`, and 128 KiB and 4,000 lines          | Durable extensions have names. The Harness cuts tool output again, and these limits are above the `read` view, so the output is not cut twice |
+
+`piToolRenderers()` from `@better-fs-tools/pi` is a renderer resolver, not an option. Pi draws a tool named `read`, `edit`, `write`, or `bash` with its built-in renderer, which reads Pi's argument names. The resolver maps the shared arguments to them. See [Renderers](/integrations/pi#renderers).
+
+## Recommended configurations
+
+Each host has choices that suit it. They are options, not defaults, so each one is visible in your code. Each integration page starts with its recommended configuration:
+
+| Integration                                  | Recommended options                                                                                                           |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| [AI SDK](/integrations/ai-sdk)               | On Node or Bun: `fs: nodeFileSystem()`, `digest: nodeDigest()`, and `bash: { runner: nodeCommandRunner(), env }`              |
+| [Pi](/integrations/pi)                       | `fs: piCwdFileSystem()`, `locks: piMutationQueueLocks()`, `digest: nodeDigest()`, and for bash `runner: piCwdCommandRunner()` |
+| [Pi agent core](/integrations/pi-agent-core) | Any writable filesystem as `fs`                                                                                               |
+| [Pi durable](/integrations/pi-durable)       | `fs: durableEnvFileSystem()`, `state: documentReadStore()`, and `bash: { runner: durableEnvRunner(), env }`                   |
 
 ## Filesystems
 
-The bundle defaults above say "the filesystem's" where the backend decides. The [Filesystems](/filesystems) page lists what each filesystem does: buffering, `maxBufferedBytes`, symlinks, identity, write support, and new file modes. It also explains why a buffered backend fetches the whole file before `authorize` runs.
+The defaults above say "the backend's" where the backend decides. The [Filesystems](/filesystems) page lists what each filesystem does: buffering, `maxBufferedBytes`, symlinks, identity, write support, and new file modes. It also explains why a buffered backend fetches the whole file before `authorize` runs.

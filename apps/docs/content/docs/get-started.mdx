@@ -9,15 +9,18 @@ Set up the tools in three steps. All packages release together at one version, s
 
 An integration package has helpers that return the tools in the native format of its host. You give the result to your agent with no more glue.
 
-| Host                                     | Package                          | Helper                     | Guide                                        |
-| ---------------------------------------- | -------------------------------- | -------------------------- | -------------------------------------------- |
-| AI SDK 7 `generateText` or `streamText`  | `@better-fs-tools/ai-sdk`        | `createAiSdkFsTools()`     | [AI SDK](/integrations/ai-sdk)               |
-| Pi coding agent: the `pi` command or SDK | `@better-fs-tools/pi`            | `createPiFsTools()`        | [Pi](/integrations/pi)                       |
-| `pi-agent-core` or `pi-ai`               | `@better-fs-tools/pi/agent-core` | `createAgentCoreFsTools()` | [Pi agent core](/integrations/pi-agent-core) |
-| `pi-durable`, experimental               | `@better-fs-tools/pi-durable`    | `createDurableFsTools()`   | [Pi durable](/integrations/pi-durable)       |
-| Your own code: Node, Bun, or a Worker    | `@better-fs-tools/write`         | `createFsTools()`          | [Choose an integration](/integrations)       |
+| Host                                     | Package                          | Helper                     | Guide                                             |
+| ---------------------------------------- | -------------------------------- | -------------------------- | ------------------------------------------------- |
+| AI SDK 7 `generateText` or `streamText`  | `@better-fs-tools/ai-sdk`        | `createAiSdkFsTools()`     | [AI SDK](/integrations/ai-sdk)                    |
+| Pi coding agent: the `pi` command or SDK | `@better-fs-tools/pi`            | `createPiFsTools()`        | [Pi](/integrations/pi)                            |
+| `pi-agent-core` or `pi-ai`               | `@better-fs-tools/pi/agent-core` | `createAgentCoreFsTools()` | [Pi agent core](/integrations/pi-agent-core)      |
+| `pi-durable`, experimental               | `@better-fs-tools/pi-durable`    | `createDurableFsTools()`   | [Pi durable](/integrations/pi-durable)            |
+| A model framework of your own            | `@better-fs-tools/write`         | `fsToolDefinitions()`      | [Tool definitions](/integrations/tool-definition) |
+| Your own code: Node, Bun, or a Worker    | `@better-fs-tools/write`         | `createFsTools()`          | [Choose an integration](/integrations)            |
 
-With your own code, the tools are plain async functions. You write the tool definition for your host, or you call the functions from your code. On Node or Bun, give `createFsTools()` the Node filesystem from the next step.
+Every integration takes the same options and has the same defaults. [Choose an integration](/integrations) lists them.
+
+With a framework of your own, `fsToolDefinitions()` from `@better-fs-tools/write/signature` gives each tool's name, description, and JSON Schema, and an `execute` that takes the model input. With your own code, the core tools from `createFsTools()` are plain async functions that you call. On Node or Bun, give them the Node filesystem from the next step.
 
 Install the integration with the tool packages and the host's peers:
 
@@ -26,13 +29,13 @@ Install the integration with the tool packages and the host's peers:
 npm install @better-fs-tools/ai-sdk @better-fs-tools/read @better-fs-tools/write ai
 
 # Pi. The peers are @earendil-works/pi-coding-agent ^1.0.0 and typebox ^1.3.16.
-npm install @better-fs-tools/pi @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-coding-agent typebox
+npm install @better-fs-tools/pi @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write @earendil-works/pi-coding-agent typebox
 
 # Your own code with the Node filesystem, on Node 24 or later or on Bun.
 npm install @better-fs-tools/node @better-fs-tools/read @better-fs-tools/write
 ```
 
-With Bun, use `bun add` with the same package names. Add `@better-fs-tools/shell` for a bash tool outside the Node and Pi packages.
+With Bun, use `bun add` with the same package names. For a bash tool, add `@better-fs-tools/shell`: the `env` option comes from its `shellEnv()`.
 
 ### Choose a filesystem
 
@@ -46,10 +49,10 @@ All tools need a filesystem. The tools do not open files themselves. The filesys
 | `cloudflareShellFileSystem()`    | `@better-fs-tools/cloudflare-shell`    | A Cloudflare Shell workspace in a Worker           |
 | `cloudflareComputerFileSystem()` | `@better-fs-tools/cloudflare-computer` | A Cloudflare Computer workspace. Experimental      |
 
-Give the filesystem to the helper as `fs`. Some helpers make their own:
+Give the filesystem to the helper as `fs`. Every helper needs it. `fs` can also be a function that returns a filesystem for each call. Two hosts have one ready:
 
-- `createPiFsTools()` makes a `nodeFileSystem()` rooted at `ctx.cwd` on each call.
-- `createDurableFsTools()` uses the execution environment of each call.
+- Pi: `piCwdFileSystem()` from `@better-fs-tools/pi/node` gives a `nodeFileSystem()` rooted at `ctx.cwd` on each call.
+- pi-durable: `durableEnvFileSystem()` from `@better-fs-tools/pi-durable` reads and writes through the execution environment of each call.
 
 [Filesystems](/filesystems) compares what each filesystem can do.
 
@@ -94,7 +97,7 @@ Use the single constructor when you install more than one tool. Constructors for
 
 ## 3. Configure the tools for your use case
 
-Each tool works with no options. Set the options that your agent needs. In the single constructor, set the shared options once at the top level. Set the options of one tool under `read`, `edit`, `write`, `applyPatch`, or `bash`.
+Each tool needs only `fs`. The bash tool needs a `runner` and an `env` instead. Every other option has a default. Set the options that your agent needs. In the single constructor, set the shared options once at the top level. Set the options of one tool under `read`, `edit`, `write`, `applyPatch`, or `bash`.
 
 | To do this                                                  | Set                                             | Guide                                                                      |
 | ----------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------- |
@@ -105,7 +108,7 @@ Each tool works with no options. Set the options that your agent needs. In the s
 | Read images, notebooks, PDFs, and folders                   | `read`: `converters`                            | [File types](/read/file-types)                                             |
 | Change how `edit` matches old text                          | `edit`: `matchers`                              | [Matching](/write/matching)                                                |
 | Change the bash timeouts, output limits, or commands        | `bash`: `limits`, `beforeRun`, `authorize`      | [Bash limits](/bash/limits), [Bash policy](/bash/policy)                   |
-| Rename a tool or its parameters, or change the descriptions | `signature` on each tool                        | [Customise the tool definition](/integrations/tool-definition)             |
+| Rename a tool or its parameters, or change the descriptions | `signature` on each tool                        | [Tool definitions](/integrations/tool-definition)                          |
 | Change the text that the model sees                         | `formatter` and `messages` on each tool         | [Read formatting](/read/formatting), [Write formatting](/write/formatting) |
 
 This example uses `createFsTools()` over a `nodeFileSystem()` and sets two options:
@@ -161,7 +164,7 @@ With the same tools, an edit of a file that the model has not read, and a write 
 
 ## Where next
 
-- [Choose an integration](/integrations): the defaults of each single constructor
+- [Choose an integration](/integrations): the defaults and options that every integration shares
 - [AI SDK](/integrations/ai-sdk) and [Pi](/integrations/pi): give the tools to an agent
 - [Filesystems](/filesystems): the Node, memory, just-bash, and Cloudflare filesystems
 - [Read tool](/read), [write tools](/write), and [bash tool](/bash): every option

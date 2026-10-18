@@ -13,9 +13,24 @@ npm install @better-fs-tools/ai-sdk @better-fs-tools/read @better-fs-tools/write
 
 `ai` is a required peer, at `^7.0.77`. Add a [filesystem](/filesystems) package too, for example `@better-fs-tools/node` or `@better-fs-tools/cloudflare-shell`. For the bash tool, add `@better-fs-tools/shell`.
 
-## Give the tools to generateText
+## Recommended configuration
 
-`createAiSdkFsTools()` builds `read`, `edit`, and `write` over one filesystem in one call. `tools` holds each tool under its name, so you can pass it to `generateText` as it is:
+On Node or Bun, use the Node filesystem, the Node digest, and a Node runner for bash:
+
+```ts
+import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
+import { nodeCommandRunner, nodeDigest, nodeFileSystem } from "@better-fs-tools/node";
+import { shellEnv } from "@better-fs-tools/shell";
+
+const cwd = process.cwd();
+export const { tools } = createAiSdkFsTools({
+  fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
+  digest: nodeDigest(), // faster on Node than the default sha256Digest()
+  bash: { runner: nodeCommandRunner({ cwd }), env: shellEnv(() => process.env) },
+});
+```
+
+`tools` holds each tool under its name: `read`, `edit`, `write`, and `bash`. Pass it to `generateText` or `streamText` as it is:
 
 ```ts
 import { generateText, isStepCount } from "ai";
@@ -24,8 +39,6 @@ import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
 import { nodeFileSystem } from "@better-fs-tools/node";
 
 const cwd = process.cwd();
-// read, edit, and write over one filesystem, with one digest and one lock
-// manager. A read store, apply_patch, and bash are opt-in.
 const { tools } = createAiSdkFsTools({ fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }) });
 
 export async function change(model: LanguageModel, prompt: string): Promise<string> {
@@ -34,26 +47,29 @@ export async function change(model: LanguageModel, prompt: string): Promise<stri
 }
 ```
 
-The tools share one digest, one lock manager, and one clock. With `state`, they also share one read store, so `edit` and `write` know what the model has read. [Choose an integration](/integrations) compares this bundle with the bundles of the other hosts.
+In a Worker, pass `cloudflareShellFileSystem()` or `justBashFileSystem()` as `fs`, and keep the default digest. See [Cloudflare Agents](#cloudflare-agents).
+
+These choices are options, not defaults. Each other option has the default of every integration. [Choose an integration](/integrations) has the full table.
 
 ## Bundle options
 
-`createAiSdkFsTools()` wraps `createFsTools()` from `@better-fs-tools/write`. `fs` is the only required option:
+`createAiSdkFsTools()` takes the options of `createFsTools()` from `@better-fs-tools/write`, plus a `signature` in each tool's options, plus `contextSchema`. `fs` is the only required option:
 
-| Option       | Default            | What it does                                                                                                                |
-| ------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `fs`         | required           | A backend, or a function that returns a backend for each tool call                                                          |
-| `state`      | `null`             | The read store. `null` turns read-before-write off. `memoryStore()` turns it on. The bundle takes one store, not a function |
-| `digest`     | `sha256Digest()`   | The content digest. `sha256Digest()` is plain JavaScript and runs in a Worker                                               |
-| `locks`      | `memoryLocks()`    | The lock manager of the write tools                                                                                         |
-| `clock`      | `() => new Date()` | The clock                                                                                                                   |
-| `read`       | `{}`               | The options of the read tool, and its `signature`                                                                           |
-| `edit`       | `{}`               | The options of the edit tool, and its `signature`                                                                           |
-| `write`      | `{}`               | The options of the write tool, and its `signature`                                                                          |
-| `applyPatch` | off                | `true`, or an options object with an optional `signature`, adds an `apply_patch` tool                                       |
-| `bash`       | off                | An options object with a `runner` and an `env` adds a bash tool with the same digest and clock. See [Bash tool](#bash-tool) |
+| Option          | Default            | What it does                                                                                                                |
+| --------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `fs`            | required           | A backend, or a function that returns a backend for each tool call                                                          |
+| `state`         | `null`             | The read store. `null` turns read before write off. `memoryStore()` turns it on. A function gives each call its own store   |
+| `digest`        | `sha256Digest()`   | The content digest. `sha256Digest()` is plain JavaScript and runs in a Worker                                               |
+| `locks`         | `memoryLocks()`    | The lock manager of the write tools                                                                                         |
+| `clock`         | `() => new Date()` | The clock                                                                                                                   |
+| `read`          | `{}`               | The options of the read tool, and its `signature`. `converters` defaults to `[imageConverter()]`                            |
+| `edit`          | `{}`               | The options of the edit tool, and its `signature`                                                                           |
+| `write`         | `{}`               | The options of the write tool, and its `signature`                                                                          |
+| `applyPatch`    | off                | `true`, or an options object with an optional `signature`, adds an `apply_patch` tool                                       |
+| `bash`          | off                | An options object with a `runner` and an `env` adds a bash tool with the same digest and clock. See [Bash tool](#bash-tool) |
+| `contextSchema` | none               | The schema of the `toolsContext` entry of each tool. See [Host context](#host-context)                                      |
 
-Set `fs`, `state`, `digest`, `locks`, and `clock` once, at the top level. The tool options are the options of the [read tool](/read), the [write tools](/write), and the [bash tool](/bash). This example turns on read-before-write, turns images off, and adds `apply_patch` and bash:
+Set `fs`, `state`, `digest`, `locks`, and `clock` once, at the top level. The tool options are the options of the [read tool](/read), the [write tools](/write), and the [bash tool](/bash). This example turns on read before write, turns images off, and adds `apply_patch` and bash:
 
 ```ts
 import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
@@ -78,17 +94,17 @@ The bundle throws a `TypeError` for these options:
 - An option key that it does not know.
 - A shared key, such as `digest`, inside the options of one tool. The message is `createAiSdkFsTools read options cannot set digest: set it once at the top level`.
 - Two tools with the same name.
-- `bash: true`. See [Bash tool](#bash-tool).
+- `true` as the value of `bash`. See [Bash tool](#bash-tool).
 
 ### The result
 
-| Property                            | Value                                                                                                                                       |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `read`, `edit`, `write`             | The three tools                                                                                                                             |
-| `applyPatch`, `bash`                | The tool, or `null` when it is off                                                                                                          |
-| `tools`                             | Only the tools that are on, keyed by their names, for `generateText`                                                                        |
-| `state`, `digest`, `locks`, `clock` | The shared parts                                                                                                                            |
-| `invalidate(path, call?)`           | Deletes the read record of `path`, so the next edit needs a read. It returns an `InvalidateOutcome`. When `fs` is a function, pass the call |
+| Property                            | Value                                                                                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `read`, `edit`, `write`             | The three tools                                                                                                                                        |
+| `applyPatch`, `bash`                | The tool, or `null` when it is off                                                                                                                     |
+| `tools`                             | Only the tools that are on, keyed by their names, for `generateText`                                                                                   |
+| `state`, `digest`, `locks`, `clock` | The shared parts                                                                                                                                       |
+| `invalidate(path, call?)`           | Deletes the read record of `path`, so the next edit needs a read. It returns an `InvalidateOutcome`. When `fs` or `state` is a function, pass the call |
 
 When you set `applyPatch` or `bash`, the result type makes that property non-null.
 
@@ -96,27 +112,26 @@ When you set `applyPatch` or `bash`, the result type makes that property non-nul
 
 Each tool also has its own factory:
 
-| Factory                       | Default signature                                                                           |
-| ----------------------------- | ------------------------------------------------------------------------------------------- |
-| `createAiSdkReadTool()`       | `defaultReadSignature()`: `read` with `path`, `offset`, and `limit`                         |
-| `createAiSdkEditTool()`       | `defaultEditSignature()`: `edit` with `path`, `old_string`, `new_string`, and `replace_all` |
-| `createAiSdkWriteTool()`      | `defaultWriteSignature()`: `write` with `path` and `content`                                |
-| `createAiSdkApplyPatchTool()` | `defaultPatchSignature()`: `apply_patch` with `patch`                                       |
-| `createAiSdkBashTool()`       | `defaultBashSignature()` for the runner and the limits                                      |
+| Factory                       | Options type                 | Default signature                                                                                   |
+| ----------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `createAiSdkReadTool()`       | `AiSdkReadToolOptions`       | `defaultReadSignature()`: `read` with `path`, `offset`, and `limit`                                 |
+| `createAiSdkEditTool()`       | `AiSdkEditToolOptions`       | `defaultEditSignature({ matchers })`: `edit` with `path`, `old_string`, `new_string`, `replace_all` |
+| `createAiSdkWriteTool()`      | `AiSdkWriteToolOptions`      | `defaultWriteSignature()`: `write` with `path` and `content`                                        |
+| `createAiSdkApplyPatchTool()` | `AiSdkApplyPatchToolOptions` | `defaultPatchSignature()`: `apply_patch` with `patch`                                               |
+| `createAiSdkBashTool()`       | `AiSdkBashToolOptions`       | `defaultBashSignature({ runner, limits })`: `bash` with `command`, `timeout`, and `cwd`             |
 
-Each factory takes every option of its core factory, plus `signature`. `fs` is required for the file tools. This example gives a read tool a new name and a line range:
+Each factory takes every option of its core factory, with the same defaults, plus `signature` and `contextSchema`. `fs` is required for the file tools. This example gives a read tool a new name and a line range:
 
 ```ts
 import { generateText, isStepCount } from "ai";
 import type { LanguageModel } from "ai";
 import { createAiSdkReadTool } from "@better-fs-tools/ai-sdk";
-import { nodeDigest, nodeFileSystem } from "@better-fs-tools/node";
+import { nodeFileSystem } from "@better-fs-tools/node";
 import { lineRangeSignature } from "@better-fs-tools/read/signature";
 
 const cwd = process.cwd();
 const read = createAiSdkReadTool({
   fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
-  digest: nodeDigest(),
   signature: lineRangeSignature({
     name: "read_file",
     names: { path: "file_path", start: "start_line", end: "end_line" },
@@ -134,7 +149,7 @@ export async function ask(model: LanguageModel, prompt: string): Promise<string>
 }
 ```
 
-A single factory shares nothing with another one. Each write tool makes its own lock manager. `state` and `digest` default to `null`, so read-before-write is off. A `state` needs a `digest`: the options type refuses a `state` without one, and the factory throws a `TypeError`. To check reads, give every tool the same store and digest:
+A single factory shares nothing with another one. Each write tool makes its own lock manager, and there is no read store unless you pass one. To check reads, give every tool the same store, and the write tools the same locks:
 
 ```ts
 import {
@@ -142,16 +157,17 @@ import {
   createAiSdkReadTool,
   createAiSdkWriteTool,
 } from "@better-fs-tools/ai-sdk";
-import { nodeDigest, nodeFileSystem } from "@better-fs-tools/node";
+import { nodeFileSystem } from "@better-fs-tools/node";
 import { memoryStore } from "@better-fs-tools/read";
+import { memoryLocks } from "@better-fs-tools/write";
 
 const cwd = process.cwd();
 const fs = nodeFileSystem({ cwd, allowedRoots: [cwd] });
-const digest = nodeDigest();
 const state = memoryStore();
-const read = createAiSdkReadTool({ fs, state, digest });
-const edit = createAiSdkEditTool({ fs, state, digest });
-const write = createAiSdkWriteTool({ fs, state, digest });
+const locks = memoryLocks();
+const read = createAiSdkReadTool({ fs, state });
+const edit = createAiSdkEditTool({ fs, state, locks });
+const write = createAiSdkWriteTool({ fs, state, locks });
 const tools = { [read.name]: read, [edit.name]: edit, [write.name]: write };
 ```
 
@@ -159,7 +175,125 @@ Use the bundle when you install more than one tool. It does this for you.
 
 ### Images
 
-`read.converters` defaults to `[imageConverter()]` in the bundle and in `createAiSdkReadTool()`. An image read gives a `media` result, and the model gets the image as a file part. The core read tool has no converters by default. A list that you pass replaces the default. `converters: []` turns images off, and a list without `imageConverter()` refuses images.
+`read.converters` defaults to `[imageConverter()]`, as in every integration. An image read gives a `media` result, and the model gets the image as a file part. A list that you pass replaces the default. `converters: []` turns images off, and a list without `imageConverter()` refuses images.
+
+## Bash tool
+
+This package starts no process, and it does not read `process.env`. A bash tool needs a `runner` and an `env`, as in every integration:
+
+```ts
+import { generateText, isStepCount } from "ai";
+import type { LanguageModel } from "ai";
+import { createAiSdkBashTool } from "@better-fs-tools/ai-sdk";
+import { nodeCommandRunner } from "@better-fs-tools/node";
+import { shellEnv } from "@better-fs-tools/shell";
+
+// The AI SDK package starts no process. Give it a runner.
+const bash = createAiSdkBashTool({
+  runner: nodeCommandRunner(),
+  env: shellEnv(() => process.env),
+});
+
+export async function run(model: LanguageModel, prompt: string): Promise<string> {
+  const result = await generateText({
+    model,
+    prompt,
+    tools: { [bash.name]: bash },
+    stopWhen: isStepCount(5),
+  });
+  return result.text;
+}
+```
+
+Use `nodeCommandRunner()` from `@better-fs-tools/node`, or `justBashCommandRunner()` from `@better-fs-tools/just-bash` in a Worker. The default signature is `bash` with `command`, `timeout`, and `cwd`. `timeout` is in milliseconds, and the description names the runner.
+
+In the bundle, set `bash: { runner, env }`. `true` throws a `TypeError`, because no bundle has a default runner:
+
+```text
+TypeError: createAiSdkFsTools bash must be an object with a runner and an env: the portable bundle has no default runner
+```
+
+The [bash guide](/bash) has the other bash options.
+
+## Host context
+
+`execute` gives the AI SDK `ToolExecutionOptions` object to the core tool as the call context:
+
+| Call context      | From `ToolExecutionOptions`   |
+| ----------------- | ----------------------------- |
+| `ctx.call.host`   | The whole object              |
+| `ctx.call.signal` | `abortSignal`, when it is set |
+| `ctx.call.callId` | `toolCallId`                  |
+
+Your options and hooks can read `call.host`, for example `call.host.messages` or `call.host.context`. The type argument of a factory sets the type of `context`.
+
+AI SDK 7 passes `toolsContext[name]` to the tool as `context`. Its types accept a `toolsContext` entry only for a tool with a `contextSchema`, and the AI SDK validates the entry with that schema before `execute`. Set `contextSchema` on a single tool, or once on the bundle for every tool. This bundle picks a filesystem for each call from the context:
+
+```ts
+import { jsonSchema } from "ai";
+import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
+import { nodeFileSystem } from "@better-fs-tools/node";
+
+interface Workspace {
+  readonly root: string;
+}
+
+export const { tools } = createAiSdkFsTools<Workspace>({
+  contextSchema: jsonSchema<Workspace>({
+    type: "object",
+    properties: { root: { type: "string" } },
+    required: ["root"],
+    additionalProperties: false,
+  }),
+  fs: (call) =>
+    nodeFileSystem({ cwd: call.host.context.root, allowedRoots: [call.host.context.root] }),
+});
+```
+
+To give each request its own session, you can also create the tools inside the request. [Use one store for each session](/read/hooks-and-state#use-one-store-for-each-session) shows the same pattern with `state`. A function of the call works for `state` in the bundle and in each single tool.
+
+## Alternatives
+
+The recommended configuration suits Node and Bun. These choices suit other hosts and other agents.
+
+### Read before write
+
+`state: memoryStore()` makes `edit` and `write` refuse a change to a file that the model has not read in this session. See [Read before write](/write/read-before-write). The [Bundle options](#bundle-options) example turns it on.
+
+### Cloudflare Agents
+
+In a Worker, for example in a Cloudflare Agents host, pass a [Cloudflare Shell](/filesystems/cloudflare) filesystem as `fs`. No other wrapper is necessary:
+
+```ts
+import type { Workspace } from "@cloudflare/shell";
+import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
+import { cloudflareShellFileSystem } from "@better-fs-tools/cloudflare-shell";
+
+// read, edit, and write with one sha256Digest() and one lock manager. Nothing
+// here needs Node, so it runs in a Worker.
+export function workspaceTools(workspace: Workspace) {
+  const fs = cloudflareShellFileSystem(workspace, { allowedRoots: ["/workspace"] });
+  return createAiSdkFsTools({ fs }).tools;
+}
+```
+
+The Cloudflare Shell backend reads the whole file before `authorize` runs. See [Filesystems](/filesystems) for what each backend can do.
+
+### A patch signature with a grammar
+
+The default `apply_patch` signature takes the whole patch as a JSON string in `patch`. AI SDK tools take JSON only. A signature with a grammar, such as `freeformPatchSignature()`, still works, but the adapter does not send the grammar. The model sees the same JSON schema as for `defaultPatchSignature()`:
+
+```ts
+import { createAiSdkApplyPatchTool } from "@better-fs-tools/ai-sdk";
+import { nodeFileSystem } from "@better-fs-tools/node";
+import { freeformPatchSignature } from "@better-fs-tools/write/signature";
+
+const cwd = process.cwd();
+const applyPatch = createAiSdkApplyPatchTool({
+  fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
+  signature: freeformPatchSignature(),
+});
+```
 
 ## Strict schemas
 
@@ -214,32 +348,6 @@ These forms throw:
 
 Do not put a check only in a keyword that strict mode drops, such as `minLength`. The model does not see it. Put the check in the signature's parse, so `validate` refuses the input.
 
-## Host context
-
-`execute` gives the AI SDK `ToolExecutionOptions` object to the core tool as the call context:
-
-| Call context      | From `ToolExecutionOptions`   |
-| ----------------- | ----------------------------- |
-| `ctx.call.host`   | The whole object              |
-| `ctx.call.signal` | `abortSignal`, when it is set |
-| `ctx.call.callId` | `toolCallId`                  |
-
-Your options and hooks can read `call.host`, for example `call.host.messages` or `call.host.context`. The type argument of a factory sets the type of `context`. This bundle picks a filesystem for each call:
-
-```ts
-import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
-import { nodeFileSystem } from "@better-fs-tools/node";
-
-const { tools } = createAiSdkFsTools<{ root: string }>({
-  fs: (call) =>
-    nodeFileSystem({ cwd: call.host.context.root, allowedRoots: [call.host.context.root] }),
-});
-```
-
-The tools set no `contextSchema`. AI SDK 7 passes `toolsContext[name]` to the tool as `context`, but its types do not accept a `toolsContext` for a tool without a `contextSchema`. To give each request its own session, you can also create the tools inside the request.
-
-[Use one store for each session](/read/hooks-and-state#use-one-store-for-each-session) shows the same pattern with `state`. In the bundle, `state` must be one store. A single tool also takes a function of the call.
-
 ## Model output
 
 `execute` returns the whole result: a `ReadResult`, a `MutationResult`, or a `ShellResult`. `toModelOutput` gives the model the content of the result as AI SDK `content` output. A text part stays a text part. A media part, such as an image, becomes a base64 `file` part with its `mediaType`.
@@ -268,76 +376,3 @@ const readNotes = tool({
 ```
 
 For the notes file, the output is `{ type: "content", value: [{ type: "text", text: "1|one" }] }`.
-
-## apply_patch
-
-The default `apply_patch` signature takes the whole patch as a JSON string in `patch`. AI SDK tools take JSON only. A signature with a grammar, such as `freeformPatchSignature()`, still works, but the adapter does not send the grammar. The model sees the same JSON schema as for `defaultPatchSignature()`:
-
-```ts
-import { createAiSdkApplyPatchTool } from "@better-fs-tools/ai-sdk";
-import { nodeFileSystem } from "@better-fs-tools/node";
-import { freeformPatchSignature } from "@better-fs-tools/write/signature";
-
-const cwd = process.cwd();
-const applyPatch = createAiSdkApplyPatchTool({
-  fs: nodeFileSystem({ cwd, allowedRoots: [cwd] }),
-  signature: freeformPatchSignature(),
-});
-```
-
-## Bash tool
-
-This package starts no process, and it does not read `process.env`. A bash tool needs a `runner` and an `env`:
-
-```ts
-import { generateText, isStepCount } from "ai";
-import type { LanguageModel } from "ai";
-import { createAiSdkBashTool } from "@better-fs-tools/ai-sdk";
-import { nodeCommandRunner } from "@better-fs-tools/node";
-import { shellEnv } from "@better-fs-tools/shell";
-
-// The AI SDK package starts no process. Give it a runner.
-const bash = createAiSdkBashTool({
-  runner: nodeCommandRunner(),
-  env: shellEnv(() => process.env),
-});
-
-export async function run(model: LanguageModel, prompt: string): Promise<string> {
-  const result = await generateText({
-    model,
-    prompt,
-    tools: { [bash.name]: bash },
-    stopWhen: isStepCount(5),
-  });
-  return result.text;
-}
-```
-
-Use `nodeCommandRunner()` from `@better-fs-tools/node`, or `justBashCommandRunner()` from `@better-fs-tools/just-bash`. The default signature is `bash` with `command`, `timeout`, and `cwd`. `timeout` is in milliseconds, and the description names the runner.
-
-In the bundle, set `bash: { runner, env }`. `bash: true` throws a `TypeError`, because the portable bundle has no default runner:
-
-```text
-TypeError: createAiSdkFsTools bash must be an object with a runner and an env: the portable bundle has no default runner
-```
-
-The [bash guide](/bash) has the other bash options.
-
-## Cloudflare Agents
-
-For a Cloudflare Agents host, pass a [Cloudflare Shell](/filesystems/cloudflare) filesystem as `fs`. No other wrapper is necessary:
-
-```ts
-import type { Workspace } from "@cloudflare/shell";
-import { createAiSdkFsTools } from "@better-fs-tools/ai-sdk";
-import { cloudflareShellFileSystem } from "@better-fs-tools/cloudflare-shell";
-
-// read, edit, and write with one sha256Digest() and one lock manager. Nothing
-// here needs Node, so it runs in a Worker.
-export function workspaceTools(workspace: Workspace) {
-  const fs = cloudflareShellFileSystem(workspace, { allowedRoots: ["/workspace"] });
-  return createAiSdkFsTools({ fs }).tools;
-}
-```
-
-The Cloudflare Shell backend reads the whole file before `authorize` runs. See [Filesystems](/filesystems) for what each backend can do.

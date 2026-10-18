@@ -18,14 +18,40 @@ Each tool call is a durable task. The Harness stores the intent of the call befo
 ## Install
 
 ```sh
-npm install @better-fs-tools/pi-durable @earendil-works/pi-durable@~1.2.0 @earendil-works/chord@~1.2.0 typebox
+npm install @better-fs-tools/pi-durable @better-fs-tools/shell @earendil-works/pi-durable@~1.2.0 @earendil-works/chord@~1.2.0 typebox
 ```
 
-`@earendil-works/pi-durable` (`~1.2.0`), `@earendil-works/chord` (`~1.2.0`), and `typebox` (`^1.3.16`) are required peers. The package imports no `node:` module. The Harness example below also uses `@earendil-works/pi-ai` for the models.
+`@earendil-works/pi-durable` (`~1.2.0`), `@earendil-works/chord` (`~1.2.0`), and `typebox` (`^1.3.16`) are required peers. The package imports no `node:` module. `@better-fs-tools/shell` gives `shellEnv()` for the bash tool. The Harness example below also uses `@earendil-works/pi-ai` for the models.
+
+## Recommended configuration
+
+These options suit the durable harness. They are options, not defaults, so each one is visible in your code:
+
+```ts
+import {
+  createDurableFsTools,
+  documentReadStore,
+  durableEnvFileSystem,
+  durableEnvRunner,
+} from "@better-fs-tools/pi-durable";
+import { shellEnv } from "@better-fs-tools/shell";
+
+createDurableFsTools({
+  fs: durableEnvFileSystem({ allowedRoots: ["."] }), // through the call's ExecutionEnv
+  state: documentReadStore(), // read records follow the conversation and its forks
+  bash: { runner: durableEnvRunner(), env: shellEnv() }, // the environment's exec()
+});
+```
+
+- `fs: durableEnvFileSystem()`: each call reads and writes through the call's `ExecutionEnv`. So the tools work on the local machine, over SSH with `@earendil-works/pi-env`, and in a container. See [How each call works](#how-each-call-works).
+- `state: documentReadStore()`: each read record is a document of the conversation. The records stay after a restart, and a fork gets the records of its parent. See [Read records](#read-records).
+- `bash: { runner: durableEnvRunner(), env: shellEnv() }`: commands run through the environment's `exec()`. Leave `bash` out to keep the `bash` of `CodingTools`. See [Bash](#bash).
+
+Every other option has the default of every integration: `sha256Digest()`, `memoryLocks()`, and `read` returns images. [Choose an integration](/integrations) has the full table.
 
 ## Replace the built-in tools
 
-`CodingTools` from `@earendil-works/pi-durable/tools` has `read`, `write`, `edit`, and `bash`. When two selected extensions have a tool with the same name, the extension installed later wins. Install the Better FS Tools extension after `CodingTools`. Its `read`, `edit`, and `write` then replace those of `CodingTools`, and the `bash` of `CodingTools` stays:
+`CodingTools` from `@earendil-works/pi-durable/tools` has `read`, `write`, `edit`, and `bash`. When two selected extensions have a tool with the same name, the extension installed later wins. Install the Better FS Tools extension after `CodingTools`. With the recommended configuration, its `read`, `edit`, `write`, and `bash` then replace those of `CodingTools`:
 
 ```ts
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -33,13 +59,24 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import { createRegistry, Harness, MemoryStorage } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
-import { createDurableFsTools } from "@better-fs-tools/pi-durable";
+import {
+  createDurableFsTools,
+  documentReadStore,
+  durableEnvFileSystem,
+  durableEnvRunner,
+} from "@better-fs-tools/pi-durable";
+import { shellEnv } from "@better-fs-tools/shell";
 
 const registry = createRegistry();
 registry.install(CodingTools);
-// Installed later, so its read, edit, and write replace those of CodingTools.
-// The bash of CodingTools stays.
-registry.install(createDurableFsTools());
+// Installed later, so its tools replace those of CodingTools.
+registry.install(
+  createDurableFsTools({
+    fs: durableEnvFileSystem({ allowedRoots: ["."] }),
+    state: documentReadStore(),
+    bash: { runner: durableEnvRunner(), env: shellEnv() },
+  }),
+);
 
 const context = BACKGROUND_CONTEXT;
 const harness = await Harness.open(
@@ -56,43 +93,64 @@ await root.submit({ type: "input", content: "Fix the typo in README.md." }, cont
 await harness.close(context);
 ```
 
-The tools of this conversation are `read`, `write`, `edit`, and `bash`. `read`, `edit`, and `write` are the Better FS Tools tools. To give one conversation an exact tool list, use `conversation.configure({ tools: [...] }, context)` with the tool objects.
+The tools of this conversation are `read`, `write`, `edit`, and `bash`, all from Better FS Tools. Without `bash`, the `bash` of `CodingTools` stays. To give one conversation an exact tool list, use `conversation.configure({ tools: [...] }, context)` with the tool objects.
 
 ## How each call works
 
 A pi-durable tool gets `execute(args, api, context)`. `api.env` is the execution environment of the call. The `env` option of `Harness.open()` builds it from the conversation's `cwd`. `context` is a Chord `Context`, and a cancel of the call stops it.
 
-For each call, the extension builds a filesystem over `api.env` with `executionEnvFileSystem()`. The only allowed root is the environment's `cwd`. A call without an environment fails with an error result.
+The host of each call is `{ api, env, context }`. Host functions, for example an `authorize` function, get it as `ctx.call.host`. A function `fs`, `state`, or `runner` gets the call. `durableEnvFileSystem()`, `documentReadStore()`, and `durableEnvRunner()` are such functions: each builds its part over the call's environment. A call without an environment fails with an error result.
 
-Host functions, for example an `authorize` function, get `{ api, env, context }` as `ctx.call.host`.
+`durableEnvFileSystem()` takes the options of `executionEnvFileSystem()` except `context`, which comes from the call:
+
+| Option         | Default                 | Meaning                                                     |
+| -------------- | ----------------------- | ----------------------------------------------------------- |
+| `allowedRoots` | `["."]`                 | The roots of each call, relative to the environment's `cwd` |
+| `denyRoots`    | none                    | Paths that are refused                                      |
+| `symlinks`     | `"follow-within-roots"` | Follow a link when its real path stays inside the roots     |
 
 ## Options
 
-| Option                  | Default                 | Meaning                                                                                        |
-| ----------------------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
-| `name`                  | `"better-fs-tools"`     | The extension name                                                                             |
-| `state`                 | `"document"`            | The read store. See [Read records](#read-records)                                              |
-| `digest`                | `sha256Digest()`        | The digest for read records                                                                    |
-| `locks`                 | `memoryLocks()`         | One lock manager for every call of the extension. See [Locks](#locks)                          |
-| `clock`                 | `() => new Date()`      | The clock of the tools and the store                                                           |
-| `allowedRoots`          | `["."]`                 | The roots of each call, relative to the environment's `cwd`                                    |
-| `denyRoots`             | none                    | Paths that are refused                                                                         |
-| `symlinks`              | `"follow-within-roots"` | Follow a link when its real path stays inside the roots                                        |
-| `outputLimits`          | 128 KiB and 4,000 lines | The Harness output limits of the file tools. See [Output limits](#output-limits)               |
-| `applyPatch`            | off                     | `true`, or an options object, adds `apply_patch`                                               |
-| `bash`                  | off                     | `true`, or an options object, adds `bash` over the environment. See [Bash](#bash)              |
-| `read`, `edit`, `write` | `{}`                    | The options of one tool, and its `signature`. See the [read](/read) and [write](/write) guides |
+`createDurableFsTools()` takes the options of `createFsTools()`, with the same defaults, plus a `signature` in each tool's options, plus the Harness settings `name` and `outputLimits`:
 
-An unknown key throws `TypeError`. The default signatures are those of the Pi tools: `read({ path, offset?, limit? })`, `edit({ path, edits: [{ oldText, newText }] })`, `write({ path, content })`, and `apply_patch({ patch })` with the Codex grammar. `read` returns images by default.
+| Option                  | Default                 | Meaning                                                                                             |
+| ----------------------- | ----------------------- | --------------------------------------------------------------------------------------------------- |
+| `fs`                    | required                | A writable filesystem, or a function of the call. `durableEnvFileSystem()` is the recommended value |
+| `state`                 | `null`                  | The read store. See [Read records](#read-records)                                                   |
+| `digest`                | `sha256Digest()`        | The digest for read records                                                                         |
+| `locks`                 | `memoryLocks()`         | One lock manager for every call of the extension. See [Locks](#locks)                               |
+| `clock`                 | `() => new Date()`      | The clock of the tools and the store                                                                |
+| `read`, `edit`, `write` | `{}`                    | The options of one tool, and its `signature`. See the [read](/read) and [write](/write) guides      |
+| `applyPatch`            | off                     | `true`, or an options object, adds `apply_patch`                                                    |
+| `bash`                  | off                     | An options object with `runner` and `env` adds `bash`. See [Bash](#bash)                            |
+| `name`                  | `"better-fs-tools"`     | The extension name                                                                                  |
+| `outputLimits`          | 128 KiB and 4,000 lines | The Harness output limits of the tools. See [Output limits](#output-limits)                         |
+
+An unknown key, a shared option inside one tool's options, and `true` as the value of `bash` throw `TypeError`.
+
+The default signatures are those of every integration: `read({ path, offset?, limit? })`, `edit({ path, old_string, new_string, replace_all? })`, `write({ path, content })`, `apply_patch({ patch })`, and `bash({ command, timeout?, cwd? })` with the timeout in milliseconds. A signature with a grammar sets `constrainedSampling`, as in the Pi integrations. `read` returns images by default.
+
+## Alternatives
+
+| To do this                              | Use                                                                          |
+| --------------------------------------- | ---------------------------------------------------------------------------- |
+| Turn read before write off              | Leave out `state`, or set `state: null`                                      |
+| Keep the read records in process memory | `state: memoryStore()`. Every conversation shares it                         |
+| Keep the `bash` of `CodingTools`        | Leave out `bash`                                                             |
+| Give the model Durable's own edit input | `edit: { signature: multiEditSignature() }`: `edits: [{ oldText, newText }]` |
+| Send the Codex patch grammar            | `applyPatch: { signature: freeformPatchSignature() }`                        |
+| Narrow the roots of each call           | `durableEnvFileSystem({ allowedRoots, denyRoots, symlinks })`                |
+
+`multiEditSignature()` and `freeformPatchSignature()` come from `@better-fs-tools/write/signature`. See [Tool definitions](/integrations/tool-definition).
 
 ## Read records
 
-With `state: "document"`, read before write is on. Each read record is a `ReadStateDoc` document of the conversation, keyed by the environment id and the path.
+With `state: documentReadStore()`, read before write is on. Each read record is a `ReadStateDoc` document of the conversation, keyed by the environment id and the path.
 
 - The records stay after a restart. An `edit` in the next process needs no new read.
 - A fork starts with the records that its parent had at the fork entry. A model in the fork can change only what that history read.
 
-`state: null` turns read before write off. A `ReadStateStore`, such as `memoryStore()`, keeps the records in process memory, and every conversation shares it.
+With no `state`, read before write is off. A `ReadStateStore`, such as `memoryStore()`, keeps the records in process memory, and every conversation shares it.
 
 ## Replay after a crash
 
@@ -109,11 +167,11 @@ With `"unsafe"`, the model gets an `interrupted` error result with the output st
 
 The Harness cuts each tool's output at `outputLimits`. The Harness default is 50 KiB, 2,000 lines, and `retain: "head"`. The Better FS Tools `read` already stops its view at 2,000 lines and 50 KiB by default, and it tells the model how to continue. Line numbers and notes make the output longer than the view. With the Harness defaults, the Harness can cut the end of the output a second time, and the model then loses the note that tells it how to continue.
 
-The extension sets `outputLimits` to 128 KiB and 4,000 lines on the file tools, so the limits of Better FS Tools apply first. When you raise the read limits, raise `outputLimits` too. See [Read limits](/read/limits).
+The extension sets `outputLimits` to 128 KiB and 4,000 lines by default, so the limits of Better FS Tools apply first. The `bash` tool gets the same limits with `retain: "tail"`, so the end of the output stays. When you raise the read limits, raise `outputLimits` too. See [Read limits](/read/limits).
 
 ## Results
 
-A Better FS Tools tool does not throw for a tool error. It returns `isError: true`. `read`, `edit`, and `write` give programs their text, as the tools of `CodingTools` do. A read with status `unsupported`, for example of a binary file, is not an error.
+A Better FS Tools tool does not throw for a tool error. It returns `isError: true`. A nonzero bash exit, a timeout, and an error are error results too. No tool declares a `structuredOutputSchema`, so programs get the text. A read with status `unsupported`, for example of a binary file, is not an error.
 
 ## Locks
 
@@ -123,27 +181,29 @@ The tools do not share the queue of the `CodingTools` `edit` and `write`, becaus
 
 ## Bash
 
-`bash: true`, or an options object, adds a `bash` tool over the environment's `exec()`. Its input is the shape of the Durable `bash`: `{ command, timeout }`, with the timeout in seconds. Install the extension after `CodingTools` to replace its `bash`.
+`bash: { runner: durableEnvRunner(), env: shellEnv() }` adds a `bash` tool over the environment's `exec()`. Its input is the shared default signature: `{ command, timeout?, cwd? }`, with the timeout in milliseconds. A `cwd` from the model is relative to the environment's `cwd`. Install the extension after `CodingTools` to replace its `bash`.
 
-- A command keeps the environment's own variables, for example `PATH` and `HOME` on a remote host. The `env` of the tool goes over them. Set `inheritEnv: false` to make the tool's `env` the whole environment of the command.
-- `structuredOutput` has the schema of the Durable `bash`: `output`, `truncated`, `fullOutputPath`, and `exitCode`.
+- By default, a command keeps the environment's own variables, for example `PATH` and `HOME` on a remote host. The `env` of the tool goes over them.
 - A nonzero exit is an error result.
+- `durableEnvRunner()` takes the options of `executionEnvRunner()` except `context`, which comes from the call.
 
-See the [bash guide](/bash) for limits and policy.
+For the input of the Durable `bash`, `{ command, timeout? }` with the timeout in seconds, pass `signature: defaultBashSignature({ timeoutUnit: "s", cwd: false })` from `@better-fs-tools/shell/signature`. See the [bash guide](/bash) for limits and policy.
 
 ## The parts
 
 The package also exports the parts of the extension, for your own tools:
 
-| Export                                                   | What it is                                                            |
-| -------------------------------------------------------- | --------------------------------------------------------------------- |
-| `createDurableFsTools(options?)`                         | The extension                                                         |
-| `executionEnvFileSystem(env, { context, allowedRoots })` | A `WritableFileSystem` over any `ExecutionEnv`, for `createFsTools()` |
-| `executionEnvRunner(env, { context })`                   | A bash `CommandRunner` over `env.exec()`                              |
-| `documentReadStore(api, envId, context)`                 | A `ReadStateStore` in the conversation's `ReadStateDoc` documents     |
-| `ReadStateDoc`                                           | The document family of the read records                               |
+| Export                                                   | What it is                                                                   |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `createDurableFsTools(options)`                          | The extension                                                                |
+| `durableEnvFileSystem(options?)`                         | A per-call `fs`: `executionEnvFileSystem()` over the call's environment      |
+| `durableEnvRunner(options?)`                             | A per-call bash `runner`: `executionEnvRunner()` over the call's environment |
+| `documentReadStore()`                                    | A per-call `state` in the conversation's `ReadStateDoc` documents            |
+| `executionEnvFileSystem(env, { context, allowedRoots })` | A `WritableFileSystem` over any `ExecutionEnv`, for any tool or bundle       |
+| `executionEnvRunner(env, { context })`                   | A bash `CommandRunner` over `env.exec()`                                     |
+| `ReadStateDoc`                                           | The document family of the read records                                      |
 
-This example uses the filesystem with the portable bundle:
+This example uses the filesystem of one environment with the core bundle:
 
 ```ts
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -169,5 +229,5 @@ Paths are POSIX paths in the environment. A path is checked against the roots as
 
 - [Pi](/integrations/pi): the coding agent extension and SDK
 - [Pi agent core](/integrations/pi-agent-core): the tools for `Agent` and `agentLoop()`
-- [Customise the tool definition](/integrations/tool-definition): signatures, names, and descriptions
+- [Tool definitions](/integrations/tool-definition): signatures, names, and descriptions
 - [Read before write](/write/read-before-write): what the read store does
