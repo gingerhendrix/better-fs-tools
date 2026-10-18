@@ -11,7 +11,8 @@ export const Website = Cloudflare.Website.Vite("Website", {
     runWorkerFirst: true,
   },
   domain: {
-    name: "better-fs-tools.gandrew.com",
+    name: "betterfs.dev",
+    redirects: ["www.betterfs.dev", "better-fs-tools.gandrew.com"],
   },
   dev: {
     host: "0.0.0.0",

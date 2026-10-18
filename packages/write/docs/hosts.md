@@ -1,6 +1,6 @@
 # Hosts and backends
 
-This page helps you choose an integration and a filesystem backend. It lists the defaults that every integration shares, the few options that only one host has, a recommended configuration for each host, and what each backend can do. The READMEs of the integration and backend packages link here. The docs site has the same facts on [Choose an integration](https://better-fs-tools.gandrew.com/integrations) and [Filesystems](https://better-fs-tools.gandrew.com/filesystems).
+This page helps you choose an integration and a filesystem backend. It lists the defaults that every integration shares, the few options that only one host has, a recommended configuration for each host, and what each backend can do. The READMEs of the integration and backend packages link here. The docs site has the same facts on [Choose an integration](https://betterfs.dev/integrations) and [Filesystems](https://betterfs.dev/filesystems).
 
 ## One interface in three layers
 

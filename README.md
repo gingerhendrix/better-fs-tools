@@ -2,7 +2,7 @@
 
 A Bun and TypeScript monorepo for focused filesystem tools published under the `@better-fs-tools` npm scope.
 
-The documentation site is deployed at [better-fs-tools.gandrew.com](https://better-fs-tools.gandrew.com).
+The documentation site is deployed at [betterfs.dev](https://betterfs.dev).
 
 ## Packages
 

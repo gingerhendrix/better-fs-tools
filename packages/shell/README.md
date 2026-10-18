@@ -276,5 +276,5 @@ Every tool has one parse helper with the same pattern: `parseReadInput`, `parseE
 ## More
 
 - [docs/architecture.md](docs/architecture.md): the stages, their order, and why
-- [docs/result-schema.md](docs/result-schema.md): every field of the result, every error code with its phase, and every note. The [bash reference](https://better-fs-tools.gandrew.com/reference/bash) on the docs site has the same facts
-- [Choose an integration](https://better-fs-tools.gandrew.com/integrations) on the docs site, or `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the bash defaults of every host, next to the file tools
+- [docs/result-schema.md](docs/result-schema.md): every field of the result, every error code with its phase, and every note. The [bash reference](https://betterfs.dev/reference/bash) on the docs site has the same facts
+- [Choose an integration](https://betterfs.dev/integrations) on the docs site, or `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the bash defaults of every host, next to the file tools

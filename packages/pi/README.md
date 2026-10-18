@@ -102,7 +102,7 @@ try {
 }
 ```
 
-The session's `cwd` is the root of every call. For `tools`, `noTools`, and inline extensions with hooks and guards, see [Use Pi from code (SDK)](https://better-fs-tools.gandrew.com/integrations/pi#use-pi-from-code-sdk). For `pi-agent-core`, use `createAgentCoreFsTools()`: see [Pi agent core](#pi-agent-core) below. For the experimental `pi-durable` harness, use [`@better-fs-tools/pi-durable`](https://www.npmjs.com/package/@better-fs-tools/pi-durable).
+The session's `cwd` is the root of every call. For `tools`, `noTools`, and inline extensions with hooks and guards, see [Use Pi from code (SDK)](https://betterfs.dev/integrations/pi#use-pi-from-code-sdk). For `pi-agent-core`, use `createAgentCoreFsTools()`: see [Pi agent core](#pi-agent-core) below. For the experimental `pi-durable` harness, use [`@better-fs-tools/pi-durable`](https://www.npmjs.com/package/@better-fs-tools/pi-durable).
 
 ## Options
 
@@ -261,7 +261,7 @@ export function addFsTools(agent: Agent): void {
 
 ## Links
 
-- [Choose an integration](https://better-fs-tools.gandrew.com/integrations) and [Filesystems](https://better-fs-tools.gandrew.com/filesystems) on the docs site: the defaults of every host and bundle, and what each backend can do. `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has the same tables
+- [Choose an integration](https://betterfs.dev/integrations) and [Filesystems](https://betterfs.dev/filesystems) on the docs site: the defaults of every host and bundle, and what each backend can do. `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has the same tables
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): every read option, the default signature, `readToolDefinition()`, and the format presets. Its README has a full Pi host example.
 - [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): every write option, the guards, and the authorizers
 - [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node): the filesystem and runner that the `./node` helpers build on

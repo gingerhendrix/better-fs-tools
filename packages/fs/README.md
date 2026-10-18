@@ -136,7 +136,7 @@ console.log(textOf(await read({ path: "/notes.txt" }))); // "1|one"
 
 ## Links
 
-- [Choose an integration](https://better-fs-tools.gandrew.com/integrations) and [Filesystems](https://better-fs-tools.gandrew.com/filesystems) on the docs site: the defaults of every host and bundle, and what each backend can do. `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has the same tables
+- [Choose an integration](https://betterfs.dev/integrations) and [Filesystems](https://betterfs.dev/filesystems) on the docs site: the defaults of every host and bundle, and what each backend can do. `docs/hosts.md` in [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write) has the same tables
 - [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): the read tool, and a guide to writing a filesystem adapter
 - [`@better-fs-tools/write`](https://www.npmjs.com/package/@better-fs-tools/write): the write tools
 - [`@better-fs-tools/node`](https://www.npmjs.com/package/@better-fs-tools/node): the Node filesystem

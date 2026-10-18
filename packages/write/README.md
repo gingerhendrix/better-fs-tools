@@ -450,8 +450,8 @@ export const noGenerated: ToolAuthorizer<unknown> = {
 ## More
 
 - [docs/architecture.md](docs/architecture.md): the pipeline, the stages, and why they are fixed
-- [docs/result-schema.md](docs/result-schema.md): every field of the result, every error code, and every note, plus one table of the statuses and error codes of all five tools. The [write reference](https://better-fs-tools.gandrew.com/reference/write) on the docs site has the same facts
-- [docs/hosts.md](docs/hosts.md): the defaults of every host and bundle, and what each backend can do. [Choose an integration](https://better-fs-tools.gandrew.com/integrations) and [Filesystems](https://better-fs-tools.gandrew.com/filesystems) on the docs site have the same tables
+- [docs/result-schema.md](docs/result-schema.md): every field of the result, every error code, and every note, plus one table of the statuses and error codes of all five tools. The [write reference](https://betterfs.dev/reference/write) on the docs site has the same facts
+- [docs/hosts.md](docs/hosts.md): the defaults of every host and bundle, and what each backend can do. [Choose an integration](https://betterfs.dev/integrations) and [Filesystems](https://betterfs.dev/filesystems) on the docs site have the same tables
 - [`@better-fs-tools/fs`](https://www.npmjs.com/package/@better-fs-tools/fs): the `WritableFileSystem` contract and its conformance suite
 
 ## License
