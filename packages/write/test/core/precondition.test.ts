@@ -70,7 +70,24 @@ describe("precondition table for write", () => {
       phase: "precondition",
       data: { wholeFile: true },
     });
-    expect(note(result, "not-read")?.message).toContain("A partial read is not enough");
+    expect(note(result, "not-read")?.message).toContain("Reads in ranges count");
+    expect(text(fs, "/a.txt")).toBe(FILE["/a.txt"]);
+  });
+
+  test("row 5: ranged reads that together show every line count as a whole read", async () => {
+    const { fs, read, write } = harness({ files: FILE });
+    await read({ path: "/a.txt", offset: 1, limit: 2 });
+    await read({ path: "/a.txt", offset: 2, limit: 2 });
+    const result = await write({ path: "/a.txt", content: "x" });
+    expect(result.status).toBe("ok");
+    expect(text(fs, "/a.txt")).toBe("x");
+  });
+
+  test("row 5: ranged reads with a gap are still NOT_READ", async () => {
+    const { fs, read, write } = harness({ files: FILE });
+    await read({ path: "/a.txt", offset: 1, limit: 1 });
+    await read({ path: "/a.txt", offset: 3, limit: 1 });
+    expect(errorCode(await write({ path: "/a.txt", content: "x" }))).toBe("NOT_READ");
     expect(text(fs, "/a.txt")).toBe(FILE["/a.txt"]);
   });
 
@@ -146,6 +163,7 @@ describe("records that count as absent", () => {
     viewId: "v",
     observedAt: "2026-09-28T00:00:00.000Z",
     wholeFileVisible: true,
+    seenLines: [],
     totalsExact: true,
     request: null,
     ...overrides,

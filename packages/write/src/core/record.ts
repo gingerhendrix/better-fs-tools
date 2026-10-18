@@ -42,6 +42,7 @@ export async function recordCommitted<THost>(
         viewId: contentId ?? "",
         observedAt: clock().toISOString(),
         wholeFileVisible: wholeFileVisible(file),
+        seenLines: [],
         totalsExact: true,
         request: null,
       };

@@ -181,6 +181,7 @@ function mediaOutcome<THost>(
       observedAt: deps.clock().toISOString(),
       // Media is not source text, so it cannot back a text edit.
       wholeFileVisible: false,
+      visibleLines: null,
     }),
     notes,
   };

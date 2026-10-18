@@ -26,6 +26,7 @@ describe("record", () => {
       viewId: contentId,
       observedAt: FIXED_DATE.toISOString(),
       wholeFileVisible: true,
+      seenLines: [],
       totalsExact: true,
       request: null,
     });

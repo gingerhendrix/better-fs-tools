@@ -1,3 +1,5 @@
+import type { ReadLineRange } from "./result.ts";
+
 /**
  * Session state for read observations. A store is a cache: a failed store call
  * never fails a read.
@@ -27,7 +29,16 @@ export interface ReadRecord {
   /** For a write record: equal to contentId. */
   readonly viewId: string;
   readonly observedAt: string;
+  /**
+   * True when one read showed the whole file, or when the reads of this
+   * contentId together showed every line.
+   */
   readonly wholeFileVisible: boolean;
+  /**
+   * The lines of this contentId that reads showed in full, sorted and joined.
+   * Empty for a write record.
+   */
+  readonly seenLines: readonly ReadLineRange[];
   readonly totalsExact: boolean;
   /** The read range. null for a write record. */
   readonly request: { readonly offset: number; readonly limit: number } | null;

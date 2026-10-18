@@ -88,7 +88,7 @@ The model text is one line, for example `Edited src/app.ts: 1 replacement at lin
 
 ## write
 
-`createWriteTool({ fs })` creates a missing file, or replaces an existing one. Missing parent folders are created. A replace needs a read of the whole file first. A partial read is not enough. The same content gives `no-change` and writes nothing, so the modification time stays.
+`createWriteTool({ fs })` creates a missing file, or replaces an existing one. Missing parent folders are created. A replace needs a read of the whole file first. Reads in ranges count when together they show every line of the same content. The same content gives `no-change` and writes nothing, so the modification time stays.
 
 ## apply_patch
 
@@ -138,7 +138,7 @@ The commit stages every new file when the backend has `stage()`, then publishes 
 
 With the read tool's `state` store and a `digest`, the write tools check what the model has seen:
 
-- An existing file needs a record from a read. `edit` and `apply_patch` accept a partial read. `write` needs a read of the whole file.
+- An existing file needs a record from a read. `edit` and `apply_patch` accept a partial read. `write` needs a read of the whole file. Ranged reads of the same content count as a whole read when together they show every line.
 - A file that changed since the read gives `STALE`. With `preconditions: { onStale: "rematch" }`, `edit` and `apply_patch` go ahead when every old text still matches exactly once, with a `stale-rematched` note. `write` always refuses.
 - On a backend with stable identity, the check compares the backend `version`. On every other backend it compares the content hash.
 - After a commit, the tool stores a record with `origin: "write"`. A second edit needs no new read. When an authorizer replaced the content, a hook rewrote the file, or an edit went ahead on a stale file, the record says the model has not seen the whole file, so a following `write` needs a read.

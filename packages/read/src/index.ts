@@ -63,6 +63,7 @@ export type {
   ReadErrorCode,
   ReadFailure,
   ReadLine,
+  ReadLineRange,
   ReadMedia,
   ReadNote,
   ReadObservation,

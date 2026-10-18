@@ -18,6 +18,7 @@ function record(overrides: Partial<ReadRecord> = {}): ReadRecord {
     viewId: "sha256:def",
     observedAt: "2026-08-22T00:00:00.000Z",
     wholeFileVisible: true,
+    seenLines: [{ start: 1, end: 3 }],
     totalsExact: true,
     request: { offset: 1, limit: 2_000 },
     ...overrides,

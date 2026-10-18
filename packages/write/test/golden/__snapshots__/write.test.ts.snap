@@ -49,11 +49,11 @@ exports[`golden write output refusals 1`] = `
       "data": {
         "wholeFile": true,
       },
-      "message": "Read all of /src/app.ts before replacing it. A partial read is not enough for write.",
+      "message": "Read all of /src/app.ts before replacing it. Reads in ranges count when together they show every line.",
       "phase": "precondition",
     },
     "status": "error",
-    "text": "[write:not-read] Read all of /src/app.ts before replacing it. A partial read is not enough for write.",
+    "text": "[write:not-read] Read all of /src/app.ts before replacing it. Reads in ranges count when together they show every line.",
   },
   {
     "error": {

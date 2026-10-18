@@ -198,6 +198,7 @@ With a `state` store and a `digest`, each committed file gets a record under its
   origin: "write",
   observationId, resolvedPath, identity, version, digest,
   contentId, viewId, observedAt, wholeFileVisible,
+  seenLines: [],
   totalsExact: true,
   request: null
 }

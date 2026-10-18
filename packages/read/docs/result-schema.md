@@ -50,7 +50,7 @@ The outcome is plain data. Only media parts hold bytes, as `Uint8Array`. Nothing
   truncation: { truncated, reasons, primary },
   continuation: { available, next },
   totals: { lines, exact, bytes },
-  observation: { id, statId, contentId, viewId, observedAt, wholeFileVisible } | null,
+  observation: { id, statId, contentId, viewId, observedAt, wholeFileVisible, visibleLines } | null,
   notes: [...],
   content: [{ type: "text", text: "1|..." }]
 }
@@ -70,7 +70,7 @@ Field notes:
 - `truncation.reasons` can hold `lines`, `bytes`, `budget`, `scan-limit`, and `line-length`, in that order. `primary` is the first, or `null`.
 - `continuation.next` is a complete canonical input, `{ path, offset, limit }`. Send it again to continue. It uses canonical names even when the tool uses a renamed signature.
 - `totals.lines` is `null` and `totals.exact` is `false` when the scan limit stopped counting. `totals.bytes` is the scanned byte count when the scan reached the end, and the file size otherwise. For converted text, it is the size of the converted text that was scanned.
-- `observation` is `null` with no `digest`, and for directories. `contentId` is `null` when the scan stopped before the end. For converted text it is still the hash of the source bytes. `wholeFileVisible` is `true` only when the offset is 1, nothing was truncated or clamped, and no hook changed the view.
+- `observation` is `null` with no `digest`, and for directories. `contentId` is `null` when the scan stopped before the end. For converted text it is still the hash of the source bytes. `wholeFileVisible` is `true` only when the offset is 1, nothing was truncated or clamped, and no hook changed the view. `visibleLines` is `{ start, end }`, the source lines that the view showed in full. It is `null` when no line was shown, a line was clamped, a converter made the text, or a hook changed the view.
 
 ## `media`
 
@@ -211,10 +211,13 @@ With a `state` store and a `digest`, an `ok` or `media` result is stored under `
   schema: 2,
   origin: "read",
   observationId, resolvedPath, identity, version, digest,
-  contentId, viewId, observedAt, wholeFileVisible, totalsExact,
+  contentId, viewId, observedAt, wholeFileVisible, seenLines, totalsExact,
   request: { offset, limit }
 }
 ```
+
+- `seenLines` is a sorted list of `{ start, end }` ranges that reads of this `contentId` showed in full. A read joins its `visibleLines` to the ranges of a stored record with the same `digest` and `contentId`. A record for other content starts again from this read.
+- `wholeFileVisible` is `true` when this read showed the whole file, when the stored record for the same content was whole, or when `seenLines` runs from line 1 to the last line and the totals are exact.
 
 - `version` is `file.version`. `digest` is the `Digest.id` that made `contentId` and `viewId`.
 - A write tool stores a record with `origin: "write"` after a commit. Its `viewId` equals its `contentId`, and its `request` is `null`.

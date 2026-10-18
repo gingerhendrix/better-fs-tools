@@ -29,6 +29,7 @@ describe("observations", () => {
       viewId: expect.stringMatching(/^fnv:/u),
       observedAt: "2026-08-22T00:00:00.000Z",
       wholeFileVisible: true,
+      visibleLines: { start: 1, end: 2 },
     });
   });
 

@@ -43,6 +43,13 @@ export function textOutcome<THost>(input: TextOutcomeInput<THost>): ReadOk {
     !continuationAvailable &&
     !scanCapped &&
     scanner.clampedLines.length === 0;
+  const endLine =
+    scanner.lines.length === 0 ? request.offset - 1 : request.offset + scanner.lines.length - 1;
+  // Converted lines are not source lines, so they cannot join a range of the source.
+  const visibleLines =
+    conversion === null && scanner.lines.length > 0 && scanner.clampedLines.length === 0
+      ? { start: request.offset, end: endLine }
+      : null;
 
   return {
     tool: "read",
@@ -54,8 +61,7 @@ export function textOutcome<THost>(input: TextOutcomeInput<THost>): ReadOk {
     view: {
       lines: scanner.lines,
       startLine: request.offset,
-      endLine:
-        scanner.lines.length === 0 ? request.offset - 1 : request.offset + scanner.lines.length - 1,
+      endLine,
       bytes: scanner.viewBytes,
       partial: request.offset !== 1 || continuationAvailable || reasons.length > 0,
     },
@@ -82,6 +88,7 @@ export function textOutcome<THost>(input: TextOutcomeInput<THost>): ReadOk {
             view: scanner.viewText,
             observedAt: deps.clock().toISOString(),
             wholeFileVisible,
+            visibleLines,
           }),
     notes: [
       ...buildViewNotes({

@@ -9,7 +9,7 @@ describe("write messages", () => {
       "Read a.ts with the read tool before changing it.",
     );
     expect(m.notRead({ tool: "write", path: "a.ts", wholeFile: true })).toBe(
-      "Read all of a.ts before replacing it. A partial read is not enough for write.",
+      "Read all of a.ts before replacing it. Reads in ranges count when together they show every line.",
     );
     expect(m.stale({ tool: "write", path: "a.ts" })).toBe(
       "a.ts changed since it was last read. Read it again, then retry.",

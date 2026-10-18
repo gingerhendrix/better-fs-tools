@@ -179,15 +179,16 @@ Hooks are host code. The model cannot choose which files a hook reads, so a hook
 
 An observation exists when there is a `digest`:
 
-| Field              | Value                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------------ |
-| `statId`           | Hash of the resolved path, identity, size, and modification time                                 |
-| `contentId`        | Hash of the source bytes. `null` when the scan stopped before the end.                           |
-| `viewId`           | Hash of what the model saw: the view text, or the media parts                                    |
-| `id`               | Hash of `statId`, `contentId`, and `viewId`                                                      |
-| `wholeFileVisible` | `true` only when the offset is 1, nothing was truncated or clamped, and no hook changed the view |
+| Field              | Value                                                                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `statId`           | Hash of the resolved path, identity, size, and modification time                                                                                        |
+| `contentId`        | Hash of the source bytes. `null` when the scan stopped before the end.                                                                                  |
+| `viewId`           | Hash of what the model saw: the view text, or the media parts                                                                                           |
+| `id`               | Hash of `statId`, `contentId`, and `viewId`                                                                                                             |
+| `wholeFileVisible` | `true` only when the offset is 1, nothing was truncated or clamped, and no hook changed the view                                                        |
+| `visibleLines`     | The source lines that the view showed in full. `null` when no line was shown, a line was clamped, a converter made the text, or a hook changed the view |
 
-The record stores these fields with the request range, under the key `file.resolvedPath`. It is schema 2: it also has `origin: "read"`, the backend `version`, and the `digest` id. The write tools store records with `origin: "write"` and `request: null` in the same store, so a later edit knows what the model has seen. The hook runner treats a record of another schema as absent, and `repeatReadGuard` ignores a write record. `record` builds it field by field from the outcome, so nothing from `call` reaches the store. A store whose `get` or `put` fails does not fail the read. A `state` factory that throws does.
+The record stores these fields with the request range, under the key `file.resolvedPath`. Before it stores a record, the core reads the stored record. When that record has the same `digest` and the same non-null `contentId`, the core joins its `seenLines` with this view's `visibleLines`. The record's `wholeFileVisible` is then `true` when this read showed the whole file, when the stored record was whole, or when the joined ranges run from line 1 to the last line and the totals are exact. So a model that reads a file in ranges can still `write` it. Records for one store and key are written one at a time inside the process, so parallel ranged reads all join. Two processes that share a store can still lose a range. It is schema 2: it also has `origin: "read"`, the backend `version`, and the `digest` id. The write tools store records with `origin: "write"` and `request: null` in the same store, so a later edit knows what the model has seen. The hook runner treats a record of another schema as absent, and `repeatReadGuard` ignores a write record. `record` builds it field by field from the outcome, so nothing from `call` reaches the store. A store whose `get` or `put` fails does not fail the read. A `state` factory that throws does.
 
 ## Errors
 

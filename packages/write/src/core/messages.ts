@@ -40,7 +40,7 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
 
     notRead: ({ path, wholeFile }) =>
       wholeFile
-        ? `Read all of ${path} before replacing it. A partial read is not enough for write.`
+        ? `Read all of ${path} before replacing it. Reads in ranges count when together they show every line.`
         : `Read ${path} with the read tool before changing it.`,
     stale: ({ path }) => `${path} changed since it was last read. Read it again, then retry.`,
     staleRematched: ({ path }) =>

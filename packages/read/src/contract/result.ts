@@ -184,4 +184,15 @@ export interface ReadObservation {
   readonly observedAt: string;
   /** True when offset is 1, nothing was truncated or clamped, and no hook edited the view. */
   readonly wholeFileVisible: boolean;
+  /**
+   * The source lines that the view showed in full. null when the view showed no
+   * line, clamped a line, came from a converter, or was edited by a hook.
+   */
+  readonly visibleLines: ReadLineRange | null;
+}
+
+/** An inclusive range of 1-based source line numbers. */
+export interface ReadLineRange {
+  readonly start: number;
+  readonly end: number;
 }

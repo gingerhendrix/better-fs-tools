@@ -531,7 +531,7 @@ export const agentsNote: ReadHook<unknown> = {
 };
 ```
 
-A repeat read that the guard empties is recorded as it was shown, with `wholeFileVisible: false`. Redaction works line by line, so a secret split across two lines is not matched.
+A repeat read that the guard empties has `observation.wholeFileVisible: false`. The stored record keeps the earlier read's `wholeFileVisible` and line ranges when the content is the same. Redaction works line by line, so a secret split across two lines is not matched.
 
 ## Output format
 
@@ -702,7 +702,7 @@ await read({ path: "/a.txt" }, { host: session, callId: "call-1" });
 - `sha256Digest()` is SHA-256 in plain JavaScript. It is synchronous and needs no Node module, so it works in a Cloudflare Worker. Its id and its values (`sha256:<hex>`) are the same as `nodeDigest()`, so records from either one match.
 - `state` needs a `digest`, because a record names the digest that made it. `digest` defaults to `sha256Digest()`, so a `state` alone works. `createReadTool` throws `TypeError` for a `state` with `digest: null`, and the options type (`StateNeedsDigest`) refuses it at compile time.
 - `state` can be a function of the call. It runs at most once for each read, and only when the core needs the store. Return `null` for no store. A factory that throws gives `EXTENSION_FAILED`. A store whose `get` or `put` fails never fails the read.
-- The record key is `file.resolvedPath`. A read stores a `ReadRecord` with `schema: 2` and `origin: "read"`. It holds the backend `version`, the `digest` id, the content and view ids, and the read range. The write tools store records with `origin: "write"` and `request: null` after a commit. A record of another schema counts as absent.
+- The record key is `file.resolvedPath`. A read stores a `ReadRecord` with `schema: 2` and `origin: "read"`. It holds the backend `version`, the `digest` id, the content and view ids, the read range, and `seenLines`. `seenLines` joins the ranges that reads of the same content showed in full. When they run from line 1 to the last line, the record is `wholeFileVisible`, so reads in ranges count as a read of the whole file. The write tools store records with `origin: "write"` and `request: null` after a commit. A record of another schema counts as absent.
 - `result.file.version` is the backend's change token from `open()`, or `null`. It is kept when the backend has no identity capability.
 - `memoryStore()` from `@better-fs-tools/read` keeps records in memory, with a size cap and a TTL. Its `clock` option is the same `Clock` (`() => Date`) that the tools take, so one fake clock fits both. It sits on the root of the package that owns `ReadStateStore`, as `memoryLocks()` sits on the root of `@better-fs-tools/write`, which owns `LockManager`.
 - The helpers in this package are typed with `unknown` for the host, so they fit a tool with any host type. `askUser`, `imageConverter`, and `textConverter` can take your host type, as `askUser<Session>` does above.

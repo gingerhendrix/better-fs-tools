@@ -1,5 +1,5 @@
 import type { Digest } from "../contract/digest.ts";
-import type { ContentPart, FileInfo, ReadObservation } from "../contract/result.ts";
+import type { ContentPart, FileInfo, ReadLineRange, ReadObservation } from "../contract/result.ts";
 
 const ENCODER = new TextEncoder();
 
@@ -9,6 +9,7 @@ export interface ObservationInput {
   readonly view: string | readonly ContentPart[];
   readonly observedAt: string;
   readonly wholeFileVisible: boolean;
+  readonly visibleLines: ReadLineRange | null;
 }
 
 export function buildObservation(
@@ -32,6 +33,7 @@ export function buildObservation(
     viewId,
     observedAt: input.observedAt,
     wholeFileVisible: input.wholeFileVisible,
+    visibleLines: input.visibleLines,
   };
 }
 
@@ -46,6 +48,7 @@ export function withEditedView(
     id: observationId(digest, observation.statId, observation.contentId, viewId),
     viewId,
     wholeFileVisible: false,
+    visibleLines: null,
   };
 }
 
