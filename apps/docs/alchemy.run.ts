@@ -7,9 +7,6 @@ export const Website = Cloudflare.Website.Vite("Website", {
   compatibility: {
     flags: ["nodejs_compat"],
   },
-  assets: {
-    runWorkerFirst: true,
-  },
   domain: {
     name: "betterfs.dev",
     aliases: ["www.betterfs.dev", "better-fs-tools.gandrew.com"],
