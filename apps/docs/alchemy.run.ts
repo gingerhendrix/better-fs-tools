@@ -12,7 +12,7 @@ export const Website = Cloudflare.Website.Vite("Website", {
   },
   domain: {
     name: "betterfs.dev",
-    redirects: ["www.betterfs.dev", "better-fs-tools.gandrew.com"],
+    aliases: ["www.betterfs.dev", "better-fs-tools.gandrew.com"],
   },
   dev: {
     host: "0.0.0.0",
