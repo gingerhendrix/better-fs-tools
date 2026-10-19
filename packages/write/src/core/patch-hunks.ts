@@ -1,8 +1,9 @@
 import type { ChangeFragment } from "../contract/extensions.ts";
 import type { Matcher, MatchRange } from "../contract/matcher.ts";
 import type { PatchHunk, PatchLine } from "../contract/patch.ts";
+import type { FuzzyWrite } from "../contract/messages.ts";
 import type { MatchInfo } from "../contract/result.ts";
-import { keepFileLines } from "../matchers/keep-bytes.ts";
+import { describeWrite, keepFileLines } from "../matchers/keep-bytes.ts";
 import { findWith } from "./match.ts";
 import type { MutationScope } from "./scope.ts";
 
@@ -23,6 +24,8 @@ export type HunksOutcome =
       readonly ok: true;
       readonly text: string;
       readonly matches: readonly MatchInfo[];
+      /** For each match, what the tool wrote compared with the hunk's lines. */
+      readonly written: readonly FuzzyWrite[];
       readonly changed: readonly (readonly [number, number])[];
       readonly fragments: readonly ChangeFragment[];
     }
@@ -32,6 +35,13 @@ interface Replacement {
   readonly start: number;
   readonly remove: number;
   readonly lines: readonly string[];
+}
+
+interface Found {
+  readonly index: number;
+  readonly hit: Hit;
+  readonly size: number;
+  readonly written: FuzzyWrite;
 }
 
 interface Hit {
@@ -47,7 +57,7 @@ export function applyHunks<THost>(
 ): HunksOutcome {
   const file = new LineFile(text);
   const replacements: Replacement[] = [];
-  const found: { readonly index: number; readonly hit: Hit; readonly size: number }[] = [];
+  const found: Found[] = [];
   let cursor = 0;
   for (const [index, hunk] of hunks.entries()) {
     let context: number | null = null;
@@ -83,8 +93,14 @@ export function applyHunks<THost>(
         problem: { reason: "lines-not-found", hunk: index, lines: old, from: cursor, context },
       };
     }
-    replacements.push({ start: hit.line, remove: old.length, lines: newLines(body, file, hit) });
-    found.push({ index, hit, size: old.length });
+    const lines = newLines(body, file, hit);
+    replacements.push({ start: hit.line, remove: old.length, lines });
+    const written = describeWrite(
+      file.lines.slice(hit.line, hit.line + old.length),
+      body.filter((line) => line.kind !== "-").map((line) => line.text),
+      lines,
+    );
+    found.push({ index, hit, size: old.length, written });
     cursor = hit.line + old.length;
   }
   return applyReplacements(file, replacements, found);
@@ -93,7 +109,7 @@ export function applyHunks<THost>(
 function applyReplacements(
   file: LineFile,
   replacements: readonly Replacement[],
-  found: readonly { readonly index: number; readonly hit: Hit; readonly size: number }[],
+  found: readonly Found[],
 ): HunksOutcome {
   const order = replacements
     .map((replacement, at) => ({ replacement, at }))
@@ -133,7 +149,8 @@ function applyReplacements(
     newText: replacement.lines.join("\n"),
   }));
   const ending = file.finalNewline && result.length > 0 ? "\n" : "";
-  return { ok: true, text: `${result.join("\n")}${ending}`, matches, changed, fragments };
+  const written = found.map((entry) => entry.written);
+  return { ok: true, text: `${result.join("\n")}${ending}`, matches, written, changed, fragments };
 }
 
 interface OldLines {

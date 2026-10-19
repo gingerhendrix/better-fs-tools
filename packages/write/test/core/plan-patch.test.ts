@@ -291,7 +291,7 @@ describe("bytes the patch does not name stay the same", () => {
       code: "fuzzy-match",
       severity: "info",
       message:
-        "Hunk 1 matched /a.ts at lines 1-3 only with the normalized matcher, not exactly. Check the result.",
+        "Hunk 1 matched /a.ts at lines 1-3 only with the normalized matcher, not exactly. The hunk is applied. 1 unchanged line kept the file's characters.",
       data: { path: "/a.ts", hunk: 0, matcher: "normalized" },
     });
     expect(textOf(result)).toStartWith(
@@ -899,12 +899,15 @@ describe("a loose hunk keeps the file's bytes for lines the model did not change
       });
       expect(result.changes[0]?.matches[0]).toMatchObject({ matcher: "normalized", fuzzy: true });
       expect(text(fs, "/sample.txt")).toBe(FIXED);
+      expect(note(result, "fuzzy-match")?.message).toMatch(
+        /The hunk is applied\. 1 line kept the file's CRLF line end\.$/u,
+      );
     }
   });
 
   test("a - line sent back unchanged as a + line keeps its bytes (GLM, unicode-fix-1-minus-unicode)", async () => {
     const { applyPatch, fs } = await readAll({ "/sample.txt": `${LOOKALIKES}\ntarget: A−B\n` });
-    await applyPatch({
+    const result = await applyPatch({
       patch: patchText(
         "*** Update File: /sample.txt",
         "@@",
@@ -915,6 +918,9 @@ describe("a loose hunk keeps the file's bytes for lines the model did not change
       ),
     });
     expect(text(fs, "/sample.txt")).toBe(`${LOOKALIKES}\ntarget: A-B\n`);
+    expect(note(result, "fuzzy-match")?.message).toBe(
+      "Hunk 1 matched /sample.txt at lines 1-2 only with the normalized matcher, not exactly. The hunk is applied. 1 unchanged line kept the file's characters.",
+    );
   });
 
   test("a hunk with equal old and new lines is written as given: it changes only folded characters", async () => {

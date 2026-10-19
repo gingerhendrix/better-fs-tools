@@ -87,14 +87,49 @@ describe("write messages", () => {
       "a: hunk 1: failed to find the expected lines at line 2, where the @@ line matched, or from line 3 on:\n    x",
     );
     expect(m.patchFuzzyMatch({ path: "a", hunk: 2, matcher: "normalized", lines: [3, 4] })).toBe(
-      "Hunk 2 matched a at lines 3-4 only with the normalized matcher, not exactly. Check the result.",
+      "Hunk 2 matched a at lines 3-4 only with the normalized matcher, not exactly. The hunk is applied.",
     );
     expect(m.patchFuzzyMatch({ path: "a", hunk: 1, matcher: "normalized", lines: [3, 3] })).toBe(
-      "Hunk 1 matched a at line 3 only with the normalized matcher, not exactly. Check the result.",
+      "Hunk 1 matched a at line 3 only with the normalized matcher, not exactly. The hunk is applied.",
     );
     expect(m.fuzzyMatch({ path: "a", index: 0, matcher: "normalized", lines: [1, 1] })).toBe(
-      "Edit 1 matched a at line 1 only with the normalized matcher, not exactly. Check the result.",
+      "Edit 1 matched a at line 1 only with the normalized matcher, not exactly. The edit is applied.",
     );
+  });
+
+  test("loose-match notes say what the tool wrote, and never ask for a check", () => {
+    const m = defaultWriteMessages;
+    const base = { path: "a", index: 0, matcher: "normalized", lines: [2, 3] as const };
+    const said = (keptLines: number, keptLineEnds: number, adaptedLines: number) =>
+      m.fuzzyMatch({ ...base, written: { keptLines, keptLineEnds, adaptedLines } });
+    const head = "Edit 1 matched a at lines 2-3 only with the normalized matcher, not exactly.";
+    expect(said(0, 1, 0)).toBe(
+      `${head} The edit is applied. 1 line kept the file's CRLF line end.`,
+    );
+    expect(said(2, 0, 0)).toBe(
+      `${head} The edit is applied. 2 unchanged lines kept the file's characters.`,
+    );
+    expect(said(1, 2, 0)).toBe(
+      `${head} The edit is applied. 1 unchanged line kept the file's characters. 2 lines kept the file's CRLF line ends.`,
+    );
+    expect(said(0, 0, 3)).toBe(
+      `${head} The edit is applied. The normalized matcher changed 3 lines to fit the file.`,
+    );
+    expect(said(0, 0, 0)).toBe(`${head} The edit is applied. The new lines were written as given.`);
+    expect(
+      m.patchFuzzyMatch({
+        path: "a",
+        hunk: 1,
+        matcher: "normalized",
+        lines: [2, 2],
+        written: { keptLines: 0, keptLineEnds: 1, adaptedLines: 0 },
+      }),
+    ).toBe(
+      "Hunk 1 matched a at line 2 only with the normalized matcher, not exactly. The hunk is applied. 1 line kept the file's CRLF line end.",
+    );
+    for (const text of [said(0, 1, 0), said(2, 0, 0), said(0, 0, 0)]) {
+      expect(text).not.toMatch(/check|again|redo/iu);
+    }
     expect(m.patchCommitFailed({ path: "b", code: "STALE", rolledBack: true, files: [] })).toBe(
       "Patch commit failed at b (STALE). The patch was rolled back. No files are changed.",
     );

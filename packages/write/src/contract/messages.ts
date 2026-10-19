@@ -14,6 +14,19 @@ export type WriteCanonicalParam =
   | "patch";
 
 /**
+ * What the tool wrote for one loose hit, compared line by line with the
+ * model's new lines. Each count is a number of lines.
+ */
+export interface FuzzyWrite {
+  /** Lines written with the file's own characters, not the model's. */
+  readonly keptLines: number;
+  /** Lines that kept the file's CR, which the model's line did not have. */
+  readonly keptLineEnds: number;
+  /** Lines that the matcher changed in another way, for example a new indentation. */
+  readonly adaptedLines: number;
+}
+
+/**
  * Wording for every note the write tools produce. Text that names a model
  * parameter gets the name from `param(name)`, which a signature overrides.
  */
@@ -75,11 +88,13 @@ export interface WriteMessageCatalog extends ToolMessages {
   overlap(c: { path: string; first: number; second: number }): string;
   noChange(c: { path: string }): string;
   alreadyApplied(c: { path: string; index: number }): string;
+  /** `written` is optional, so a host's own message can leave it out. */
   fuzzyMatch(c: {
     path: string;
     index: number;
     matcher: string;
     lines: readonly [number, number];
+    written?: FuzzyWrite;
   }): string;
   repeatedMiss(c: { path: string; misses: number }): string;
 
@@ -104,12 +119,13 @@ export interface WriteMessageCatalog extends ToolMessages {
     from?: number;
     context?: number | null;
   }): string;
-  /** `hunk` is one-based. */
+  /** `hunk` is one-based. `written` is optional, as in fuzzyMatch. */
   patchFuzzyMatch(c: {
     path: string;
     hunk: number;
     matcher: string;
     lines: readonly [number, number];
+    written?: FuzzyWrite;
   }): string;
   /** `files` is set when the rollback failed: the state of every file the patch targets. */
   patchCommitFailed(c: {

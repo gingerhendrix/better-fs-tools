@@ -130,6 +130,7 @@ The core owns the rules on every hit:
 
 - The splice is literal: `text.slice(0, start) + newText + text.slice(end)`. `String.prototype.replace` is never called, so `$&` and `$1` stay as written.
 - A matcher's `adapt()` can rewrite the new text for its hit before the splice. `normalizedMatcher()` and `lineTrimmedMatcher()` use it so that the leading and trailing lines the new text leaves as they were keep the file's bytes, and each replaced line keeps the CR of the file line it replaces. When the old text and the new text are the same, the new text keeps its characters.
+- Each loose hit gives a `fuzzy-match` note. `describeWrite()` compares the written lines with the model's new lines, line by line, and counts the lines that kept the file's characters, the lines that kept only the file's CR, and the lines that the matcher changed in another way. `fuzzyMatch` and `patchFuzzyMatch` get the counts as `written`, and the default text says only what took place. `apply_patch` makes the same counts in `applyHunks()`.
 - A loose hit much longer than the old text (`span`), a hit that starts or ends inside a folded span (`boundary`), and a loose hit whose new text adds escape sequences the matched text does not have (`escape`) give `MATCH_REFUSED`.
 - Ranges of different pairs must not overlap. Splices apply from the end.
 - A result equal to the original gives `NO_CHANGE`, unless every pair is already applied.

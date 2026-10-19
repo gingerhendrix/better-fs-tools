@@ -23,7 +23,7 @@ exports[`golden edit output one change, several changes, replace all, and a fuzz
     "text": 
 "Edited /src/app.ts: 1 replacement at lines 9-10.
 
-[edit:fuzzy-match] Edit 1 matched /src/app.ts at lines 9-10 only with the normalized matcher, not exactly. Check the result."
+[edit:fuzzy-match] Edit 1 matched /src/app.ts at lines 9-10 only with the normalized matcher, not exactly. The edit is applied. The new lines were written as given."
 ,
   },
 ]

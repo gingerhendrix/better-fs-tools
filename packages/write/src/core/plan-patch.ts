@@ -120,7 +120,7 @@ export function planPatch<THost>(
         message: messages.staleRematched({ path: main.displayPath }),
       });
     }
-    for (const match of outcome.matches) {
+    for (const [at, match] of outcome.matches.entries()) {
       if (!match.fuzzy) continue;
       scope.notes.push({
         code: "fuzzy-match",
@@ -130,6 +130,7 @@ export function planPatch<THost>(
           hunk: match.index + 1,
           matcher: match.matcher,
           lines: match.lines,
+          written: outcome.written[at],
         }),
         data: { path: main.displayPath, hunk: match.index, matcher: match.matcher },
       });

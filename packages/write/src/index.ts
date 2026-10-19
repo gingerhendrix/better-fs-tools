@@ -53,7 +53,7 @@ export type { LockManager, LockOutcome } from "./contract/locks.ts";
 export type { PreconditionPolicy } from "./contract/preconditions.ts";
 export type { WriteFormatContext, WriteFormatter } from "./contract/format.ts";
 export type { WriteLimits } from "./contract/limits.ts";
-export type { WriteCanonicalParam, WriteMessageCatalog } from "./contract/messages.ts";
+export type { FuzzyWrite, WriteCanonicalParam, WriteMessageCatalog } from "./contract/messages.ts";
 
 export { createApplyPatchTool, createEditTool, createWriteTool } from "./core/create-tools.ts";
 export { parseApplyPatchInput, parseEditInput, parseWriteInput } from "./core/input.ts";

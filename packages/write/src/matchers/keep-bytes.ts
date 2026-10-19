@@ -1,3 +1,5 @@
+import type { FuzzyWrite } from "../contract/messages.ts";
+
 const CR = "\r";
 
 /**
@@ -56,4 +58,30 @@ export function adaptKeepingBytes(
   const old = needle.split("\n");
   if (file.length !== old.length || !lined(file, old)) return newText;
   return keepFileLines(file, old, newText.split("\n"), newText !== needle).join("\n");
+}
+
+/**
+ * Compares what the tool wrote for one loose hit with the model's new lines,
+ * position by position. `file` holds the file's own lines of the hit. A
+ * written line that differs from the model's line only by a final CR kept the
+ * file's line end. One that is a line of `file` kept the file's characters.
+ * Any other difference came from the matcher.
+ */
+export function describeWrite(
+  file: readonly string[],
+  given: readonly string[],
+  written: readonly string[],
+): FuzzyWrite {
+  let keptLines = 0;
+  let keptLineEnds = 0;
+  let adaptedLines = 0;
+  for (const [at, line] of written.entries()) {
+    const sent = given[at];
+    if (line === sent) continue;
+    if (sent !== undefined && line === `${sent}${CR}`) keptLineEnds += 1;
+    else if (sent !== undefined && file.includes(line)) keptLines += 1;
+    else adaptedLines += 1;
+  }
+  adaptedLines += Math.max(0, given.length - written.length);
+  return { keptLines, keptLineEnds, adaptedLines };
 }

@@ -2,6 +2,7 @@ import type { EditRequest } from "../contract/input.ts";
 import type { Matcher } from "../contract/matcher.ts";
 import type { MatchInfo } from "../contract/result.ts";
 import { exactMatcher } from "../matchers/exact.ts";
+import { describeWrite } from "../matchers/keep-bytes.ts";
 import { closestRegion, isAlreadyApplied, trailingNewline } from "./hints.ts";
 import type { MissCounter } from "./hints.ts";
 import { LineIndex } from "./line-index.ts";
@@ -23,6 +24,8 @@ interface Found {
   readonly index: number;
   readonly matcher: Matcher;
   readonly hits: readonly Splice[];
+  /** The model's new text, before the matcher adapted it. */
+  readonly newText: string;
 }
 
 export interface EditPlanInput {
@@ -113,8 +116,10 @@ export function planEdit<THost>(
       replaced: byPair.get(pair.index) ?? [],
     };
   });
-  for (const match of matches) {
+  for (const [at, match] of matches.entries()) {
     if (!match.fuzzy) continue;
+    const pair = found[at] as Found;
+    const first = pair.hits[0] as Splice;
     scope.notes.push({
       code: "fuzzy-match",
       severity: "info",
@@ -123,6 +128,11 @@ export function planEdit<THost>(
         index: match.index,
         matcher: match.matcher,
         lines: match.lines,
+        written: describeWrite(
+          text.slice(first.start, first.end).split("\n"),
+          pair.newText.split("\n"),
+          first.text.split("\n"),
+        ),
       }),
       data: { index: match.index, matcher: match.matcher, lines: [...match.lines] },
     });
@@ -226,7 +236,7 @@ function matchPair<THost>(
     }
     return { start: range.start, end: range.end, text: replacement };
   });
-  return { index, matcher, hits };
+  return { index, matcher, hits, newText: pair.newText };
 }
 
 function rematchAfterStale<THost>(
@@ -250,6 +260,7 @@ function rematchAfterStale<THost>(
     index,
     matcher: STALE_REMATCH_MATCHER,
     hits: ranges.map((range) => ({ start: range.start, end: range.end, text: pair.newText })),
+    newText: pair.newText,
   };
 }
 

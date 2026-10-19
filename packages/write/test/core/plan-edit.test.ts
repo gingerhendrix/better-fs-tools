@@ -179,7 +179,7 @@ describe("edit planning", () => {
       code: "fuzzy-match",
       severity: "info",
       message:
-        "Edit 1 matched /f.ts at lines 2-3 only with the normalized matcher, not exactly. Check the result.",
+        "Edit 1 matched /f.ts at lines 2-3 only with the normalized matcher, not exactly. The edit is applied. The new lines were written as given.",
       data: { index: 0, matcher: "normalized", lines: [2, 3] },
     });
   });
@@ -645,15 +645,22 @@ describe("a loose hit keeps the file's bytes for text the model did not change",
     });
     expect(result.changes[0]?.matches[0]).toMatchObject({ matcher: "normalized", fuzzy: true });
     expect(text(fs, "/f.ts")).toBe("// Keep this comment unchanged.\nnew\r\nline\n");
+    // The note says what the tool kept, so the model does not undo the edit.
+    expect(note(result, "fuzzy-match")?.message).toBe(
+      "Edit 1 matched /f.ts at lines 2-3 only with the normalized matcher, not exactly. The edit is applied. 1 line kept the file's CRLF line end.",
+    );
   });
 
   test("an unchanged line keeps its code points while the next line changes", async () => {
     const { edit, fs } = await readFile(`${LOOKALIKES}\ntarget: A−B\n`);
-    await edit({
+    const result = await edit({
       path: "/f.ts",
       edits: [{ oldText: `${TYPED}\ntarget: A−B`, newText: `${TYPED}\ntarget: A-B` }],
     });
     expect(text(fs, "/f.ts")).toBe(`${LOOKALIKES}\ntarget: A-B\n`);
+    expect(note(result, "fuzzy-match")?.message).toBe(
+      "Edit 1 matched /f.ts at lines 1-2 only with the normalized matcher, not exactly. The edit is applied. 1 unchanged line kept the file's characters.",
+    );
   });
 
   test("equal old and new text is written as given: the edit changes only folded characters", async () => {
@@ -675,8 +682,12 @@ describe("a loose hit keeps the file's bytes for text the model did not change",
     await lf.edit({ path: "/f.ts", edits });
     expect(text(lf.fs, "/f.ts")).toBe("// “c”\nnew\nline\n");
     const crlf = await readFile("// “c”\r\nold\r\nline\r\n");
-    await crlf.edit({ path: "/f.ts", edits });
+    const result = await crlf.edit({ path: "/f.ts", edits });
     expect(text(crlf.fs, "/f.ts")).toBe("// “c”\r\nnew\r\nline\r\n");
+    // The file's CRLF style is kept by the codec, not by the loose hit: no CRLF in the note.
+    expect(note(result, "fuzzy-match")?.message).toBe(
+      "Edit 1 matched /f.ts at lines 1-2 only with the normalized matcher, not exactly. The edit is applied. 1 unchanged line kept the file's characters.",
+    );
   });
 
   test("the opt-in line-trimmed matcher keeps the indentation of unchanged lines", async () => {

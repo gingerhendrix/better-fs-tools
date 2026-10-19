@@ -1,6 +1,6 @@
 import type { NodeKind } from "@better-fs-tools/fs";
 
-import type { WriteCanonicalParam, WriteMessageCatalog } from "../contract/messages.ts";
+import type { FuzzyWrite, WriteCanonicalParam, WriteMessageCatalog } from "../contract/messages.ts";
 
 type Param = (name: WriteCanonicalParam) => string;
 
@@ -91,8 +91,8 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
       `The edits leave ${path} as it is. Check the ${param("newText")} values, or do not send the edit.`,
     alreadyApplied: ({ path, index }) =>
       `Edit ${index + 1} is already applied: the ${param("newText")} is in ${path} and the ${param("oldText")} is not. Do not send this edit again.`,
-    fuzzyMatch: ({ path, index, matcher, lines }) =>
-      `Edit ${index + 1} matched ${path} at ${lineSpan(lines)} only with the ${matcher} matcher, not exactly. Check the result.`,
+    fuzzyMatch: ({ path, index, matcher, lines, written }) =>
+      `Edit ${index + 1} matched ${path} at ${lineSpan(lines)} only with the ${matcher} matcher, not exactly. The edit is applied.${wroteWhat(matcher, written)}`,
     repeatedMiss: ({ path, misses }) =>
       `This is miss ${misses} in a row on ${path}. Read the file again, include more surrounding lines, or replace the file with the write tool.`,
 
@@ -112,8 +112,8 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
         `${path}: hunk ${hunk}: failed to find the expected lines${searchedWhere(from, context)}:`,
         ...lines.map((line) => `    ${line}`),
       ].join("\n"),
-    patchFuzzyMatch: ({ path, hunk, matcher, lines }) =>
-      `Hunk ${hunk} matched ${path} at ${lineSpan(lines)} only with the ${matcher} matcher, not exactly. Check the result.`,
+    patchFuzzyMatch: ({ path, hunk, matcher, lines, written }) =>
+      `Hunk ${hunk} matched ${path} at ${lineSpan(lines)} only with the ${matcher} matcher, not exactly. The hunk is applied.${wroteWhat(matcher, written)}`,
     patchCommitFailed: ({ path, code, rolledBack, files }) =>
       rolledBack
         ? `Patch commit failed at ${path} (${code}). The patch was rolled back. No files are changed.`
@@ -139,6 +139,32 @@ function searchedWhere(from: number | undefined, context: number | null | undefi
   }
   if (from === undefined || from <= 1) return "";
   return ` from line ${from} on, after the previous hunk`;
+}
+
+/**
+ * Says what the tool wrote after a loose match, so the model does not undo
+ * a correct change. Each sentence names only what took place for that hit.
+ */
+function wroteWhat(matcher: string, written: FuzzyWrite | undefined): string {
+  if (written === undefined) return "";
+  const { keptLines, keptLineEnds, adaptedLines } = written;
+  const said: string[] = [];
+  if (keptLines > 0) {
+    said.push(`${lineCount(keptLines, "unchanged line")} kept the file's characters.`);
+  }
+  if (keptLineEnds > 0) {
+    const ends = keptLineEnds === 1 ? "line end" : "line ends";
+    said.push(`${lineCount(keptLineEnds, "line")} kept the file's CRLF ${ends}.`);
+  }
+  if (adaptedLines > 0) {
+    said.push(`The ${matcher} matcher changed ${lineCount(adaptedLines, "line")} to fit the file.`);
+  }
+  if (said.length === 0) said.push("The new lines were written as given.");
+  return ` ${said.join(" ")}`;
+}
+
+function lineCount(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 /** Names a span of 1-based lines: "line 4" for one line, "lines 4-6" for more. */

@@ -45,8 +45,10 @@ When the exact text is not found, the tool tries the next matcher in `matchers`.
 A loose match adds a note:
 
 ```text
-[edit:fuzzy-match] Edit 1 matched src/greet.ts at lines 2-3 only with the normalized matcher, not exactly. Check the result.
+[edit:fuzzy-match] Edit 1 matched src/greet.ts at lines 2-3 only with the normalized matcher, not exactly. The edit is applied. 1 unchanged line kept the file's characters.
 ```
+
+The note says what the tool wrote: lines that kept the file's characters, lines that kept the file's CRLF line ends, or that the new lines were written as given. It does not ask the model to check the edit, because models then often undo a correct change.
 
 Apart from `escapeMatcher()` and `indentationMatcher()`, the tool writes `newText` as the model sent it. For example, when the model sent straight quotes and the file has curly quotes, the file gets straight quotes. The tool refuses a loose match with `MATCH_REFUSED` when it is much longer than `oldText`, or when `replaceAll` is set.
 
