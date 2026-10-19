@@ -1,3 +1,5 @@
+<a href="https://betterfs.dev"><img src="https://betterfs.dev/brand/D-wordmark-auto.svg" alt="Better FS Tools" height="64"></a>
+
 # @better-fs-tools/pi
 
 Better FS Tools for the [Pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) and for `@earendil-works/pi-agent-core`. It replaces Pi's built-in `read`, `edit`, and `write` tools, and can add `apply_patch` and `bash`. The tools take the options of every Better FS Tools integration, with the same defaults, plus Pi's prompt options. `piCwdFileSystem()` from the `./node` subpath confines each call to its working directory.

@@ -1,3 +1,5 @@
+<a href="https://betterfs.dev"><img src="https://betterfs.dev/brand/D-wordmark-auto.svg" alt="Better FS Tools" height="64"></a>
+
 # @better-fs-tools/cloudflare-computer
 
 A `WritableFileSystem` over a [Cloudflare Computer](https://www.npmjs.com/package/@cloudflare/computer) workspace filesystem, for the Better Read tool and the `edit`, `write`, and `apply_patch` tools.

@@ -1,3 +1,5 @@
+<a href="https://betterfs.dev"><img src="https://betterfs.dev/brand/D-wordmark-auto.svg" alt="Better FS Tools" height="64"></a>
+
 # @better-fs-tools/just-bash
 
 A `WritableFileSystem` over a [just-bash](https://www.npmjs.com/package/just-bash) `IFileSystem`, for the Better Read tool and the `edit`, `write`, and `apply_patch` tools in a just-bash sandbox.

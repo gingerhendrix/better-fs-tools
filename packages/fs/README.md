@@ -1,3 +1,5 @@
+<a href="https://betterfs.dev"><img src="https://betterfs.dev/brand/D-wordmark-auto.svg" alt="Better FS Tools" height="64"></a>
+
 # @better-fs-tools/fs
 
 The filesystem contract for Better FS Tools, for reads and for writes. It also has POSIX path helpers, an in-memory filesystem, and conformance suites for your own adapters.

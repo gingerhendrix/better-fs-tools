@@ -1,3 +1,5 @@
+<a href="https://betterfs.dev"><img src="https://betterfs.dev/brand/D-wordmark-auto.svg" alt="Better FS Tools" height="64"></a>
+
 # @better-fs-tools/read
 
 A bounded file reader for TypeScript agent tools. You can change every part of it.

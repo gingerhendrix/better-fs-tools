@@ -1,3 +1,5 @@
+<a href="https://betterfs.dev"><img src="https://betterfs.dev/brand/D-wordmark-auto.svg" alt="Better FS Tools" height="64"></a>
+
 # @better-fs-tools/pi-durable
 
 Better FS Tools for [`@earendil-works/pi-durable`](https://www.npmjs.com/package/@earendil-works/pi-durable), the experimental durable harness of Pi. It replaces the `read`, `edit`, and `write` of `CodingTools`, and can add `apply_patch` and `bash`. Each call reads and writes through the call's execution environment, so the tools work on the local machine, over SSH with `@earendil-works/pi-env`, and in a container.

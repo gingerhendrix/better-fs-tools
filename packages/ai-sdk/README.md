@@ -1,3 +1,5 @@
+<a href="https://betterfs.dev"><img src="https://betterfs.dev/brand/D-wordmark-auto.svg" alt="Better FS Tools" height="64"></a>
+
 # @better-fs-tools/ai-sdk
 
 The Better Read tool, the `edit`, `write`, and `apply_patch` tools, and the `bash` tool for [AI SDK 7](https://ai-sdk.dev). Each factory gives a tool object that you put in a `ToolSet`. `createAiSdkFsTools()` builds them in one call.

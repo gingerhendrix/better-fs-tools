@@ -1,3 +1,5 @@
+<a href="https://betterfs.dev"><img src="https://betterfs.dev/brand/D-wordmark-auto.svg" alt="Better FS Tools" height="64"></a>
+
 # @better-fs-tools/write
 
 Edit, write, and apply_patch tools for TypeScript agents. They share one mutation core with the read tool in [`@better-fs-tools/read`](https://www.npmjs.com/package/@better-fs-tools/read): the same filesystem contract, the same read store, and the same resolvers and authorizers.

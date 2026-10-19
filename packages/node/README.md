@@ -1,3 +1,5 @@
+<a href="https://betterfs.dev"><img src="https://betterfs.dev/brand/D-wordmark-auto.svg" alt="Better FS Tools" height="64"></a>
+
 # @better-fs-tools/node
 
 The Node backends for Better FS Tools: the local filesystem, a SHA-256 digest on `node:crypto`, and a local command runner. Pass `nodeFileSystem()` as `fs` to any tool or bundle, such as `createReadTool()` or `createFsTools()`, and `nodeCommandRunner()` as the bash `runner`. It works on Node 24 or later, and on Bun.

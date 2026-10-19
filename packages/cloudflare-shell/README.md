@@ -1,3 +1,5 @@
+<a href="https://betterfs.dev"><img src="https://betterfs.dev/brand/D-wordmark-auto.svg" alt="Better FS Tools" height="64"></a>
+
 # @better-fs-tools/cloudflare-shell
 
 A `WritableFileSystem` over a [Cloudflare Shell](https://www.npmjs.com/package/@cloudflare/shell) `Workspace`, for the Better Read tool and the `edit`, `write`, and `apply_patch` tools in a Worker or a Cloudflare Agent.

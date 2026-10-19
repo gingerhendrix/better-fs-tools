@@ -1,3 +1,5 @@
+<a href="https://betterfs.dev"><img src="https://betterfs.dev/brand/D-wordmark-auto.svg" alt="Better FS Tools" height="64"></a>
+
 # @better-fs-tools/shell
 
 A `bash` tool for TypeScript agents. It runs one command for each call and returns the exit code and a bounded view of the output.

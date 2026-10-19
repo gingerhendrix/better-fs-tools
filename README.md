@@ -1,3 +1,12 @@
+<p align="center">
+  <a href="https://betterfs.dev">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="apps/docs/public/brand/D-wordmark-dark.svg">
+      <img src="apps/docs/public/brand/D-wordmark.svg" alt="Better FS Tools" height="120">
+    </picture>
+  </a>
+</p>
+
 # Better FS Tools
 
 A Bun and TypeScript monorepo for focused filesystem tools published under the `@better-fs-tools` npm scope.
