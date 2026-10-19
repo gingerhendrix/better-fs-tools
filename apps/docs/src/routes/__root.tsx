@@ -3,7 +3,7 @@ import { RootProvider } from "fumadocs-ui/provider/tanstack";
 import type { ReactNode } from "react";
 import appCss from "@/styles/app.css?url";
 
-const description = "Focused filesystem tools for TypeScript.";
+const description = "The best read, write, edit, patch, and bash tools your agent can have.";
 
 /** Social cards need an absolute image URL, so this names the production host. */
 const ogImage = "https://betterfs.dev/og.png";
