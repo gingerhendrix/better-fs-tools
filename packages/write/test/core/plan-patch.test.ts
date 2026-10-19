@@ -84,7 +84,7 @@ describe("hunk verification", () => {
     expect(note(result, "patch-verify")?.message).toBe(
       [
         "Patch validation failed (no files were modified):",
-        "- /b.ts: hunk 3: failed to find the expected lines:",
+        "- /b.ts: hunk 3: failed to find the expected lines from line 3 on, after the previous hunk:",
         "    missing",
       ].join("\n"),
     );
@@ -137,9 +137,69 @@ describe("hunk verification", () => {
     });
     expect(errorCode(result)).toBe("PATCH_VERIFY");
     expect(note(result, "patch-verify")?.message).toContain(
-      "hunk 2: failed to find the expected lines",
+      "hunk 2: failed to find the expected lines from line 4 on, after the previous hunk:",
     );
     expect(text(fs, "/a.ts")).toBe("a\nb\nc\n");
+  });
+
+  test("the @@ text may be the hunk's first - line (GLM and Luna, K1 unicode-fix-1-*)", async () => {
+    const { applyPatch, fs } = await readAll({ "/sample.txt": "guard: A−B\ntarget: A−B\nend\n" });
+    const result = await applyPatch({
+      patch: patchText(
+        "*** Update File: /sample.txt",
+        "@@ target: A−B",
+        "-target: A−B",
+        "+target: A-B",
+      ),
+    });
+    expect(result.status).toBe("ok");
+    expect(text(fs, "/sample.txt")).toBe("guard: A−B\ntarget: A-B\nend\n");
+    expect(result.changes[0]?.matches[0]).toMatchObject({ matcher: "exact", lines: [2, 2] });
+  });
+
+  test("the @@ text may be the hunk's first context line", async () => {
+    const { applyPatch, fs } = await readAll({ "/a.ts": "function a() {\n  return 1;\n}\n" });
+    const result = await applyPatch({
+      patch: patchText(
+        "*** Update File: /a.ts",
+        "@@ function a() {",
+        " function a() {",
+        "-  return 1;",
+        "+  return 2;",
+      ),
+    });
+    expect(result.status).toBe("ok");
+    expect(text(fs, "/a.ts")).toBe("function a() {\n  return 2;\n}\n");
+  });
+
+  test("a hunk at its @@ line is taken only there, and a match below the @@ line comes first", async () => {
+    // The old lines are below the @@ line too, so the Codex rule wins.
+    const below = await readAll({ "/a.ts": "x\nx\n" });
+    await below.applyPatch({ patch: patchText("*** Update File: /a.ts", "@@ x", "-x", "+X") });
+    expect(text(below.fs, "/a.ts")).toBe("x\nX\n");
+    // A trailing blank old line is dropped at the @@ line as well.
+    const blank = await readAll({ "/a.ts": "a\nb" });
+    const result = await blank.applyPatch({
+      patch: patchText("*** Update File: /a.ts", "@@ b", "-b", "+B", ""),
+    });
+    expect(result.status).toBe("ok");
+    expect(text(blank.fs, "/a.ts")).toBe("a\nB");
+  });
+
+  test("a @@ line that the old lines do not start with still fails, and says where it searched", async () => {
+    const { applyPatch, fs } = await readAll({ "/a.ts": "head\nold\ntail\n" });
+    const result = await applyPatch({
+      patch: patchText("*** Update File: /a.ts", "@@ tail", "-old", "+new"),
+    });
+    expect(errorCode(result)).toBe("PATCH_VERIFY");
+    expect(note(result, "patch-verify")?.message).toBe(
+      [
+        "Patch validation failed (no files were modified):",
+        "- /a.ts: hunk 1: failed to find the expected lines at line 3, where the @@ line matched, or from line 4 on:",
+        "    old",
+      ].join("\n"),
+    );
+    expect(text(fs, "/a.ts")).toBe("head\nold\ntail\n");
   });
 
   test("a missing context line is a problem", async () => {

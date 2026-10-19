@@ -62,7 +62,7 @@ A patch starts with `*** Begin Patch` and ends with `*** End Patch`. Between the
 | `*** Update File: path` | Changes a file with one or more hunks. Add `*** Move to: path` on the next line to also move it |
 | `*** Delete File: path` | Deletes a file                                                                                  |
 
-A hunk starts with `@@`. Text after `@@`, such as `@@ export function farewell`, names a line above the change. In the hunk, a line that starts with a space stays, `-` removes a line, and `+` adds a line. Each hunk matches at the first place after the previous hunk.
+A hunk starts with `@@`. Text after `@@`, such as `@@ export function farewell`, names a line above the change. In the hunk, a line that starts with a space stays, `-` removes a line, and `+` adds a line. Each hunk matches at the first place after the previous hunk. When the hunk's lines are not found below the `@@` line, the tool also tries them at the `@@` line itself, so `@@ const b = 2;` followed by `-const b = 2;` works. Codex does not do this.
 
 The tool also accepts a patch in a code fence or a heredoc, with CRLF line breaks, or with no final line break. A patch it cannot read returns `PATCH_PARSE`:
 

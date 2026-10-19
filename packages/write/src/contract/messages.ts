@@ -91,8 +91,19 @@ export interface WriteMessageCatalog extends ToolMessages {
   patchMoveExists(c: { path: string; from: string }): string;
   /** `hunk` is one-based. */
   patchContextNotFound(c: { path: string; hunk: number; context: string }): string;
-  /** `hunk` is one-based. */
-  patchLinesNotFound(c: { path: string; hunk: number; lines: readonly string[] }): string;
+  /**
+   * `hunk` is one-based. `from` is the one-based line where the search
+   * started. `context` is the one-based line that the `@@` text matched, or
+   * null for a bare `@@`. The tool also tried the old lines at that line.
+   * Both are optional, so a host's own message can leave them out.
+   */
+  patchLinesNotFound(c: {
+    path: string;
+    hunk: number;
+    lines: readonly string[];
+    from?: number;
+    context?: number | null;
+  }): string;
   /** `hunk` is one-based. */
   patchFuzzyMatch(c: {
     path: string;

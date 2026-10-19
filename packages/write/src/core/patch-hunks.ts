@@ -12,6 +12,10 @@ export type HunkProblem =
       readonly reason: "lines-not-found";
       readonly hunk: number;
       readonly lines: readonly string[];
+      /** Zero-based line where the search for the old lines started. */
+      readonly from: number;
+      /** Zero-based line that the `@@` text matched, or null for a bare `@@`. */
+      readonly context: number | null;
     };
 
 export type HunksOutcome =
@@ -46,6 +50,7 @@ export function applyHunks<THost>(
   const found: { readonly index: number; readonly hit: Hit; readonly size: number }[] = [];
   let cursor = 0;
   for (const [index, hunk] of hunks.entries()) {
+    let context: number | null = null;
     if (hunk.context !== null) {
       const hit = file.seek(scope, matchers, [hunk.context], cursor, false);
       if (hit === null) {
@@ -54,24 +59,29 @@ export function applyHunks<THost>(
           problem: { reason: "context-not-found", hunk: index, context: hunk.context },
         };
       }
+      context = hit.line;
       cursor = hit.line + 1;
     }
-    let body = hunk.lines;
-    let old = oldLines(body);
-    let hit = old.length === 0 ? null : file.seek(scope, matchers, old, cursor, hunk.endOfFile);
-    if (hit === null && old.length > 0 && old.at(-1) === "") {
-      // A trailing empty old line is often only a blank separator.
-      body = withoutLastOldLine(body);
-      old = oldLines(body);
-      hit = old.length === 0 ? null : file.seek(scope, matchers, old, cursor, hunk.endOfFile);
-    }
-    if (old.length === 0) {
+    const after = findOld(hunk, (old) => file.seek(scope, matchers, old, cursor, hunk.endOfFile));
+    if (after.old.length === 0) {
       const insertAt = hunk.context === null ? file.lines.length : cursor;
-      replacements.push({ start: insertAt, remove: 0, lines: body.map((line) => line.text) });
+      replacements.push({ start: insertAt, remove: 0, lines: after.body.map((line) => line.text) });
       continue;
     }
+    // A hunk whose @@ text is its own first old line: the model named the
+    // line it changes. Codex looks only below that line; this also tries
+    // the line itself, and takes a hit only when it starts there.
+    const anchor = context;
+    const at =
+      after.hit !== null || anchor === null
+        ? null
+        : findOld(hunk, (old) => file.seekAt(scope, matchers, old, anchor, hunk.endOfFile));
+    const { body, old, hit } = at !== null && at.hit !== null ? at : after;
     if (hit === null) {
-      return { ok: false, problem: { reason: "lines-not-found", hunk: index, lines: old } };
+      return {
+        ok: false,
+        problem: { reason: "lines-not-found", hunk: index, lines: old, from: cursor, context },
+      };
     }
     replacements.push({ start: hit.line, remove: old.length, lines: newLines(body, file, hit) });
     found.push({ index, hit, size: old.length });
@@ -124,6 +134,27 @@ function applyReplacements(
   }));
   const ending = file.finalNewline && result.length > 0 ? "\n" : "";
   return { ok: true, text: `${result.join("\n")}${ending}`, matches, changed, fragments };
+}
+
+interface OldLines {
+  readonly body: readonly PatchLine[];
+  readonly old: readonly string[];
+  readonly hit: Hit | null;
+}
+
+/**
+ * Seeks the old lines of a hunk. When they are not found and the last old
+ * line is empty, seeks again without it: it is often only a blank separator.
+ */
+function findOld(hunk: PatchHunk, seek: (old: readonly string[]) => Hit | null): OldLines {
+  const old = oldLines(hunk.lines);
+  const hit = old.length === 0 ? null : seek(old);
+  if (hit !== null || old.length === 0 || old.at(-1) !== "") {
+    return { body: hunk.lines, old, hit };
+  }
+  const body = withoutLastOldLine(hunk.lines);
+  const shorter = oldLines(body);
+  return { body, old: shorter, hit: shorter.length === 0 ? null : seek(shorter) };
 }
 
 function oldLines(body: readonly PatchLine[]): string[] {
@@ -235,6 +266,30 @@ class LineFile {
         if (endOfFile) break;
         at = Math.max(at, line) + 1;
       }
+    }
+    return null;
+  }
+
+  /** Like seek(), but takes a hit only when it starts at `line`. */
+  seekAt<THost>(
+    scope: MutationScope<THost>,
+    matchers: readonly Matcher[],
+    wanted: readonly string[],
+    line: number,
+    endOfFile: boolean,
+  ): Hit | null {
+    const last = this.lines.length - wanted.length;
+    if (line > last || (endOfFile && line !== last)) return null;
+    const needle = wanted.map((text) => `${text}\n`).join("");
+    for (const matcher of matchers) {
+      scope.checkAbort();
+      const [range] = findWith(scope, matcher, this.haystack, needle, {
+        mode: "lines",
+        from: this.lineStartOffsets[line] as number,
+        maxMatches: 1,
+      });
+      if (range === undefined || this.lineAt(range.start) !== line) continue;
+      if (this.coversWholeLines(range, line, wanted.length)) return { line, matcher };
     }
     return null;
   }

@@ -107,9 +107,9 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
       `${path} already exists, so ${from} cannot move there. Choose another path, or delete ${path} first.`,
     patchContextNotFound: ({ path, hunk, context }) =>
       `${path}: hunk ${hunk}: failed to find the context line ${JSON.stringify(context)}.`,
-    patchLinesNotFound: ({ path, hunk, lines }) =>
+    patchLinesNotFound: ({ path, hunk, lines, from, context }) =>
       [
-        `${path}: hunk ${hunk}: failed to find the expected lines:`,
+        `${path}: hunk ${hunk}: failed to find the expected lines${searchedWhere(from, context)}:`,
         ...lines.map((line) => `    ${line}`),
       ].join("\n"),
     patchFuzzyMatch: ({ path, hunk, matcher, lines }) =>
@@ -127,6 +127,18 @@ function catalogUsingParam(param: Param): WriteMessageCatalog {
     hookRewrote: ({ hook, path }) =>
       `The ${hook} hook rewrote ${path} after the write. Read it again before relying on its text.`,
   };
+}
+
+/**
+ * Says where a hunk's old lines were sought. Nothing for a search of the
+ * whole file, so the text stays the Codex text.
+ */
+function searchedWhere(from: number | undefined, context: number | null | undefined): string {
+  if (context !== undefined && context !== null) {
+    return ` at line ${context}, where the @@ line matched, or from line ${context + 1} on`;
+  }
+  if (from === undefined || from <= 1) return "";
+  return ` from line ${from} on, after the previous hunk`;
 }
 
 /** Names a span of 1-based lines: "line 4" for one line, "lines 4-6" for more. */

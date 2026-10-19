@@ -74,6 +74,18 @@ describe("write messages", () => {
     expect(m.patchMoveExists({ path: "b", from: "a" })).toBe(
       "b already exists, so a cannot move there. Choose another path, or delete b first.",
     );
+    expect(m.patchLinesNotFound({ path: "a", hunk: 1, lines: ["x"] })).toBe(
+      "a: hunk 1: failed to find the expected lines:\n    x",
+    );
+    expect(m.patchLinesNotFound({ path: "a", hunk: 1, lines: ["x"], from: 1, context: null })).toBe(
+      "a: hunk 1: failed to find the expected lines:\n    x",
+    );
+    expect(m.patchLinesNotFound({ path: "a", hunk: 2, lines: ["x"], from: 5, context: null })).toBe(
+      "a: hunk 2: failed to find the expected lines from line 5 on, after the previous hunk:\n    x",
+    );
+    expect(m.patchLinesNotFound({ path: "a", hunk: 1, lines: ["x"], from: 3, context: 2 })).toBe(
+      "a: hunk 1: failed to find the expected lines at line 2, where the @@ line matched, or from line 3 on:\n    x",
+    );
     expect(m.patchFuzzyMatch({ path: "a", hunk: 2, matcher: "normalized", lines: [3, 4] })).toBe(
       "Hunk 2 matched a at lines 3-4 only with the normalized matcher, not exactly. Check the result.",
     );

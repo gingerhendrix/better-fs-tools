@@ -171,7 +171,13 @@ function hunkProblem<THost>(
   const message =
     problem.reason === "context-not-found"
       ? messages.patchContextNotFound({ path, hunk, context: problem.context })
-      : messages.patchLinesNotFound({ path, hunk, lines: problem.lines });
+      : messages.patchLinesNotFound({
+          path,
+          hunk,
+          lines: problem.lines,
+          from: problem.from + 1,
+          context: problem.context === null ? null : problem.context + 1,
+        });
   return { path, line, reason: problem.reason, message, hunk: problem.hunk };
 }
 
