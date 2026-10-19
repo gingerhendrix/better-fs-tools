@@ -2,6 +2,14 @@
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
 
+/* The green of the [fs] brackets in the logo. Dark mode uses a lighter green. */
+:root {
+  --color-brand: #22c55e;
+}
+.dark {
+  --color-brand: #2fd27a;
+}
+
 html {
   scrollbar-gutter: stable;
 }
