@@ -5,6 +5,10 @@ import appCss from "@/styles/app.css?url";
 
 const description = "Focused filesystem tools for TypeScript.";
 
+/** Social cards need an absolute image URL, so this names the production host. */
+const ogImage = "https://betterfs.dev/og.png";
+const ogImageAlt = "The Better FS Tools wordmark: better, over fs in green brackets, then tools.";
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -15,8 +19,23 @@ export const Route = createRootRoute({
       { property: "og:title", content: "Better FS Tools" },
       { property: "og:description", content: description },
       { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "Better FS Tools" },
+      { property: "og:image", content: ogImage },
+      { property: "og:image:type", content: "image/png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: ogImageAlt },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: ogImage },
+      { name: "twitter:image:alt", content: ogImageAlt },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", href: "/favicon.ico", sizes: "48x48" },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+      { rel: "manifest", href: "/site.webmanifest" },
+    ],
   }),
   component: RootComponent,
   notFoundComponent: NotFound,
