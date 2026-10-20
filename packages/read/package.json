@@ -1,6 +1,6 @@
 {
   "name": "@better-fs-tools/read",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A bounded file reader for TypeScript agent tools.",
   "homepage": "https://betterfs.dev",
   "license": "MIT",

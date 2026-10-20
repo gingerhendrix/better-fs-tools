@@ -1,6 +1,6 @@
 {
   "name": "@better-fs-tools/cloudflare-shell",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A readable and writable filesystem over a Cloudflare Shell Workspace.",
   "homepage": "https://betterfs.dev",
   "license": "MIT",

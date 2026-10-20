@@ -1,6 +1,6 @@
 {
   "name": "@better-fs-tools/node",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "The Node filesystem, a SHA-256 digest on node:crypto, and a bash runner for Node and Bun.",
   "homepage": "https://betterfs.dev",
   "license": "MIT",

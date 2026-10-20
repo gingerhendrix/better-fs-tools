@@ -1,6 +1,6 @@
 {
   "name": "@better-fs-tools/write",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Edit, write, and apply_patch tools for TypeScript agents.",
   "homepage": "https://betterfs.dev",
   "license": "MIT",
