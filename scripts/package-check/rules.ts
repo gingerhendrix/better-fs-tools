@@ -132,7 +132,9 @@ export function checkManifest(
   const internal = Object.entries(packed.dependencies ?? {})
     .filter(([name]) => name.startsWith(`${SCOPE}/`))
     .map(([name, range]) => {
-      if (range !== `^${version}`) fail(`dependencies.${name} is ${range}, not ^${version}`);
+      if (!lockstepRange(range, version)) {
+        fail(`dependencies.${name} is ${range}, which does not take the lockstep ${version}`);
+      }
       return name.slice(SCOPE.length + 1);
     });
   if (!sameSet(internal, rule.dependencies)) {
@@ -176,6 +178,16 @@ export function checkManifest(
     fail("only @better-fs-tools/pi may have a pi field");
   }
   return failures;
+}
+
+/**
+ * True when `range` is a caret range on one exact version that `version` satisfies.
+ * Tegami leaves a dependent's range alone when the new version still satisfies it, so a
+ * patch release keeps `^0.3.0` while the packages move to 0.3.1. Under 0.x caret rules,
+ * the range still keeps every internal dependency on the same minor version.
+ */
+export function lockstepRange(range: string, version: string): boolean {
+  return /^\^\d+\.\d+\.\d+$/u.test(range) && Bun.semver.satisfies(version, range);
 }
 
 function sameSet(a: readonly string[], b: readonly string[]): boolean {
