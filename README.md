@@ -35,6 +35,10 @@ All packages release together at one version. `examples/` holds the README examp
 - Result schemas: [read](packages/read/docs/result-schema.md), [edit, write, and apply_patch](packages/write/docs/result-schema.md) (with one table of the statuses and error codes of all five tools), and [bash](packages/shell/docs/result-schema.md)
 - [docs/migration.md](docs/migration.md): the breaking changes since `6f1985d`
 
+## Evals
+
+The eval harness lives in a separate repository: [gingerhendrix/better-fs-tools-evals](https://github.com/gingerhendrix/better-fs-tools-evals). It runs edit benchmarks (Oh My Pi, Explicit Edit, and DELEGATE-52) against these tools with the AI SDK, and holds a viewer for the run traces.
+
 ## Requirements
 
 - Bun 1.4.0
