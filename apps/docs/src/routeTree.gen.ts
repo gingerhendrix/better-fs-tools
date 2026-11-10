@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
+import { Route as ChangelogChar123PageChar125RouteImport } from './routes/changelog.{-$page}'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,41 @@ const SplatRoute = SplatRouteImport.update({
   path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChangelogChar123PageChar125Route =
+  ChangelogChar123PageChar125RouteImport.update({
+    id: '/changelog/{-$page}',
+    path: '/changelog/{-$page}',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/changelog/{-$page}': typeof ChangelogChar123PageChar125Route
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/changelog/{-$page}': typeof ChangelogChar123PageChar125Route
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/changelog/{-$page}': typeof ChangelogChar123PageChar125Route
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$'
+  fullPaths: '/' | '/$' | '/changelog/{-$page}'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$'
-  id: '__root__' | '/' | '/$'
+  to: '/' | '/$' | '/changelog/{-$page}'
+  id: '__root__' | '/' | '/$' | '/changelog/{-$page}'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
+  ChangelogChar123PageChar125Route: typeof ChangelogChar123PageChar125Route
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +76,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/changelog/{-$page}': {
+      id: '/changelog/{-$page}'
+      path: '/changelog/{-$page}'
+      fullPath: '/changelog/{-$page}'
+      preLoaderRoute: typeof ChangelogChar123PageChar125RouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
+  ChangelogChar123PageChar125Route: ChangelogChar123PageChar125Route,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

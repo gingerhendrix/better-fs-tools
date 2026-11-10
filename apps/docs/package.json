@@ -13,8 +13,10 @@
     "typecheck": "fumadocs-mdx && tsc --noEmit"
   },
   "dependencies": {
+    "@fumadocs/changelog": "0.1.0",
     "@tanstack/react-router": "1.170.32",
     "@tanstack/react-start": "1.168.49",
+    "cn": "0.5.2",
     "fumadocs-core": "16.18.4",
     "fumadocs-mdx": "15.4.0",
     "fumadocs-ui": "16.18.4",

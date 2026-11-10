@@ -6,5 +6,6 @@ export function baseOptions(): BaseLayoutProps {
     nav: {
       title: <BetterFsToolsLogo className="h-10 w-auto" />,
     },
+    links: [{ text: "Changelog", url: "/changelog" }],
   };
 }
