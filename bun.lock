@@ -215,6 +215,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "@fumadocs/changelog@0.1.0": "patches/@fumadocs%2Fchangelog@0.1.0.patch",
+  },
   "overrides": {
     "@effect/platform-bun": "4.1.2",
     "@effect/platform-node": "4.1.2",
