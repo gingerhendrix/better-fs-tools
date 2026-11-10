@@ -7,6 +7,8 @@ import { Suspense, use } from "react";
 import { useMDXComponents } from "@/components/mdx";
 import { baseOptions } from "@/lib/layout";
 import { docs, source } from "@/lib/source";
+import { DocsPageActions } from "@/components/docs-page-actions";
+import { getPageMarkdownUrl } from "@/lib/shared";
 
 const loadPage = createServerFn({ method: "GET" }).handler(async () => {
   const page = source.getPage([]);
@@ -14,6 +16,7 @@ const loadPage = createServerFn({ method: "GET" }).handler(async () => {
 
   return {
     path: page.path,
+    markdownUrl: getPageMarkdownUrl(page).url,
     pageTree: await source.serializePageTree(source.getPageTree()),
   };
 });
@@ -27,7 +30,7 @@ export const Route = createFileRoute("/")({
   component: Documentation,
 });
 
-function Content({ path }: Readonly<{ path: string }>) {
+function Content({ path, markdownUrl }: Readonly<{ path: string; markdownUrl: string }>) {
   const page = docs.getPage(path);
   if (!page) throw new Error(`Unknown documentation page: ${path}`);
 
@@ -38,6 +41,7 @@ function Content({ path }: Readonly<{ path: string }>) {
     <DocsPage toc={toc}>
       <DocsTitle>{page.title}</DocsTitle>
       <DocsDescription>{page.description}</DocsDescription>
+      <DocsPageActions path={path} markdownUrl={markdownUrl} />
       <DocsBody>
         <MDX components={useMDXComponents()} />
       </DocsBody>
@@ -51,7 +55,7 @@ function Documentation() {
   return (
     <DocsLayout {...baseOptions()} tree={data.pageTree}>
       <Suspense>
-        <Content path={data.path} />
+        <Content path={data.path} markdownUrl={data.markdownUrl} />
       </Suspense>
     </DocsLayout>
   );

@@ -11,6 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
+import { Route as LlmsFullDottxtRouteImport } from './routes/llms-full[.]txt'
+import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
+import { Route as Char123Char125DotmdRouteImport } from './routes/{$}[.]md'
 import { Route as ChangelogChar123PageChar125RouteImport } from './routes/changelog.{-$page}'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +26,21 @@ const SplatRoute = SplatRouteImport.update({
   path: '/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LlmsFullDottxtRoute = LlmsFullDottxtRouteImport.update({
+  id: '/llms-full.txt',
+  path: '/llms-full.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Char123Char125DotmdRoute = Char123Char125DotmdRouteImport.update({
+  id: '/{$}.md',
+  path: '/{$}.md',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChangelogChar123PageChar125Route =
   ChangelogChar123PageChar125RouteImport.update({
     id: '/changelog/{-$page}',
@@ -33,30 +51,61 @@ const ChangelogChar123PageChar125Route =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/{$}.md': typeof Char123Char125DotmdRoute
   '/changelog/{-$page}': typeof ChangelogChar123PageChar125Route
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/{$}.md': typeof Char123Char125DotmdRoute
   '/changelog/{-$page}': typeof ChangelogChar123PageChar125Route
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/$': typeof SplatRoute
+  '/llms-full.txt': typeof LlmsFullDottxtRoute
+  '/llms.txt': typeof LlmsDottxtRoute
+  '/{$}.md': typeof Char123Char125DotmdRoute
   '/changelog/{-$page}': typeof ChangelogChar123PageChar125Route
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/$' | '/changelog/{-$page}'
+  fullPaths:
+    | '/'
+    | '/$'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/{$}.md'
+    | '/changelog/{-$page}'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/$' | '/changelog/{-$page}'
-  id: '__root__' | '/' | '/$' | '/changelog/{-$page}'
+  to:
+    | '/'
+    | '/$'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/{$}.md'
+    | '/changelog/{-$page}'
+  id:
+    | '__root__'
+    | '/'
+    | '/$'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/{$}.md'
+    | '/changelog/{-$page}'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SplatRoute: typeof SplatRoute
+  LlmsFullDottxtRoute: typeof LlmsFullDottxtRoute
+  LlmsDottxtRoute: typeof LlmsDottxtRoute
+  Char123Char125DotmdRoute: typeof Char123Char125DotmdRoute
   ChangelogChar123PageChar125Route: typeof ChangelogChar123PageChar125Route
 }
 
@@ -76,6 +125,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/llms-full.txt': {
+      id: '/llms-full.txt'
+      path: '/llms-full.txt'
+      fullPath: '/llms-full.txt'
+      preLoaderRoute: typeof LlmsFullDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/llms.txt': {
+      id: '/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/llms.txt'
+      preLoaderRoute: typeof LlmsDottxtRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/{$}.md': {
+      id: '/{$}.md'
+      path: '/{$}.md'
+      fullPath: '/{$}.md'
+      preLoaderRoute: typeof Char123Char125DotmdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/changelog/{-$page}': {
       id: '/changelog/{-$page}'
       path: '/changelog/{-$page}'
@@ -89,6 +159,9 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SplatRoute: SplatRoute,
+  LlmsFullDottxtRoute: LlmsFullDottxtRoute,
+  LlmsDottxtRoute: LlmsDottxtRoute,
+  Char123Char125DotmdRoute: Char123Char125DotmdRoute,
   ChangelogChar123PageChar125Route: ChangelogChar123PageChar125Route,
 }
 export const routeTree = rootRouteImport
@@ -96,10 +169,11 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

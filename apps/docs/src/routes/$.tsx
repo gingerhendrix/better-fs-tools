@@ -7,6 +7,8 @@ import { baseOptions } from "@/lib/layout";
 import { useFumadocsLoader } from "fumadocs-core/source/client";
 import { Suspense, use } from "react";
 import { useMDXComponents } from "@/components/mdx";
+import { DocsPageActions } from "@/components/docs-page-actions";
+import { getPageMarkdownUrl } from "@/lib/shared";
 
 export const Route = createFileRoute("/$")({
   component: Page,
@@ -28,11 +30,12 @@ const serverLoader = createServerFn({
 
     return {
       path: page.path,
+      markdownUrl: getPageMarkdownUrl(page).url,
       pageTree: await source.serializePageTree(source.getPageTree()),
     };
   });
 
-function Content({ path }: { path: string }) {
+function Content({ path, markdownUrl }: Readonly<{ path: string; markdownUrl: string }>) {
   const page = docs.getPage(path);
   if (!page) throw new Error(`unknown page: ${path}`);
 
@@ -43,6 +46,7 @@ function Content({ path }: { path: string }) {
     <DocsPage toc={toc}>
       <DocsTitle>{page.title}</DocsTitle>
       <DocsDescription>{page.description}</DocsDescription>
+      <DocsPageActions path={path} markdownUrl={markdownUrl} />
       <DocsBody>
         <MDX components={useMDXComponents()} />
       </DocsBody>
@@ -56,7 +60,7 @@ function Page() {
   return (
     <DocsLayout {...baseOptions()} tree={data.pageTree}>
       <Suspense>
-        <Content path={data.path} />
+        <Content path={data.path} markdownUrl={data.markdownUrl} />
       </Suspense>
     </DocsLayout>
   );
