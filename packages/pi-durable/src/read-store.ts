@@ -23,6 +23,9 @@ export const ReadStateDoc = defineDocFamily<ReadStateDocument, null>({
   history: "rewindable",
   fork: "asOf",
   initial: () => ({ record: null }),
+  // pi-durable 1.4 and later call this on every change, with no default. A write replaces the whole
+  // record, so a base is about as large as the delta, and a read replays no earlier deltas.
+  checkpointWhen: () => true,
 });
 
 /** The parts of the tool API that the store uses. */

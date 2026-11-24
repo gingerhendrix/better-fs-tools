@@ -12,6 +12,8 @@ import {
 } from "@earendil-works/pi-ai/providers/faux";
 import {
   createRegistry,
+  defineExtension,
+  defineTool,
   Harness,
   MemoryStorage,
   ToolResultEntry,
@@ -21,7 +23,9 @@ import type { Extension } from "@earendil-works/pi-durable";
 import { NodeExecutionEnv } from "@earendil-works/pi-durable/env/node";
 import { openNodeJsonlStorage } from "@earendil-works/pi-durable/storage/jsonl/node";
 import { CodingTools } from "@earendil-works/pi-durable/tools";
+import { Type } from "typebox";
 
+import type { ReadRecord } from "@better-fs-tools/read";
 import { shellEnv } from "@better-fs-tools/shell";
 import { CODEX_PATCH_GRAMMAR } from "@better-fs-tools/write/patch";
 import { freeformPatchSignature } from "@better-fs-tools/write/signature";
@@ -379,5 +383,185 @@ describe("createDurableFsTools in the Harness", () => {
     expect(() => durableEnvRunner({ context } as never)).toThrow(
       "durableEnvRunner options cannot set context",
     );
+  });
+});
+
+/** A read record of `/work/a.txt`, told apart by its observation id. */
+function readRecord(observationId: string): ReadRecord {
+  return {
+    schema: 2,
+    origin: "read",
+    observationId,
+    resolvedPath: "/work/a.txt",
+    identity: null,
+    version: "v1",
+    digest: "sha256",
+    contentId: "c1",
+    viewId: "v1",
+    observedAt: "2026-11-24T00:00:00.000Z",
+    wholeFileVisible: true,
+    seenLines: [],
+    totalsExact: true,
+    request: { offset: 1, limit: 2_000 },
+  };
+}
+
+const STORE_KEY = "/work/a.txt";
+/** The document key of STORE_KEY in the NodeExecutionEnv. */
+const STORE_DOC = `node:local:${STORE_KEY}`;
+const ownerless = { ownership: { kind: "ownerless" as const } };
+
+/**
+ * A `store` tool that calls documentReadStore() itself. createReadTool() and
+ * the write tools catch a store error, so only a direct call shows it.
+ */
+const storeTool = defineExtension({
+  name: "store-tool",
+  tools: [
+    defineTool({
+      name: "store",
+      description: "Calls the read store.",
+      parameters: Type.Object({ put: Type.Optional(Type.String()) }),
+      async execute(args, api, context) {
+        const env = api.env;
+        if (env === undefined) throw new Error("no environment");
+        const store = documentReadStore()({ callId: api.callId, host: { api, env, context } });
+        if (args.put === undefined) await store.delete(STORE_KEY);
+        else await store.put(STORE_KEY, readRecord(args.put));
+        const stored = await store.get(STORE_KEY);
+        return {
+          output: [{ type: "text" as const, text: stored?.observationId ?? "none" }],
+          isError: false,
+        };
+      },
+    }),
+  ],
+});
+
+/** Opens storage, makes the `store` calls in one run, and returns what each call then read. */
+async function runStoreCalls(
+  storage: Parameters<typeof Harness.open>[0],
+  calls: readonly { put?: string }[],
+) {
+  const harness = await openHarness(
+    storage,
+    calls.map((args) => ["store", args] as const),
+    [storeTool],
+  );
+  const root = await run(harness, await fixture(), "use the store");
+  const stored = async (id = root.id) =>
+    (await harness.snapshot(ReadStateDoc, id, STORE_DOC, context))?.record ?? null;
+  return { harness, root, stored, results: await toolResults(root) };
+}
+
+describe("documentReadStore() in the Harness", () => {
+  test("a second put of one path succeeds and replaces the record", async () => {
+    const { harness, stored, results } = await runStoreCalls(new MemoryStorage(), [
+      { put: "first" },
+      { put: "second" },
+    ]);
+    try {
+      expect(results.map(({ isError, text }) => [isError, text])).toEqual([
+        [false, "first"],
+        [false, "second"],
+      ]);
+      expect(await stored()).toEqual({ ...readRecord("second") } as never);
+    } finally {
+      await harness.close(context);
+    }
+  });
+
+  test("a delete removes the record, and a put after it stores a new one", async () => {
+    const { harness, stored, results } = await runStoreCalls(new MemoryStorage(), [
+      { put: "first" },
+      {},
+      { put: "second" },
+      {},
+    ]);
+    try {
+      expect(results.map(({ isError, text }) => [isError, text])).toEqual([
+        [false, "first"],
+        [false, "none"],
+        [false, "second"],
+        [false, "none"],
+      ]);
+      expect(await stored()).toBe(null);
+    } finally {
+      await harness.close(context);
+    }
+  });
+
+  test("a fork has the record of its entry, not a later one", async () => {
+    const { harness, root, stored } = await runStoreCalls(new MemoryStorage(), [
+      { put: "first" },
+      { put: "second" },
+    ]);
+    try {
+      const page = await root.entries({}, 50, undefined, context);
+      // Newest first: the result of the second put, then that of the first.
+      const [second, first] = page.items.filter((entry) => ToolResultEntry.is(entry));
+      if (first === undefined || second === undefined) throw new Error("no tool results");
+      const atFirst = await root.fork(first.id, ownerless, context);
+      const atSecond = await root.fork(second.id, ownerless, context);
+      expect(await stored(atFirst.id)).toMatchObject({ observationId: "first" });
+      expect(await stored(atSecond.id)).toMatchObject({ observationId: "second" });
+    } finally {
+      await harness.close(context);
+    }
+  });
+
+  test("a reopened JSONL storage has the latest record, and takes another put and delete", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "better-fs-tools-durable-storage-"));
+    try {
+      const open = () => openNodeJsonlStorage(directory, context);
+      const first = await runStoreCalls(await open(), [{ put: "first" }, { put: "second" }]);
+      await first.harness.close(context);
+
+      const second = await runStoreCalls(await open(), [{ put: "third" }]);
+      expect(second.results.map(({ isError, text }) => [isError, text])).toEqual([
+        [false, "first"],
+        [false, "second"],
+        [false, "third"],
+      ]);
+      await second.harness.close(context);
+
+      const third = await runStoreCalls(await open(), [{}]);
+      try {
+        expect(third.results.at(-1)).toMatchObject({ isError: false, text: "none" });
+        expect(await third.stored()).toBe(null);
+      } finally {
+        await third.harness.close(context);
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("an edit replaces the record of the read, so a second edit needs no new read", async () => {
+    const cwd = await fixture({ "a.txt": "one\n" });
+    const harness = await openHarness(
+      new MemoryStorage(),
+      [
+        ["read", { path: "a.txt" }],
+        ["edit", { path: "a.txt", old_string: "one", new_string: "two, longer" }],
+        ["edit", { path: "a.txt", old_string: "two, longer", new_string: "three" }],
+      ],
+      [createDurableFsTools({ fs: durableEnvFileSystem(), state: documentReadStore() })],
+    );
+    try {
+      const root = await run(harness, cwd, "change it twice");
+      const results = await toolResults(root);
+      expect(results.map((result) => [result.tool, result.isError])).toEqual([
+        ["read", false],
+        ["edit", false],
+        ["edit", false],
+      ]);
+      expect(await readFile(path.join(cwd, "a.txt"), "utf8")).toBe("three\n");
+      const key = `node:local:${path.join(cwd, "a.txt")}`;
+      const doc = await harness.snapshot(ReadStateDoc, root.id, key, context);
+      expect(doc?.record).toMatchObject({ origin: "write" });
+    } finally {
+      await harness.close(context);
+    }
   });
 });
