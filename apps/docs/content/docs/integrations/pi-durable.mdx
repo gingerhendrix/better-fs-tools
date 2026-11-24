@@ -5,7 +5,7 @@ description: Replace the read, edit, and write tools of the experimental @earend
 
 <Callout type="warn">
   `@earendil-works/pi-durable` is experimental. Its API can change in each release.
-  `@better-fs-tools/pi-durable` follows pi-durable 1.2, and its peer range is `~1.2.0`. Check this
+  `@better-fs-tools/pi-durable` follows pi-durable 1.6, and its peer range is `~1.6.0`. Check this
   page again before you update pi-durable.
 </Callout>
 
@@ -18,10 +18,10 @@ Each tool call is a durable task. The Harness stores the intent of the call befo
 ## Install
 
 ```sh
-npm install @better-fs-tools/pi-durable @better-fs-tools/shell @earendil-works/pi-durable@~1.2.0 @earendil-works/chord@~1.2.0 typebox
+npm install @better-fs-tools/pi-durable @better-fs-tools/shell @earendil-works/pi-durable@~1.6.0 @earendil-works/chord@~1.6.0 typebox
 ```
 
-`@earendil-works/pi-durable` (`~1.2.0`), `@earendil-works/chord` (`~1.2.0`), and `typebox` (`^1.3.16`) are required peers. The package imports no `node:` module. `@better-fs-tools/shell` gives `shellEnv()` for the bash tool. The Harness example below also uses `@earendil-works/pi-ai` for the models.
+`@earendil-works/pi-durable` (`~1.6.0`), `@earendil-works/chord` (`~1.6.0`), and `typebox` (`^1.3.16`) are required peers. The package imports no `node:` module. `@better-fs-tools/shell` gives `shellEnv()` for the bash tool. The Harness example below also uses `@earendil-works/pi-ai` for the models.
 
 ## Recommended configuration
 

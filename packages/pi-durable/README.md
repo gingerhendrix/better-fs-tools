@@ -4,7 +4,7 @@
 
 Better FS Tools for [`@earendil-works/pi-durable`](https://www.npmjs.com/package/@earendil-works/pi-durable), the experimental durable harness of Pi. It replaces the `read`, `edit`, and `write` of `CodingTools`, and can add `apply_patch` and `bash`. Each call reads and writes through the call's execution environment, so the tools work on the local machine, over SSH with `@earendil-works/pi-env`, and in a container.
 
-`@earendil-works/pi-durable` is experimental. Its API can change in each release. This package follows pi-durable 1.2.
+`@earendil-works/pi-durable` is experimental. Its API can change in each release. This package follows pi-durable 1.6.
 
 ## Install
 
@@ -12,7 +12,7 @@ Better FS Tools for [`@earendil-works/pi-durable`](https://www.npmjs.com/package
 npm install @better-fs-tools/pi-durable @earendil-works/pi-durable @earendil-works/chord typebox
 ```
 
-`@earendil-works/pi-durable` (`~1.2.0`), `@earendil-works/chord` (`~1.2.0`), and `typebox` (`^1.3.16`) are required peers. The package imports no `node:` module.
+`@earendil-works/pi-durable` (`~1.6.0`), `@earendil-works/chord` (`~1.6.0`), and `typebox` (`^1.3.16`) are required peers. The package imports no `node:` module.
 
 ## Example
 
