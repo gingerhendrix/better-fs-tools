@@ -35,8 +35,8 @@ export const RULES: Readonly<Record<string, PackageRule>> = {
   "pi-durable": {
     dependencies: ["fs", "read", "write", "shell"],
     peers: {
-      "@earendil-works/chord": "~1.2.0",
-      "@earendil-works/pi-durable": "~1.2.0",
+      "@earendil-works/chord": "~1.6.0",
+      "@earendil-works/pi-durable": "~1.6.0",
       typebox: "^1.3.16",
     },
     node: false,
