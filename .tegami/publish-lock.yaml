@@ -1,6 +1,6 @@
 core:changelogs:
-  - content: "---\npackages:\n  \"@better-fs-tools/write\":\n    type: patch\n---\n\n## `apply_patch` accepts a hunk whose `@@` line is the line it changes\n\nA model often writes the line it changes as the `@@` header:\n\n```text\n@@ target: A−B\n-target: A−B\n+target: A-B\n```\n\nCodex looks for the old lines only below the `@@` line, so this hunk always failed. Now, when the old lines are not found below the `@@` line, `apply_patch` also tries them at the `@@` line itself, and takes that hit only when it starts there. A hunk whose first context line repeats the header works the same way. Hunks that matched before match at the same place.\n\nA hunk that still does not match now says where the search started, for example `failed to find the expected lines at line 2, where the @@ line matched, or from line 3 on`. `patchLinesNotFound` gets two optional arguments, `from` and `context`, so host messages keep working.\n\n## The `fuzzy-match` note says what the tool wrote\n\nThe note after a loose match ended with \"Check the result.\" In the evals, that sentence made a model rewrite a correct CRLF edit with LF line ends. The note now says what the tool did for that hit, for example `The edit is applied. 1 line kept the file's CRLF line end.` It names kept characters, kept CRLF line ends, or lines that the matcher changed, only when they took place. The note code `fuzzy-match` and its severity do not change. `fuzzyMatch` and `patchFuzzyMatch` get an optional `written` argument with the counts, and the `FuzzyWrite` type is exported.\n"
-    filename: patch-anchor-and-loose-note.md
+  - content: "---\npackages:\n  \"@better-fs-tools/pi-durable\":\n    type: minor\n---\n\n## pi-durable needs pi 1.6\n\n**Peer ranges.** `@earendil-works/pi-durable` and `@earendil-works/chord` are now `~1.6.0`. pi 1.2, 1.3, 1.4, and 1.5 are not supported. To keep pi 1.2, stay on `@better-fs-tools/pi-durable` 0.3.\n\n**Read records update again.** On pi 1.4 and later, `documentReadStore()` stored the first read record of a path, and each later change of that record failed. The tools hid the error, so the record stayed stale, and an `edit` after an earlier `edit` of the same file was refused. `ReadStateDoc` now sets the `checkpointWhen` predicate that pi 1.4 made required, so a put or a delete replaces the record. Each change is stored as a complete record.\n"
+    filename: pi-durable-1-6.md
     v: 0.0.0
 core:packages:
   - id: npm:@better-fs-tools/ai-sdk
@@ -17,15 +17,15 @@ core:packages:
     updated: true
   - id: npm:@better-fs-tools/pi
     updated: true
-  - id: npm:@better-fs-tools/pi-durable
+  - changelogIds:
+      - pi-durable-1-6.md
+    id: npm:@better-fs-tools/pi-durable
     updated: true
   - id: npm:@better-fs-tools/read
     updated: true
   - id: npm:@better-fs-tools/shell
     updated: true
-  - changelogIds:
-      - patch-anchor-and-loose-note.md
-    id: npm:@better-fs-tools/write
+  - id: npm:@better-fs-tools/write
     updated: true
 npm:packages:
   - id: npm:@better-fs-tools/ai-sdk
@@ -39,3 +39,4 @@ npm:packages:
   - id: npm:@better-fs-tools/read
   - id: npm:@better-fs-tools/shell
   - id: npm:@better-fs-tools/write
+  - id: npm:@better-fs-tools/examples
