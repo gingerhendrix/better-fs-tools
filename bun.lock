@@ -47,7 +47,7 @@
     },
     "examples": {
       "name": "@better-fs-tools/examples",
-      "version": "0.0.3",
+      "version": "0.0.4",
       "dependencies": {
         "@better-fs-tools/ai-sdk": "workspace:^",
         "@better-fs-tools/cloudflare-computer": "workspace:^",
@@ -72,7 +72,7 @@
     },
     "packages/ai-sdk": {
       "name": "@better-fs-tools/ai-sdk",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@better-fs-tools/read": "workspace:^",
         "@better-fs-tools/shell": "workspace:^",
@@ -91,7 +91,7 @@
     },
     "packages/cloudflare-computer": {
       "name": "@better-fs-tools/cloudflare-computer",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@better-fs-tools/fs": "workspace:^",
       },
@@ -103,7 +103,7 @@
     },
     "packages/cloudflare-shell": {
       "name": "@better-fs-tools/cloudflare-shell",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@better-fs-tools/fs": "workspace:^",
       },
@@ -115,11 +115,11 @@
     },
     "packages/fs": {
       "name": "@better-fs-tools/fs",
-      "version": "0.3.1",
+      "version": "0.4.0",
     },
     "packages/just-bash": {
       "name": "@better-fs-tools/just-bash",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@better-fs-tools/fs": "workspace:^",
         "@better-fs-tools/shell": "workspace:^",
@@ -135,7 +135,7 @@
     },
     "packages/node": {
       "name": "@better-fs-tools/node",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@better-fs-tools/fs": "workspace:^",
         "@better-fs-tools/read": "workspace:^",
@@ -145,7 +145,7 @@
     },
     "packages/pi": {
       "name": "@better-fs-tools/pi",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@better-fs-tools/node": "workspace:^",
         "@better-fs-tools/read": "workspace:^",
@@ -165,7 +165,7 @@
     },
     "packages/pi-durable": {
       "name": "@better-fs-tools/pi-durable",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@better-fs-tools/fs": "workspace:^",
         "@better-fs-tools/read": "workspace:^",
@@ -186,7 +186,7 @@
     },
     "packages/read": {
       "name": "@better-fs-tools/read",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@better-fs-tools/fs": "workspace:^",
       },
@@ -196,7 +196,7 @@
     },
     "packages/shell": {
       "name": "@better-fs-tools/shell",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@better-fs-tools/fs": "workspace:^",
         "@better-fs-tools/read": "workspace:^",
@@ -204,7 +204,7 @@
     },
     "packages/write": {
       "name": "@better-fs-tools/write",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "dependencies": {
         "@better-fs-tools/fs": "workspace:^",
         "@better-fs-tools/read": "workspace:^",
